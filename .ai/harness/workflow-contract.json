@@ -16,6 +16,20 @@
       "hostDriftPolicy": "report-per-host-version-staging-and-upstream-drift"
     }
   },
+  "agenticDevelopment": {
+    "routing": {
+      "productDiscovery": "gstack:office-hours",
+      "complexEngineeringPlan": "gstack:plan-eng-review",
+      "designPlan": "gstack:plan-design-review",
+      "smallOrMediumPlan": "waza:think",
+      "bugOrRegression": "waza:hunt",
+      "postImplementationReview": "waza:check"
+    },
+    "dueDiligence": {
+      "levels": ["P1_GLOBAL_ARCHITECTURE", "P2_DATA_FLOW_TRACE", "P3_DESIGN_DECISION"],
+      "explicitReportRequiredFor": ["plan-eng-review", "hunt", "risky_refactor", "deployment", "auth_payment_data", "shared_contract"]
+    }
+  },
   "helpers": {
     "scripts": [
       "new-spec.sh",
@@ -91,6 +105,7 @@
       ".ai/context/context-map.json",
       ".ai/harness/policy.json",
       ".ai/harness/workflow-contract.json",
+      "docs/reference-configs/agentic-development-flow.md",
       "docs/reference-configs/external-tooling.md"
     ],
     "runtimeFiles": [

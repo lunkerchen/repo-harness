@@ -179,9 +179,9 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/lib/memory-state.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/memory-intake.sh"))).toBe(false);
-      expect(existsSync(join(repo, ".claude/hooks/run-hook.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".claude/hooks/finalize-handoff.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".claude/hooks/session-start-context.sh"))).toBe(true);
+      expect(existsSync(join(repo, ".claude/hooks/run-hook.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".claude/hooks/finalize-handoff.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".claude/hooks/session-start-context.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/hook-input.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/lib/workflow-state.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/lib/session-state.sh"))).toBe(false);
@@ -194,11 +194,9 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, "docs/reference-configs/harness-overview.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/reference-configs/hook-operations.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/reference-configs/evaluator-rubric.md"))).toBe(true);
+      expect(existsSync(join(repo, "docs/reference-configs/agentic-development-flow.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/reference-configs/external-tooling.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/reference-configs/sprint-contracts.md"))).toBe(true);
-      expect(existsSync(join(repo, ".claude/hooks/lib/skill-factory.sh"))).toBe(false);
-      expect(existsSync(join(repo, ".claude/hooks/lib/memory-state.sh"))).toBe(false);
-      expect(existsSync(join(repo, ".claude/hooks/memory-intake.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/skill-factory/rubric.template.json"))).toBe(false);
       expect(existsSync(join(repo, ".claude/skill-factory/registry.json"))).toBe(false);
 
@@ -236,6 +234,14 @@ describe("Migration script contract", () => {
       expect(policy.external_tooling.waza.primary_host).toBe("codex");
       expect(policy.external_tooling.waza.sync_mode).toBe("stage-upstream-then-copy-to-codex");
       expect(policy.external_tooling.gbrain.mcp).toBe("candidate-disabled");
+      expect(policy.agentic_development.routing).toEqual({
+        product_discovery: "gstack:office-hours",
+        complex_engineering_plan: "gstack:plan-eng-review",
+        design_plan: "gstack:plan-design-review",
+        small_or_medium_plan: "waza:think",
+        bug_or_regression: "waza:hunt",
+        post_implementation_review: "waza:check",
+      });
       expect(policy.context_budget.status_file).toBe(".ai/harness/context-budget/latest.json");
       expect(policy.handoff_resume.resume_packet_file).toBe(".ai/harness/handoff/resume.md");
       expect(policy.sidecar_research.main_thread_policy).toContain("consume conclusions");
@@ -245,6 +251,8 @@ describe("Migration script contract", () => {
       expect(workflowContract.helpers.scripts).toContain("check-context-files.sh");
       expect(workflowContract.helpers.scripts).toContain("maintenance-triage.sh");
       expect(workflowContract.helpers.scripts).toContain("context-budget.ts");
+      expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
+      expect(workflowContract.agenticDevelopment.routing.designPlan).toBe("gstack:plan-design-review");
       expect(workflowContract.artifacts.requiredFiles).not.toContain(".ai/harness/checks/latest.json");
       expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/checks/latest.json");
 
@@ -275,6 +283,10 @@ describe("Migration script contract", () => {
       writeFileSync(join(repo, "scripts/skill-factory-check.sh"), "#!/bin/bash\necho check\n");
       writeFileSync(join(repo, ".ai/hooks/lib/skill-factory.sh"), "#!/bin/bash\necho legacy\n");
       writeFileSync(join(repo, ".ai/hooks/memory-intake.sh"), "#!/bin/bash\necho legacy\n");
+      writeFileSync(join(repo, ".claude/hooks/run-hook.sh"), "#!/bin/bash\necho generated shim\n");
+      writeFileSync(join(repo, ".claude/hooks/finalize-handoff.sh"), "#!/bin/bash\necho generated shim\n");
+      writeFileSync(join(repo, ".claude/hooks/session-start-context.sh"), "#!/bin/bash\necho generated shim\n");
+      writeFileSync(join(repo, ".claude/hooks/custom-bash.sh"), "#!/bin/bash\necho custom\n");
       writeFileSync(join(repo, ".claude/hooks/hook-input.sh"), "#!/bin/bash\necho legacy\n");
       writeFileSync(join(repo, ".claude/hooks/lib/workflow-state.sh"), "#!/bin/bash\necho legacy\n");
       writeFileSync(join(repo, ".claude/hooks/lib/session-state.sh"), "#!/bin/bash\necho legacy\n");
@@ -314,6 +326,10 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, "scripts/skill-factory-check.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/memory-intake.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".claude/hooks/run-hook.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".claude/hooks/finalize-handoff.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".claude/hooks/session-start-context.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".claude/hooks/custom-bash.sh"))).toBe(true);
       expect(existsSync(join(repo, ".claude/hooks/hook-input.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/lib/workflow-state.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/lib/session-state.sh"))).toBe(false);
@@ -365,6 +381,42 @@ describe("Migration script contract", () => {
       expect(policy.external_tooling.waza.primary_host).toBe("codex");
       expect(policy.external_tooling.waza.staging_cache_path).toBe("~/.agents/skills");
       expect(policy.external_tooling.gbrain.mcp).toBe("configured");
+      expect(policy.agentic_development.routing.complex_engineering_plan).toBe("gstack:plan-eng-review");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  test("should normalize partial tasks-first repos that still have a legacy tasks/todo.md", () => {
+    const repo = mkdtempSync(join(tmpdir(), "migration-partial-tasks-"));
+    try {
+      mkdirSync(join(repo, "docs"), { recursive: true });
+      mkdirSync(join(repo, "tasks"), { recursive: true });
+      writeFileSync(join(repo, "tasks/todo.md"), "# Old Todo\n\n- [ ] existing task\n");
+      writeFileSync(join(repo, "docs/TODO.md"), "- [ ] docs task\n");
+      writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", scripts: {} }, null, 2));
+
+      const res = spawnSync(
+        "bash",
+        ["scripts/migrate-project-template.sh", "--repo", repo, "--apply"],
+        { cwd: ROOT, encoding: "utf-8" }
+      );
+
+      expect(res.status).toBe(0);
+      expect(existsSync(join(repo, "tasks/archive/legacy-tasks-todo.md"))).toBe(true);
+      expect(existsSync(join(repo, "tasks/archive/legacy-docs-TODO.md"))).toBe(true);
+
+      const todo = readFileSync(join(repo, "tasks/todo.md"), "utf-8");
+      expect(todo).toContain("**Source Plan**: (none)");
+      expect(todo).toContain("Review imported legacy checklist below");
+      expect(todo).not.toContain("Legacy Imported Task Checklist");
+      expect(todo).not.toContain("existing task");
+      expect(todo).not.toContain("docs task");
+
+      const legacyTasksTodo = readFileSync(join(repo, "tasks/archive/legacy-tasks-todo.md"), "utf-8");
+      expect(legacyTasksTodo).toContain("existing task");
+      const legacyDocsTodo = readFileSync(join(repo, "tasks/archive/legacy-docs-TODO.md"), "utf-8");
+      expect(legacyDocsTodo).toContain("docs task");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

@@ -43,6 +43,7 @@ describe("Bootstrap Script Contracts", () => {
 
     expect(claude).toContain("tasks/todo.md");
     expect(claude).toContain(".ai/hooks/");
+    expect(claude).toContain("agentic-development-flow.md");
     expect(claude).toContain("external-tooling.md");
     expect(claude).toContain("gstack");
     expect(agents).toContain("tasks/todo.md");
@@ -103,7 +104,9 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.artifacts.requiredFiles).not.toContain(".ai/harness/context-budget/latest.json");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/handoff/resume.md");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/context-budget/latest.json");
+    expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
+    expect(contract.agenticDevelopment.routing.productDiscovery).toBe("gstack:office-hours");
     expect(sharedLib).not.toContain(".skill-factory-state.json");
     expect(sharedLib).not.toContain(".memory-context.json");
     expect(sharedLib).not.toContain(".memory-snapshot.json");
@@ -148,6 +151,8 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("codex-handoff-resume.sh");
     expect(contract.helpers.scripts).toContain("check-agent-tooling.sh");
     expect(contract.helpers.scripts).toContain("check-context-files.sh");
+    expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
+    expect(contract.agenticDevelopment.routing.postImplementationReview).toBe("waza:check");
     expect(content).not.toContain("pi_install_skill_factory");
     expect(sharedLib).not.toContain("skill-factory-create.sh");
     expect(sharedLib).not.toContain("skill-factory-check.sh");

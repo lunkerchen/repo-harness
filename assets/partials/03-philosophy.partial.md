@@ -26,6 +26,7 @@ BUG_FIX_FLOW:
 
 Detailed playbooks:
 - `docs/reference-configs/harness-overview.md`
+- `docs/reference-configs/agentic-development-flow.md`
 - `docs/reference-configs/sprint-contracts.md`
 
 ---

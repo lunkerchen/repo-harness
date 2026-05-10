@@ -10,8 +10,6 @@ Start with the shortest truth path:
 1. `.claude/settings.json` wires Claude events into the repo-local hook runner.
 2. `.ai/hooks/run-hook.sh` resolves the repo root and dispatches the selected hook.
 3. `.ai/hooks/*` is the shared implementation layer and the default place to edit.
-4. `.claude/hooks/*` is a compatibility shim layer. Touch it only when the adapter
-   path itself is broken or a legacy caller depends on shim behavior.
 
 If you are asking "which hook file should I edit?", default to `.ai/hooks/`.
 
@@ -42,11 +40,10 @@ bash scripts/summarize-failures.sh --run-id <run_id>
 | `ContractGuard` | Completion was claimed without a contract, or contract verification failed | Create or regenerate `tasks/contracts/<slug>.contract.md`, then run `bash scripts/verify-contract.sh --contract tasks/contracts/<slug>.contract.md --strict` |
 | `WorktreeGuard` | Writes were attempted from the primary worktree while `.claude/.require-worktree` is enforced | `git worktree add ../<repo>-wt-<branch> -b <branch>` and retry from the linked worktree |
 
-## When to Check Tests, Migration, or Shims
+## When to Check Tests or Migration
 
 - Check `tests/` when the hook output is wrong or the workflow contract no longer matches expected behavior.
 - Check `scripts/migrate-project-template.sh` and `scripts/create-project-dirs.sh` when generated repos receive the wrong files or stale wiring.
-- Check `.claude/hooks/*` only when the compatibility shim, adapter dispatch, or legacy entrypoint is the thing that failed.
 
 ## Self-Host vs Generated Parity Contract
 

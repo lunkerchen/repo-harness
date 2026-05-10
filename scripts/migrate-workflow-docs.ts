@@ -64,6 +64,10 @@ function appendIfMissing(target: string, marker: string, block: string, mode: Mo
   return true;
 }
 
+function hasCanonicalTodoHeader(content: string): boolean {
+  return /^\> \*\*Source Plan\*\*:/m.test(content);
+}
+
 function writeCanonicalTodo(target: string, mode: Mode, executionItems?: string[]) {
   if (existsSync(target)) return;
   const taskLines =
@@ -85,6 +89,47 @@ function writeCanonicalTodo(target: string, mode: Mode, executionItems?: string[
     ensureDir(dirname(target), mode);
     writeFileSync(target, `${content}\n`);
   }
+}
+
+function normalizeLegacyTodo(target: string, archivePath: string, mode: Mode) {
+  if (!existsSync(target)) return false;
+
+  const existing = readFileSync(target, "utf-8");
+  if (hasCanonicalTodoHeader(existing)) return false;
+
+  const content = [
+    "# Task Execution Checklist (Primary)",
+    "",
+    "> **Source Plan**: (none)",
+    "> **Status**: Idle",
+    "> Generate the next execution checklist from an approved plan with:",
+    ">   bash scripts/plan-to-todo.sh --plan plans/plan-YYYYMMDD-HHMM-slug.md",
+    "",
+    "## Execution",
+    "- [ ] Review imported legacy checklist below",
+    "",
+    "## Legacy Imported Task Checklist",
+    "",
+    "<!-- project-initializer: legacy-tasks-todo-import -->",
+    "",
+    existing.trimEnd(),
+    "",
+    "## Review Section",
+    "- Verification evidence:",
+    "- Behavior diff notes:",
+    "- Risks / follow-ups:",
+  ].join("\n");
+
+  if (mode === "apply") {
+    ensureDir(dirname(target), mode);
+    ensureDir(dirname(archivePath), mode);
+    if (!existsSync(archivePath)) {
+      writeFileSync(archivePath, `${existing.trimEnd()}\n`);
+    }
+    writeFileSync(target, `${content}\n`);
+  }
+
+  return true;
 }
 
 function writeCanonicalResearch(target: string, mode: Mode) {
@@ -170,15 +215,24 @@ export function migrate(repo: string, mode: Mode): MigrationSummary {
   const legacyPlanArchive = join(plansArchive, "legacy-docs-plan.md");
   const legacyTodoArchive = join(tasksArchive, "legacy-docs-TODO.md");
   const legacyProgressArchive = join(tasksArchive, "legacy-docs-PROGRESS.md");
+  const legacyTasksTodoArchive = join(tasksArchive, "legacy-tasks-todo.md");
   const legacyContractDoc = join(repo, "docs", "contract.md");
   const legacyReviewDoc = join(repo, "docs", "review.md");
   const legacyHandoffDoc = join(repo, "docs", "handoff.md");
   const rootHandoffDoc = join(repo, "HANDOFF.md");
 
-  writeCanonicalTodo(tasksTodo, mode);
-  writeCanonicalResearch(tasksResearch, mode);
   ensureDir(plansArchive, mode);
   ensureDir(tasksArchive, mode);
+  writeCanonicalTodo(tasksTodo, mode);
+  if (normalizeLegacyTodo(tasksTodo, legacyTasksTodoArchive, mode)) {
+    summary.migrated.push({
+      source: "tasks/todo.md",
+      target: "tasks/todo.md",
+      action: "rewrite",
+      note: "Normalized legacy task checklist format to the canonical tasks-first header while preserving the prior content.",
+    });
+  }
+  writeCanonicalResearch(tasksResearch, mode);
 
   if (existsSync(planDoc)) {
     const content = readFileSync(planDoc, "utf-8");

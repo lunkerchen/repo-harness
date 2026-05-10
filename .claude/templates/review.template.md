@@ -7,6 +7,12 @@
 > **Last Updated**: {{TIMESTAMP}}
 > **Recommendation**: fail
 
+## Mode Evidence
+
+- Selected route:
+- P1/P2/P3 evidence:
+- Root cause or plan evidence:
+
 ## Verification Evidence
 
 - Commands run:

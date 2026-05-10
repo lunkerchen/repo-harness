@@ -8,6 +8,14 @@
 > **Sprint Contract**: `tasks/contracts/{{SLUG}}.contract.md`
 > **Sprint Review**: `tasks/reviews/{{SLUG}}.review.md`
 
+## Agentic Routing
+- Selected route:
+- Routing reason:
+- Due diligence:
+  - P1 map:
+  - P2 trace:
+  - P3 decision rationale:
+
 ## Approach
 ### Strategy
 ### Trade-offs

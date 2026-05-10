@@ -23,9 +23,7 @@ function tmpWorkspace(prefix: string): string {
 }
 
 function installHooks(cwd: string): string {
-  const hooksDir = join(cwd, ".claude", "hooks");
   const aiHooksDir = join(cwd, ".ai", "hooks");
-  mkdirSync(hooksDir, { recursive: true });
   mkdirSync(aiHooksDir, { recursive: true });
   for (const f of readdirSync(ASSETS_HOOKS_DIR, { withFileTypes: true })) {
     const src = join(ASSETS_HOOKS_DIR, f.name);
@@ -34,40 +32,15 @@ function installHooks(cwd: string): string {
       continue;
     } else {
       copyFileSync(src, join(aiHooksDir, f.name));
-      if (f.name === "hook-input.sh") {
-        continue;
-      }
-
-      writeFileSync(
-        join(hooksDir, f.name),
-        [
-          "#!/bin/bash",
-          "set -euo pipefail",
-          "",
-          'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
-          'REPO_ROOT="${HOOK_REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"',
-          `TARGET="$REPO_ROOT/.ai/hooks/${f.name}"`,
-          "",
-          'if [[ ! -f "$TARGET" ]]; then',
-          '  echo "[HookShim] Shared hook not found: $TARGET" >&2',
-          "  exit 1",
-          "fi",
-          "",
-          'export HOOK_REPO_ROOT="$REPO_ROOT"',
-          'exec bash "$TARGET" "$@"',
-          "",
-        ].join("\n"),
-        "utf-8"
-      );
     }
   }
-  for (const dir of [hooksDir, aiHooksDir]) {
+  for (const dir of [aiHooksDir]) {
     const res = spawnSync("sh", ["-c", `find "${dir}" -type f -name '*.sh' -exec chmod +x {} +`], {
       encoding: "utf-8",
     });
     expect(res.status).toBe(0);
   }
-  return hooksDir;
+  return aiHooksDir;
 }
 
 function writeValidSprintChecks(cwd: string) {
@@ -102,7 +75,7 @@ function runHook(
     args?: string[];
   }
 ) {
-  const hooksDir = join(cwd, ".claude", "hooks");
+  const hooksDir = join(cwd, ".ai", "hooks");
   return spawnSync("bash", [join(hooksDir, script), ...(options?.args ?? [])], {
     cwd,
     input: options?.stdin ?? "",
@@ -317,7 +290,7 @@ describe("Hook runtime behavior", () => {
       // Run atomic-pending from /tmp — hook should resolve to workspace via SCRIPT_DIR fallback
       const res = spawnSync(
         "bash",
-        [join(workspace, ".claude/hooks/atomic-pending.sh")],
+        [join(workspace, ".ai/hooks/atomic-pending.sh")],
         {
           cwd: tmpdir(),
           input: "",
@@ -402,43 +375,17 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("claude run-hook shim forwards to shared .ai hook dispatcher", () => {
-    const cwd = tmpWorkspace("run-hook-compat");
-    try {
-      initGitRepo(cwd);
-      installHooks(cwd);
-      mkdirSync(join(cwd, "apps/web"), { recursive: true });
-
-      const res = spawnSync(
-        "sh",
-        [
-          "-c",
-          'repo=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; HOOK_REPO_ROOT="$repo" bash "$repo/.claude/hooks/run-hook.sh" worktree-guard.sh',
-        ],
-        {
-          cwd: join(cwd, "apps/web"),
-          encoding: "utf-8",
-        }
-      );
-
-      expect(res.status).toBe(0);
-      expect(res.stdout).toContain("[WorktreeGuard]");
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  });
-
-  test("installHooks keeps Claude hooks as shims and .ai as implementation", () => {
+  test("installHooks copies nested lib helpers", () => {
     const cwd = tmpWorkspace("hook-lib-copy");
     try {
       const hooksDir = installHooks(cwd);
       expect(existsSync(join(cwd, ".ai/hooks/lib/workflow-state.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/lib/session-state.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/hook-input.sh"))).toBe(true);
-      expect(existsSync(join(hooksDir, "lib", "workflow-state.sh"))).toBe(false);
-      expect(existsSync(join(hooksDir, "lib", "session-state.sh"))).toBe(false);
-      expect(existsSync(join(hooksDir, "hook-input.sh"))).toBe(false);
       expect(existsSync(join(hooksDir, "lib", "skill-factory.sh"))).toBe(false);
+      expect(existsSync(join(hooksDir, "lib", "memory-state.sh"))).toBe(false);
+      expect(existsSync(join(cwd, ".claude/hooks/run-hook.sh"))).toBe(false);
+      expect(existsSync(join(cwd, ".claude/hooks/lib/workflow-state.sh"))).toBe(false);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

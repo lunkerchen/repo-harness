@@ -1,0 +1,42 @@
+# Agentic Development Flow
+
+Use this reference when choosing the daily agentic development mode. Keep the
+root prompt concise; this file owns the detailed routing.
+
+## Skill Routing
+
+| Work type | Default route | Output |
+|-----------|---------------|--------|
+| Product discovery, demand reality, "is this worth building" | gstack `office-hours` | Product direction or design doc before engineering planning |
+| Complex engineering plan, architecture lock-in, cross-module refactor | gstack `plan-eng-review` | Approved execution plan with architecture, data flow, edge cases, and tests |
+| UI/UX or design-system plan | gstack `plan-design-review` | Design critique and plan fixes before implementation |
+| Small or medium feature/fix plan | Waza `/think` | Concise approved plan, then implementation on request |
+| Bug, regression, error, crash, failing test | Waza `/hunt` | Root cause sentence with evidence before any fix |
+| Implemented diff, pre-merge, release follow-through | Waza `/check` | Review findings, safe fixes, verification, and shipment state |
+
+## Due Diligence Levels
+
+P1/P2/P3 is the shared due-diligence protocol underneath the routing.
+
+- `P1_GLOBAL_ARCHITECTURE`: identify real boundaries, entrypoints, owners, authoritative files, dependencies, and out-of-scope areas.
+- `P2_DATA_FLOW_TRACE`: walk one concrete route through requests, UI events, jobs, config, messages, or database values to the final output.
+- `P3_DESIGN_DECISION`: explain why the current shape exists, which invariant must stay true, and why the chosen change is the smallest coherent one.
+
+For small tasks, keep P1/P2/P3 internal and report only the result. For
+`plan-eng-review`, `/hunt`, risky refactors, deployments, auth/payment/data
+work, or shared contracts, report the P1/P2/P3 evidence explicitly.
+
+## Daily Flow
+
+1. Route the request by intent before reading broadly.
+2. Read the repo-local contract first: `AGENTS.md` or `CLAUDE.md`, `tasks/todo.md`, `tasks/lessons.md`, and `.ai/harness/policy.json`.
+3. Use the selected skill or mode to produce either an approved plan, a root cause, or a review verdict.
+4. Convert approved complex plans to `tasks/todo.md` before implementation.
+5. After substantive changes, run project checks and record evidence in `tasks/`.
+
+## Boundaries
+
+- Do not route large architecture decisions through Waza `/think` by default.
+- Do not use gstack plan review for routine local edits where `/think` or direct execution is enough.
+- Do not let hooks infer semantic intent. Hooks enforce file, contract, and verification state only.
+- Keep `office-hours` for product-demand shaping; use `plan-eng-review` when engineering execution needs to be locked.

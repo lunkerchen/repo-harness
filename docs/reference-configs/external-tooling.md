@@ -1,10 +1,11 @@
 # External Tooling
 
-Generated repos route external tooling by task shape:
+Generated repos route external tooling by host/runtime shape. Task-level
+skill routing lives in `docs/reference-configs/agentic-development-flow.md`.
 
-- `gstack` for complex planning, review, QA, release, and browser-first workflows
-- `Waza` for short implementation loops, debugging, read/write, and lightweight checks
-- `gbrain` for knowledge capture, repo sync, and handoff retrieval
+- `gstack` supplies `office-hours`, `plan-eng-review`, and `plan-design-review`
+- `Waza` supplies `/think`, `/hunt`, and `/check` for daily small/medium work
+- `gbrain` supports knowledge capture, repo sync, and handoff retrieval
 
 Waza is Codex-first in this contract. `~/.codex/skills` is the Codex runtime
 source, while `~/.agents/skills` is only the skills CLI staging/cache path used

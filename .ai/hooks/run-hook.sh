@@ -16,9 +16,6 @@ shift || true
 
 HOOK_PATH="$REPO_ROOT/.ai/hooks/$HOOK_NAME"
 if [[ ! -f "$HOOK_PATH" ]]; then
-  HOOK_PATH="$REPO_ROOT/.claude/hooks/$HOOK_NAME"
-fi
-if [[ ! -f "$HOOK_PATH" ]]; then
   echo "[HookRunner] Hook not found: $REPO_ROOT/.ai/hooks/$HOOK_NAME" >&2
   exit 1
 fi

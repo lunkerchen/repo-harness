@@ -50,8 +50,7 @@ before applying anything.
 
 - `.ai/hooks/` is the only shared hook implementation you should edit first.
 - `.claude/settings.json` is the Claude adapter that dispatches into `.ai/hooks/run-hook.sh`.
-- `.claude/hooks/` exists for compatibility shims and fallback dispatch only.
-- Debug in this order: `settings.json -> run-hook.sh -> .ai/hooks/* -> .claude/hooks/* only if compatibility is broken`.
+- Debug in this order: `settings.json -> run-hook.sh -> .ai/hooks/*`.
 
 ## Hook Failure Playbook
 
@@ -73,12 +72,12 @@ Most common guards:
 
 - Root routing docs: `CLAUDE.md`, `AGENTS.md`
 - Shared hook layer: `.ai/hooks/`
-- Claude adapter layer: `.claude/settings.json` and compatibility shims in `.claude/hooks/`
+- Claude adapter layer: `.claude/settings.json`
 - Active execution surface: `tasks/`
 - Plan source of truth: `plans/`
 - Milestone log only: `docs/PROGRESS.md`
 
-## Current Model (3.4.0)
+## Current Model (3.5.0)
 
 - Question flow uses **12 grouped decision points** with harness defaults inferred first.
 - Plan menu is tiered:

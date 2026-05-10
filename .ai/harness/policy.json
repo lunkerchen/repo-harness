@@ -32,7 +32,11 @@
   },
   "context_budget": {
     "status_file": ".ai/harness/context-budget/latest.json",
-    "source_priority": ["rollout_token_count", "state_thread", "tool_call_count"],
+    "source_priority": [
+      "rollout_token_count",
+      "state_thread",
+      "tool_call_count"
+    ],
     "zones": {
       "yellow": 0.55,
       "orange": 0.7,
@@ -56,7 +60,10 @@
   "sidecar_research": {
     "default": true,
     "output_file": "tasks/research.md",
-    "preferred_runners": ["subagent", "codex exec --json"],
+    "preferred_runners": [
+      "subagent",
+      "codex exec --json"
+    ],
     "main_thread_policy": "consume conclusions and evidence paths, not raw logs"
   },
   "profiles": {
@@ -81,7 +88,16 @@
     "waza": {
       "source_repo": "tw93/Waza",
       "source_url": "https://github.com/tw93/Waza.git",
-      "managed_skills": ["check", "design", "health", "hunt", "learn", "read", "think", "write"],
+      "managed_skills": [
+        "check",
+        "design",
+        "health",
+        "hunt",
+        "learn",
+        "read",
+        "think",
+        "write"
+      ],
       "primary_host": "codex",
       "codex_primary_path": "~/.codex/skills",
       "staging_cache_path": "~/.agents/skills",
@@ -90,6 +106,31 @@
     },
     "gbrain": {
       "mcp": "candidate-disabled"
+    }
+  },
+  "agentic_development": {
+    "routing": {
+      "product_discovery": "gstack:office-hours",
+      "complex_engineering_plan": "gstack:plan-eng-review",
+      "design_plan": "gstack:plan-design-review",
+      "small_or_medium_plan": "waza:think",
+      "bug_or_regression": "waza:hunt",
+      "post_implementation_review": "waza:check"
+    },
+    "due_diligence": {
+      "levels": [
+        "P1_GLOBAL_ARCHITECTURE",
+        "P2_DATA_FLOW_TRACE",
+        "P3_DESIGN_DECISION"
+      ],
+      "explicit_report_required_for": [
+        "plan-eng-review",
+        "hunt",
+        "risky_refactor",
+        "deployment",
+        "auth_payment_data",
+        "shared_contract"
+      ]
     }
   },
   "enforcement": {

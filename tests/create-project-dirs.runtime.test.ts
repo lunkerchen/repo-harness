@@ -25,6 +25,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "docs/reference-configs/harness-overview.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/hook-operations.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/evaluator-rubric.md"))).toBe(true);
+      expect(existsSync(join(cwd, "docs/reference-configs/agentic-development-flow.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/external-tooling.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/sprint-contracts.md"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/verify-contract.sh"))).toBe(true);
@@ -62,9 +63,9 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
       expect(existsSync(join(cwd, ".ai/hooks/lib/memory-state.sh"))).toBe(false);
       expect(existsSync(join(cwd, ".ai/hooks/memory-intake.sh"))).toBe(false);
-      expect(existsSync(join(cwd, ".claude/hooks/run-hook.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".claude/hooks/finalize-handoff.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".claude/hooks/session-start-context.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".claude/hooks/run-hook.sh"))).toBe(false);
+      expect(existsSync(join(cwd, ".claude/hooks/finalize-handoff.sh"))).toBe(false);
+      expect(existsSync(join(cwd, ".claude/hooks/session-start-context.sh"))).toBe(false);
       expect(existsSync(join(cwd, ".claude/hooks/hook-input.sh"))).toBe(false);
       expect(existsSync(join(cwd, ".claude/hooks/lib/workflow-state.sh"))).toBe(false);
       expect(existsSync(join(cwd, ".claude/hooks/lib/session-state.sh"))).toBe(false);
@@ -95,7 +96,10 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredFiles).not.toContain(".ai/harness/handoff/resume.md");
       expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/context-budget/latest.json");
       expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/handoff/resume.md");
+      expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
+      expect(workflowContract.agenticDevelopment.routing.complexEngineeringPlan).toBe("gstack:plan-eng-review");
+      expect(workflowContract.agenticDevelopment.routing.smallOrMediumPlan).toBe("waza:think");
       const contextMap = JSON.parse(readFileSync(join(cwd, ".ai/context/context-map.json"), "utf-8"));
       expect(contextMap.root_context_files).not.toContain("tasks/research.md");
       const policy = JSON.parse(readFileSync(join(cwd, ".ai/harness/policy.json"), "utf-8"));
@@ -110,6 +114,19 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.external_tooling.waza.managed_skills).toEqual(["check", "design", "health", "hunt", "learn", "read", "think", "write"]);
       expect(policy.external_tooling.waza.codex_primary_path).toBe("~/.codex/skills");
       expect(policy.external_tooling.gbrain.mcp).toBe("candidate-disabled");
+      expect(policy.agentic_development.routing).toEqual({
+        product_discovery: "gstack:office-hours",
+        complex_engineering_plan: "gstack:plan-eng-review",
+        design_plan: "gstack:plan-design-review",
+        small_or_medium_plan: "waza:think",
+        bug_or_regression: "waza:hunt",
+        post_implementation_review: "waza:check",
+      });
+      expect(policy.agentic_development.due_diligence.levels).toEqual([
+        "P1_GLOBAL_ARCHITECTURE",
+        "P2_DATA_FLOW_TRACE",
+        "P3_DESIGN_DECISION",
+      ]);
       expect(policy.context_budget.zones).toEqual({ yellow: 0.55, orange: 0.7, red: 0.8 });
       expect(policy.handoff_resume.auto_start_new_session).toBe(false);
       expect(policy.sidecar_research.output_file).toBe("tasks/research.md");

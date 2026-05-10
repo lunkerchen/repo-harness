@@ -30,6 +30,7 @@ done
 issues=0
 WORKFLOW_CONTRACT_PATH=".ai/harness/workflow-contract.json"
 policy_file=".ai/harness/policy.json"
+json_runtime=""
 
 report_issue() {
   local message="$1"
@@ -222,15 +223,20 @@ check_required_file "$policy_file"
 if [[ ! -f "$WORKFLOW_CONTRACT_PATH" ]]; then
   report_issue "Missing workflow contract manifest: $WORKFLOW_CONTRACT_PATH"
 else
-  while IFS= read -r rel_dir; do
-    [[ -z "$rel_dir" ]] && continue
-    check_required_dir "$rel_dir"
-  done < <(contract_query_lines "artifacts.requiredDirectories" || true)
+  json_runtime="$(resolve_json_runtime || true)"
+  if [[ -z "$json_runtime" ]]; then
+    report_issue "Missing node, bun, or python3 to read workflow contract manifest: $WORKFLOW_CONTRACT_PATH"
+  else
+    while IFS= read -r rel_dir; do
+      [[ -z "$rel_dir" ]] && continue
+      check_required_dir "$rel_dir"
+    done < <(contract_query_lines "artifacts.requiredDirectories")
 
-  while IFS= read -r rel_file; do
-    [[ -z "$rel_file" ]] && continue
-    check_required_file "$rel_file"
-  done < <(contract_query_lines "artifacts.requiredFiles" || true)
+    while IFS= read -r rel_file; do
+      [[ -z "$rel_file" ]] && continue
+      check_required_file "$rel_file"
+    done < <(contract_query_lines "artifacts.requiredFiles")
+  fi
 fi
 
 if [[ -f "docs/plan.md" ]]; then

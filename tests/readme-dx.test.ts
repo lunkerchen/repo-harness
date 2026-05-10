@@ -29,7 +29,6 @@ describe("README DX contract", () => {
     expect(firstFive).toContain("=== Migration Report ===");
     expect(firstFive).toContain("Project hooks synced from:");
     expect(hookAuthority).toContain(".ai/hooks/");
-    expect(hookAuthority).toContain(".claude/hooks/");
     expect(hookAuthority).toContain(".ai/hooks/run-hook.sh");
     expect(maintainer).toContain("bun scripts/assemble-template.ts --plan C --name \"MyProject\"");
   });

@@ -24,7 +24,9 @@
 - Todo archive: `tasks/archive/`.
 - Shared automation layer: `.ai/hooks/`.
 - Claude adapter layer: `.claude/settings.json` calls `.ai/hooks/run-hook.sh`.
-- External tooling routing: complex planning/review/QA/release/browser-first -> `gstack`; short implementation/debug/read-write checks -> `Waza`; knowledge sync/handoff retrieval -> `gbrain`.
+- Agentic skill routing: product discovery -> gstack `office-hours`; complex engineering plans -> gstack `plan-eng-review`; design plans -> gstack `plan-design-review`; daily small/medium planning, bug hunts, and checks -> Waza `/think`, `/hunt`, `/check`.
+- Knowledge sync and handoff retrieval -> `gbrain`.
+- External tooling reference: `docs/reference-configs/agentic-development-flow.md` for routing details, `docs/reference-configs/external-tooling.md` for install/update guidance.
 - Waza runtime boundary: Codex reads `~/.codex/skills`; `~/.agents/skills` is only skills CLI staging/cache and must be copied into Codex with verification after updates.
 - Advisory environment check: `bash scripts/check-agent-tooling.sh --host both --check-updates`.
 - After substantive repo changes, run `bash scripts/check-task-sync.sh` and `bash scripts/check-task-workflow.sh --strict`.

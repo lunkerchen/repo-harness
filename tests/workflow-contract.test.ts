@@ -63,7 +63,11 @@ describe("workflow contract manifest", () => {
     expect(contract.helpers.scripts).toContain("codex-handoff-resume.sh");
     expect(contract.externalTooling?.waza?.primaryHost).toBe("codex");
     expect(contract.externalTooling?.waza?.managedSkills).toContain("think");
+    expect(contract.agenticDevelopment?.routing.complexEngineeringPlan).toBe("gstack:plan-eng-review");
+    expect(contract.agenticDevelopment?.routing.bugOrRegression).toBe("waza:hunt");
+    expect(contract.agenticDevelopment?.dueDiligence.levels).toContain("P2_DATA_FLOW_TRACE");
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/workflow-contract.json");
+    expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).not.toContain(".ai/harness/handoff/resume.md");
     expect(contract.artifacts.requiredFiles).not.toContain(".ai/harness/context-budget/latest.json");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/handoff/resume.md");
@@ -115,6 +119,21 @@ describe("state inspection and legacy doc migration", () => {
     }
   });
 
+  test("inspector should prefer audit over skill-factory for initialized repos", () => {
+    const repo = mkdtempSync(join(tmpdir(), "inspect-project-state-audit-"));
+
+    try {
+      mkdirSync(join(repo, "plans"), { recursive: true });
+      mkdirSync(join(repo, "tasks"), { recursive: true });
+      mkdirSync(join(repo, ".claude", "skill-factory"), { recursive: true });
+
+      const result = inspectRepo(repo);
+      expect(result.mode).toBe("audit");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   test("legacy doc migrator should preserve content while normalizing workflow files", () => {
     const repo = mkdtempSync(join(tmpdir(), "migrate-workflow-docs-"));
 
@@ -143,6 +162,26 @@ describe("state inspection and legacy doc migration", () => {
 
       const progress = readFileSync(join(repo, "docs/PROGRESS.md"), "utf-8");
       expect(progress).toContain("milestone checkpoints only");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("legacy doc migrator should normalize pre-existing tasks/todo.md", () => {
+    const repo = mkdtempSync(join(tmpdir(), "migrate-workflow-docs-partial-"));
+
+    try {
+      mkdirSync(join(repo, "tasks"), { recursive: true });
+      writeFileSync(join(repo, "tasks/todo.md"), "# Old Todo\n\n- [ ] existing task\n");
+
+      const summary = migrate(repo, "apply");
+      expect(summary.migrated.some((item) => item.source === "tasks/todo.md" && item.action === "rewrite")).toBe(true);
+      expect(existsSync(join(repo, "tasks/archive/legacy-tasks-todo.md"))).toBe(true);
+
+      const todo = readFileSync(join(repo, "tasks/todo.md"), "utf-8");
+      expect(todo).toContain("**Source Plan**: (none)");
+      expect(todo).toContain("Legacy Imported Task Checklist");
+      expect(todo).toContain("existing task");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

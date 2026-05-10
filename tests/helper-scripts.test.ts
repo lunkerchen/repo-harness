@@ -857,6 +857,48 @@ describe("Workflow helper scripts", () => {
     }
   });
 
+  test("check-task-workflow should fail strict mode when no JSON runtime is available", () => {
+    const cwd = tmpWorkspace("helper-check-workflow-runtime");
+    try {
+      copyHelpers(cwd);
+      mkdirSync(join(cwd, "plans/archive"), { recursive: true });
+      mkdirSync(join(cwd, "tasks/archive"), { recursive: true });
+      mkdirSync(join(cwd, "tasks/contracts"), { recursive: true });
+      mkdirSync(join(cwd, "tasks/reviews"), { recursive: true });
+      mkdirSync(join(cwd, ".claude/templates"), { recursive: true });
+      mkdirSync(join(cwd, ".ai/harness/checks"), { recursive: true });
+      mkdirSync(join(cwd, ".ai/harness/handoff"), { recursive: true });
+      mkdirSync(join(cwd, "docs/reference-configs"), { recursive: true });
+
+      copyFileSync(join(TEMPLATE_DIR, "plan.template.md"), join(cwd, ".claude/templates/plan.template.md"));
+      copyFileSync(join(TEMPLATE_DIR, "research.template.md"), join(cwd, ".claude/templates/research.template.md"));
+      copyFileSync(join(TEMPLATE_DIR, "contract.template.md"), join(cwd, ".claude/templates/contract.template.md"));
+      copyFileSync(join(TEMPLATE_DIR, "spec.template.md"), join(cwd, ".claude/templates/spec.template.md"));
+      copyFileSync(join(TEMPLATE_DIR, "review.template.md"), join(cwd, ".claude/templates/review.template.md"));
+
+      writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
+      writeFileSync(join(cwd, "tasks/todo.md"), "# Task Execution Checklist (Primary)\n\n> **Source Plan**: (none)\n");
+      writeFileSync(join(cwd, "tasks/lessons.md"), "# Lessons\n");
+      writeFileSync(join(cwd, "tasks/research.md"), "# Research\n");
+      writeFileSync(join(cwd, "docs/PROGRESS.md"), "# Project Milestones\n\n> Use this file for milestone checkpoints only.\n");
+      writeFileSync(join(cwd, ".ai/harness/checks/latest.json"), "{}\n");
+      writeFileSync(join(cwd, ".ai/harness/handoff/current.md"), "# Harness Handoff\n");
+
+      const fakeBin = join(cwd, "fakebin");
+      mkdirSync(fakeBin, { recursive: true });
+      writeFileSync(join(fakeBin, "bash"), '#!/bin/bash\nexec /bin/bash "$@"\n');
+      expect(run("chmod", ["+x", join(fakeBin, "bash")], cwd).status).toBe(0);
+
+      const res = run("/bin/bash", ["scripts/check-task-workflow.sh", "--strict"], cwd, {
+        PATH: fakeBin,
+      });
+      expect(res.status).toBe(1);
+      expect(res.stdout).toContain("Missing node, bun, or python3");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("summarize-failures should aggregate failure_class and guard counts", () => {
     const cwd = tmpWorkspace("helper-summarize-failures");
     try {

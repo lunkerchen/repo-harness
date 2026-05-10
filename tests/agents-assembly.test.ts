@@ -43,6 +43,9 @@ describe("AGENTS Target Assembly", () => {
     expect(output).toContain(".claude/.require-worktree");
     expect(output).toContain(".ai/harness/policy.json");
     expect(output).toContain(".ai/context/context-map.json");
+    expect(output).toContain("Agentic skill routing");
+    expect(output).toContain("gstack `plan-eng-review`");
+    expect(output).toContain("Waza `/think`, `/hunt`, `/check`");
     expect(output).toContain("single source of truth for the current active plan");
     expect(output).toContain("new-spec.sh");
     expect(output).toContain("new-sprint.sh");
@@ -75,6 +78,8 @@ describe("AGENTS Target Assembly", () => {
     expect(agents.toLowerCase()).toContain("single source of truth");
     expect(claude).toContain("RECOVERY: hybrid");
     expect(agents).toContain("Recovery profile: `hybrid`.");
+    expect(claude).toContain("gstack `plan-eng-review`");
+    expect(agents).toContain("gstack `plan-eng-review`");
   });
 
   test("should render cloudflare section for both targets when enabled by plan", () => {

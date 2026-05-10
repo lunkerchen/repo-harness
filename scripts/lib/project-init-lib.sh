@@ -750,6 +750,20 @@ pi_write_harness_policy() {
       "mcp": "$(pi_external_tooling_gbrain_mcp)"
     }
   },
+  "agentic_development": {
+    "routing": {
+      "product_discovery": "gstack:office-hours",
+      "complex_engineering_plan": "gstack:plan-eng-review",
+      "design_plan": "gstack:plan-design-review",
+      "small_or_medium_plan": "waza:think",
+      "bug_or_regression": "waza:hunt",
+      "post_implementation_review": "waza:check"
+    },
+    "due_diligence": {
+      "levels": ["P1_GLOBAL_ARCHITECTURE", "P2_DATA_FLOW_TRACE", "P3_DESIGN_DECISION"],
+      "explicit_report_required_for": ["plan-eng-review", "hunt", "risky_refactor", "deployment", "auth_payment_data", "shared_contract"]
+    }
+  },
   "enforcement": {
     "worktree_guard": "warn-by-default",
     "verification_gate": "contract-and-review",

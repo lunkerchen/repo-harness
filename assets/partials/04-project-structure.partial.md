@@ -21,6 +21,7 @@
 - Keep stable product truth in `docs/spec.md`.
 - Keep sprint done definitions in `tasks/contracts/` and `tasks/reviews/`.
 - Keep resumable state in `.ai/harness/handoff/current.md`.
-- Route complex planning/review/QA/release/browser-first work to `gstack`, short implementation/debug/read-write checks to `Waza`, and knowledge sync/handoff retrieval to `gbrain`.
+- Route product discovery to gstack `office-hours`, complex engineering plans to gstack `plan-eng-review`, design plans to gstack `plan-design-review`, and daily small/medium planning, bug hunts, and checks to Waza `/think`, `/hunt`, and `/check`.
+- Route knowledge sync and handoff retrieval to `gbrain`.
 - Treat Waza as Codex-first: `~/.codex/skills` is the Codex runtime source; `~/.agents/skills` is skills CLI staging/cache only.
-- Use `docs/reference-configs/external-tooling.md` and `bash scripts/check-agent-tooling.sh --host both --check-updates` for advisory environment checks.
+- Use `docs/reference-configs/agentic-development-flow.md` for routing details and `docs/reference-configs/external-tooling.md` plus `bash scripts/check-agent-tooling.sh --host both --check-updates` for advisory environment checks.

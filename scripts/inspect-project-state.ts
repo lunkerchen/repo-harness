@@ -51,9 +51,9 @@ function detectMode(repo: string): Mode {
     existsSync(join(repo, ".ai", "hooks", "memory-intake.sh")) ||
     existsSync(join(repo, ".ai", "hooks", "skill-factory-session-end.sh"));
 
+  if (hasTasks && hasPlan) return "audit";
   if (hasLegacyDocs || hasLegacySkillFactory) return "migrate";
   if (!hasTasks && !hasPlan && !hasLegacyDocs) return "initialize";
-  if (hasTasks && hasPlan) return "audit";
   return "repair";
 }
 

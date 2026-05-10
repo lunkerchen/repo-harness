@@ -20,6 +20,20 @@ export type WorkflowContract = {
       hostDriftPolicy: string;
     };
   };
+  agenticDevelopment?: {
+    routing: {
+      productDiscovery: string;
+      complexEngineeringPlan: string;
+      designPlan: string;
+      smallOrMediumPlan: string;
+      bugOrRegression: string;
+      postImplementationReview: string;
+    };
+    dueDiligence: {
+      levels: string[];
+      explicitReportRequiredFor: string[];
+    };
+  };
   helpers: {
     scripts: string[];
   };

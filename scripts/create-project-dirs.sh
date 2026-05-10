@@ -51,7 +51,7 @@ create_contract_directories() {
 }
 
 install_hook_assets() {
-  mkdir -p .ai/hooks .claude/hooks
+  mkdir -p .ai/hooks
 
   if [[ -d "$ASSETS_HOOKS_DIR" ]]; then
     find "$ASSETS_HOOKS_DIR" -mindepth 1 -maxdepth 1 \( -type f -name '*.sh' -o -type d -name 'lib' \) | while read -r asset; do
@@ -61,34 +61,9 @@ install_hook_assets() {
         cp "$asset" .ai/hooks/
       fi
     done
-
-    find "$ASSETS_HOOKS_DIR" -mindepth 1 -maxdepth 1 -type f -name '*.sh' | while read -r asset; do
-      hook_name="$(basename "$asset")"
-      if [[ "$hook_name" == "hook-input.sh" ]]; then
-        continue
-      fi
-
-      cat > ".claude/hooks/$hook_name" <<EOF_HOOK_SHIM
-#!/bin/bash
-set -euo pipefail
-
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="\${HOOK_REPO_ROOT:-\$(cd "\$SCRIPT_DIR/../.." && pwd)}"
-TARGET="\$REPO_ROOT/.ai/hooks/$hook_name"
-
-if [[ ! -f "\$TARGET" ]]; then
-  echo "[HookShim] Shared hook not found: \$TARGET" >&2
-  exit 1
-fi
-
-export HOOK_REPO_ROOT="\$REPO_ROOT"
-exec bash "\$TARGET" "\$@"
-EOF_HOOK_SHIM
-    done
   fi
 
   find .ai/hooks -type f -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
-  find .claude/hooks -type f -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
 }
 
 ensure_task_sync_package_script() {
@@ -112,7 +87,6 @@ mkdir -p docs/guides
 mkdir -p docs/archives
 mkdir -p docs/reference-configs
 mkdir -p scripts
-mkdir -p .claude/hooks
 mkdir -p .ai/hooks
 mkdir -p .ai/context
 mkdir -p .ai/harness/checks
@@ -132,6 +106,7 @@ touch docs/tech-stack.md
 touch docs/decisions.md
 
 touch docs/reference-configs/changelog-versioning.md
+touch docs/reference-configs/agentic-development-flow.md
 touch docs/reference-configs/git-strategy.md
 touch docs/reference-configs/release-deploy.md
 touch docs/reference-configs/ai-workflows.md
@@ -306,6 +281,12 @@ else
 
 Use this file for detailed release-note and semantic-versioning rules.
 REF_CHANGELOG_EOF
+
+  cat > docs/reference-configs/agentic-development-flow.md << 'REF_AGENTIC_FLOW_EOF'
+# Agentic Development Flow
+
+Use this file for gstack/Waza routing, P1/P2/P3 reporting triggers, and daily agentic development flow.
+REF_AGENTIC_FLOW_EOF
 
   cat > docs/reference-configs/git-strategy.md << 'REF_GIT_EOF'
 # Git Strategy Reference

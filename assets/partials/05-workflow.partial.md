@@ -32,6 +32,17 @@ PLAN_LOOP:
   COMMIT_POLICY: explicit commits after green checks; no automatic checkpoint hook
 ```
 
+### Agentic Skill Routing
+
+- Product discovery, early demand shaping, or "is this worth building" -> gstack `office-hours`.
+- Complex engineering plans, architecture lock-in, or cross-module refactors -> gstack `plan-eng-review`.
+- UI/UX or design-system plans -> gstack `plan-design-review`.
+- Small or medium feature plans -> Waza `/think`.
+- Bugs, regressions, crashes, errors, or failing tests -> Waza `/hunt`.
+- Implemented diffs, pre-merge checks, or release follow-through -> Waza `/check`.
+- Use P1/P2/P3 as the shared due-diligence protocol; report it explicitly for `plan-eng-review`, `/hunt`, risky refactors, deployments, auth/payment/data work, and shared contracts.
+- Hooks must not infer semantic intent; they only enforce workflow files, contracts, and verification state.
+
 ### Task Management Protocol
 
 Core rules (canonical source: see Workflow Orchestration section below):
@@ -50,6 +61,7 @@ Core rules (canonical source: see Workflow Orchestration section below):
 - `docs/reference-configs/changelog-versioning.md`
 - `docs/reference-configs/git-strategy.md`
 - `docs/reference-configs/release-deploy.md`
+- `docs/reference-configs/agentic-development-flow.md`
 - `docs/reference-configs/external-tooling.md`
 
 {{#IF FACTOR_FACTORY_ENABLED}}

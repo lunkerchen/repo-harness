@@ -25,8 +25,11 @@ describe("Hook recursive copy", () => {
       expect(existsSync(join(repo, ".claude/hooks/lib/workflow-state.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/lib/session-state.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/hook-input.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".claude/hooks/run-hook.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/lib/memory-state.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/lib/skill-factory.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".ai/hooks/lib/memory-state.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

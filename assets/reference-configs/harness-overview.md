@@ -16,10 +16,11 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 4. `tasks/todo.md` is the execution projection for the active sprint.
 5. `tasks/reviews/<slug>.review.md` records evaluator judgment.
 6. `.ai/harness/policy.json` is the machine-readable workflow contract.
-7. `external_tooling` inside `.ai/harness/policy.json` captures default routing for gstack, Waza, and gbrain.
-8. `.ai/context/context-map.json` indexes stable root context and discoverable nested context.
-9. `.ai/harness/handoff/current.md` preserves resumable state across sessions.
-10. `.ai/harness/events.jsonl` and `.ai/harness/runs/*.json` retain lightweight execution traces.
+7. `agentic_development` inside `.ai/harness/policy.json` captures product, engineering, design, bug-hunt, and review routing.
+8. `external_tooling` inside `.ai/harness/policy.json` captures host install/update defaults for gstack, Waza, and gbrain.
+9. `.ai/context/context-map.json` indexes stable root context and discoverable nested context.
+10. `.ai/harness/handoff/current.md` preserves resumable state across sessions.
+11. `.ai/harness/events.jsonl` and `.ai/harness/runs/*.json` retain lightweight execution traces.
 
 ## Session Boundaries
 
@@ -27,4 +28,4 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 - Implementation should prefer `docs/spec.md`, an approved plan, and an active sprint contract.
 - Claiming completion should include contract verification evidence plus a passing review artifact.
 - Stopping a session should refresh `.ai/harness/handoff/current.md` for easier resume.
-- Use `docs/reference-configs/external-tooling.md` for install/update commands and host routing guidance.
+- Use `docs/reference-configs/agentic-development-flow.md` for skill routing and `docs/reference-configs/external-tooling.md` for install/update commands.

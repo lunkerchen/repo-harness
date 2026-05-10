@@ -245,12 +245,28 @@ scripts/skill-factory-create.sh
 .ai/hooks/lib/skill-factory.sh
 .ai/hooks/memory-intake.sh
 .ai/hooks/skill-factory-session-end.sh
+.claude/hooks/anti-simplification.sh
+.claude/hooks/atomic-commit.sh
+.claude/hooks/atomic-pending.sh
+.claude/hooks/changelog-guard.sh
+.claude/hooks/context-pressure-hook.sh
+.claude/hooks/finalize-handoff.sh
 .claude/hooks/hook-input.sh
 .claude/hooks/lib
 .claude/hooks/lib/memory-state.sh
 .claude/hooks/lib/skill-factory.sh
 .claude/hooks/memory-intake.sh
+.claude/hooks/post-bash.sh
+.claude/hooks/post-edit-guard.sh
+.claude/hooks/pre-code-change.sh
+.claude/hooks/pre-edit-guard.sh
+.claude/hooks/prompt-guard.sh
+.claude/hooks/run-hook.sh
+.claude/hooks/session-start-context.sh
 .claude/hooks/skill-factory-session-end.sh
+.claude/hooks/tdd-guard-hook.sh
+.claude/hooks/trace-event.sh
+.claude/hooks/worktree-guard.sh
 .claude/skill-factory
 .claude/.memory-context.json
 .claude/.memory-snapshot.json
@@ -611,12 +627,11 @@ inspect_project_state() {
 migrate_hooks() {
   local repo="$1"
   local project_claude_dir="$repo/.claude"
-  local project_hooks_dir="$project_claude_dir/hooks"
   local project_ai_hooks_dir="$repo/.ai/hooks"
   local project_settings="$project_claude_dir/settings.json"
   local project_settings_local="$project_claude_dir/settings.local.json"
 
-  run_or_echo "mkdir -p \"$project_hooks_dir\" \"$project_ai_hooks_dir\""
+  run_or_echo "mkdir -p \"$project_claude_dir\" \"$project_ai_hooks_dir\""
 
   while IFS= read -r hook; do
     local rel_path dest_dir hook_name
@@ -631,37 +646,6 @@ migrate_hooks() {
   done < <(find "$HOOK_ASSETS_DIR" -type f -name '*.sh' | sort)
 
   cleanup_removed_workflow_assets "$repo"
-
-  while IFS= read -r hook; do
-    local hook_name shim_path
-    hook_name="$(basename "$hook")"
-    if [[ "$hook_name" == "hook-input.sh" ]]; then
-      continue
-    fi
-
-    shim_path="$project_hooks_dir/$hook_name"
-    if [[ "$MODE" == "apply" ]]; then
-      cat > "$shim_path" <<EOF_HOOK_SHIM
-#!/bin/bash
-set -euo pipefail
-
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="\${HOOK_REPO_ROOT:-\$(cd "\$SCRIPT_DIR/../.." && pwd)}"
-TARGET="\$REPO_ROOT/.ai/hooks/$hook_name"
-
-if [[ ! -f "\$TARGET" ]]; then
-  echo "[HookShim] Shared hook not found: \$TARGET" >&2
-  exit 1
-fi
-
-export HOOK_REPO_ROOT="\$REPO_ROOT"
-exec bash "\$TARGET" "\$@"
-EOF_HOOK_SHIM
-      chmod +x "$shim_path" 2>/dev/null || true
-    else
-      echo "[dry-run] write shim \"$shim_path\" -> \".ai/hooks/$hook_name\""
-    fi
-  done < <(find "$HOOK_ASSETS_DIR" -mindepth 1 -maxdepth 1 -type f -name '*.sh' | sort)
 
   if [[ "$MODE" == "apply" ]]; then
     if [[ -f "$project_settings" ]]; then

@@ -68,7 +68,7 @@ install_hook_assets() {
         return
     fi
 
-    mkdir -p .ai/hooks .claude/hooks
+    mkdir -p .ai/hooks
 
     find "$ASSETS_HOOKS_DIR" -mindepth 1 -maxdepth 1 \( -type f -name '*.sh' -o -type d -name 'lib' \) | while read -r asset; do
         if [ -d "$asset" ]; then
@@ -78,35 +78,8 @@ install_hook_assets() {
         fi
     done
 
-    find "$ASSETS_HOOKS_DIR" -mindepth 1 -maxdepth 1 -type f -name '*.sh' | while read -r asset; do
-        local hook_name shim_path
-        hook_name="$(basename "$asset")"
-        if [ "$hook_name" = "hook-input.sh" ]; then
-            continue
-        fi
-
-        shim_path=".claude/hooks/$hook_name"
-        cat > "$shim_path" <<EOF_HOOK_SHIM
-#!/bin/bash
-set -euo pipefail
-
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="\${HOOK_REPO_ROOT:-\$(cd "\$SCRIPT_DIR/../.." && pwd)}"
-TARGET="\$REPO_ROOT/.ai/hooks/$hook_name"
-
-if [[ ! -f "\$TARGET" ]]; then
-  echo "[HookShim] Shared hook not found: \$TARGET" >&2
-  exit 1
-fi
-
-export HOOK_REPO_ROOT="\$REPO_ROOT"
-exec bash "\$TARGET" "\$@"
-EOF_HOOK_SHIM
-    done
-
     find .ai/hooks -type f -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
-    find .claude/hooks -type f -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
-    echo -e "${GREEN}Shared hooks installed to .ai/hooks/ with .claude/hooks compatibility shims${NC}"
+    echo -e "${GREEN}Shared hooks installed to .ai/hooks/${NC}"
 }
 
 install_workflow_contract() {
@@ -248,7 +221,6 @@ create_structure() {
     mkdir -p .ai/harness/context-budget
     mkdir -p .ai/harness/failures
     mkdir -p .ai/harness/runs
-    mkdir -p .claude/hooks
     mkdir -p .claude/templates
     mkdir -p .ops
     mkdir -p artifacts
@@ -385,6 +357,12 @@ EOF
 # Changelog & Versioning Reference
 
 Use this file for detailed release-note and semantic-versioning rules.
+EOF
+
+        cat > docs/reference-configs/agentic-development-flow.md << 'EOF'
+# Agentic Development Flow
+
+Use this file for gstack/Waza routing, P1/P2/P3 reporting triggers, and daily agentic development flow.
 EOF
 
         cat > docs/reference-configs/git-strategy.md << 'EOF'

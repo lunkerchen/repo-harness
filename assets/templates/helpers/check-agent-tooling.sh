@@ -192,7 +192,7 @@ function detectRepoGstackTeamMode() {
 
   return {
     status: "not-detected",
-    reason: "No repo-local gstack team-mode traces detected in CLAUDE.md or .claude/hooks/.",
+    reason: "No repo-local gstack team-mode traces detected in CLAUDE.md or the shared .ai/hooks/ layer.",
   };
 }
 

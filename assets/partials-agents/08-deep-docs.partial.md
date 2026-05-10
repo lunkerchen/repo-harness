@@ -15,6 +15,7 @@
 - `.ai/context/context-map.json`: progressive context index for nested AGENTS.md files
 - `plans/archive/`: archived plans and outcomes
 - `tasks/archive/`: archived todo snapshots
+- `docs/reference-configs/agentic-development-flow.md`: gstack/Waza routing, P1/P2/P3 reporting triggers, and daily flow
 - `docs/reference-configs/harness-overview.md`: orchestration playbook
 - `docs/reference-configs/external-tooling.md`: gstack/Waza/gbrain routing, Codex-first Waza sync, and advisory install/update commands
 - `docs/reference-configs/sprint-contracts.md`: contract rules

@@ -14,6 +14,7 @@ This repository dogfoods the `project-initializer` workflow. Treat it as a Bun +
 - `.ai/harness/workflow-contract.json`
 - `.ai/harness/policy.json`
 - `.ai/context/context-map.json`
+- `docs/reference-configs/agentic-development-flow.md`
 - `docs/reference-configs/ai-workflows.md`
 - `docs/reference-configs/development-protocol.md`
 - `docs/reference-configs/workflow-orchestration.md`
@@ -22,9 +23,10 @@ This repository dogfoods the `project-initializer` workflow. Treat it as a Bun +
 
 - Keep this file concise; route detailed policy into `docs/reference-configs/`.
 - Treat `.ai/hooks/` as the shared automation layer and `.claude/settings.json` as the Claude adapter.
-- Route complex planning/review/QA/release/browser-first work to `gstack`, short implementation/debug/read-write checks to `Waza`, and knowledge sync/handoff retrieval to `gbrain`.
+- Route product discovery to gstack `office-hours`, complex engineering plans to gstack `plan-eng-review`, design plans to gstack `plan-design-review`, and daily small/medium planning, bug hunts, and checks to Waza `/think`, `/hunt`, and `/check`.
+- Route knowledge sync and handoff retrieval to `gbrain`.
 - Treat Waza as Codex-first: `~/.codex/skills` is the Codex runtime source; `~/.agents/skills` is skills CLI staging/cache only. Update by staging upstream Waza, copying the eight managed `SKILL.md` files into Codex, and verifying with `cmp`.
-- Use `docs/reference-configs/external-tooling.md` plus `bash scripts/check-agent-tooling.sh --host both --check-updates` for advisory install/update guidance.
+- Use `docs/reference-configs/agentic-development-flow.md` for routing details and `docs/reference-configs/external-tooling.md` plus `bash scripts/check-agent-tooling.sh --host both --check-updates` for advisory install/update guidance.
 - When changing bootstrap or migration behavior, update the matching tests in `tests/`.
 - Prefer additive migration behavior over destructive replacement.
 - Preserve the distinction between milestone tracking in `docs/PROGRESS.md` and active work tracking in `tasks/`.

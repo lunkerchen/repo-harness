@@ -12,15 +12,17 @@ This repository self-hosts the `project-initializer` contract. Claude and Codex 
 - `.ai/harness/workflow-contract.json` for the installed workflow contract manifest
 - `.ai/harness/policy.json` for the machine-readable workflow contract
 - `.ai/context/context-map.json` for progressive context loading
+- `docs/reference-configs/agentic-development-flow.md` for gstack/Waza routing rules
 
 ## Operating Rules
 
 - Sync `tasks/` whenever substantive repo changes are made.
-- Treat `.ai/hooks/` as the shared hook implementation and `.claude/hooks/` as shims only.
+- Treat `.ai/hooks/` as the shared hook implementation and `.claude/settings.json` as the Claude adapter only.
 - Keep `assets/workflow-contract.v1.json` and `.ai/harness/workflow-contract.json` in sync.
 - Keep `CLAUDE.md` and `AGENTS.md` short; put detailed guidance in `docs/reference-configs/`.
 - Treat Codex auto-compact as a fallback only; use `.ai/harness/handoff/current.md` and `.ai/harness/handoff/resume.md` for long-task rollover.
-- Route complex planning/review/QA/release/browser-first flows to `gstack`, short implementation/debug/read-write checks to `Waza`, and knowledge sync/handoff retrieval to `gbrain`.
+- Route product discovery to gstack `office-hours`, complex engineering plans to gstack `plan-eng-review`, design plans to gstack `plan-design-review`, and daily small/medium planning, bug hunts, and checks to Waza `/think`, `/hunt`, and `/check`.
+- Route knowledge sync and handoff retrieval to `gbrain`.
 - Treat Waza as Codex-first: `~/.codex/skills` is the Codex runtime source; `~/.agents/skills` is skills CLI staging/cache only. Update by staging upstream Waza, copying the eight managed `SKILL.md` files into Codex, and verifying with `cmp`.
 - Use `docs/reference-configs/external-tooling.md` and `bash scripts/check-agent-tooling.sh --host both --check-updates` for advisory environment checks only.
 - When changing `scripts/migrate-project-template.sh` or `scripts/lib/project-init-lib.sh`, verify self-migration of this repo still works.

@@ -64,22 +64,6 @@ describe("create-project-dirs scaffold parity", () => {
         "./.ai/hooks/tdd-guard-hook.sh",
         "./.ai/hooks/trace-event.sh",
         "./.ai/hooks/worktree-guard.sh",
-        "./.claude/hooks/anti-simplification.sh",
-        "./.claude/hooks/atomic-commit.sh",
-        "./.claude/hooks/atomic-pending.sh",
-        "./.claude/hooks/changelog-guard.sh",
-        "./.claude/hooks/context-pressure-hook.sh",
-        "./.claude/hooks/finalize-handoff.sh",
-        "./.claude/hooks/post-bash.sh",
-        "./.claude/hooks/post-edit-guard.sh",
-        "./.claude/hooks/pre-code-change.sh",
-        "./.claude/hooks/pre-edit-guard.sh",
-        "./.claude/hooks/prompt-guard.sh",
-        "./.claude/hooks/run-hook.sh",
-        "./.claude/hooks/session-start-context.sh",
-        "./.claude/hooks/tdd-guard-hook.sh",
-        "./.claude/hooks/trace-event.sh",
-        "./.claude/hooks/worktree-guard.sh",
         "./.claude/settings.json",
         "./.claude/templates/contract.template.md",
         "./.claude/templates/plan.template.md",
@@ -94,6 +78,7 @@ describe("create-project-dirs scaffold parity", () => {
         "./docs/PROGRESS.md",
         "./docs/brief.md",
         "./docs/decisions.md",
+        "./docs/reference-configs/agentic-development-flow.md",
         "./docs/reference-configs/ai-workflows.md",
         "./docs/reference-configs/changelog-versioning.md",
         "./docs/reference-configs/coding-standards.md",
@@ -142,6 +127,7 @@ describe("create-project-dirs scaffold parity", () => {
       expect(gitignore).toContain("# BEGIN: claude-runtime-temp (managed by project-initializer)");
 
       const template = readFileSync(join(cwd, ".claude/templates/plan.template.md"), "utf-8");
+      expect(template).toContain("## Agentic Routing");
       expect(template).toContain("Active plan rule: the latest non-archived `plans/plan-*.md` file is the current plan");
     } finally {
       rmSync(cwd, { recursive: true, force: true });

@@ -39,6 +39,8 @@ bun.lockb
 .ai/harness/handoff/resume.md
 .ai/harness/context-budget/latest.json
 .ai/harness/runs/
+.claude/.active-plan
+.claude/.plan-state/
 # END: claude-runtime-temp
 # Project-specific
 artifacts/
