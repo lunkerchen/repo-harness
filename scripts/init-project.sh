@@ -324,6 +324,7 @@ EOF
     # - .ai/harness/handoff/resume.md
     # - .ai/harness/context-budget/latest.json
     # - .ai/harness/failures/latest.jsonl
+    # - .ai/harness/worktrees/.gitkeep
     # - .ai/harness/runs/.gitkeep
     pi_ensure_harness_state_surface "$PWD" "apply"
 

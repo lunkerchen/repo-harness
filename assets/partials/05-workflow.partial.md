@@ -29,7 +29,8 @@ PLAN_LOOP:
   CONTEXT_MAP: .ai/context/context-map.json
   ANNOTATION_GUARD: do not implement until plan Status is "Approved"
   CONTRACT_GUARD: do not mark done until contract exit criteria pass and review recommends pass
-  EXECUTION_CONTEXT: primary worktree warning by default; enforce via .claude/.require-worktree
+  EXECUTION_CONTEXT: contract-level work starts in a linked codex/<slug> worktree when policy enables it; primary worktree warning by default; enforce via .claude/.require-worktree
+  CONTRACT_WORKTREE_FINISH: run Waza /check, then scripts/contract-worktree.sh finish
   COMMIT_POLICY: explicit commits after green checks; no automatic checkpoint hook
 ```
 

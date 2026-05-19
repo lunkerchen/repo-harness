@@ -57,6 +57,7 @@ describe("workflow contract manifest", () => {
 
   test("helper inventory should come from the workflow contract", () => {
     const contract = loadWorkflowContract(join(ROOT, "assets/workflow-contract.v1.json"));
+    expect(contract.helpers.scripts).toContain("contract-worktree.sh");
     expect(contract.helpers.scripts).toContain("switch-plan.sh");
     expect(contract.helpers.scripts).toContain("context-budget.ts");
     expect(contract.helpers.scripts).toContain("capability-resolver.ts");
@@ -79,12 +80,14 @@ describe("workflow contract manifest", () => {
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/workflow-contract.json");
     expect(contract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
     expect(contract.artifacts.requiredFiles).toContain("scripts/capability-resolver.ts");
+    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-worktree.sh");
     expect(contract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");
     expect(contract.artifacts.requiredDirectories).toContain("docs/architecture/domains");
     expect(contract.artifacts.requiredDirectories).toContain("docs/architecture/modules");
+    expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
     expect(contract.artifacts.requiredDirectories).toContain("_ops/scripts");
     expect(contract.artifacts.requiredDirectories).toContain("_ops/submissions");
     expect(contract.artifacts.requiredFiles).toContain("_ops/README.md");
@@ -95,6 +98,7 @@ describe("workflow contract manifest", () => {
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/context-budget/latest.json");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/checks/latest.json");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/architecture/events.jsonl");
+    expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/worktrees/");
     expect(contract.artifacts.runtimeFiles).not.toContain(".ai/harness/workstreams/events.jsonl");
   });
 
@@ -102,8 +106,9 @@ describe("workflow contract manifest", () => {
     const contract = loadWorkflowContract(join(ROOT, "assets/workflow-contract.v1.json"));
     const runtimeFiles = contract.artifacts.runtimeFiles ?? [];
     expect(runtimeFiles).toContain(".ai/harness/checks/latest.json");
+    const placeholderBackedRuntime = new Set([".ai/harness/runs/.gitkeep", ".ai/harness/worktrees/"]);
 
-    for (const file of runtimeFiles.filter((name) => name !== ".ai/harness/runs/.gitkeep")) {
+    for (const file of runtimeFiles.filter((name) => !placeholderBackedRuntime.has(name))) {
       const tracked = spawnSync("git", ["ls-files", "--error-unmatch", file], {
         cwd: ROOT,
         encoding: "utf-8",
@@ -118,6 +123,7 @@ describe("workflow contract manifest", () => {
     const gitignore = readFileSync(join(ROOT, ".gitignore"), "utf-8");
     expect(gitignore).toContain(".ai/harness/checks/latest.json");
     expect(gitignore).toContain(".ai/harness/handoff/current.md");
+    expect(gitignore).toContain(".ai/harness/worktrees/");
   });
 });
 

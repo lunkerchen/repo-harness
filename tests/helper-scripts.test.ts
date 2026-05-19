@@ -25,6 +25,21 @@ function run(cmd: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv) 
   return spawnSync(cmd, args, { cwd, encoding: "utf-8", env: { ...process.env, ...env } });
 }
 
+function initGitRepo(cwd: string) {
+  expect(run("git", ["init"], cwd).status).toBe(0);
+  const branch = run("git", ["branch", "--show-current"], cwd).stdout.trim();
+  if (branch !== "main") {
+    expect(run("git", ["checkout", "-b", "main"], cwd).status).toBe(0);
+  }
+  expect(run("git", ["config", "user.name", "Helper Test"], cwd).status).toBe(0);
+  expect(run("git", ["config", "user.email", "helper@test.local"], cwd).status).toBe(0);
+}
+
+function commitAll(cwd: string, message: string) {
+  expect(run("git", ["add", "."], cwd).status).toBe(0);
+  expect(run("git", ["commit", "-m", message], cwd).status).toBe(0);
+}
+
 function copyHelpers(cwd: string) {
   const scriptsDir = join(cwd, "scripts");
   mkdirSync(scriptsDir, { recursive: true });
@@ -149,6 +164,158 @@ describe("Workflow helper scripts", () => {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
+
+  test("plan-to-todo should start a linked contract worktree when policy enables contract tasks", () => {
+    const cwd = tmpWorkspace("helper-contract-auto");
+    const worktreePath = `${cwd}-wt-demo`;
+    try {
+      mkdirSync(join(cwd, "plans"), { recursive: true });
+      mkdirSync(join(cwd, "tasks"), { recursive: true });
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      copyHelpers(cwd);
+      writeFileSync(
+        join(cwd, ".ai/harness/policy.json"),
+        JSON.stringify(
+          {
+            worktree_strategy: {
+              auto_for_contract_tasks: true,
+              branch_prefix: "codex/",
+              base_branch: "main",
+              merge_back: { target: "main" },
+            },
+          },
+          null,
+          2
+        ) + "\n"
+      );
+      writeFileSync(join(cwd, "tasks/todo.md"), "# Primary Todo\n\n- [ ] keep primary clean\n");
+      initGitRepo(cwd);
+      commitAll(cwd, "init workflow");
+
+      writeFileSync(
+        join(cwd, "plans/plan-20260304-1440-demo.md"),
+        ["# Plan: demo", "", "> **Status**: Approved", "", "## Task Breakdown", "- [ ] Step one"].join("\n")
+      );
+
+      const res = run("bash", ["scripts/plan-to-todo.sh", "--plan", "plans/plan-20260304-1440-demo.md"], cwd);
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[ContractWorktree] Created worktree");
+      expect(existsSync(worktreePath)).toBe(true);
+
+      const primaryTodo = readFileSync(join(cwd, "tasks/todo.md"), "utf-8");
+      expect(primaryTodo).toContain("# Primary Todo");
+      expect(primaryTodo).not.toContain("**Status**: Executing");
+
+      const worktreeTodo = readFileSync(join(worktreePath, "tasks/todo.md"), "utf-8");
+      expect(worktreeTodo).toContain("**Source Plan**: plans/plan-20260304-1440-demo.md");
+      expect(worktreeTodo).toContain("**Status**: Executing");
+      expect(readFileSync(join(worktreePath, ".ai/harness/worktrees/demo.json"), "utf-8")).toContain('"branch": "codex/demo"');
+    } finally {
+      run("git", ["worktree", "remove", "--force", worktreePath], cwd);
+      rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("contract-worktree finish should verify, commit, and fast-forward merge into clean main", () => {
+    const cwd = tmpWorkspace("helper-contract-finish");
+    const worktreePath = `${cwd}-wt-demo`;
+    try {
+      mkdirSync(join(cwd, "plans"), { recursive: true });
+      mkdirSync(join(cwd, "tasks"), { recursive: true });
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      copyHelpers(cwd);
+      mkdirSync(join(cwd, ".claude/templates"), { recursive: true });
+      for (const file of readdirSync(TEMPLATE_DIR).filter((name) => name.endsWith(".md"))) {
+        copyFileSync(join(TEMPLATE_DIR, file), join(cwd, ".claude/templates", file));
+      }
+      mkdirSync(join(cwd, ".ai/hooks/lib"), { recursive: true });
+      copyFileSync(
+        join(ROOT, "assets/hooks/lib/workflow-state.sh"),
+        join(cwd, ".ai/hooks/lib/workflow-state.sh")
+      );
+      writeFileSync(
+        join(cwd, ".ai/harness/policy.json"),
+        JSON.stringify(
+          {
+            worktree_strategy: {
+              auto_for_contract_tasks: true,
+              branch_prefix: "codex/",
+              base_branch: "main",
+              merge_back: { target: "main" },
+            },
+          },
+          null,
+          2
+        ) + "\n"
+      );
+      writeFileSync(
+        join(cwd, ".gitignore"),
+        [
+          ".claude/.task-state.json",
+          ".ai/harness/checks/latest.json",
+          ".ai/harness/runs/",
+          ".ai/harness/worktrees/",
+        ].join("\n") + "\n"
+      );
+      writeFileSync(
+        join(cwd, "package.json"),
+        JSON.stringify({ scripts: { typecheck: "test -f src/modules/demo/index.ts" } }, null, 2) + "\n"
+      );
+      writeFileSync(join(cwd, "docs/spec.md"), "# Spec\n");
+      initGitRepo(cwd);
+      commitAll(cwd, "init workflow");
+
+      writeFileSync(
+        join(cwd, "plans/plan-20260304-1450-demo.md"),
+        ["# Plan: demo", "", "> **Status**: Approved", "", "## Task Breakdown", "- [ ] Build demo"].join("\n")
+      );
+
+      const start = run("bash", ["scripts/plan-to-todo.sh", "--plan", "plans/plan-20260304-1450-demo.md"], cwd);
+      expect(start.status).toBe(0);
+      expect(existsSync(worktreePath)).toBe(true);
+
+      mkdirSync(join(worktreePath, "src/modules/demo"), { recursive: true });
+      mkdirSync(join(worktreePath, "tests/unit"), { recursive: true });
+      writeFileSync(join(worktreePath, "src/modules/demo/index.ts"), "export const demo = true;\n");
+      writeFileSync(
+        join(worktreePath, "tests/unit/demo.test.ts"),
+        'import { test, expect } from "bun:test";\n' +
+          'test("demo", () => { expect(true).toBe(true); });\n'
+      );
+      writeFileSync(
+        join(worktreePath, "tasks/reviews/demo.review.md"),
+        [
+          "# Sprint Review: demo",
+          "",
+          "> **Recommendation**: pass",
+          "",
+          "## Scorecard",
+          "",
+          "| Dimension | Score | Notes |",
+          "|-----------|-------|-------|",
+          "| Functionality | 8/10 | verified |",
+          "",
+          "## Verification Evidence",
+          "- Unit test and typecheck covered by verify-sprint.",
+          "",
+        ].join("\n")
+      );
+
+      const finish = run("bash", ["scripts/contract-worktree.sh", "finish"], worktreePath);
+      expect(finish.status).toBe(0);
+      expect(finish.stdout).toContain("Sprint verification passed");
+      expect(finish.stdout).toContain("Merged codex/demo into main");
+      expect(existsSync(join(cwd, "src/modules/demo/index.ts"))).toBe(true);
+
+      const log = run("git", ["log", "--oneline", "-1"], cwd);
+      expect(log.stdout).toContain("feat(contract): complete demo");
+    } finally {
+      run("git", ["worktree", "remove", "--force", worktreePath], cwd);
+      rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
 
   test("plan-to-todo should reject non-Approved plan status", () => {
     const cwd = tmpWorkspace("helper-plan-status");

@@ -82,6 +82,7 @@
       "new-sprint.sh",
       "new-plan.sh",
       "plan-to-todo.sh",
+      "contract-worktree.sh",
       "archive-workflow.sh",
       "prepare-handoff.sh",
       "verify-contract.sh",
@@ -123,6 +124,7 @@
       ".ai/harness/handoff",
       ".ai/harness/context-budget",
       ".ai/harness/architecture",
+      ".ai/harness/worktrees",
       ".ai/harness/runs",
       "docs/architecture",
       "docs/architecture/domains",
@@ -148,6 +150,7 @@
       "scripts/new-sprint.sh",
       "scripts/new-plan.sh",
       "scripts/plan-to-todo.sh",
+      "scripts/contract-worktree.sh",
       "scripts/archive-workflow.sh",
       "scripts/prepare-handoff.sh",
       "scripts/verify-contract.sh",
@@ -192,6 +195,7 @@
       ".ai/harness/handoff/resume.md",
       ".ai/harness/context-budget/latest.json",
       ".ai/harness/architecture/events.jsonl",
+      ".ai/harness/worktrees/",
       ".ai/harness/runs/.gitkeep"
     ]
   },

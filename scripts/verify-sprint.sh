@@ -21,8 +21,13 @@ if [[ -f ".ai/hooks/lib/workflow-state.sh" ]]; then
   review_file="$(workflow_active_review || true)"
   checks_file="$(workflow_checks_file)"
 else
-  contract_file=""
-  review_file=""
+  contract_file="$(find tasks/contracts -maxdepth 1 -name '*.contract.md' -type f 2>/dev/null | sort | head -n 1)"
+  if [[ -n "$contract_file" ]]; then
+    contract_slug="$(basename "$contract_file" | sed -E 's/\.contract\.md$//')"
+    review_file="tasks/reviews/${contract_slug}.review.md"
+  else
+    review_file=""
+  fi
   checks_file=".ai/harness/checks/latest.json"
 fi
 

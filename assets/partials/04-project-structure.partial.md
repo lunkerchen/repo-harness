@@ -23,6 +23,7 @@
 - Keep resumable state in `.ai/harness/handoff/current.md`.
 - Treat `_ref/` as ignored external reference material; read or refresh it for comparison, but keep it out of commits.
 - Treat `_ops/` as the trackable operations surface for runbooks, submission materials, release checklists, and helper scripts; keep secrets only in ignored `_ops/secrets/` or `_ops/env/.env*` files.
+- Treat contract-level execution as worktree-first: `scripts/plan-to-todo.sh --plan <approved-plan>` starts a linked `codex/<slug>` worktree when policy enables it, and `scripts/contract-worktree.sh finish` merges back only after Waza `/check` and sprint verification pass.
 - Route product discovery to gstack `office-hours`, complex engineering plans to gstack `plan-eng-review`, design plans to gstack `plan-design-review`, and daily small/medium planning, bug hunts, and checks to Waza `/think`, `/hunt`, and `/check`.
 - Route knowledge sync and handoff retrieval to `gbrain`.
 - Codex automation profile is runtime-referenced, not vendored: required skills are `health`, `check`, and `diagram-design` from `~/.codex/skills`.

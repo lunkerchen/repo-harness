@@ -44,6 +44,62 @@ extract_capability_id() {
   awk -F': ' '/^\> \*\*Capability ID\*\*:/ {print $2; exit}' "$file" | xargs
 }
 
+get_todo_source_plan() {
+  awk -F': ' '/^\> \*\*Source Plan\*\*:/ {print $2; exit}' tasks/todo.md 2>/dev/null | xargs
+}
+
+policy_get() {
+  local jq_path="$1"
+  local default_value="${2:-}"
+  local value=""
+
+  if [[ -f ".ai/harness/policy.json" ]] && command -v jq >/dev/null 2>&1; then
+    value="$(jq -r "$jq_path // empty" ".ai/harness/policy.json" 2>/dev/null || true)"
+    if [[ -n "$value" ]]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  fi
+
+  printf '%s' "$default_value"
+}
+
+is_linked_worktree() {
+  local git_dir
+  git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
+  [[ "$git_dir" == *".git/worktrees/"* ]]
+}
+
+plan_requests_contract_worktree() {
+  local file="$1"
+  local auto_for_contract_tasks
+
+  if grep -Eiq '^\> \*\*(Contract Level|Execution Mode|Execution Surface)\*\*:[[:space:]]*(false|primary|inline)[[:space:]]*$' "$file"; then
+    return 1
+  fi
+
+  if grep -Eiq '^\> \*\*(Contract Level|Execution Mode|Execution Surface)\*\*:[[:space:]]*(true|worktree|contract-worktree)[[:space:]]*$' "$file"; then
+    return 0
+  fi
+
+  auto_for_contract_tasks="$(policy_get '.worktree_strategy.auto_for_contract_tasks' 'false')"
+  [[ "$auto_for_contract_tasks" == "true" ]]
+}
+
+maybe_start_contract_worktree() {
+  local file="$1"
+
+  [[ "${PROJECT_INITIALIZER_CONTRACT_WORKTREE:-}" != "1" ]] || return 0
+  [[ "${PROJECT_INITIALIZER_DISABLE_CONTRACT_WORKTREE:-}" != "1" ]] || return 0
+  [[ -x "scripts/contract-worktree.sh" ]] || return 0
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  ! is_linked_worktree || return 0
+  plan_requests_contract_worktree "$file" || return 0
+
+  bash "scripts/contract-worktree.sh" start --plan "$file"
+  exit $?
+}
+
 set_plan_status() {
   local file="$1"
   local status="$2"
@@ -341,6 +397,8 @@ if [[ "$status" != "Approved" ]]; then
   echo "Plan status must be Approved before extraction (current: ${status:-unknown})." >&2
   exit 1
 fi
+
+maybe_start_contract_worktree "$plan_file"
 
 mkdir -p tasks/archive
 mkdir -p tasks/contracts

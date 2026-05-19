@@ -176,11 +176,12 @@ describe("Output Quality Gates", () => {
     expect(output).toContain("Plan-only (recommended)");
     expect(output).toContain("MODE: Plan-only (recommended)");
     expect(output).toContain(
-      "EXECUTION_CONTEXT: primary worktree warning by default; enforce via .claude/.require-worktree"
+      "EXECUTION_CONTEXT: contract-level work starts in a linked codex/<slug> worktree when policy enables it"
     );
     expect(output).toContain("COMMIT_POLICY: explicit commits after green checks; no automatic checkpoint hook");
     expect(output).toContain("Plan-only by default for file mutations");
     expect(output).toContain("Primary worktree warns by default; enforce via `.claude/.require-worktree`");
+    expect(output).toContain("Treat contract-level execution as worktree-first");
     expect(agentsOutput).toContain("sandbox_mode=platform-default, approval_policy=on-failure");
   });
 

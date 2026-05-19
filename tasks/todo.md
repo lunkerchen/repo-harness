@@ -23,3 +23,5 @@
 - [x] Clarified `tasks/notes/` as task-local decision notes in root `AGENTS.md` / `CLAUDE.md` and template partials
 - [x] Updated `_ref/` and `_ops/` initialization, policy, gitignore, and hook guard rules
 - [x] Added the `project-initializer` architecture diagram and linked it from the architecture index
+- [x] Added contract-level worktree lifecycle start/finish automation with sprint verification and clean fast-forward merge gate
+- [x] Rebased contract worktree lifecycle onto 4.0.0 and preserved worktrees placeholder/runtime-state checks

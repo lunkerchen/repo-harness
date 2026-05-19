@@ -70,6 +70,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).not.toContain("docs/TODO.md");
     expect(sharedLib).toContain("new-plan.sh");
     expect(sharedLib).toContain("plan-to-todo.sh");
+    expect(sharedLib).toContain("contract-worktree.sh");
     expect(sharedLib).toContain("archive-workflow.sh");
     expect(sharedLib).toContain("verify-contract.sh");
     expect(sharedLib).toContain("summarize-failures.sh");
@@ -84,6 +85,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("architecture-drift.sh");
     expect(contract.helpers.scripts).toContain("context-contract-sync.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");
+    expect(contract.helpers.scripts).toContain("contract-worktree.sh");
     expect(contract.externalTooling.codexAutomationProfile.requiredSkills).toEqual(["health", "check", "diagram-design"]);
     expect(contract.externalTooling.codexAutomationProfile.vendoringPolicy).toBe("do-not-vendor-skill-body");
     expect(contract.externalTooling.diagramDesign.vendoringPolicy).toBe("do-not-vendor");
@@ -110,6 +112,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain("settings.template.json");
     expect(contract.helpers.scripts).toContain("switch-plan.sh");
     expect(contract.helpers.scripts).toContain("capability-resolver.ts");
+    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-worktree.sh");
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/workflow-contract.json");
     expect(contract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
     expect(contract.artifacts.requiredFiles).not.toContain(".ai/harness/handoff/resume.md");
@@ -171,10 +174,12 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("check-context-files.sh");
     expect(contract.helpers.scripts).toContain("select-agent-context-blocks.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");
+    expect(contract.helpers.scripts).toContain("contract-worktree.sh");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");
+    expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
     expect(contract.agenticDevelopment.routing.postImplementationReview).toBe("waza:check");
     expect(contract.externalTooling.codexAutomationProfile.routes.architectureDiagram).toBe("diagram-design");
     expect(content).not.toContain("pi_install_skill_factory");

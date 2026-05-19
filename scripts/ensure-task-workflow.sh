@@ -300,7 +300,7 @@ TODO_EOF
 }
 
 ensure_auxiliary_files() {
-  mkdir -p plans plans/archive tasks/archive tasks/contracts tasks/reviews tasks/notes tasks/workstreams docs/architecture/domains docs/architecture/modules docs/architecture/requests docs/architecture/snapshots docs/architecture/diagrams scripts .ai/context .ai/harness/checks .ai/harness/handoff .ai/harness/context-budget .ai/harness/failures .ai/harness/architecture .ai/harness/runs
+  mkdir -p plans plans/archive tasks/archive tasks/contracts tasks/reviews tasks/notes tasks/workstreams docs/architecture/domains docs/architecture/modules docs/architecture/requests docs/architecture/snapshots docs/architecture/diagrams scripts .ai/context .ai/harness/checks .ai/harness/handoff .ai/harness/context-budget .ai/harness/failures .ai/harness/architecture .ai/harness/worktrees .ai/harness/runs
 
   if [[ ! -f "docs/spec.md" ]]; then
     cat > docs/spec.md <<'SPEC_EOF'
@@ -394,6 +394,9 @@ RESUME_EOF
 
   if [[ ! -f ".ai/harness/runs/.gitkeep" ]]; then
     : > ".ai/harness/runs/.gitkeep"
+  fi
+  if [[ ! -f ".ai/harness/worktrees/.gitkeep" ]]; then
+    : > ".ai/harness/worktrees/.gitkeep"
   fi
 
   if [[ ! -f "docs/architecture/requests/.gitkeep" ]]; then
@@ -590,8 +593,12 @@ ARCHITECTURE_INDEX_EOF
   },
   "worktree_strategy": {
     "auto_on_conflict": true,
+    "auto_for_contract_tasks": true,
     "branch_prefix": "codex/",
     "base_branch": "main",
+    "worktree_dir_template": "../{{repo}}-wt-{{slug}}",
+    "start_script": "scripts/contract-worktree.sh start --plan <plan-file>",
+    "finish_script": "scripts/contract-worktree.sh finish",
     "conflict_signals": [
       "dirty_worktree_overlaps_task_files",
       "current_branch_not_suitable_for_task",

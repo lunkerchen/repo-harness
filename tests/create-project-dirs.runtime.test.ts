@@ -66,6 +66,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/harness/handoff/resume.md"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/context-budget/latest.json"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/runs/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/worktrees/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/new-spec.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/new-sprint.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/prepare-handoff.sh"))).toBe(true);
@@ -118,6 +119,7 @@ describe("create-project-dirs runtime smoke", () => {
       const workflowContract = JSON.parse(readFileSync(join(cwd, ".ai/harness/workflow-contract.json"), "utf-8"));
       expect(workflowContract.helpers.scripts).toContain("check-agent-tooling.sh");
       expect(workflowContract.helpers.scripts).toContain("check-task-workflow.sh");
+      expect(workflowContract.helpers.scripts).toContain("contract-worktree.sh");
       expect(workflowContract.helpers.scripts).toContain("select-agent-context-blocks.sh");
       expect(workflowContract.helpers.scripts).toContain("context-budget.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-resolver.ts");
@@ -141,6 +143,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/notes");
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/workstreams");
+      expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
       expect(workflowContract.artifacts.requiredDirectories).toContain("docs/architecture/domains");
       expect(workflowContract.artifacts.requiredDirectories).toContain("docs/architecture/modules");
       expect(workflowContract.agenticDevelopment.routing.complexEngineeringPlan).toBe("gstack:plan-eng-review");
@@ -211,6 +214,9 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.documentation.on_demand).toContain("docs/architecture.md");
       expect(policy.lsp_profiles.selection).toBe("functional-block-first");
       expect(policy.worktree_strategy.auto_on_conflict).toBe(true);
+      expect(policy.worktree_strategy.auto_for_contract_tasks).toBe(true);
+      expect(policy.worktree_strategy.start_script).toBe("scripts/contract-worktree.sh start --plan <plan-file>");
+      expect(policy.worktree_strategy.finish_script).toBe("scripts/contract-worktree.sh finish");
       expect(policy.worktree_strategy.validation_route).toBe("waza:check");
       expect(policy.context_budget.zones).toEqual({ yellow: 0.55, orange: 0.7, red: 0.8 });
       expect(policy.handoff_resume.auto_start_new_session).toBe(false);
@@ -220,6 +226,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(pkg.scripts["check:context-files"]).toBe("bash scripts/check-context-files.sh");
       expect(pkg.scripts["check:task-sync"]).toBe("bash scripts/check-task-sync.sh");
       expect(pkg.scripts["check:task-workflow"]).toBe("bash scripts/check-task-workflow.sh --strict");
+      expect(existsSync(join(cwd, "scripts/contract-worktree.sh"))).toBe(true);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

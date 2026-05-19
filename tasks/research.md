@@ -181,3 +181,17 @@
 - Keep `tasks/notes/<slug>.notes.md` as a slice-local decision journal only. Root `AGENTS.md`, root `CLAUDE.md`, and generated agent partials should tell agents to use it for non-obvious decisions, deviations, tradeoffs, and open questions, not durable memory or task logging.
 - Keep `_ref/` as ignored external comparison material. It can be refreshed from upstream/source systems, but it should not become a product edit or commit surface.
 - Keep `_ops/` as a commit-ready operations workspace for runbooks, submission materials, release checklists, and helper scripts. Only `_ops/secrets/` and `_ops/env/.env*` carry local secret/env values and must stay ignored; `_ops/env/.env.example` is the trackable contract shape.
+
+## 2026-05-20 Contract Worktree Lifecycle Notes
+
+### What Changed
+- Contract-level tasks now have a deterministic helper lifecycle: `plan-to-todo.sh` detects policy-enabled contract tasks in the primary worktree and delegates to `scripts/contract-worktree.sh start --plan <plan-file>`.
+- `contract-worktree.sh start` creates or reuses a `codex/<slug>` linked worktree, moves an untracked source plan into that worktree, writes ignored worktree metadata, and runs `plan-to-todo.sh` there with recursion disabled.
+- `contract-worktree.sh finish` runs sprint verification, checks changed paths against the active contract when the hook library is available, commits the worktree branch, and fast-forwards the clean target worktree only after validation passes.
+- Template-only repos do not always have `.ai/hooks/lib/workflow-state.sh`, so `verify-sprint.sh` and `contract-worktree.sh` can fall back to the slug-matched `tasks/contracts/<slug>.contract.md` and `tasks/reviews/<slug>.review.md` files.
+- `verify-contract.sh` now understands the generated contract template's `artifacts_exist`, `qa_scores`, and supported `manual_checks` criteria instead of treating those sections as command lines.
+
+### What to Preserve
+- Keep the primary worktree clean during contract execution. A copied untracked plan should live in the linked contract worktree so merge-back is not blocked by the task's own input artifact.
+- Keep merge-back fast-forward-only and target-clean. If the target worktree contains unrelated or non-identical dirty files, `finish` must refuse to merge.
+- Keep Waza `/check` as an external runtime validation step in prose/policy; do not vendor Waza skill contents into the project harness.

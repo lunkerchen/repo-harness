@@ -51,6 +51,7 @@ PI_DEFAULT_RUNTIME_ENTRIES=$(cat <<'EOF_RUNTIME'
 .ai/harness/handoff/resume.md
 .ai/harness/context-budget/latest.json
 .ai/harness/architecture/events.jsonl
+.ai/harness/worktrees/
 .ai/harness/runs/
 EOF_RUNTIME
 )
@@ -1234,8 +1235,12 @@ pi_write_harness_policy() {
   },
   "worktree_strategy": {
     "auto_on_conflict": true,
+    "auto_for_contract_tasks": true,
     "branch_prefix": "codex/",
     "base_branch": "main",
+    "worktree_dir_template": "../{{repo}}-wt-{{slug}}",
+    "start_script": "scripts/contract-worktree.sh start --plan <plan-file>",
+    "finish_script": "scripts/contract-worktree.sh finish",
     "conflict_signals": [
       "dirty_worktree_overlaps_task_files",
       "current_branch_not_suitable_for_task",
@@ -1438,7 +1443,7 @@ pi_ensure_harness_state_surface() {
   local mode="${2:-apply}"
 
   if [[ "$mode" != "apply" ]]; then
-    echo "[dry-run] ensure harness policy/context/events/runs in $target_dir"
+    echo "[dry-run] ensure harness policy/context/events/runs/worktrees in $target_dir"
     return 0
   fi
 
@@ -1451,6 +1456,7 @@ pi_ensure_harness_state_surface() {
     "$target_dir/.ai/harness/context-budget" \
     "$target_dir/.ai/harness/failures" \
     "$target_dir/.ai/harness/architecture" \
+    "$target_dir/.ai/harness/worktrees" \
     "$target_dir/docs/architecture/domains" \
     "$target_dir/docs/architecture/modules" \
     "$target_dir/docs/architecture/requests" \
@@ -1466,6 +1472,7 @@ pi_ensure_harness_state_surface() {
   [[ -f "$target_dir/.ai/harness/architecture/events.jsonl" ]] || : > "$target_dir/.ai/harness/architecture/events.jsonl"
   [[ -f "$target_dir/.ai/harness/architecture/.gitkeep" ]] || : > "$target_dir/.ai/harness/architecture/.gitkeep"
   [[ -f "$target_dir/.ai/harness/failures/latest.jsonl" ]] || : > "$target_dir/.ai/harness/failures/latest.jsonl"
+  [[ -f "$target_dir/.ai/harness/worktrees/.gitkeep" ]] || : > "$target_dir/.ai/harness/worktrees/.gitkeep"
   [[ -f "$target_dir/.ai/harness/runs/.gitkeep" ]] || : > "$target_dir/.ai/harness/runs/.gitkeep"
   [[ -f "$target_dir/tasks/workstreams/.gitkeep" ]] || : > "$target_dir/tasks/workstreams/.gitkeep"
   [[ -f "$target_dir/docs/architecture/domains/.gitkeep" ]] || : > "$target_dir/docs/architecture/domains/.gitkeep"

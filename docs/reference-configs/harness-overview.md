@@ -24,7 +24,7 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 12. `.ai/context/context-map.json` indexes stable root context and discoverable capability context derived from the registry.
 13. `documentation` inside `.ai/harness/policy.json` keeps generated docs minimal and moves optional docs to agent-created, evidence-backed output.
 14. `lsp_profiles` inside policy and context-map files select tooling hints per capability.
-15. `worktree_strategy` inside policy tells agents when to isolate work in `codex/<slug>` worktrees and validate with Waza `/check` before merging back.
+15. `worktree_strategy` inside policy tells agents when to isolate contract-level work in `codex/<slug>` worktrees, start execution through `scripts/contract-worktree.sh start --plan <plan>`, and finish with Waza `/check` plus `scripts/contract-worktree.sh finish`.
 16. `.ai/harness/handoff/current.md` preserves resumable state across sessions.
 17. `.ai/harness/events.jsonl` and `.ai/harness/runs/*.json` retain lightweight execution traces.
 
@@ -35,7 +35,7 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 - Claiming completion should include contract verification evidence, a run snapshot, implementation notes, and a passing review artifact.
 - Stopping a session should refresh `.ai/harness/handoff/current.md` for easier resume.
 - Use `docs/reference-configs/agentic-development-flow.md` for skill routing and `docs/reference-configs/external-tooling.md` for install/update commands.
-- If dirty worktree state overlaps the task, use an isolated `codex/<task-slug>` worktree and merge back only after a clean `/check`-style review.
+- Contract-level execution should run in an isolated `codex/<task-slug>` worktree. Merge back only after the contract is fulfilled, `tasks/reviews/<slug>.review.md` recommends pass, and the target worktree is clean.
 
 ## Documentation Profile
 
