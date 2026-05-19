@@ -32,6 +32,7 @@
 
 ### 6b. Contract Verification
 - Use task contracts in `tasks/contracts/` as completion gates.
+- Use implementation notes in `tasks/notes/` for task-local decisions that should not automatically become memory.
 - Validate exit criteria and review recommendation before any done/completed response.
 
 ### 7. Balanced Elegance

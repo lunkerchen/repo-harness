@@ -17,9 +17,11 @@ describe("create-project-dirs runtime smoke", () => {
       expect(res.status).toBe(0);
 
       expect(existsSync(join(cwd, "tasks/contracts"))).toBe(true);
+      expect(existsSync(join(cwd, "tasks/notes"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/templates/contract.template.md"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/templates/spec.template.md"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/templates/review.template.md"))).toBe(true);
+      expect(existsSync(join(cwd, ".claude/templates/implementation-notes.template.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/spa-day-protocol.md"))).toBe(false);
       expect(existsSync(join(cwd, "docs/reference-configs/handoff-protocol.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/harness-overview.md"))).toBe(true);
@@ -94,6 +96,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(progress).toContain("milestone checkpoints only");
       expect(progress).toContain("tasks/contracts/");
       expect(progress).toContain("tasks/reviews/");
+      expect(progress).toContain("tasks/notes/");
       const workflowContract = JSON.parse(readFileSync(join(cwd, ".ai/harness/workflow-contract.json"), "utf-8"));
       expect(workflowContract.helpers.scripts).toContain("check-agent-tooling.sh");
       expect(workflowContract.helpers.scripts).toContain("check-task-workflow.sh");
@@ -106,6 +109,8 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
+      expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/notes");
       expect(workflowContract.agenticDevelopment.routing.complexEngineeringPlan).toBe("gstack:plan-eng-review");
       expect(workflowContract.agenticDevelopment.routing.smallOrMediumPlan).toBe("waza:think");
       const contextMap = JSON.parse(readFileSync(join(cwd, ".ai/context/context-map.json"), "utf-8"));
@@ -125,6 +130,9 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.external_tooling.waza.managed_skills).toEqual(["check", "design", "health", "hunt", "learn", "read", "think", "write"]);
       expect(policy.external_tooling.waza.codex_primary_path).toBe("~/.codex/skills");
       expect(policy.external_tooling.gbrain.mcp).toBe("candidate-disabled");
+      expect(policy.tasks.notes_dir).toBe("tasks/notes");
+      expect(policy.information_lifecycle.notes.dir).toBe("tasks/notes");
+      expect(policy.information_lifecycle.evidence.snapshots_dir).toBe(".ai/harness/runs");
       expect(policy.agentic_development.routing).toEqual({
         product_discovery: "gstack:office-hours",
         complex_engineering_plan: "gstack:plan-eng-review",

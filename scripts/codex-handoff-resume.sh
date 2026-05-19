@@ -106,6 +106,16 @@ derive_contract() {
   printf 'tasks/contracts/%s.contract.md' "$slug"
 }
 
+derive_notes() {
+  local plan_file="$1"
+  local slug notes_dir
+  [[ -n "$plan_file" ]] || return 1
+  slug="$(basename "$plan_file" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
+  [[ -n "$slug" ]] || return 1
+  notes_dir="$(safe_repo_file "$(policy_get '.tasks.notes_dir' 'tasks/notes')" 'tasks/notes' 'tasks/')"
+  printf '%s/%s.notes.md' "$notes_dir" "$slug"
+}
+
 latest_global_handoff() {
   local codex_home="${CODEX_HOME:-$HOME/.codex}"
   find "$codex_home/handoffs" -maxdepth 1 -type f -name 'handoff-*.md' 2>/dev/null | sort | tail -1
@@ -119,6 +129,7 @@ research_file="$(safe_repo_file "$(policy_get '.tasks.research_file' 'tasks/rese
 todo_file="$(safe_repo_file "$(policy_get '.tasks.todo_file' 'tasks/todo.md')" 'tasks/todo.md' 'tasks/')"
 plan_file="$(latest_plan || true)"
 contract_file="$(derive_contract "$plan_file" || true)"
+notes_file="$(derive_notes "$plan_file" || true)"
 global_handoff="$(latest_global_handoff || true)"
 
 mkdir -p "$(dirname "$resume_file")"
@@ -139,6 +150,7 @@ Required first reads:
 - AGENTS.md
 - ${repo_handoff}
 - ${todo_file}
+- ${notes_file:-(none)}
 - ${research_file}
 - ${checks_file}
 - ${budget_file}
@@ -146,6 +158,7 @@ Required first reads:
 Conditional first reads:
 - Active plan: ${plan_file:-(none)}
 - Active contract: ${contract_file:-(none)}
+- Implementation notes: ${notes_file:-(none)}
 - Global handoff: ${global_handoff:-(none)}
 
 Execution rules:
@@ -165,6 +178,7 @@ Execution rules:
 - Research: ${research_file}
 - Plan: ${plan_file:-(none)}
 - Contract: ${contract_file:-(none)}
+- Notes: ${notes_file:-(none)}
 - Global handoff: ${global_handoff:-(none)}
 EOF_RESUME
 

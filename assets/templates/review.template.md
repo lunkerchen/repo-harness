@@ -3,6 +3,7 @@
 > **Status**: Pending
 > **Plan**: {{PLAN_FILE}}
 > **Contract**: {{CONTRACT_FILE}}
+> **Notes File**: {{NOTES_FILE}}
 > **Checks File**: {{CHECKS_FILE}}
 > **Last Updated**: {{TIMESTAMP}}
 > **Recommendation**: fail
@@ -18,6 +19,8 @@
 - Commands run:
 - Manual checks:
 - Supporting artifacts:
+- Implementation notes reviewed:
+- Run snapshot:
 
 ## Behavior Diff Notes
 

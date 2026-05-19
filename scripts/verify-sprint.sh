@@ -28,9 +28,23 @@ fi
 
 [[ -n "$contract_file" && -f "$contract_file" ]] || { echo "No active sprint contract found" >&2; exit 1; }
 
+generated_at="$(date '+%Y-%m-%dT%H:%M:%S%z')"
+run_stamp="$(date '+%Y%m%dT%H%M%S')"
+run_id="${HOOK_RUN_ID:-${CLAUDE_RUN_ID:-${CODEX_RUN_ID:-run-${run_stamp}-$$}}}"
+safe_run_id="$(printf '%s' "$run_id" | sed -E 's/[^A-Za-z0-9._-]+/-/g')"
+contract_slug="$(basename "$contract_file" | sed -E 's/\.contract\.md$//')"
+safe_contract_slug="$(printf '%s' "$contract_slug" | sed -E 's/[^A-Za-z0-9._-]+/-/g')"
+runs_dir=".ai/harness/runs"
+if declare -F workflow_runs_dir >/dev/null 2>&1; then
+  runs_dir="$(workflow_runs_dir)"
+fi
+run_file="${runs_dir}/${safe_run_id}-${safe_contract_slug}.json"
+
 mkdir -p "$(dirname "$checks_file")"
+mkdir -p "$runs_dir"
 contract_report="$(mktemp)"
-trap 'rm -f "$contract_report"' EXIT
+checks_report="$(mktemp)"
+trap 'rm -f "$contract_report" "$checks_report"' EXIT
 
 contract_command="bash scripts/verify-contract.sh --contract $contract_file --strict --report-file <temp>"
 set +e
@@ -67,7 +81,9 @@ if command -v jq >/dev/null 2>&1 && jq -e . "$contract_report" >/dev/null 2>&1; 
     --arg status "$status" \
     --arg source "verify-sprint" \
     --arg command "bash scripts/verify-sprint.sh" \
-    --arg generated_at "$(date '+%Y-%m-%dT%H:%M:%S%z')" \
+    --arg generated_at "$generated_at" \
+    --arg run_id "$run_id" \
+    --arg run_file "$run_file" \
     --arg contract_file "$contract_file" \
     --arg contract_status "$([[ "$contract_exit" -eq 0 ]] && printf pass || printf fail)" \
     --arg contract_command "$contract_command" \
@@ -82,6 +98,13 @@ if command -v jq >/dev/null 2>&1 && jq -e . "$contract_report" >/dev/null 2>&1; 
       command: $command,
       exit_code: $exit_code,
       generated_at: $generated_at,
+      run_id: $run_id,
+      run_file: $run_file,
+      lifecycle: {
+        latest: ".ai/harness/checks/latest.json",
+        snapshot: $run_file,
+        evidence_tier: "raw-verification"
+      },
       contract: {
         file: $contract_file,
         status: $contract_status,
@@ -94,15 +117,22 @@ if command -v jq >/dev/null 2>&1 && jq -e . "$contract_report" >/dev/null 2>&1; 
         status: $review_status,
         message: $review_message
       }
-    }' > "$checks_file"
+    }' > "$checks_report"
 else
-  cat > "$checks_file" <<EOF_CHECKS
+  cat > "$checks_report" <<EOF_CHECKS
 {
   "status": "$(json_escape "$status")",
   "source": "verify-sprint",
   "command": "bash scripts/verify-sprint.sh",
   "exit_code": $exit_code,
-  "generated_at": "$(json_escape "$(date '+%Y-%m-%dT%H:%M:%S%z')")",
+  "generated_at": "$(json_escape "$generated_at")",
+  "run_id": "$(json_escape "$run_id")",
+  "run_file": "$(json_escape "$run_file")",
+  "lifecycle": {
+    "latest": ".ai/harness/checks/latest.json",
+    "snapshot": "$(json_escape "$run_file")",
+    "evidence_tier": "raw-verification"
+  },
   "contract": {
     "file": "$(json_escape "$contract_file")",
     "status": "$([[ "$contract_exit" -eq 0 ]] && printf pass || printf fail)",
@@ -118,10 +148,15 @@ else
 EOF_CHECKS
 fi
 
+cp "$checks_report" "$checks_file"
+cp "$checks_report" "$run_file"
+
 if [[ "$exit_code" -eq 0 ]]; then
   echo "Sprint verification passed"
+  echo "Run snapshot: $run_file"
 else
   echo "Sprint verification failed" >&2
+  echo "Run snapshot: $run_file" >&2
 fi
 
 exit "$exit_code"

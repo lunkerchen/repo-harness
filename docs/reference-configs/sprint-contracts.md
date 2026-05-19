@@ -22,4 +22,5 @@ Sprint contracts are the repo-local agreement between planner, generator, and ev
 ## Review Coupling
 
 - A contract is not truly done until the matching review file records a passing recommendation.
-- `tasks/reviews/<slug>.review.md` should cite the contract, checks file, and any manual observations.
+- `tasks/reviews/<slug>.review.md` should cite the contract, implementation notes, checks file, run snapshot, and any manual observations.
+- `tasks/notes/<slug>.notes.md` captures task-local decisions and should be archived or promoted deliberately, not left as hidden long-term memory.

@@ -1,6 +1,6 @@
 # Project — Research Notes
 
-> **Last Updated**: 2026-04-19
+> **Last Updated**: 2026-05-19
 > **Scope**: workflow contract manifest, inspection-first migration, progressive context/policy surfaces, harness state externalization, and DX polish for docs + hook operations
 > **Usage**: Store deep codebase findings and hidden contracts here, not in chat-only summaries.
 
@@ -148,3 +148,16 @@
 - Keep `assets/workflow-contract.v1.json` and `.ai/harness/workflow-contract.json` in sync whenever required files change.
 - Keep reference-config installation profile-driven through `pi_install_reference_configs`; do not reintroduce unconditional `cp "$ASSETS_REF_DIR"/*.md`.
 - Keep functional-block context selection explicit. Physical layout globs are hints only after a repo declares selected blocks.
+
+## 2026-05-19 Notes, Evidence, and Asset Lifecycle Notes
+
+### What Changed
+- The workflow contract now has an explicit implementation-notes layer under `tasks/notes/`. `plan-to-todo.sh` creates one notes file per approved plan, and `archive-workflow.sh` archives that task-local explanation with the plan/todo/review artifacts.
+- `verify-sprint.sh` now preserves raw evidence snapshots under `.ai/harness/runs/` while still updating `.ai/harness/checks/latest.json` as the current pointer.
+- `.ai/harness/policy.json` now names the information lifecycle: task-local notes, raw verification evidence, promoted harness assets, and advisory memory.
+- Handoff/resume surfaces now include active notes so long-running work can recover design decisions, deviations, tradeoffs, and open questions without forcing those judgments into long-term memory.
+
+### What to Preserve
+- Keep `tasks/notes/` task-local. Archive it on workflow close; promote only repeated corrections, durable repo facts, or cross-task verified patterns.
+- Keep raw run snapshots as evidence, not prose summaries. Reviews and future promotions should be checked against `.ai/harness/runs/` when available.
+- Keep harness assets conservative: scripts, hooks, templates, workflow contracts, and reference configs should change only when a pattern has been verified beyond one local task.

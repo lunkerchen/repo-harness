@@ -7,6 +7,7 @@
 > **Research**: See `tasks/research.md`
 > **Sprint Contract**: `tasks/contracts/{{SLUG}}.contract.md`
 > **Sprint Review**: `tasks/reviews/{{SLUG}}.review.md`
+> **Implementation Notes**: `tasks/notes/{{SLUG}}.notes.md`
 
 ## Agentic Routing
 - Selected route:
@@ -37,6 +38,7 @@
 ## Task Contracts
 - Contract file: `tasks/contracts/{{SLUG}}.contract.md`
 - Review file: `tasks/reviews/{{SLUG}}.review.md`
+- Implementation notes file: `tasks/notes/{{SLUG}}.notes.md`
 - Template: `.claude/templates/contract.template.md`
 - Verification command: `bash scripts/verify-contract.sh --contract tasks/contracts/{{SLUG}}.contract.md --strict`
 - Active plan rule: the latest non-archived `plans/plan-*.md` file is the current plan

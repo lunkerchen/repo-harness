@@ -5,6 +5,7 @@
 > **Owner**: {{OWNER}}
 > **Last Updated**: {{TIMESTAMP}}
 > **Review File**: `tasks/reviews/{{TASK_SLUG}}.review.md`
+> **Notes File**: `tasks/notes/{{TASK_SLUG}}.notes.md`
 
 ## Goal
 
@@ -24,6 +25,7 @@ allowed_paths:
   - tasks/todo.md
   - tasks/contracts/{{TASK_SLUG}}.contract.md
   - tasks/reviews/{{TASK_SLUG}}.review.md
+  - tasks/notes/{{TASK_SLUG}}.notes.md
   - src/
   - tests/
 ```
@@ -36,6 +38,7 @@ exit_criteria:
     - docs/spec.md
   artifacts_exist:
     - .ai/harness/checks/latest.json
+    - tasks/notes/{{TASK_SLUG}}.notes.md
   tests_pass:
     - path: tests/unit/{{TASK_SLUG}}.test.ts
   commands_succeed:

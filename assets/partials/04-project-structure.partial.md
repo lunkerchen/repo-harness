@@ -19,7 +19,7 @@
 - Primary worktree warns by default; enforce via `.claude/.require-worktree`.
 - Commit explicitly after green checks; no automatic checkpoint hook in the shared preset.
 - Keep stable product truth in `docs/spec.md`.
-- Keep sprint done definitions in `tasks/contracts/` and `tasks/reviews/`.
+- Keep sprint done definitions in `tasks/contracts/`, `tasks/reviews/`, and task-local implementation notes in `tasks/notes/`.
 - Keep resumable state in `.ai/harness/handoff/current.md`.
 - Route product discovery to gstack `office-hours`, complex engineering plans to gstack `plan-eng-review`, design plans to gstack `plan-design-review`, and daily small/medium planning, bug hunts, and checks to Waza `/think`, `/hunt`, and `/check`.
 - Route knowledge sync and handoff retrieval to `gbrain`.

@@ -135,6 +135,9 @@ describe("Workflow helper scripts", () => {
       expect(todo).toContain("**Status**: Executing");
       expect(todo).toContain("- [ ] Step one");
       expect(existsSync(join(cwd, "tasks/contracts/demo.contract.md"))).toBe(true);
+      expect(existsSync(join(cwd, "tasks/notes/demo.notes.md"))).toBe(true);
+      expect(readFileSync(join(cwd, "tasks/notes/demo.notes.md"), "utf-8")).toContain("## Design Decisions");
+      expect(readFileSync(join(cwd, "tasks/reviews/demo.review.md"), "utf-8")).toContain("tasks/notes/demo.notes.md");
       expect(existsSync(join(cwd, ".claude/.task-state.json"))).toBe(true);
       const taskState = readFileSync(join(cwd, ".claude/.task-state.json"), "utf-8");
       expect(taskState).toContain('"source_plan": "plans/plan-20260304-1400-demo.md"');
@@ -258,6 +261,8 @@ describe("Workflow helper scripts", () => {
         join(cwd, "plans/plan-20260304-1500-demo.md"),
         "# Plan: demo\n\n> **Status**: Executing\n"
       );
+      mkdirSync(join(cwd, "tasks/notes"), { recursive: true });
+      writeFileSync(join(cwd, "tasks/notes/demo.notes.md"), "# Implementation Notes: demo\n");
       writeFileSync(join(cwd, "tasks/todo.md"), "# Task Execution Checklist (Primary)\n\n- [ ] task\n");
 
       const res = run(
@@ -275,6 +280,10 @@ describe("Workflow helper scripts", () => {
       expect(archivedTodos.length).toBeGreaterThanOrEqual(1);
       const todoArchiveContent = readFileSync(join(cwd, "tasks/archive", archivedTodos[0]), "utf-8");
       expect(todoArchiveContent).toContain("**Outcome**: Completed");
+      const archivedNotes = readdirSync(join(cwd, "tasks/archive")).filter((name) => name.startsWith("notes-"));
+      expect(archivedNotes.length).toBeGreaterThanOrEqual(1);
+      expect(readFileSync(join(cwd, "tasks/archive", archivedNotes[0]), "utf-8")).toContain("**Lifecycle**: notes");
+      expect(existsSync(join(cwd, "tasks/notes/demo.notes.md"))).toBe(false);
 
       const resetTodo = readFileSync(join(cwd, "tasks/todo.md"), "utf-8");
       expect(resetTodo).toContain("# Task Execution Checklist (Primary)");
@@ -549,6 +558,10 @@ describe("Workflow helper scripts", () => {
       expect(checks.contract.status).toBe("pass");
       expect(checks.review.file).toBe("tasks/reviews/demo.review.md");
       expect(checks.review.status).toBe("pass");
+      expect(checks.run_file).toMatch(/^\.ai\/harness\/runs\/.+-demo\.json$/);
+      expect(existsSync(join(cwd, checks.run_file))).toBe(true);
+      const snapshot = JSON.parse(readFileSync(join(cwd, checks.run_file), "utf-8"));
+      expect(snapshot.lifecycle.evidence_tier).toBe("raw-verification");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -598,6 +611,8 @@ describe("Workflow helper scripts", () => {
       expect(checks.source).toBe("verify-sprint");
       expect(checks.contract.file).toBe("tasks/contracts/demo.contract.md");
       expect(checks.contract.status).toBe("fail");
+      expect(checks.run_file).toMatch(/^\.ai\/harness\/runs\/.+-demo\.json$/);
+      expect(existsSync(join(cwd, checks.run_file))).toBe(true);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

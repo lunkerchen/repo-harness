@@ -63,6 +63,7 @@
       "tasks/archive",
       "tasks/contracts",
       "tasks/reviews",
+      "tasks/notes",
       ".claude/templates",
       ".ai/context",
       ".ai/harness",
@@ -80,6 +81,7 @@
       ".claude/templates/research.template.md",
       ".claude/templates/contract.template.md",
       ".claude/templates/review.template.md",
+      ".claude/templates/implementation-notes.template.md",
       "scripts/new-spec.sh",
       "scripts/new-sprint.sh",
       "scripts/new-plan.sh",
@@ -130,6 +132,7 @@
     "progressLedger": "docs/PROGRESS.md",
     "taskChecklist": "tasks/todo.md",
     "researchNotes": "tasks/research.md",
+    "implementationNotesDirectory": "tasks/notes",
     "lessonsLog": "tasks/lessons.md"
   },
   "migrations": {

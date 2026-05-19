@@ -358,7 +358,7 @@ create_task_files_if_missing() {
   progress_file="$repo/docs/PROGRESS.md"
 
   if [[ "$MODE" != "apply" ]]; then
-    echo "[dry-run] ensure docs/spec.md, tasks/*, reviews, .ai/context/context-map.json, and .ai/harness/{checks/latest.json,policy.json,events.jsonl,handoff/current.md,handoff/resume.md,context-budget/latest.json,failures/latest.jsonl,runs/.gitkeep} exist with 3.1 guidance"
+    echo "[dry-run] ensure docs/spec.md, tasks/*, reviews, notes, .ai/context/context-map.json, and .ai/harness/{checks/latest.json,policy.json,events.jsonl,handoff/current.md,handoff/resume.md,context-budget/latest.json,failures/latest.jsonl,runs/.gitkeep} exist with 3.1 guidance"
     return
   fi
 
@@ -366,6 +366,7 @@ create_task_files_if_missing() {
     "$repo/tasks" \
     "$repo/tasks/contracts" \
     "$repo/tasks/reviews" \
+    "$repo/tasks/notes" \
     "$repo/docs" \
     "$repo/.ai/context" \
     "$repo/.ai/harness/checks" \
@@ -454,7 +455,7 @@ LESSONS_EOF
 # Project Milestones
 
 > Use this file for milestone checkpoints only.
-> Active execution belongs in `tasks/todo.md`, `tasks/contracts/`, `tasks/reviews/`, and `.ai/harness/handoff/current.md`.
+> Active execution belongs in `tasks/todo.md`, `tasks/contracts/`, `tasks/reviews/`, `tasks/notes/`, and `.ai/harness/handoff/current.md`.
 
 ## Current Milestone
 
@@ -481,7 +482,7 @@ PROGRESS_EOF
 # Project Milestones
 
 > Use this file for milestone checkpoints only.
-> Active execution belongs in `tasks/todo.md`, `tasks/contracts/`, `tasks/reviews/`, and `.ai/harness/handoff/current.md`.
+> Active execution belongs in `tasks/todo.md`, `tasks/contracts/`, `tasks/reviews/`, `tasks/notes/`, and `.ai/harness/handoff/current.md`.
 
 ## Current Milestone
 
@@ -710,6 +711,7 @@ migrate_workflow() {
   run_or_echo "mkdir -p \"$repo/tasks/archive\""
   run_or_echo "mkdir -p \"$repo/tasks/contracts\""
   run_or_echo "mkdir -p \"$repo/tasks/reviews\""
+  run_or_echo "mkdir -p \"$repo/tasks/notes\""
   run_or_echo "mkdir -p \"$repo/docs/reference-configs\""
   run_or_echo "mkdir -p \"$repo/.ai/harness/checks\""
   run_or_echo "mkdir -p \"$repo/.ai/harness/handoff\""

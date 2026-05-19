@@ -105,6 +105,7 @@ RESEARCH_TEMPLATE_EOF
 > **Created**: {{TIMESTAMP}}
 > **Slug**: {{SLUG}}
 > **Research**: See `tasks/research.md`
+> **Implementation Notes**: `tasks/notes/{{SLUG}}.notes.md`
 
 ## Approach
 ### Strategy
@@ -126,6 +127,7 @@ RESEARCH_TEMPLATE_EOF
 
 ## Task Contracts
 - Contract file: `tasks/contracts/{{SLUG}}.contract.md`
+- Implementation notes file: `tasks/notes/{{SLUG}}.notes.md`
 - Template: `.claude/templates/contract.template.md`
 - Verification command: `bash scripts/verify-contract.sh --contract tasks/contracts/{{SLUG}}.contract.md --strict`
 
@@ -146,6 +148,7 @@ PLAN_TEMPLATE_EOF
 > **Owner**: {{OWNER}}
 > **Last Updated**: {{TIMESTAMP}}
 > **Review File**: `tasks/reviews/{{TASK_SLUG}}.review.md`
+> **Notes File**: `tasks/notes/{{TASK_SLUG}}.notes.md`
 
 ## Goal
 
@@ -164,6 +167,7 @@ allowed_paths:
   - tasks/todo.md
   - tasks/contracts/{{TASK_SLUG}}.contract.md
   - tasks/reviews/{{TASK_SLUG}}.review.md
+  - tasks/notes/{{TASK_SLUG}}.notes.md
   - src/
   - tests/
 ```
@@ -174,6 +178,7 @@ allowed_paths:
 exit_criteria:
   files_exist:
     - src/modules/{{TASK_SLUG}}/index.ts
+    - tasks/notes/{{TASK_SLUG}}.notes.md
   tests_pass:
     - path: tests/unit/{{TASK_SLUG}}.test.ts
   commands_succeed:
@@ -203,6 +208,7 @@ CONTRACT_TEMPLATE_EOF
 > **Status**: Pending
 > **Plan**: {{PLAN_FILE}}
 > **Contract**: {{CONTRACT_FILE}}
+> **Notes File**: {{NOTES_FILE}}
 > **Checks File**: {{CHECKS_FILE}}
 > **Last Updated**: {{TIMESTAMP}}
 > **Recommendation**: fail
@@ -230,6 +236,48 @@ CONTRACT_TEMPLATE_EOF
 - ...
 REVIEW_TEMPLATE_EOF
   fi
+
+  if [[ ! -f ".claude/templates/implementation-notes.template.md" ]]; then
+    cat > .claude/templates/implementation-notes.template.md <<'NOTES_TEMPLATE_EOF'
+# Implementation Notes: {{TASK_SLUG}}
+
+> **Status**: Active
+> **Plan**: {{PLAN_FILE}}
+> **Contract**: {{CONTRACT_FILE}}
+> **Review**: {{REVIEW_FILE}}
+> **Last Updated**: {{TIMESTAMP}}
+> **Lifecycle**: notes
+
+## Design Decisions
+
+- ...
+
+## Deviations From Plan Or Spec
+
+- None recorded.
+
+## Tradeoffs Considered
+
+| Option | Decision | Reason |
+|--------|----------|--------|
+| ... | ... | ... |
+
+## Open Questions
+
+- None.
+
+## Evidence Links
+
+- Checks: `.ai/harness/checks/latest.json`
+- Run snapshots: `.ai/harness/runs/`
+
+## Promotion Candidates
+
+- Promote to `tasks/lessons.md` only after a repeated correction or failure pattern.
+- Promote to `tasks/research.md` only when it is durable repo knowledge with evidence.
+- Promote to harness asset files only after verification across more than one task or fixture.
+NOTES_TEMPLATE_EOF
+  fi
 }
 
 ensure_idle_todo() {
@@ -250,7 +298,7 @@ TODO_EOF
 }
 
 ensure_auxiliary_files() {
-  mkdir -p plans plans/archive tasks/archive tasks/contracts tasks/reviews docs scripts .ai/context .ai/harness/checks .ai/harness/handoff .ai/harness/context-budget .ai/harness/failures .ai/harness/runs
+  mkdir -p plans plans/archive tasks/archive tasks/contracts tasks/reviews tasks/notes docs scripts .ai/context .ai/harness/checks .ai/harness/handoff .ai/harness/context-budget .ai/harness/failures .ai/harness/runs
 
   if [[ ! -f "docs/spec.md" ]]; then
     cat > docs/spec.md <<'SPEC_EOF'
@@ -382,7 +430,8 @@ RESUME_EOF
     "lessons_file": "tasks/lessons.md",
     "research_file": "tasks/research.md",
     "contracts_dir": "tasks/contracts",
-    "reviews_dir": "tasks/reviews"
+    "reviews_dir": "tasks/reviews",
+    "notes_dir": "tasks/notes"
   },
   "progress": {
     "file": "docs/PROGRESS.md",
@@ -405,6 +454,26 @@ RESUME_EOF
     "failure_log_file": ".ai/harness/failures/latest.jsonl",
     "events_file": ".ai/harness/events.jsonl",
     "runs_dir": ".ai/harness/runs"
+  },
+  "information_lifecycle": {
+    "notes": {
+      "dir": "tasks/notes",
+      "purpose": "task-local implementation decisions, deviations, tradeoffs, and open questions",
+      "promotion": "archive on workflow close; promote only repeated or durable findings"
+    },
+    "evidence": {
+      "latest": ".ai/harness/checks/latest.json",
+      "snapshots_dir": ".ai/harness/runs",
+      "purpose": "raw verification records used to audit notes, reviews, and future promotion"
+    },
+    "assets": {
+      "sources": [".ai/harness/policy.json", ".ai/harness/workflow-contract.json", ".ai/hooks/", "scripts/", "docs/reference-configs/"],
+      "promotion_rule": "only promote patterns after verified reuse across tasks or fixtures"
+    },
+    "memory": {
+      "sources": ["tasks/research.md", "tasks/lessons.md", "gbrain"],
+      "rule": "memory is advisory; current repo state and evidence override summaries"
+    }
   },
   "context_budget": {
     "status_file": ".ai/harness/context-budget/latest.json",

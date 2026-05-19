@@ -94,6 +94,7 @@ render_contract_file() {
 > **Owner**: {{OWNER}}
 > **Last Updated**: {{TIMESTAMP}}
 > **Review File**: `tasks/reviews/{{TASK_SLUG}}.review.md`
+> **Notes File**: `tasks/notes/{{TASK_SLUG}}.notes.md`
 
 ## Goal
 
@@ -112,6 +113,7 @@ allowed_paths:
   - tasks/todo.md
   - tasks/contracts/{{TASK_SLUG}}.contract.md
   - tasks/reviews/{{TASK_SLUG}}.review.md
+  - tasks/notes/{{TASK_SLUG}}.notes.md
   - src/
   - tests/
 ```
@@ -122,6 +124,7 @@ allowed_paths:
 exit_criteria:
   files_exist:
     - src/modules/{{TASK_SLUG}}/index.ts
+    - tasks/notes/{{TASK_SLUG}}.notes.md
   tests_pass:
     - path: tests/unit/{{TASK_SLUG}}.test.ts
   commands_succeed:
@@ -152,6 +155,70 @@ CONTRACT_TEMPLATE_EOF
     -e "s/{{TIMESTAMP}}/${timestamp}/g" \
     "$template_file" > "$tmp_file"
   mv "$tmp_file" "$contract_file"
+}
+
+render_implementation_notes_file() {
+  local plan_file="$1"
+  local contract_file="$2"
+  local review_file="$3"
+  local notes_file="$4"
+  local slug="$5"
+  local timestamp="$6"
+  local template_file=".claude/templates/implementation-notes.template.md"
+  local tmp_file
+
+  if [[ ! -f "$template_file" ]]; then
+    mkdir -p .claude/templates
+    cat > "$template_file" <<'NOTES_TEMPLATE_EOF'
+# Implementation Notes: {{TASK_SLUG}}
+
+> **Status**: Active
+> **Plan**: {{PLAN_FILE}}
+> **Contract**: {{CONTRACT_FILE}}
+> **Review**: {{REVIEW_FILE}}
+> **Last Updated**: {{TIMESTAMP}}
+> **Lifecycle**: notes
+
+## Design Decisions
+
+- ...
+
+## Deviations From Plan Or Spec
+
+- None recorded.
+
+## Tradeoffs Considered
+
+| Option | Decision | Reason |
+|--------|----------|--------|
+| ... | ... | ... |
+
+## Open Questions
+
+- None.
+
+## Evidence Links
+
+- Checks: `.ai/harness/checks/latest.json`
+- Run snapshots: `.ai/harness/runs/`
+
+## Promotion Candidates
+
+- Promote to `tasks/lessons.md` only after a repeated correction or failure pattern.
+- Promote to `tasks/research.md` only when it is durable repo knowledge with evidence.
+- Promote to harness asset files only after verification across more than one task or fixture.
+NOTES_TEMPLATE_EOF
+  fi
+
+  tmp_file="$(mktemp)"
+  sed \
+    -e "s/{{TASK_SLUG}}/${slug}/g" \
+    -e "s|{{PLAN_FILE}}|${plan_file}|g" \
+    -e "s|{{CONTRACT_FILE}}|${contract_file}|g" \
+    -e "s|{{REVIEW_FILE}}|${review_file}|g" \
+    -e "s/{{TIMESTAMP}}/${timestamp}/g" \
+    "$template_file" > "$tmp_file"
+  mv "$tmp_file" "$notes_file"
 }
 
 # Delegate to workflow-state.sh if available; inline fallback otherwise.
@@ -269,6 +336,7 @@ fi
 mkdir -p tasks/archive
 mkdir -p tasks/contracts
 mkdir -p tasks/reviews
+mkdir -p tasks/notes
 mkdir -p .claude
 mkdir -p .ai/context
 mkdir -p .ai/harness/checks
@@ -282,6 +350,7 @@ plan_base="$(basename "$plan_file")"
 slug="$(echo "$plan_base" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
 contract_file="tasks/contracts/${slug}.contract.md"
 review_file="tasks/reviews/${slug}.review.md"
+notes_file="tasks/notes/${slug}.notes.md"
 previous_source_plan="$(get_todo_source_plan || true)"
 parent_run_id="${HOOK_RUN_ID:-${CLAUDE_RUN_ID:-${CODEX_RUN_ID:-run-${timestamp}}}}"
 
@@ -321,6 +390,7 @@ fi
   echo "> **Generated**: ${timestamp_human}"
   echo "> **Source Plan Slug**: ${slug}"
   echo "> **Review File**: ${review_file}"
+  echo "> **Notes File**: ${notes_file}"
   echo "> **Parent Run ID**: ${parent_run_id}"
   echo "> **Supersedes**: ${previous_source_plan:-"(none)"}"
   echo
@@ -330,17 +400,77 @@ fi
 
 workflow_sync_task_state_from_todo "tasks/todo.md" ".claude/.task-state.json" "$plan_file"
 
-render_contract_file "$plan_file" "$contract_file" "$slug" "$timestamp_human"
-
 if [[ -f ".claude/templates/review.template.md" ]]; then
-  sed \
-    -e "s/{{TASK_SLUG}}/${slug}/g" \
-    -e "s|{{PLAN_FILE}}|${plan_file}|g" \
-    -e "s|{{CONTRACT_FILE}}|${contract_file}|g" \
-    -e "s|{{CHECKS_FILE}}|.ai/harness/checks/latest.json|g" \
-    -e "s/{{TIMESTAMP}}/${timestamp_human}/g" \
-    .claude/templates/review.template.md > "$review_file"
+  :
+else
+  mkdir -p .claude/templates
+  cat > .claude/templates/review.template.md <<'REVIEW_TEMPLATE_EOF'
+# Sprint Review: {{TASK_SLUG}}
+
+> **Status**: Pending
+> **Plan**: {{PLAN_FILE}}
+> **Contract**: {{CONTRACT_FILE}}
+> **Notes File**: {{NOTES_FILE}}
+> **Checks File**: {{CHECKS_FILE}}
+> **Last Updated**: {{TIMESTAMP}}
+> **Recommendation**: fail
+
+## Mode Evidence
+
+- Selected route:
+- P1/P2/P3 evidence:
+- Root cause or plan evidence:
+
+## Verification Evidence
+
+- Commands run:
+- Manual checks:
+- Supporting artifacts:
+- Implementation notes reviewed:
+- Run snapshot:
+
+## Behavior Diff Notes
+
+- ...
+
+## Residual Risks / Follow-ups
+
+- ...
+
+## Scorecard
+
+| Dimension | Score | Notes |
+|-----------|-------|-------|
+| Functionality | 0/10 | |
+| Product depth | 0/10 | |
+| Design quality | 0/10 | |
+| Code quality | 0/10 | |
+
+## Failing Items
+
+- ...
+
+## Retest Steps
+
+- Re-run:
+- Re-check:
+
+## Summary
+
+- ...
+REVIEW_TEMPLATE_EOF
 fi
+
+render_contract_file "$plan_file" "$contract_file" "$slug" "$timestamp_human"
+render_implementation_notes_file "$plan_file" "$contract_file" "$review_file" "$notes_file" "$slug" "$timestamp_human"
+sed \
+  -e "s/{{TASK_SLUG}}/${slug}/g" \
+  -e "s|{{PLAN_FILE}}|${plan_file}|g" \
+  -e "s|{{CONTRACT_FILE}}|${contract_file}|g" \
+  -e "s|{{NOTES_FILE}}|${notes_file}|g" \
+  -e "s|{{CHECKS_FILE}}|.ai/harness/checks/latest.json|g" \
+  -e "s/{{TIMESTAMP}}/${timestamp_human}/g" \
+  .claude/templates/review.template.md > "$review_file"
 
 if [[ ! -f ".ai/harness/checks/latest.json" ]]; then
   echo "{}" > .ai/harness/checks/latest.json

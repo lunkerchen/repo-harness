@@ -48,7 +48,7 @@
     },
     {
       "version": "3.6.0",
-      "description": "Added minimal-agentic documentation generation, functional-block LSP profile metadata, and conflict-triggered Codex worktree validation policy"
+      "description": "Added minimal-agentic documentation generation, functional-block LSP profile metadata, conflict-triggered Codex worktree validation policy, and explicit notes/evidence/asset lifecycle artifacts"
     }
   ],
   "generatedProjectStamp": {

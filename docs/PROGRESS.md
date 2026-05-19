@@ -1,7 +1,7 @@
 # Project Milestones
 
 > Use this file for milestone checkpoints only.
-> Active execution belongs in `tasks/todo.md`, `tasks/contracts/`, `tasks/reviews/`, and `.ai/harness/handoff/current.md`.
+> Active execution belongs in `tasks/todo.md`, `tasks/contracts/`, `tasks/reviews/`, `tasks/notes/`, and `.ai/harness/handoff/current.md`.
 
 ## Current Milestone
 
@@ -12,6 +12,7 @@
 ## Completed Milestones
 
 - [x] Repository scaffolded
+- [x] Released v3.6.0 harness lifecycle update with minimal docs, worktree policy, implementation notes, and run evidence snapshots
 
 ## Next Milestone / Blockers
 

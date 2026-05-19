@@ -7,6 +7,7 @@ TASK_SOURCES:
   - tasks/todo.md
   - tasks/contracts/
   - tasks/reviews/
+  - tasks/notes/
   - tasks/lessons.md
   - .ai/harness/checks/latest.json
   - .ai/harness/handoff/current.md
@@ -31,6 +32,7 @@ RULES:
   - Extract approved plan tasks into tasks/todo.md
   - Define task contracts in tasks/contracts/{slug}.contract.md
   - Define evaluator verdicts and verification evidence in tasks/reviews/{slug}.review.md
+  - Record implementation decisions, deviations, tradeoffs, and open questions in tasks/notes/{slug}.notes.md
   - Verify contracts before claiming completion
   - Require review pass before claiming completion
   - Keep tasks/todo.md limited to metadata plus the active execution checklist
@@ -38,6 +40,7 @@ RULES:
   - Distill repeated corrections into tasks/lessons.md instead of keeping them in tasks/todo.md
   - Capture deep findings and hidden contracts in tasks/research.md
   - Keep sprint-level verification notes, behavior diffs, and residual risks in tasks/reviews/{slug}.review.md
+  - Promote implementation notes only after evidence shows the rule should outlive the sprint
   - Promote worthwhile follow-up work into a new plans/plan-{timestamp}-{slug}.md file
   - Treat `.ai/hooks/` as the shared automation entrypoint when repo scripts reference hook-backed workflow checks
   - Treat `.claude/settings.json` as the Claude-specific adapter, not the cross-agent source of truth

@@ -94,8 +94,10 @@ describe("Bootstrap Script Contracts", () => {
     expect(sharedLib).toContain("check:task-sync");
     expect(sharedLib).toContain("check:task-workflow");
     expect(sharedLib).toContain("contract.template.md");
+    expect(sharedLib).toContain("implementation-notes.template.md");
     expect(content).toContain("pi_install_reference_configs");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
+    expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
     expect(content).toContain("install_workflow_contract");
     expect(content).toContain('cp "$ASSETS_HOOKS_DIR/settings.template.json" .claude/settings.json');
     expect(content).toContain("mkdir -p .ai/hooks");
@@ -108,6 +110,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/context-budget/latest.json");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
+    expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.agenticDevelopment.routing.productDiscovery).toBe("gstack:office-hours");
     expect(sharedLib).not.toContain(".skill-factory-state.json");
     expect(sharedLib).not.toContain(".memory-context.json");
@@ -117,6 +120,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain("milestone checkpoints only");
     expect(content).toContain("tasks/contracts/");
     expect(content).toContain("tasks/reviews/");
+    expect(content).toContain("tasks/notes/");
     expect(content).toContain("**Source Plan**: (none)");
     expect(content).not.toContain("PROJECT_SETTINGS_EOF");
     expect(content).not.toContain("\"$TOOL_INPUT\"");
@@ -137,6 +141,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain("pi_install_templates");
     expect(content).toContain("install_workflow_contract");
     expect(sharedLib).toContain("contract.template.md");
+    expect(sharedLib).toContain("implementation-notes.template.md");
     expect(sharedLib).toContain("verify-contract.sh");
     expect(sharedLib).toContain("summarize-failures.sh");
     expect(sharedLib).toContain("check:context-files");
@@ -155,6 +160,8 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("check-context-files.sh");
     expect(contract.helpers.scripts).toContain("select-agent-context-blocks.sh");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
+    expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
+    expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.agenticDevelopment.routing.postImplementationReview).toBe("waza:check");
     expect(content).not.toContain("pi_install_skill_factory");
     expect(sharedLib).not.toContain("skill-factory-create.sh");
@@ -174,6 +181,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain("milestone checkpoints only");
     expect(content).toContain("tasks/contracts/");
     expect(content).toContain("tasks/reviews/");
+    expect(content).toContain("tasks/notes/");
     expect(content).toContain("**Source Plan**: (none)");
     expect(content).not.toContain(".*/");
     expect(content).toContain("ensure_runtime_gitignore_block");

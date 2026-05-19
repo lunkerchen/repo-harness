@@ -13,6 +13,7 @@
 - Canonical execution contract: `tasks/todo.md`.
 - Sprint done contract: `tasks/contracts/`.
 - Evaluator verdicts: `tasks/reviews/`.
+- Implementation notes: `tasks/notes/`.
 - Structured checks: `.ai/harness/checks/latest.json`.
 - Session handoff: `.ai/harness/handoff/current.md`.
 - Harness policy: `.ai/harness/policy.json`.

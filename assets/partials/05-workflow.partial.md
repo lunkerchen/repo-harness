@@ -19,6 +19,7 @@ PLAN_LOOP:
   TODO_ARCHIVE: tasks/archive/
   CONTRACT_DIR: tasks/contracts/
   REVIEW_DIR: tasks/reviews/
+  NOTES_DIR: tasks/notes/
   POLICY_FILE: .ai/harness/policy.json
   CHECKS_FILE: .ai/harness/checks/latest.json
   HANDOFF_FILE: .ai/harness/handoff/current.md
@@ -47,7 +48,7 @@ PLAN_LOOP:
 
 Core rules (canonical source: see Workflow Orchestration section below):
 - `docs/spec.md` is product truth; `plans/` is execution truth.
-- `tasks/contracts/` and `tasks/reviews/` are done gates; hooks are accelerators only.
+- `tasks/contracts/`, `tasks/reviews/`, and `tasks/notes/` are done gates; hooks are accelerators only.
 - Treat the latest non-archived `plans/plan-*.md` as the active plan.
 - Mark done only with verification evidence.
 - `docs/PROGRESS.md` is for milestones only, not the active execution log.

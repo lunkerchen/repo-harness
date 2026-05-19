@@ -66,6 +66,7 @@ describe("create-project-dirs scaffold parity", () => {
         "./.ai/hooks/worktree-guard.sh",
         "./.claude/settings.json",
         "./.claude/templates/contract.template.md",
+        "./.claude/templates/implementation-notes.template.md",
         "./.claude/templates/plan.template.md",
         "./.claude/templates/research.template.md",
         "./.claude/templates/review.template.md",

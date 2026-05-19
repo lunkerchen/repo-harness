@@ -12,7 +12,8 @@
     "lessons_file": "tasks/lessons.md",
     "research_file": "tasks/research.md",
     "contracts_dir": "tasks/contracts",
-    "reviews_dir": "tasks/reviews"
+    "reviews_dir": "tasks/reviews",
+    "notes_dir": "tasks/notes"
   },
   "progress": {
     "file": "docs/PROGRESS.md",
@@ -35,6 +36,36 @@
     "failure_log_file": ".ai/harness/failures/latest.jsonl",
     "events_file": ".ai/harness/events.jsonl",
     "runs_dir": ".ai/harness/runs"
+  },
+  "information_lifecycle": {
+    "notes": {
+      "dir": "tasks/notes",
+      "purpose": "task-local implementation decisions, deviations, tradeoffs, and open questions",
+      "promotion": "archive on workflow close; promote only repeated or durable findings"
+    },
+    "evidence": {
+      "latest": ".ai/harness/checks/latest.json",
+      "snapshots_dir": ".ai/harness/runs",
+      "purpose": "raw verification records used to audit notes, reviews, and future promotion"
+    },
+    "assets": {
+      "sources": [
+        ".ai/harness/policy.json",
+        ".ai/harness/workflow-contract.json",
+        ".ai/hooks/",
+        "scripts/",
+        "docs/reference-configs/"
+      ],
+      "promotion_rule": "only promote patterns after verified reuse across tasks or fixtures"
+    },
+    "memory": {
+      "sources": [
+        "tasks/research.md",
+        "tasks/lessons.md",
+        "gbrain"
+      ],
+      "rule": "memory is advisory; current repo state and evidence override summaries"
+    }
   },
   "context_budget": {
     "status_file": ".ai/harness/context-budget/latest.json",

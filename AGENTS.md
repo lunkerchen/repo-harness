@@ -7,6 +7,7 @@ This repository self-hosts the `project-initializer` contract. Claude and Codex 
 - `tasks/todo.md` for the current execution checklist and verification notes
 - `tasks/lessons.md` for correction-derived rules
 - `tasks/research.md` for deep repo knowledge
+- `tasks/notes/` for task-local implementation decisions, deviations, tradeoffs, and open questions
 - `plans/` for timestamped plans, with `plans/archive/` for history
 - `docs/PROGRESS.md` for milestone-only updates
 - `.ai/harness/workflow-contract.json` for the installed workflow contract manifest

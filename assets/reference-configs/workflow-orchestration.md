@@ -8,8 +8,8 @@ Use this file for advanced orchestration and planning patterns.
 2. **Plan** (`plans/plan-YYYYMMDD-HHMM-{slug}.md`)
 3. **Annotate** (inline notes in plan, 1-6 iterations)
 4. **Todo** (`tasks/todo.md`, archive previous todo first)
-5. **Implement** (verified slices, update checklist continuously)
-6. **Verify** (`scripts/verify-contract.sh` against `tasks/contracts/{slug}.contract.md`)
+5. **Implement** (verified slices, update checklist continuously, maintain `tasks/notes/{slug}.notes.md`)
+6. **Verify** (`scripts/verify-contract.sh` against `tasks/contracts/{slug}.contract.md`; `scripts/verify-sprint.sh` writes latest checks plus a run snapshot)
 7. **Feedback** (`tasks/lessons.md`, archive completed/abandoned plan and todo)
 
 ## Research Protocol
@@ -40,11 +40,13 @@ Use this file for advanced orchestration and planning patterns.
 - Archive existing todo to `tasks/archive/` before writing new checklist.
 - Set plan status to `Executing` after extraction.
 - Create `tasks/contracts/{slug}.contract.md` from `.claude/templates/contract.template.md`.
+- Create `tasks/notes/{slug}.notes.md` from `.claude/templates/implementation-notes.template.md`.
 - Validate workflow integrity with `bash scripts/check-task-workflow.sh --strict`.
 
 ## Implementation Protocol
 
 - Execute in small, verified slices.
+- Record task-local design decisions, plan/spec deviations, tradeoffs, and open questions in `tasks/notes/{slug}.notes.md`.
 - Mark done only with verification evidence in review sections.
 - Keep plan/todo status synchronized as work advances.
 - For non-chat work, update `tasks/` in the same change-set as substantive repo changes.
@@ -54,7 +56,8 @@ Use this file for advanced orchestration and planning patterns.
 
 - Capture correction-derived prevention rules in `tasks/lessons.md`.
 - On completion or abandonment, archive plan to `plans/archive/`.
-- Archive associated todo to `tasks/archive/` with outcome metadata.
+- Archive associated todo and implementation notes to `tasks/archive/` with outcome metadata.
+- Promote notes to `tasks/lessons.md`, `tasks/research.md`, or harness assets only when evidence supports reuse beyond the sprint.
 
 ## Shortcut: Skip Research
 

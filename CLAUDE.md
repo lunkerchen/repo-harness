@@ -6,6 +6,7 @@ This repository dogfoods the `project-initializer` workflow. Treat it as a Bun +
 
 - `tasks/todo.md`
 - `tasks/lessons.md`
+- `tasks/notes/`
 
 ## Load On Demand
 

@@ -100,7 +100,7 @@ if [[ "$normalized_plan" == plans/archive/* ]]; then
   exit 1
 fi
 
-mkdir -p plans/archive tasks/archive
+mkdir -p plans/archive tasks/archive tasks/notes
 
 timestamp="$(date +%Y%m%d-%H%M)"
 timestamp_human="$(date '+%Y-%m-%d %H:%M')"
@@ -133,6 +133,21 @@ if [[ -f tasks/todo.md ]] && grep -q '[^[:space:]]' tasks/todo.md; then
     echo
     cat tasks/todo.md
   } > "$archive_todo"
+fi
+
+notes_file="tasks/notes/${slug}.notes.md"
+if [[ -f "$notes_file" ]]; then
+  archive_notes="$(unique_archive_path "tasks/archive/notes-${timestamp}-${slug}.md")"
+  {
+    echo "> **Archived**: ${timestamp_human}"
+    echo "> **Related Plan**: ${archive_plan_path}"
+    echo "> **Outcome**: ${outcome}"
+    echo "> **Lifecycle**: notes"
+    echo "> **Parent Run ID**: ${parent_run_id}"
+    echo
+    cat "$notes_file"
+  } > "$archive_notes"
+  rm -f "$notes_file"
 fi
 
 cat > tasks/todo.md <<'TODO_EOF'

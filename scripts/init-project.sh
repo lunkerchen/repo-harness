@@ -216,6 +216,7 @@ create_structure() {
     mkdir -p tasks/archive
     mkdir -p tasks/contracts
     mkdir -p tasks/reviews
+    mkdir -p tasks/notes
     mkdir -p plans/archive
     mkdir -p .ai/context
     mkdir -p .ai/harness/checks
@@ -233,7 +234,7 @@ create_structure() {
 # Project Milestones
 
 > Use this file for milestone checkpoints only.
-> Active execution belongs in \`tasks/todo.md\`, \`tasks/contracts/\`, \`tasks/reviews/\`, and \`.ai/harness/handoff/current.md\`.
+> Active execution belongs in \`tasks/todo.md\`, \`tasks/contracts/\`, \`tasks/reviews/\`, \`tasks/notes/\`, and \`.ai/harness/handoff/current.md\`.
 
 ## Current Milestone
 

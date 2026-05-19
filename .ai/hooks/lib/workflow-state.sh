@@ -96,6 +96,7 @@ workflow_resume_packet_file() {
 
 workflow_ensure_harness_surface() {
   mkdir -p \
+    "tasks/notes" \
     "$(dirname "$(workflow_context_map_file)")" \
     "$(dirname "$(workflow_policy_file)")" \
     "$(dirname "$(workflow_checks_file)")" \
@@ -554,6 +555,14 @@ workflow_active_review() {
   printf 'tasks/reviews/%s.review.md' "$slug"
 }
 
+workflow_active_notes() {
+  local slug notes_dir
+  slug="$(workflow_contract_slug || true)"
+  [[ -n "$slug" ]] || return 1
+  notes_dir="$(workflow_repo_relative_path "$(workflow_policy_get '.tasks.notes_dir' 'tasks/notes')" 'tasks/notes' 'tasks/')"
+  printf '%s/%s.notes.md' "$notes_dir" "$slug"
+}
+
 workflow_checks_file() {
   workflow_repo_relative_path "$(workflow_policy_get '.harness.checks_file' '.ai/harness/checks/latest.json')" '.ai/harness/checks/latest.json' '.ai/harness/'
 }
@@ -599,13 +608,14 @@ workflow_append_event() {
 
 workflow_write_run_summary() {
   local reason="${1:-state-update}"
-  local run_id active_plan active_contract active_review output_file
+  local run_id active_plan active_contract active_review active_notes output_file
 
   workflow_ensure_harness_surface
   run_id="${HOOK_RUN_ID:-${CLAUDE_RUN_ID:-${CODEX_RUN_ID:-run-$(date '+%Y%m%dT%H%M%S')-$$}}}"
   active_plan="$(get_active_plan || true)"
   active_contract="$(workflow_active_contract || true)"
   active_review="$(workflow_active_review || true)"
+  active_notes="$(workflow_active_notes || true)"
   output_file="$(workflow_runs_dir)/${run_id}.json"
 
   if command -v jq >/dev/null 2>&1; then
@@ -616,6 +626,7 @@ workflow_write_run_summary() {
       --arg active_plan "${active_plan:-}" \
       --arg active_contract "${active_contract:-}" \
       --arg active_review "${active_review:-}" \
+      --arg active_notes "${active_notes:-}" \
       --arg checks_file "$(workflow_checks_file)" \
       --arg handoff_file "$(workflow_handoff_file)" \
       --arg policy_file "$(workflow_policy_file)" \
@@ -627,6 +638,7 @@ workflow_write_run_summary() {
         active_plan: $active_plan,
         active_contract: $active_contract,
         active_review: $active_review,
+        active_notes: $active_notes,
         checks_file: $checks_file,
         handoff_file: $handoff_file,
         policy_file: $policy_file,
@@ -757,7 +769,7 @@ workflow_contract_allows_path() {
 }
 workflow_write_handoff() {
   local reason="${1:-session-stop}"
-  local handoff_file active_plan active_contract active_review checks_file next_task changed_files diff_stat spec_file source_plan parent_run_id supersedes
+  local handoff_file active_plan active_contract active_review active_notes checks_file next_task changed_files diff_stat spec_file source_plan parent_run_id supersedes
   local budget_file resume_file events_file recent_commands blockers decisions goal
   local changed_count untracked_count
 
@@ -771,6 +783,7 @@ workflow_write_handoff() {
   active_plan="$(get_active_plan || true)"
   active_contract="$(workflow_active_contract || true)"
   active_review="$(workflow_active_review || true)"
+  active_notes="$(workflow_active_notes || true)"
   source_plan="$(get_todo_source_plan || true)"
   if [[ "$source_plan" == "(none)" ]]; then
     source_plan=""
@@ -886,6 +899,7 @@ ${recent_commands}
 - Todo Source Plan: ${source_plan:-(none)}
 - Contract: ${active_contract:-(none)}
 - Review: ${active_review:-(none)}
+- Notes: ${active_notes:-(none)}
 - Checks: ${checks_file}
 - Context Budget: ${budget_file}
 - Resume Packet: ${resume_file}

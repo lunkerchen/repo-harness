@@ -52,6 +52,7 @@ describe("Migration script contract", () => {
     expect(script).toContain("tasks/todo.md");
     expect(script).toContain("tasks/lessons.md");
     expect(script).toContain("tasks/reviews");
+    expect(script).toContain("tasks/notes");
     expect(script).toContain(".ai/context");
     expect(script).toContain(".ai/harness/checks/latest.json");
     expect(script).toContain(".ai/harness/policy.json");
@@ -77,6 +78,7 @@ describe("Migration script contract", () => {
     expect(workflowContract).toContain("context-budget.ts");
     expect(workflowContract).toContain("prepare-codex-handoff.sh");
     expect(workflowContract).toContain("codex-handoff-resume.sh");
+    expect(workflowContract).toContain("implementation-notes.template.md");
     expect(script).toContain("pi_ensure_task_sync");
     expect(sharedLib).toContain("check:task-sync");
     expect(sharedLib).toContain("check:task-workflow");
@@ -142,8 +144,10 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, ".claude/templates/plan.template.md"))).toBe(true);
       expect(existsSync(join(repo, ".claude/templates/contract.template.md"))).toBe(true);
       expect(existsSync(join(repo, ".claude/templates/review.template.md"))).toBe(true);
+      expect(existsSync(join(repo, ".claude/templates/implementation-notes.template.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/spec.md"))).toBe(true);
       expect(existsSync(join(repo, "tasks/reviews"))).toBe(true);
+      expect(existsSync(join(repo, "tasks/notes"))).toBe(true);
       expect(existsSync(join(repo, ".ai/context/context-map.json"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/checks/latest.json"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/policy.json"))).toBe(true);
@@ -213,6 +217,7 @@ describe("Migration script contract", () => {
       expect(progress).toContain("milestone checkpoints only");
       expect(progress).toContain("tasks/contracts/");
       expect(progress).toContain("tasks/reviews/");
+      expect(progress).toContain("tasks/notes/");
       const spec = readFileSync(join(repo, "docs/spec.md"), "utf-8");
       expect(spec).toContain("# Product Spec:");
 
@@ -246,6 +251,10 @@ describe("Migration script contract", () => {
       });
       expect(policy.context_budget.status_file).toBe(".ai/harness/context-budget/latest.json");
       expect(policy.handoff_resume.resume_packet_file).toBe(".ai/harness/handoff/resume.md");
+      expect(policy.tasks.notes_dir).toBe("tasks/notes");
+      expect(policy.information_lifecycle.notes.dir).toBe("tasks/notes");
+      expect(policy.information_lifecycle.evidence.snapshots_dir).toBe(".ai/harness/runs");
+      expect(policy.information_lifecycle.assets.promotion_rule).toContain("verified reuse across tasks");
       expect(policy.documentation.profile).toBe("minimal-agentic");
       expect(policy.lsp_profiles.default).toBe("typescript-lsp");
       expect(policy.worktree_strategy.validation_route).toBe("waza:check");
@@ -258,6 +267,8 @@ describe("Migration script contract", () => {
       expect(workflowContract.helpers.scripts).toContain("context-budget.ts");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
+      expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/notes");
       expect(workflowContract.agenticDevelopment.routing.designPlan).toBe("gstack:plan-design-review");
       expect(workflowContract.artifacts.requiredFiles).not.toContain(".ai/harness/checks/latest.json");
       expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/checks/latest.json");

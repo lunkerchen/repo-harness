@@ -11,7 +11,9 @@
 - `plans/plan-*.md`: active timestamped plans, with the latest non-archived file treated as current
 - `tasks/contracts/`: active sprint done definitions
 - `tasks/reviews/`: evaluator verdicts
+- `tasks/notes/`: task-local implementation decisions and tradeoffs
 - `.ai/harness/checks/latest.json`: structured verification evidence
+- `.ai/harness/runs/`: immutable run snapshots for verification audit
 - `.ai/context/context-map.json`: progressive context index for primary functional-block `CLAUDE.md` and `AGENTS.md` files
 - `plans/archive/`: archived plans and outcomes
 - `tasks/archive/`: archived todo snapshots

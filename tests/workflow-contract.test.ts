@@ -68,6 +68,8 @@ describe("workflow contract manifest", () => {
     expect(contract.agenticDevelopment?.routing.bugOrRegression).toBe("waza:hunt");
     expect(contract.agenticDevelopment?.dueDiligence.levels).toContain("P2_DATA_FLOW_TRACE");
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/workflow-contract.json");
+    expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
+    expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).not.toContain(".ai/harness/handoff/resume.md");
     expect(contract.artifacts.requiredFiles).not.toContain(".ai/harness/context-budget/latest.json");

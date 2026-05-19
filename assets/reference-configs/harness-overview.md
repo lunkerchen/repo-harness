@@ -5,8 +5,8 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 ## Roles
 
 - **Planner** updates `docs/spec.md`, researches constraints, and writes or approves `plans/plan-*.md`.
-- **Generator** implements only against the active sprint contract and keeps `tasks/todo.md` synchronized.
-- **Evaluator** writes `tasks/reviews/<slug>.review.md` and scores the current sprint using fresh evidence from `.ai/harness/checks/latest.json`.
+- **Generator** implements only against the active sprint contract, keeps `tasks/todo.md` synchronized, and records task-local implementation judgments in `tasks/notes/<slug>.notes.md`.
+- **Evaluator** writes `tasks/reviews/<slug>.review.md` and scores the current sprint using fresh evidence from `.ai/harness/checks/latest.json` and `.ai/harness/runs/*.json`.
 
 ## State Flow
 
@@ -14,22 +14,24 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 2. `plans/plan-*.md` captures a concrete execution approach.
 3. `tasks/contracts/<slug>.contract.md` defines done for the active sprint.
 4. `tasks/todo.md` is the execution projection for the active sprint.
-5. `tasks/reviews/<slug>.review.md` records evaluator judgment.
-6. `.ai/harness/policy.json` is the machine-readable workflow contract.
-7. `agentic_development` inside `.ai/harness/policy.json` captures product, engineering, design, bug-hunt, and review routing.
-8. `external_tooling` inside `.ai/harness/policy.json` captures host install/update defaults for gstack, Waza, and gbrain.
-9. `.ai/context/context-map.json` indexes stable root context and explicitly selected functional-block context.
-10. `documentation` inside `.ai/harness/policy.json` keeps generated docs minimal and moves optional docs to agent-created, evidence-backed output.
-11. `lsp_profiles` inside policy and context-map files select tooling hints per functional block.
-12. `worktree_strategy` inside policy tells agents when to isolate work in `codex/<slug>` worktrees and validate with Waza `/check` before merging back.
-13. `.ai/harness/handoff/current.md` preserves resumable state across sessions.
-14. `.ai/harness/events.jsonl` and `.ai/harness/runs/*.json` retain lightweight execution traces.
+5. `tasks/notes/<slug>.notes.md` records design decisions, deviations, tradeoffs, open questions, and promotion candidates for this sprint only.
+6. `tasks/reviews/<slug>.review.md` records evaluator judgment.
+7. `.ai/harness/policy.json` is the machine-readable workflow contract.
+8. `information_lifecycle` inside `.ai/harness/policy.json` separates notes, raw evidence, reusable assets, and advisory memory.
+9. `agentic_development` inside `.ai/harness/policy.json` captures product, engineering, design, bug-hunt, and review routing.
+10. `external_tooling` inside `.ai/harness/policy.json` captures host install/update defaults for gstack, Waza, and gbrain.
+11. `.ai/context/context-map.json` indexes stable root context and explicitly selected functional-block context.
+12. `documentation` inside `.ai/harness/policy.json` keeps generated docs minimal and moves optional docs to agent-created, evidence-backed output.
+13. `lsp_profiles` inside policy and context-map files select tooling hints per functional block.
+14. `worktree_strategy` inside policy tells agents when to isolate work in `codex/<slug>` worktrees and validate with Waza `/check` before merging back.
+15. `.ai/harness/handoff/current.md` preserves resumable state across sessions.
+16. `.ai/harness/events.jsonl` and `.ai/harness/runs/*.json` retain lightweight execution traces.
 
 ## Session Boundaries
 
 - Exploration and planning are allowed before a contract exists.
 - Implementation should prefer `docs/spec.md`, an approved plan, and an active sprint contract.
-- Claiming completion should include contract verification evidence plus a passing review artifact.
+- Claiming completion should include contract verification evidence, a run snapshot, implementation notes, and a passing review artifact.
 - Stopping a session should refresh `.ai/harness/handoff/current.md` for easier resume.
 - Use `docs/reference-configs/agentic-development-flow.md` for skill routing and `docs/reference-configs/external-tooling.md` for install/update commands.
 - If dirty worktree state overlaps the task, use an isolated `codex/<task-slug>` worktree and merge back only after a clean `/check`-style review.
@@ -40,6 +42,13 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 - Required docs: `docs/spec.md` and `docs/PROGRESS.md`.
 - Optional docs such as `docs/brief.md`, `docs/tech-stack.md`, `docs/decisions.md`, `docs/architecture.md`, and `docs/packages.md` are created only when the agent has concrete repo evidence or the user asks.
 - Use `docs/reference-configs/document-generation.md` for the creation rules.
+
+## Information Lifecycle
+
+- Notes: `tasks/notes/<slug>.notes.md` is task-local and auditable. It should not be treated as durable knowledge by default.
+- Evidence: `.ai/harness/checks/latest.json` is the current gate, while `.ai/harness/runs/*.json` keeps immutable verification snapshots for later audit.
+- Memory: `tasks/research.md`, `tasks/lessons.md`, and gbrain are advisory. Current repo state and evidence override summaries.
+- Assets: policies, hooks, scripts, templates, and reference configs only change when a pattern has evidence across tasks or fixtures.
 
 ## Functional Block Context
 

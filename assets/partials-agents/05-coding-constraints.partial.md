@@ -5,7 +5,7 @@
 - Favor derivation over duplicated state.
 
 ### Single Source of Truth
-- `docs/spec.md`, `tasks/contracts/`, `tasks/reviews/`, and `tests/` are authoritative.
+- `docs/spec.md`, `tasks/contracts/`, `tasks/reviews/`, `tasks/notes/`, and `tests/` are authoritative.
 - `src/` is mutable implementation.
 - Rewrite over patch when contracts diverge.
 
