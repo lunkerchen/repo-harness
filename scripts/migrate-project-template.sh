@@ -620,7 +620,12 @@ migrate_hooks() {
         log "Skipping automatic merge for .claude/settings.json because jq or node is unavailable; leaving existing file unchanged"
       fi
     else
-      cp "$HOOK_ASSETS_DIR/settings.template.json" "$project_settings"
+      if command -v node >/dev/null 2>&1; then
+        merge_hook_settings_json "$HOOK_ASSETS_DIR/settings.template.json" "$HOOK_ASSETS_DIR/settings.template.json" "$project_settings.tmp"
+        mv "$project_settings.tmp" "$project_settings"
+      else
+        cp "$HOOK_ASSETS_DIR/settings.template.json" "$project_settings"
+      fi
       log "Wrote .claude/settings.json from template"
     fi
   else
@@ -784,13 +789,38 @@ update_version_stamp() {
   fi
 
   if [[ "$MODE" == "apply" ]]; then
+    local existing_skill_version=""
+    local existing_template_version=""
+    local existing_migrated_at=""
+    local migrated_at=""
+
+    if [[ -f "$stamp_file" ]]; then
+      existing_skill_version="$(awk -F= '$1 == "skill_version" { print $2 }' "$stamp_file" 2>/dev/null || true)"
+      existing_template_version="$(awk -F= '$1 == "template_version" { print $2 }' "$stamp_file" 2>/dev/null || true)"
+      existing_migrated_at="$(awk -F= '$1 == "migrated_at" { print $2 }' "$stamp_file" 2>/dev/null || true)"
+    fi
+
+    if [[ "$existing_skill_version" == "$sv_version" && "$existing_template_version" == "$sv_template_version" && -n "$existing_migrated_at" ]]; then
+      migrated_at="$existing_migrated_at"
+    else
+      migrated_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    fi
+
     mkdir -p "$(dirname "$stamp_file")"
-    cat > "$stamp_file" <<STAMP_EOF
+    local stamp_tmp
+    stamp_tmp="$(mktemp)"
+    cat > "$stamp_tmp" <<STAMP_EOF
 skill_version=$sv_version
 template_version=$sv_template_version
-migrated_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+migrated_at=$migrated_at
 STAMP_EOF
-    log "Version stamp updated: $stamp_file"
+    if [[ -f "$stamp_file" ]] && cmp -s "$stamp_tmp" "$stamp_file"; then
+      rm -f "$stamp_tmp"
+      log "Version stamp already current: $stamp_file"
+    else
+      mv "$stamp_tmp" "$stamp_file"
+      log "Version stamp updated: $stamp_file"
+    fi
   else
     echo "[dry-run] update version stamp at $stamp_file (skill=$sv_version, template=$sv_template_version)"
   fi

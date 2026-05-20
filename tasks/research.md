@@ -206,3 +206,13 @@
 ### What to Preserve
 - Keep router entrypoints in the workflow contract helper inventory; downstream repos must be able to inspect, migrate, and verify themselves after the initial template sync.
 - Keep source helper files and `assets/templates/helpers/` mirrors aligned whenever portability logic changes.
+
+## 2026-05-20 Migration Idempotency Notes
+
+### What Changed
+- Repeated `migrate-project-template.sh --apply` on a clean committed generated repo no longer rewrites `.ai/harness/policy.json`, `.claude/settings.json`, or `.claude/.skill-version`.
+- First-write policy and hook settings now go through the same JSON formatting path as later merge writes.
+- Version stamps preserve `migrated_at` when `skill_version` and `template_version` are already current.
+
+### What to Preserve
+- Keep a regression test that commits the first migration output, runs apply again, and requires `git status --short` to stay empty.

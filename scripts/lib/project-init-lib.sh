@@ -1411,8 +1411,10 @@ EOF_POLICY
     if ! pi_merge_json_defaults "$default_file" "$output_file" "$merged_file"; then
       cp "$default_file" "$merged_file"
     fi
-  else
+  elif ! pi_merge_json_defaults "$default_file" "$default_file" "$merged_file"; then
     cp "$default_file" "$merged_file"
+  else
+    :
   fi
 
   mv "$merged_file" "$output_file"

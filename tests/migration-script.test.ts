@@ -359,6 +359,38 @@ describe("Migration script contract", () => {
     }
   }, 15000);
 
+  test("should be idempotent after a clean migration commit", () => {
+    const repo = mkdtempSync(join(tmpdir(), "migration-idempotent-"));
+    try {
+      writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", private: true }, null, 2));
+      expect(spawnSync("git", ["init", "-q"], { cwd: repo }).status).toBe(0);
+      expect(spawnSync("git", ["add", "package.json"], { cwd: repo }).status).toBe(0);
+      expect(spawnSync("git", ["commit", "-qm", "initial"], { cwd: repo }).status).toBe(0);
+
+      const firstApply = spawnSync("bash", ["scripts/migrate-project-template.sh", "--repo", repo, "--apply"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+      });
+      expect(firstApply.status).toBe(0);
+      const firstStamp = readFileSync(join(repo, ".claude/.skill-version"), "utf-8");
+      expect(spawnSync("git", ["add", "-A"], { cwd: repo }).status).toBe(0);
+      expect(spawnSync("git", ["commit", "-qm", "after migration"], { cwd: repo }).status).toBe(0);
+
+      const secondApply = spawnSync("bash", ["scripts/migrate-project-template.sh", "--repo", repo, "--apply"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+      });
+      expect(secondApply.status).toBe(0);
+      expect(readFileSync(join(repo, ".claude/.skill-version"), "utf-8")).toBe(firstStamp);
+
+      const status = spawnSync("git", ["status", "--short"], { cwd: repo, encoding: "utf-8" });
+      expect(status.status).toBe(0);
+      expect(status.stdout.trim()).toBe("");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  }, 15000);
+
   test("should remove repo-local legacy skill factory assets during migration", () => {
     const repo = mkdtempSync(join(tmpdir(), "migration-self-"));
     try {
