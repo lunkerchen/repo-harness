@@ -37,7 +37,9 @@
 │   │   ├── ARCHITECTURE.md
 │   │   └── tech-stack.md
 │   └── CHANGELOG.md
-├── _ops/                       # Trackable operations; secrets/env ignored
+├── deploy/                     # Trackable deploy/ops docs, scripts, and SQL
+│   └── sql/                    # Ordered deployment SQL
+├── _ops/                       # Ignored local secrets, env, state, logs
 ├── artifacts/                  # Build outputs (not in Git)
 ├── .env.example
 ├── .gitignore

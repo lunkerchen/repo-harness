@@ -99,10 +99,10 @@ function initGitRepo(cwd: string) {
 
 function installArchitectureHelpers(cwd: string) {
   mkdirSync(join(cwd, "scripts"), { recursive: true });
-  for (const fileName of ["architecture-drift.sh", "context-contract-sync.sh", "workstream-sync.sh", "select-agent-context-blocks.sh", "capability-resolver.ts"]) {
+  for (const fileName of ["architecture-drift.sh", "archive-architecture-request.sh", "context-contract-sync.sh", "workstream-sync.sh", "select-agent-context-blocks.sh", "capability-resolver.ts"]) {
     copyFileSync(join(ROOT, "assets/templates/helpers", fileName), join(cwd, "scripts", fileName));
   }
-  expect(run("chmod", ["+x", "scripts/architecture-drift.sh", "scripts/context-contract-sync.sh", "scripts/workstream-sync.sh", "scripts/select-agent-context-blocks.sh"], cwd).status).toBe(0);
+  expect(run("chmod", ["+x", "scripts/architecture-drift.sh", "scripts/archive-architecture-request.sh", "scripts/context-contract-sync.sh", "scripts/workstream-sync.sh", "scripts/select-agent-context-blocks.sh"], cwd).status).toBe(0);
 }
 
 function gitCommitCount(cwd: string): number {
@@ -1009,7 +1009,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("pre-edit-guard: protects _ref and sensitive _ops paths while allowing ops assets", () => {
+  test("pre-edit-guard: protects _ref and private _ops paths while allowing deploy assets", () => {
     const cwd = tmpWorkspace("ops-ref-guard");
     try {
       initGitRepo(cwd);
@@ -1026,20 +1026,20 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ tool_input: { file_path: "_ops/env/.env.production" } }),
       });
       expect(secretRes.status).toBe(1);
-      expect(secretRes.stdout).toContain("[OpsSecretGuard]");
-      expect(secretRes.stdout).toContain('"guard":"OpsSecretGuard"');
+      expect(secretRes.stdout).toContain("[OpsPrivateGuard]");
+      expect(secretRes.stdout).toContain('"guard":"OpsPrivateGuard"');
 
       const opsRes = runHook("pre-edit-guard.sh", cwd, {
-        stdin: JSON.stringify({ tool_input: { file_path: "_ops/scripts/release.sh" } }),
+        stdin: JSON.stringify({ tool_input: { file_path: "deploy/scripts/release.sh" } }),
       });
       expect(opsRes.status).toBe(0);
-      expect(opsRes.stdout).toContain("[OpsAsset]");
+      expect(opsRes.stdout).toContain("[DeployAsset]");
 
       const exampleRes = runHook("pre-edit-guard.sh", cwd, {
-        stdin: JSON.stringify({ tool_input: { file_path: "_ops/env/.env.example" } }),
+        stdin: JSON.stringify({ tool_input: { file_path: "deploy/env/.env.example" } }),
       });
       expect(exampleRes.status).toBe(0);
-      expect(exampleRes.stdout).toContain("[OpsAsset]");
+      expect(exampleRes.stdout).toContain("[DeployAsset]");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

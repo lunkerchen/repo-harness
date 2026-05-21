@@ -23,20 +23,22 @@
     "rule": "use _ref for upstream/source comparison only; refresh from external sources instead of editing as product code"
   },
   "operations": {
-    "dir": "_ops",
+    "dir": "deploy",
+    "private_dir": "_ops",
     "tracked": [
-      "_ops/README.md",
-      "_ops/scripts/",
-      "_ops/submissions/",
-      "_ops/*.md",
-      "_ops/env/.env.example"
+      "deploy/README.md",
+      "deploy/scripts/",
+      "deploy/submissions/",
+      "deploy/runbooks/",
+      "deploy/release-checklists/",
+      "deploy/sql/",
+      "deploy/*.md",
+      "deploy/env/.env.example"
     ],
     "ignored": [
-      "_ops/secrets/",
-      "_ops/env/.env",
-      "_ops/env/.env.*"
+      "_ops/"
     ],
-    "rule": "commit runbooks, submission materials, release checklists, and helper scripts; keep keys, tokens, and local env values in ignored paths only"
+    "rule": "commit deployment runbooks, submission materials, release checklists, helper scripts, ordered SQL files, and env examples under deploy/; keep deploy SQL in deploy/sql/ with 4-digit ascending prefixes; keep keys, tokens, real env values, provider state, artifacts, logs, and scratch files in ignored _ops/ only"
   },
   "context": {
     "profile": "stable-root-progressive-subdir",
@@ -205,7 +207,7 @@
       "current-v1"
     ],
     "action_classes": {
-      "preserve": "keep user-authored hooks, ignored reference material, secrets, and local env files unchanged",
+      "preserve": "keep user-authored hooks, ignored reference material, private operations state, secrets, and local env files unchanged",
       "archive": "move user-authored legacy workflow documents or checklists into archive/research surfaces before refresh",
       "reconfigure": "merge managed config defaults without overwriting explicit repo overrides",
       "remove": "delete only workflow-contract actions marked ownership=known_generated"
@@ -216,6 +218,7 @@
       "unknown_files": "preserve-or-archive",
       "custom_hooks": "preserve",
       "ignored_reference_material": "preserve",
+      "local_operations_state": "preserve",
       "local_secrets": "preserve"
     },
     "reporting": {

@@ -13,11 +13,8 @@ coverage/
 # ===== External References =====
 _ref/
 
-# ===== Operations =====
-_ops/secrets/
-_ops/env/.env
-_ops/env/.env.*
-!_ops/env/.env.example
+# ===== Local Operations State =====
+_ops/
 
 # ===== Environment Variables =====
 .env

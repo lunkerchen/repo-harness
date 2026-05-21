@@ -72,6 +72,75 @@ describe("Workflow helper scripts", () => {
     }
   });
 
+  test("archive-architecture-request moves handled requests out of the pending queue", () => {
+    const cwd = tmpWorkspace("helper-architecture-archive");
+    try {
+      copyHelpers(cwd);
+      mkdirSync(join(cwd, "docs/architecture/requests"), { recursive: true });
+      mkdirSync(join(cwd, "docs/architecture/modules/apps-web"), { recursive: true });
+      const requestPath = join(cwd, "docs/architecture/requests/20260522-apps-web-account.md");
+      const artifactPath = join(cwd, "docs/architecture/modules/apps-web/account.md");
+      writeFileSync(
+        requestPath,
+        [
+          "# Architecture Drift Request: apps-web-account",
+          "",
+          "> **Status**: Pending",
+          "> **File**: `apps/web/src/routes/account/page.tsx`",
+          "",
+          "## Required Follow-up",
+          "",
+          "- Decide whether docs need updating.",
+          "",
+        ].join("\n")
+      );
+      writeFileSync(artifactPath, "# Account Architecture\n");
+      writeFileSync(
+        join(cwd, "docs/architecture/index.md"),
+        [
+          "# Architecture Index",
+          "",
+          "## Pending Requests",
+          "",
+          "- [ ] 2026-05-22 [medium] `apps/web/src/routes/account/page.tsx` -> [20260522-apps-web-account](requests/20260522-apps-web-account.md)",
+          "",
+        ].join("\n")
+      );
+
+      const res = run("bash", [
+        "scripts/archive-architecture-request.sh",
+        "--request",
+        "docs/architecture/requests/20260522-apps-web-account.md",
+        "--status",
+        "resolved",
+        "--artifact",
+        "docs/architecture/modules/apps-web/account.md",
+        "--note",
+        "module pointer updated",
+      ], cwd);
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[ArchitectureArchive] Archived docs/architecture/requests/20260522-apps-web-account.md");
+      expect(existsSync(requestPath)).toBe(false);
+
+      const archivePath = join(
+        cwd,
+        `docs/architecture/requests/archive/${new Date().getFullYear()}/20260522-apps-web-account.md`
+      );
+      expect(existsSync(archivePath)).toBe(true);
+      const archived = readFileSync(archivePath, "utf-8");
+      expect(archived).toContain("> **Status**: Resolved");
+      expect(archived).toContain("## Archive Resolution");
+      expect(archived).toContain("- `docs/architecture/modules/apps-web/account.md`");
+      expect(archived).toContain("- Note: module pointer updated");
+
+      const index = readFileSync(join(cwd, "docs/architecture/index.md"), "utf-8");
+      expect(index).not.toContain("requests/20260522-apps-web-account.md");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("new-plan should create timestamped plan without compatibility pointer", () => {
     const cwd = tmpWorkspace("helper-new-plan");
     try {
@@ -1022,6 +1091,40 @@ describe("Workflow helper scripts", () => {
       expect(todo).toContain("**Status**: Idle");
       expect(existsSync(join(cwd, ".claude/templates/spec.template.md"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/templates/review.template.md"))).toBe(true);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("check-deploy-sql-order should enforce deploy SQL location and ascending prefixes", () => {
+    const cwd = tmpWorkspace("helper-check-deploy-sql");
+    try {
+      copyHelpers(cwd);
+      mkdirSync(join(cwd, "deploy/sql"), { recursive: true });
+      writeFileSync(join(cwd, "deploy/sql/0001_create_users.sql"), "create table users(id integer);\n");
+      writeFileSync(join(cwd, "deploy/sql/0002_add_orders.sql"), "create table orders(id integer);\n");
+
+      const ok = run("bash", ["scripts/check-deploy-sql-order.sh"], cwd);
+      expect(ok.status).toBe(0);
+      expect(ok.stdout).toContain("[deploy-sql] OK");
+
+      writeFileSync(join(cwd, "deploy/sql/0002_duplicate_orders.sql"), "-- duplicate prefix\n");
+      const duplicate = run("bash", ["scripts/check-deploy-sql-order.sh"], cwd);
+      expect(duplicate.status).toBe(1);
+      expect(duplicate.stdout).toContain("strictly ascending");
+
+      rmSync(join(cwd, "deploy/sql/0002_duplicate_orders.sql"), { force: true });
+      mkdirSync(join(cwd, "deploy/runbooks"), { recursive: true });
+      writeFileSync(join(cwd, "deploy/runbooks/query.sql"), "select 1;\n");
+      const misplaced = run("bash", ["scripts/check-deploy-sql-order.sh"], cwd);
+      expect(misplaced.status).toBe(1);
+      expect(misplaced.stdout).toContain("Deploy SQL file must live under deploy/sql/");
+
+      rmSync(join(cwd, "deploy/runbooks/query.sql"), { force: true });
+      writeFileSync(join(cwd, "deploy/sql/3_bad.sql"), "select 1;\n");
+      const badName = run("bash", ["scripts/check-deploy-sql-order.sh"], cwd);
+      expect(badName.status).toBe(1);
+      expect(badName.stdout).toContain("4-digit prefix");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

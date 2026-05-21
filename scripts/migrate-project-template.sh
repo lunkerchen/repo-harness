@@ -440,45 +440,99 @@ install_reference_configs() {
 
 ensure_ops_scaffold() {
   local repo="$1"
-  local ops_readme="$repo/_ops/README.md"
+  local deploy_readme="$repo/deploy/README.md"
 
+  run_or_echo "mkdir -p \"$repo/deploy/env\""
+  run_or_echo "mkdir -p \"$repo/deploy/scripts\""
+  run_or_echo "mkdir -p \"$repo/deploy/submissions\""
+  run_or_echo "mkdir -p \"$repo/deploy/runbooks\""
+  run_or_echo "mkdir -p \"$repo/deploy/release-checklists\""
+  run_or_echo "mkdir -p \"$repo/deploy/sql\""
   run_or_echo "mkdir -p \"$repo/_ops/env\""
-  run_or_echo "mkdir -p \"$repo/_ops/scripts\""
   run_or_echo "mkdir -p \"$repo/_ops/secrets\""
-  run_or_echo "mkdir -p \"$repo/_ops/submissions\""
+  run_or_echo "mkdir -p \"$repo/_ops/artifacts\""
+  run_or_echo "mkdir -p \"$repo/_ops/logs\""
+  run_or_echo "mkdir -p \"$repo/_ops/state\""
+  run_or_echo "mkdir -p \"$repo/_ops/scratch\""
 
   if [[ "$MODE" != "apply" ]]; then
-    echo "[dry-run] ensure _ops workspace README and tracked placeholders"
+    echo "[dry-run] ensure deploy workspace README, tracked placeholders, deploy/sql, and ignored _ops private state"
+    echo "[dry-run] migrate legacy _ops runbooks/scripts/submissions/env examples into deploy/"
     return 0
   fi
 
-  touch "$repo/_ops/.gitkeep"
-  touch "$repo/_ops/env/.gitkeep"
-  touch "$repo/_ops/scripts/.gitkeep"
-  touch "$repo/_ops/submissions/.gitkeep"
+  migrate_legacy_ops_asset() {
+    local src="$1"
+    local dest="$2"
+    if [[ -e "$src" && ! -e "$dest" ]]; then
+      mv "$src" "$dest"
+    fi
+  }
 
-  if [[ ! -f "$ops_readme" ]]; then
-    cat > "$ops_readme" <<'OPS_README_EOF'
-# Operations Workspace
+  migrate_legacy_ops_children() {
+    local src_dir="$1"
+    local dest_dir="$2"
+    local src
+    local base
+    [[ -d "$src_dir" ]] || return 0
+    shopt -s nullglob dotglob
+    for src in "$src_dir"/*; do
+      base="$(basename "$src")"
+      [[ "$base" == ".gitkeep" ]] && continue
+      migrate_legacy_ops_asset "$src" "$dest_dir/$base"
+    done
+    shopt -u nullglob dotglob
+  }
 
-`_ops/` is a commit-ready operations surface for runbooks, submission materials, release checklists, and helper scripts.
+  migrate_legacy_ops_asset "$repo/_ops/env/.env.example" "$repo/deploy/env/.env.example"
+  migrate_legacy_ops_children "$repo/_ops/scripts" "$repo/deploy/scripts"
+  migrate_legacy_ops_children "$repo/_ops/submissions" "$repo/deploy/submissions"
+  migrate_legacy_ops_children "$repo/_ops/sql" "$repo/deploy/sql"
+
+  shopt -s nullglob
+  for legacy_doc in "$repo/_ops"/*.md; do
+    legacy_base="$(basename "$legacy_doc")"
+    [[ "$legacy_base" == "README.md" ]] && continue
+    migrate_legacy_ops_asset "$legacy_doc" "$repo/deploy/$legacy_base"
+  done
+  shopt -u nullglob
+
+  shopt -s nullglob
+  for legacy_sql in "$repo/_ops"/*.sql; do
+    legacy_base="$(basename "$legacy_sql")"
+    migrate_legacy_ops_asset "$legacy_sql" "$repo/deploy/sql/$legacy_base"
+  done
+  shopt -u nullglob
+
+  touch "$repo/deploy/env/.gitkeep"
+  touch "$repo/deploy/scripts/.gitkeep"
+  touch "$repo/deploy/submissions/.gitkeep"
+  touch "$repo/deploy/runbooks/.gitkeep"
+  touch "$repo/deploy/release-checklists/.gitkeep"
+  touch "$repo/deploy/sql/.gitkeep"
+
+  if [[ ! -f "$deploy_readme" ]]; then
+    cat > "$deploy_readme" <<'DEPLOY_README_EOF'
+# Deployment Operations
+
+`deploy/` is a commit-ready surface for deployment and operations runbooks, submission materials, release checklists, helper scripts, and env examples.
 
 ## Track
 
-- `_ops/scripts/` for operational scripts.
-- `_ops/submissions/` for submission or review materials.
-- `_ops/*.md` for runbooks and operating notes.
-- `_ops/env/.env.example` for documented variable shapes only.
+- `deploy/scripts/` for operational scripts.
+- `deploy/submissions/` for submission or review materials.
+- `deploy/runbooks/` and `deploy/release-checklists/` for operational documentation.
+- `deploy/sql/` for ordered deployment SQL files named like `0001_create_tables.sql`.
+- `deploy/*.md` for runbooks and operating notes.
+- `deploy/env/.env.example` for documented variable shapes only.
 
 ## Do Not Track
 
-- `_ops/secrets/`
-- `_ops/env/.env`
-- `_ops/env/.env.*` except `_ops/env/.env.example`
-- private keys, production tokens, credential dumps, and local-only overrides
+- `_ops/`
+- private keys, real env files, provider state, production tokens, credential dumps, artifacts, logs, and local-only overrides
 
 Keep external upstream checkouts and source references in `_ref/`; `_ref/` is ignored and must stay out of commits.
-OPS_README_EOF
+DEPLOY_README_EOF
   fi
 }
 
@@ -703,11 +757,8 @@ migrate_workflow() {
   ensure_gitignore_entry "$repo_gitignore" "*.tgz"
   ensure_gitignore_entry "$repo_gitignore" "# External references"
   ensure_gitignore_entry "$repo_gitignore" "_ref/"
-  ensure_gitignore_entry "$repo_gitignore" "# Operations"
-  ensure_gitignore_entry "$repo_gitignore" "_ops/secrets/"
-  ensure_gitignore_entry "$repo_gitignore" "_ops/env/.env"
-  ensure_gitignore_entry "$repo_gitignore" "_ops/env/.env.*"
-  ensure_gitignore_entry "$repo_gitignore" "!_ops/env/.env.example"
+  ensure_gitignore_entry "$repo_gitignore" "# Local operations state"
+  ensure_gitignore_entry "$repo_gitignore" "_ops/"
   ensure_gitignore_entry "$repo_gitignore" "# Environment"
   ensure_gitignore_entry "$repo_gitignore" ".env"
   ensure_gitignore_entry "$repo_gitignore" ".env.*"

@@ -50,9 +50,10 @@ FILE_PATH="$(hook_get_file_path "${1:-}")"
 BASENAME=$(basename "$FILE_PATH")
 DIRNAME=$(dirname "$FILE_PATH")
 
-if [[ "$FILE_PATH" == _ops/* ]]; then
-  echo "[OpsAsset] Operations asset changed: $FILE_PATH"
-  echo "  Confirm secrets remain in ignored _ops/secrets/ or _ops/env/.env* files before committing."
+if [[ "$FILE_PATH" == deploy/* ]]; then
+  echo "[DeployAsset] Deployment operations asset changed: $FILE_PATH"
+  echo "  Confirm secrets, real env files, provider state, artifacts, logs, and scratch files remain in ignored _ops/ before committing."
+  echo "  Keep deployment SQL directly under deploy/sql/ with 4-digit ascending prefixes."
 fi
 
 if [[ "$BASENAME" == "package.json" && "$DIRNAME" =~ (^|/)packages/([^/]+) ]]; then

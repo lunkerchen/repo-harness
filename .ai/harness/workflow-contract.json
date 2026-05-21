@@ -89,6 +89,7 @@
       "summarize-failures.sh",
       "verify-sprint.sh",
       "check-task-sync.sh",
+      "check-deploy-sql-order.sh",
       "check-agent-tooling.sh",
       "check-context-files.sh",
       "check-skill-version.ts",
@@ -104,6 +105,7 @@
       "context-budget.ts",
       "capability-resolver.ts",
       "architecture-drift.sh",
+      "archive-architecture-request.sh",
       "context-contract-sync.sh",
       "workstream-sync.sh",
       "prepare-codex-handoff.sh",
@@ -138,10 +140,13 @@
       "docs/architecture/snapshots",
       "docs/architecture/diagrams",
       "docs/reference-configs",
-      "_ops",
-      "_ops/env",
-      "_ops/scripts",
-      "_ops/submissions"
+      "deploy",
+      "deploy/env",
+      "deploy/scripts",
+      "deploy/submissions",
+      "deploy/runbooks",
+      "deploy/release-checklists",
+      "deploy/sql"
     ],
     "requiredFiles": [
       "docs/spec.md",
@@ -162,6 +167,7 @@
       "scripts/summarize-failures.sh",
       "scripts/verify-sprint.sh",
       "scripts/check-task-sync.sh",
+      "scripts/check-deploy-sql-order.sh",
       "scripts/check-agent-tooling.sh",
       "scripts/check-context-files.sh",
       "scripts/check-skill-version.ts",
@@ -177,6 +183,7 @@
       "scripts/context-budget.ts",
       "scripts/capability-resolver.ts",
       "scripts/architecture-drift.sh",
+      "scripts/archive-architecture-request.sh",
       "scripts/context-contract-sync.sh",
       "scripts/workstream-sync.sh",
       "scripts/prepare-codex-handoff.sh",
@@ -196,7 +203,7 @@
       "docs/reference-configs/handoff-protocol.md",
       "docs/reference-configs/document-generation.md",
       "docs/reference-configs/global-working-rules.md",
-      "_ops/README.md"
+      "deploy/README.md"
     ],
     "runtimeFiles": [
       ".ai/harness/checks/latest.json",
@@ -410,11 +417,9 @@
           "ownership": "user_local",
           "paths": [
             "_ref/",
-            "_ops/secrets/",
-            "_ops/env/.env",
-            "_ops/env/.env.*"
+            "_ops/"
           ],
-          "summary": "Never migrate, delete, or vendor ignored external references, secrets, or local environment values."
+          "summary": "Never migrate, delete, or vendor ignored external references, private operations state, secrets, or local environment values."
         }
       ]
     }

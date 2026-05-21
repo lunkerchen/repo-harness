@@ -62,11 +62,13 @@ describe("workflow contract manifest", () => {
     expect(contract.helpers.scripts).toContain("context-budget.ts");
     expect(contract.helpers.scripts).toContain("capability-resolver.ts");
     expect(contract.helpers.scripts).toContain("architecture-drift.sh");
+    expect(contract.helpers.scripts).toContain("archive-architecture-request.sh");
     expect(contract.helpers.scripts).toContain("context-contract-sync.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");
     expect(contract.helpers.scripts).toContain("prepare-codex-handoff.sh");
     expect(contract.helpers.scripts).toContain("codex-handoff-resume.sh");
     expect(contract.helpers.scripts).toContain("select-agent-context-blocks.sh");
+    expect(contract.helpers.scripts).toContain("check-deploy-sql-order.sh");
     expect(contract.externalTooling?.waza?.primaryHost).toBe("codex");
     expect(contract.externalTooling?.waza?.managedSkills).toContain("think");
     expect(contract.externalTooling?.codexAutomationProfile?.requiredSkills).toEqual(["health", "check", "diagram-design"]);
@@ -88,9 +90,10 @@ describe("workflow contract manifest", () => {
     expect(contract.artifacts.requiredDirectories).toContain("docs/architecture/domains");
     expect(contract.artifacts.requiredDirectories).toContain("docs/architecture/modules");
     expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
-    expect(contract.artifacts.requiredDirectories).toContain("_ops/scripts");
-    expect(contract.artifacts.requiredDirectories).toContain("_ops/submissions");
-    expect(contract.artifacts.requiredFiles).toContain("_ops/README.md");
+    expect(contract.artifacts.requiredDirectories).toContain("deploy/scripts");
+    expect(contract.artifacts.requiredDirectories).toContain("deploy/submissions");
+    expect(contract.artifacts.requiredDirectories).toContain("deploy/sql");
+    expect(contract.artifacts.requiredFiles).toContain("deploy/README.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
     expect(contract.artifacts.requiredFiles).not.toContain(".ai/harness/handoff/resume.md");

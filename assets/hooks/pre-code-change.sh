@@ -16,15 +16,14 @@ case "$FILE_PATH" in
     echo "[ExternalReference] _ref path detected: $FILE_PATH"
     echo "  _ref/ is external comparison material; refresh from upstream if needed, but keep it out of commits."
     ;;
-  _ops/secrets/*|_ops/env/.env|_ops/env/.env.*)
-    if [[ "$FILE_PATH" != "_ops/env/.env.example" ]]; then
-      echo "[OpsSecret] Sensitive _ops path detected: $FILE_PATH"
-      echo "  Keep keys, tokens, and local env values ignored; commit only examples, runbooks, submission docs, and scripts."
-    fi
-    ;;
   _ops/*)
-    echo "[OpsAsset] Operations asset detected: $FILE_PATH"
-    echo "  _ops/ is trackable for runbooks, submission materials, release checklists, and scripts."
+    echo "[OpsPrivate] Private _ops path detected: $FILE_PATH"
+    echo "  Keep secrets, real env files, provider state, artifacts, logs, and scratch files ignored under _ops/."
+    ;;
+  deploy/*)
+    echo "[DeployAsset] Deployment operations asset detected: $FILE_PATH"
+    echo "  deploy/ is trackable for runbooks, submission materials, release checklists, scripts, ordered SQL, and env examples."
+    echo "  Keep deployment SQL directly under deploy/sql/ with 4-digit ascending prefixes."
     ;;
 esac
 

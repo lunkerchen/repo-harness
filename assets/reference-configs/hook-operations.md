@@ -46,10 +46,13 @@ Architecture maintenance is split across two helpers:
 
 - `scripts/architecture-drift.sh` detects architecture-sensitive edits and writes a human request under `docs/architecture/requests/` plus a machine event in `.ai/harness/architecture/events.jsonl`.
 - `scripts/capability-resolver.ts` resolves changed paths against `.ai/context/capabilities.json` using longest-prefix matching.
+- `scripts/archive-architecture-request.sh` moves handled requests to `docs/architecture/requests/archive/YYYY/` after the agent chooses a terminal status and links any produced artifacts.
 - `scripts/workstream-sync.sh` maintains durable multi-session progress under `tasks/workstreams/<domain>/<capability>/` for a selected capability.
 - `scripts/context-contract-sync.sh` consumes architecture or workstream events and updates only the controlled `<!-- BEGIN ARCHITECTURE CONTRACT -->` block in matched capability `CLAUDE.md` and `AGENTS.md` files.
 
 The helpers keep hook boundaries explicit: drift detection never writes agent context files, workstream sync writes its event to `.ai/harness/events.jsonl` instead of a separate workstream event log, and context sync only projects pointers/current-slice metadata into local contracts. Agents produce snapshots under `docs/architecture/snapshots/` and standalone `diagram-design` HTML under `docs/architecture/diagrams/`.
+
+`docs/architecture/requests/` is a pending queue only. Once the agent handles a request, archive it with `scripts/archive-architecture-request.sh --request <file> --status <resolved|superseded|rejected|no-change> [--artifact <path>]`; the helper updates the status, appends an archive resolution block, moves the file to `docs/architecture/requests/archive/YYYY/`, and removes the pending link from `docs/architecture/index.md`.
 
 ## When to Check Tests or Migration
 

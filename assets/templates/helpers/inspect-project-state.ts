@@ -128,8 +128,7 @@ export function inspectRepo(repo: string): InspectionResult {
   ];
   const ignoredReferenceOrSecretPaths = [
     "_ref",
-    "_ops/secrets",
-    "_ops/env/.env",
+    "_ops",
   ];
 
   if (!existsSync(runtimeManifest)) {

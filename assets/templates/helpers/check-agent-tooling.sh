@@ -71,6 +71,7 @@ const WAZA_RAW_BASE_URL = "https://raw.githubusercontent.com/tw93/Waza/main";
 const WAZA_MANAGED_SKILLS = ["check", "design", "health", "hunt", "learn", "read", "think", "write"];
 const CODEX_AUTOMATION_SKILLS = ["health", "check", "diagram-design"];
 const WAZA_STAGING_DIR = path.join(HOME, ".agents", "skills");
+let timeoutBin;
 const HOSTS = {
   claude: {
     label: "Claude Code",
@@ -104,12 +105,28 @@ function readJson(filePath) {
   }
 }
 
+function detectTimeoutBin() {
+  if (timeoutBin !== undefined) return timeoutBin;
+  const result = spawnSync("bash", ["-lc", "command -v timeout"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    timeout: 500,
+  });
+  timeoutBin = result.status === 0 ? result.stdout.trim() : "";
+  return timeoutBin;
+}
+
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const timeoutMs = options.timeoutMs ?? 0;
+  const externalTimeout = timeoutMs > 0 ? detectTimeoutBin() : "";
+  const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
+  const spawnCommand = externalTimeout || command;
+  const spawnArgs = externalTimeout ? ["--kill-after=1s", `${timeoutSeconds}s`, command, ...args] : args;
+  const result = spawnSync(spawnCommand, spawnArgs, {
     cwd: options.cwd ?? REPO_ROOT,
     encoding: "utf8",
     env: { ...process.env, ...(options.env ?? {}) },
-    timeout: options.timeoutMs ?? 0,
+    timeout: externalTimeout ? timeoutMs + 1000 : timeoutMs,
   });
 
   return {
@@ -118,7 +135,7 @@ function run(command, args, options = {}) {
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
     error: result.error ? String(result.error.message || result.error) : "",
-    timed_out: result.error?.code === "ETIMEDOUT",
+    timed_out: result.error?.code === "ETIMEDOUT" || result.status === 124,
   };
 }
 

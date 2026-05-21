@@ -45,8 +45,8 @@ describe("Hook contracts", () => {
     expect(script).toContain("tasks/contracts");
     expect(script).toContain(".spec");
     expect(script).toContain("[ExternalReference]");
-    expect(script).toContain("[OpsSecret]");
-    expect(script).toContain("[OpsAsset]");
+    expect(script).toContain("[OpsPrivate]");
+    expect(script).toContain("[DeployAsset]");
   });
 
   test("pre-edit guard should combine asset-layer and test reminders", () => {
@@ -56,8 +56,8 @@ describe("Hook contracts", () => {
     expect(script).toContain("[TDD Guard]");
     expect(script).toContain("PlanTransitionGuard");
     expect(script).toContain("ExternalReferenceGuard");
-    expect(script).toContain("OpsSecretGuard");
-    expect(script).toContain("_ops/env/.env.example");
+    expect(script).toContain("OpsPrivateGuard");
+    expect(script).toContain("deploy/");
   });
 
   test("worktree-guard should be warning-first with marker-based enforcement", () => {
@@ -119,10 +119,11 @@ describe("Hook contracts", () => {
   test("post-edit guard should combine doc drift and task handoff", () => {
     const script = read("assets/hooks/post-edit-guard.sh");
     expect(script).toContain("[DocDrift]");
-    expect(script).toContain("[OpsAsset]");
+    expect(script).toContain("[DeployAsset]");
     expect(script).toContain("[TaskHandoff]");
     expect(script).toContain("architecture-drift.sh");
     expect(script).toContain("context-contract-sync.sh");
+    expect(read("assets/templates/helpers/archive-architecture-request.sh")).toContain("[ArchitectureArchive]");
     expect(read("assets/templates/helpers/workstream-sync.sh")).toContain("tasks/workstreams");
     expect(script).toContain("tasks/todo.md");
     expect(script).toContain("--quiet");

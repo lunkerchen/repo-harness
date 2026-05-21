@@ -16,11 +16,8 @@ coverage/
 # External references
 _ref/
 
-# Operations
-_ops/secrets/
-_ops/env/.env
-_ops/env/.env.*
-!_ops/env/.env.example
+# Local operations state
+_ops/
 
 # Environment
 .env
@@ -626,7 +623,7 @@ pi_install_helpers() {
   local target_dir="$1"
   local helpers_dir="$2"
   local mode="${3:-apply}"
-  local helper_names="${4:-new-plan.sh plan-to-todo.sh archive-workflow.sh prepare-handoff.sh verify-contract.sh summarize-failures.sh check-task-sync.sh check-agent-tooling.sh check-context-files.sh check-skill-version.ts select-agent-context-blocks.sh ensure-task-workflow.sh check-task-workflow.sh workflow-contract.ts inspect-project-state.ts migrate-workflow-docs.ts migrate-project-template.sh context-budget.ts capability-resolver.ts architecture-drift.sh context-contract-sync.sh workstream-sync.sh prepare-codex-handoff.sh codex-handoff-resume.sh}"
+  local helper_names="${4:-new-plan.sh plan-to-todo.sh archive-workflow.sh prepare-handoff.sh verify-contract.sh summarize-failures.sh check-task-sync.sh check-deploy-sql-order.sh check-agent-tooling.sh check-context-files.sh check-skill-version.ts select-agent-context-blocks.sh ensure-task-workflow.sh check-task-workflow.sh workflow-contract.ts inspect-project-state.ts migrate-workflow-docs.ts migrate-project-template.sh context-budget.ts capability-resolver.ts architecture-drift.sh archive-architecture-request.sh context-contract-sync.sh workstream-sync.sh prepare-codex-handoff.sh codex-handoff-resume.sh}"
   local scripts_dir="$target_dir/scripts"
   local helper_name
 
@@ -652,7 +649,7 @@ pi_install_helpers() {
         cp "$helpers_dir/$helper_name" "$scripts_dir/$helper_name"
       fi
     done
-    pi_ensure_executable_if_apply "$mode" "$scripts_dir"/new-spec.sh "$scripts_dir"/new-sprint.sh "$scripts_dir"/new-plan.sh "$scripts_dir"/plan-to-todo.sh "$scripts_dir"/archive-workflow.sh "$scripts_dir"/prepare-handoff.sh "$scripts_dir"/prepare-codex-handoff.sh "$scripts_dir"/codex-handoff-resume.sh "$scripts_dir"/verify-contract.sh "$scripts_dir"/summarize-failures.sh "$scripts_dir"/verify-sprint.sh "$scripts_dir"/check-task-sync.sh "$scripts_dir"/check-agent-tooling.sh "$scripts_dir"/check-context-files.sh "$scripts_dir"/select-agent-context-blocks.sh "$scripts_dir"/architecture-drift.sh "$scripts_dir"/context-contract-sync.sh "$scripts_dir"/workstream-sync.sh "$scripts_dir"/ensure-task-workflow.sh "$scripts_dir"/check-task-workflow.sh "$scripts_dir"/switch-plan.sh "$scripts_dir"/migrate-project-template.sh
+    pi_ensure_executable_if_apply "$mode" "$scripts_dir"/new-spec.sh "$scripts_dir"/new-sprint.sh "$scripts_dir"/new-plan.sh "$scripts_dir"/plan-to-todo.sh "$scripts_dir"/archive-workflow.sh "$scripts_dir"/archive-architecture-request.sh "$scripts_dir"/prepare-handoff.sh "$scripts_dir"/prepare-codex-handoff.sh "$scripts_dir"/codex-handoff-resume.sh "$scripts_dir"/verify-contract.sh "$scripts_dir"/summarize-failures.sh "$scripts_dir"/verify-sprint.sh "$scripts_dir"/check-task-sync.sh "$scripts_dir"/check-deploy-sql-order.sh "$scripts_dir"/check-agent-tooling.sh "$scripts_dir"/check-context-files.sh "$scripts_dir"/select-agent-context-blocks.sh "$scripts_dir"/architecture-drift.sh "$scripts_dir"/context-contract-sync.sh "$scripts_dir"/workstream-sync.sh "$scripts_dir"/ensure-task-workflow.sh "$scripts_dir"/check-task-workflow.sh "$scripts_dir"/switch-plan.sh "$scripts_dir"/migrate-project-template.sh
     return 0
   fi
 
@@ -1184,10 +1181,11 @@ pi_write_harness_policy() {
     "rule": "use _ref for upstream/source comparison only; refresh from external sources instead of editing as product code"
   },
   "operations": {
-    "dir": "_ops",
-    "tracked": ["_ops/README.md", "_ops/scripts/", "_ops/submissions/", "_ops/*.md", "_ops/env/.env.example"],
-    "ignored": ["_ops/secrets/", "_ops/env/.env", "_ops/env/.env.*"],
-    "rule": "commit runbooks, submission materials, release checklists, and helper scripts; keep keys, tokens, and local env values in ignored paths only"
+    "dir": "deploy",
+    "private_dir": "_ops",
+    "tracked": ["deploy/README.md", "deploy/scripts/", "deploy/submissions/", "deploy/runbooks/", "deploy/release-checklists/", "deploy/sql/", "deploy/*.md", "deploy/env/.env.example"],
+    "ignored": ["_ops/"],
+    "rule": "commit deployment runbooks, submission materials, release checklists, helper scripts, ordered SQL files, and env examples under deploy/; keep deploy SQL in deploy/sql/ with 4-digit ascending prefixes; keep keys, tokens, real env values, provider state, artifacts, logs, and scratch files in ignored _ops/ only"
   },
   "context": {
     "profile": "$(pi_context_profile)",
@@ -1318,7 +1316,7 @@ pi_write_harness_policy() {
     "strategy_version": 1,
     "supported_legacy_versions": ["pre-tasks-first", "tasks-first-without-contract-manifest", "current-v1"],
     "action_classes": {
-      "preserve": "keep user-authored hooks, ignored reference material, secrets, and local env files unchanged",
+      "preserve": "keep user-authored hooks, ignored reference material, private operations state, secrets, and local env files unchanged",
       "archive": "move user-authored legacy workflow documents or checklists into archive/research surfaces before refresh",
       "reconfigure": "merge managed config defaults without overwriting explicit repo overrides",
       "remove": "delete only workflow-contract actions marked ownership=known_generated"
@@ -1329,6 +1327,7 @@ pi_write_harness_policy() {
       "unknown_files": "preserve-or-archive",
       "custom_hooks": "preserve",
       "ignored_reference_material": "preserve",
+      "local_operations_state": "preserve",
       "local_secrets": "preserve"
     },
     "reporting": {
@@ -1578,6 +1577,7 @@ pi_ensure_harness_state_surface() {
 ## Architecture Drift Flow
 
 - `scripts/architecture-drift.sh` records architecture-sensitive edits as requests.
+- `scripts/archive-architecture-request.sh` archives handled requests after an agent records the resolution status and linked artifacts.
 - `scripts/context-contract-sync.sh` keeps only the controlled architecture block in functional-block `AGENTS.md` and `CLAUDE.md` files aligned.
 - `scripts/workstream-sync.sh` keeps durable multi-session progress under `tasks/workstreams/<domain>/<capability>/` and projects only pointers into local contracts.
 - Architecture diagrams are standalone HTML files in `docs/architecture/diagrams/`; when generated by an agent, use the `diagram-design` architecture type and keep the diagram self-contained.
@@ -1745,10 +1745,11 @@ pi_ensure_task_sync() {
 {
   "name": "$project_name",
   "private": true,
-  "scripts": {
-    "check:context-files": "bash scripts/check-context-files.sh",
-    "check:task-sync": "bash scripts/check-task-sync.sh",
-    "check:task-workflow": "bash scripts/check-task-workflow.sh --strict"
+    "scripts": {
+      "check:context-files": "bash scripts/check-context-files.sh",
+      "check:deploy-sql": "bash scripts/check-deploy-sql-order.sh",
+      "check:task-sync": "bash scripts/check-task-sync.sh",
+      "check:task-workflow": "bash scripts/check-task-workflow.sh --strict"
   }
 }
 EOF_PACKAGE
@@ -1768,6 +1769,7 @@ const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
 pkg.private ??= true;
 pkg.scripts ??= {};
 pkg.scripts["check:context-files"] = "bash scripts/check-context-files.sh";
+pkg.scripts["check:deploy-sql"] = "bash scripts/check-deploy-sql-order.sh";
 pkg.scripts["check:task-sync"] = "bash scripts/check-task-sync.sh";
 pkg.scripts["check:task-workflow"] = "bash scripts/check-task-workflow.sh --strict";
 fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");

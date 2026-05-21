@@ -8,6 +8,7 @@
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "check:context-files": "bash scripts/check-context-files.sh",
+    "check:deploy-sql": "bash scripts/check-deploy-sql-order.sh",
     "check:task-sync": "bash scripts/check-task-sync.sh",
     "check:task-workflow": "bash scripts/check-task-workflow.sh --strict"
   },

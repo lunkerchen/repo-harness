@@ -54,6 +54,7 @@ describe("Bootstrap Script Contracts", () => {
   test("repo package should expose workflow verification scripts", () => {
     const pkg = JSON.parse(read("package.json"));
     expect(pkg.scripts["check:task-sync"]).toBe("bash scripts/check-task-sync.sh");
+    expect(pkg.scripts["check:deploy-sql"]).toBe("bash scripts/check-deploy-sql-order.sh");
     expect(pkg.scripts["check:task-workflow"]).toBe("bash scripts/check-task-workflow.sh --strict");
     expect(pkg.scripts["check:context-files"]).toBe("bash scripts/check-context-files.sh");
   });
@@ -75,6 +76,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(sharedLib).toContain("verify-contract.sh");
     expect(sharedLib).toContain("summarize-failures.sh");
     expect(sharedLib).toContain("check:context-files");
+    expect(sharedLib).toContain("check:deploy-sql");
     expect(sharedLib).toContain("pi_print_external_tooling_report");
     expect(sharedLib).toContain("check-task-sync.sh");
     expect(content).toContain("mkdir -p .ai/context");
@@ -83,6 +85,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("maintenance-triage.sh");
     expect(contract.helpers.scripts).toContain("context-budget.ts");
     expect(contract.helpers.scripts).toContain("architecture-drift.sh");
+    expect(contract.helpers.scripts).toContain("archive-architecture-request.sh");
     expect(contract.helpers.scripts).toContain("context-contract-sync.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");
     expect(contract.helpers.scripts).toContain("contract-worktree.sh");
@@ -92,6 +95,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("prepare-codex-handoff.sh");
     expect(contract.helpers.scripts).toContain("codex-handoff-resume.sh");
     expect(contract.helpers.scripts).toContain("check-agent-tooling.sh");
+    expect(contract.helpers.scripts).toContain("check-deploy-sql-order.sh");
     expect(contract.helpers.scripts).toContain("check-context-files.sh");
     expect(contract.helpers.scripts).toContain("select-agent-context-blocks.sh");
     expect(sharedLib).toContain("ensure-task-workflow.sh");
@@ -162,6 +166,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(sharedLib).toContain("verify-contract.sh");
     expect(sharedLib).toContain("summarize-failures.sh");
     expect(sharedLib).toContain("check:context-files");
+    expect(sharedLib).toContain("check:deploy-sql");
     expect(sharedLib).toContain("pi_print_external_tooling_report");
     expect(sharedLib).toContain("check-task-sync.sh");
     expect(sharedLib).toContain("ensure-task-workflow.sh");
@@ -174,6 +179,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("prepare-codex-handoff.sh");
     expect(contract.helpers.scripts).toContain("codex-handoff-resume.sh");
     expect(contract.helpers.scripts).toContain("check-agent-tooling.sh");
+    expect(contract.helpers.scripts).toContain("check-deploy-sql-order.sh");
     expect(contract.helpers.scripts).toContain("check-context-files.sh");
     expect(contract.helpers.scripts).toContain("select-agent-context-blocks.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");

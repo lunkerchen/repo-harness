@@ -133,7 +133,9 @@ const FALLBACK_TEMPLATE_VARIABLES: Record<string, string> = {
     "├── src/\n" +
     "├── tasks/\n" +
     "├── .ai/harness/\n" +
-    "├── _ops/\n" +
+    "├── deploy/\n" +
+    "│   └── sql/ (ordered deployment SQL)\n" +
+    "├── _ops/ (ignored local state)\n" +
     "└── artifacts/",
   TECH_STACK_TABLE:
     "| Stack | Select based on chosen plan |\n" +

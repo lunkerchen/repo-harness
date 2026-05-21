@@ -20,10 +20,13 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "contracts"))).toBe(false);
       expect(existsSync(join(cwd, "specs"))).toBe(false);
       expect(existsSync(join(cwd, ".ops"))).toBe(false);
-      expect(existsSync(join(cwd, "_ops/README.md"))).toBe(true);
-      expect(existsSync(join(cwd, "_ops/env/.gitkeep"))).toBe(true);
-      expect(existsSync(join(cwd, "_ops/scripts/.gitkeep"))).toBe(true);
-      expect(existsSync(join(cwd, "_ops/submissions/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, "deploy/README.md"))).toBe(true);
+      expect(existsSync(join(cwd, "deploy/env/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, "deploy/scripts/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, "deploy/submissions/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, "deploy/runbooks/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, "deploy/release-checklists/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, "deploy/sql/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, "tasks/contracts"))).toBe(true);
       expect(existsSync(join(cwd, "tasks/notes"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/templates/contract.template.md"))).toBe(true);
@@ -75,10 +78,12 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "scripts/verify-sprint.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/check-agent-tooling.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/check-task-sync.sh"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/check-deploy-sql-order.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/check-context-files.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/select-agent-context-blocks.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/capability-resolver.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/architecture-drift.sh"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/archive-architecture-request.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/context-contract-sync.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/workstream-sync.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/ensure-task-workflow.sh"))).toBe(true);
@@ -119,12 +124,14 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "docs/PROGRESS.md"))).toBe(false);
       const workflowContract = JSON.parse(readFileSync(join(cwd, ".ai/harness/workflow-contract.json"), "utf-8"));
       expect(workflowContract.helpers.scripts).toContain("check-agent-tooling.sh");
+      expect(workflowContract.helpers.scripts).toContain("check-deploy-sql-order.sh");
       expect(workflowContract.helpers.scripts).toContain("check-task-workflow.sh");
       expect(workflowContract.helpers.scripts).toContain("contract-worktree.sh");
       expect(workflowContract.helpers.scripts).toContain("select-agent-context-blocks.sh");
       expect(workflowContract.helpers.scripts).toContain("context-budget.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-resolver.ts");
       expect(workflowContract.helpers.scripts).toContain("architecture-drift.sh");
+      expect(workflowContract.helpers.scripts).toContain("archive-architecture-request.sh");
       expect(workflowContract.helpers.scripts).toContain("context-contract-sync.sh");
       expect(workflowContract.helpers.scripts).toContain("workstream-sync.sh");
       expect(workflowContract.artifacts.requiredFiles).not.toContain(".ai/harness/context-budget/latest.json");
@@ -140,8 +147,9 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
-      expect(workflowContract.artifacts.requiredFiles).toContain("_ops/README.md");
-      expect(workflowContract.artifacts.requiredDirectories).toContain("_ops/scripts");
+      expect(workflowContract.artifacts.requiredFiles).toContain("deploy/README.md");
+      expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/scripts");
+      expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/sql");
       expect(workflowContract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/notes");
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/workstreams");
@@ -183,9 +191,11 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.tasks.workstreams_dir).toBe("tasks/workstreams");
       expect(policy.reference_material.dir).toBe("_ref");
       expect(policy.reference_material.commit_policy).toContain("never commit");
-      expect(policy.operations.dir).toBe("_ops");
-      expect(policy.operations.tracked).toContain("_ops/scripts/");
-      expect(policy.operations.ignored).toContain("_ops/secrets/");
+      expect(policy.operations.dir).toBe("deploy");
+      expect(policy.operations.private_dir).toBe("_ops");
+      expect(policy.operations.tracked).toContain("deploy/scripts/");
+      expect(policy.operations.tracked).toContain("deploy/sql/");
+      expect(policy.operations.ignored).toContain("_ops/");
       expect(policy.information_lifecycle.notes.dir).toBe("tasks/notes");
       expect(policy.information_lifecycle.evidence.snapshots_dir).toBe(".ai/harness/runs");
       expect(policy.agentic_development.routing).toEqual({
@@ -229,6 +239,7 @@ describe("create-project-dirs runtime smoke", () => {
 
       const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf-8"));
       expect(pkg.scripts["check:context-files"]).toBe("bash scripts/check-context-files.sh");
+      expect(pkg.scripts["check:deploy-sql"]).toBe("bash scripts/check-deploy-sql-order.sh");
       expect(pkg.scripts["check:task-sync"]).toBe("bash scripts/check-task-sync.sh");
       expect(pkg.scripts["check:task-workflow"]).toBe("bash scripts/check-task-workflow.sh --strict");
       expect(existsSync(join(cwd, "scripts/contract-worktree.sh"))).toBe(true);

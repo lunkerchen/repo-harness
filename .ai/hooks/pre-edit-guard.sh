@@ -15,11 +15,9 @@ FILE_PATH="$(hook_get_file_path "${1:-}")"
 WRITE_PAYLOAD="$(hook_get_write_payload "${1:-}")"
 [[ -z "$FILE_PATH" ]] && exit 0
 
-is_ops_sensitive_path() {
+is_private_ops_path() {
   case "$1" in
-    _ops/secrets/*|_ops/env/.env|_ops/env/.env.*)
-      [[ "$1" != "_ops/env/.env.example" ]]
-      ;;
+    _ops/*) return 0 ;;
     *)
       return 1
       ;;
@@ -36,19 +34,20 @@ if [[ "$FILE_PATH" == _ref/* ]]; then
   exit 1
 fi
 
-if is_ops_sensitive_path "$FILE_PATH"; then
-  echo "[OpsSecretGuard] $FILE_PATH is an ignored sensitive operations path."
+if is_private_ops_path "$FILE_PATH"; then
+  echo "[OpsPrivateGuard] $FILE_PATH is under ignored private operations state."
   hook_structured_error \
-    "OpsSecretGuard" \
-    "_ops/ can contain operational assets, but keys and local env values must stay in ignored secret/env files." \
-    "Commit _ops runbooks, submission materials, release checklists, scripts, and .env.example only; do not write secrets through agent edits." \
+    "OpsPrivateGuard" \
+    "_ops/ is local private operations state for secrets, real env files, provider state, artifacts, logs, and scratch files." \
+    "Commit deploy/ runbooks, release checklists, scripts, submissions, and env examples; do not write _ops/* through agent edits." \
     "state_violation"
   exit 1
 fi
 
-if [[ "$FILE_PATH" == _ops/* ]]; then
-  echo "[OpsAsset] Operations asset detected: $FILE_PATH"
-  echo "  _ops/ is trackable for runbooks, submission materials, release checklists, and scripts."
+if [[ "$FILE_PATH" == deploy/* ]]; then
+  echo "[DeployAsset] Deployment operations asset detected: $FILE_PATH"
+  echo "  deploy/ is trackable for runbooks, submission materials, release checklists, scripts, ordered SQL, and env examples."
+  echo "  Keep deployment SQL directly under deploy/sql/ with 4-digit ascending prefixes."
 fi
 
 active_contract="$(workflow_active_contract || true)"

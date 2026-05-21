@@ -26,7 +26,8 @@
 - Shared automation layer: `.ai/hooks/`.
 - Claude adapter layer: `.claude/settings.json` calls `.ai/hooks/run-hook.sh`.
 - External reference cache: `_ref/` is ignored, read/refresh-only comparison material, and must stay out of commits.
-- Operations workspace: `_ops/` is commit-ready for runbooks, submission materials, release checklists, and helper scripts; secrets belong only in ignored `_ops/secrets/` or `_ops/env/.env*` files.
+- Deployment operations workspace: `deploy/` is commit-ready for runbooks, submission materials, release checklists, helper scripts, ordered SQL files under `deploy/sql/`, and env examples.
+- Local operations state: `_ops/` is ignored and private for secrets, real env files, provider state, artifacts, logs, and scratch files; do not commit or agent-edit `_ops/*`.
 - Agentic skill routing: product discovery -> gstack `office-hours`; complex engineering plans -> gstack `plan-eng-review`; design plans -> gstack `plan-design-review`; daily small/medium planning, bug hunts, and checks -> Waza `/think`, `/hunt`, `/check`.
 - Knowledge sync and handoff retrieval -> `gbrain`.
 - Codex automation profile: required `health`, `check`, and `diagram-design` from `~/.codex/skills`; do not vendor skill bodies.

@@ -218,9 +218,11 @@ check_required_file "scripts/prepare-handoff.sh"
 check_required_file "scripts/verify-contract.sh"
 check_required_file "scripts/verify-sprint.sh"
 check_required_file "scripts/check-task-sync.sh"
+check_required_file "scripts/check-deploy-sql-order.sh"
 check_required_file "scripts/check-context-files.sh"
 check_required_file "scripts/select-agent-context-blocks.sh"
 check_required_file "scripts/architecture-drift.sh"
+check_required_file "scripts/archive-architecture-request.sh"
 check_required_file "scripts/context-contract-sync.sh"
 check_required_file "scripts/workstream-sync.sh"
 check_required_file "scripts/ensure-task-workflow.sh"
@@ -261,6 +263,12 @@ fi
 
 if [[ -f "docs/TODO.md" ]]; then
   report_issue "Legacy docs/TODO.md detected; migrate it into tasks/todo.md."
+fi
+
+if [[ -f "scripts/check-deploy-sql-order.sh" ]]; then
+  if ! bash "scripts/check-deploy-sql-order.sh" --quiet; then
+    report_issue "Deploy SQL order check failed."
+  fi
 fi
 
 todo_source="$(todo_source_plan || true)"

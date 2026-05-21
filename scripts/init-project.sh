@@ -225,10 +225,18 @@ create_structure() {
     mkdir -p .ai/harness/failures
     mkdir -p .ai/harness/runs
     mkdir -p .claude/templates
+    mkdir -p deploy/env
+    mkdir -p deploy/scripts
+    mkdir -p deploy/submissions
+    mkdir -p deploy/runbooks
+    mkdir -p deploy/release-checklists
+    mkdir -p deploy/sql
     mkdir -p _ops/env
-    mkdir -p _ops/scripts
     mkdir -p _ops/secrets
-    mkdir -p _ops/submissions
+    mkdir -p _ops/artifacts
+    mkdir -p _ops/logs
+    mkdir -p _ops/state
+    mkdir -p _ops/scratch
     mkdir -p artifacts
     create_contract_directories
 
@@ -359,11 +367,8 @@ EOF
     ensure_gitignore_entry .gitignore "# External references"
     ensure_gitignore_entry .gitignore "_ref/"
     ensure_gitignore_entry .gitignore ""
-    ensure_gitignore_entry .gitignore "# Operations"
-    ensure_gitignore_entry .gitignore "_ops/secrets/"
-    ensure_gitignore_entry .gitignore "_ops/env/.env"
-    ensure_gitignore_entry .gitignore "_ops/env/.env.*"
-    ensure_gitignore_entry .gitignore "!_ops/env/.env.example"
+    ensure_gitignore_entry .gitignore "# Local operations state"
+    ensure_gitignore_entry .gitignore "_ops/"
     ensure_gitignore_entry .gitignore ""
     ensure_gitignore_entry .gitignore "# Environment"
     ensure_gitignore_entry .gitignore ".env"
@@ -374,29 +379,31 @@ EOF
     ensure_gitignore_entry .gitignore ".DS_Store"
     ensure_runtime_gitignore_block .gitignore
 
-    touch _ops/.gitkeep
-    touch _ops/env/.gitkeep
-    touch _ops/scripts/.gitkeep
-    touch _ops/submissions/.gitkeep
-    if [[ ! -f _ops/README.md ]]; then
-        cat > _ops/README.md << 'EOF'
-# Operations Workspace
+    touch deploy/env/.gitkeep
+    touch deploy/scripts/.gitkeep
+    touch deploy/submissions/.gitkeep
+    touch deploy/runbooks/.gitkeep
+    touch deploy/release-checklists/.gitkeep
+    touch deploy/sql/.gitkeep
+    if [[ ! -f deploy/README.md ]]; then
+        cat > deploy/README.md << 'EOF'
+# Deployment Operations
 
-`_ops/` is a commit-ready operations surface for runbooks, submission materials, release checklists, and helper scripts.
+`deploy/` is a commit-ready surface for deployment and operations runbooks, submission materials, release checklists, helper scripts, and env examples.
 
 ## Track
 
-- `_ops/scripts/` for operational scripts.
-- `_ops/submissions/` for submission or review materials.
-- `_ops/*.md` for runbooks and operating notes.
-- `_ops/env/.env.example` for documented variable shapes only.
+- `deploy/scripts/` for operational scripts.
+- `deploy/submissions/` for submission or review materials.
+- `deploy/runbooks/` and `deploy/release-checklists/` for operational documentation.
+- `deploy/sql/` for ordered deployment SQL files named like `0001_create_tables.sql`.
+- `deploy/*.md` for runbooks and operating notes.
+- `deploy/env/.env.example` for documented variable shapes only.
 
 ## Do Not Track
 
-- `_ops/secrets/`
-- `_ops/env/.env`
-- `_ops/env/.env.*` except `_ops/env/.env.example`
-- private keys, production tokens, credential dumps, and local-only overrides
+- `_ops/`
+- private keys, real env files, provider state, production tokens, credential dumps, artifacts, logs, and local-only overrides
 
 Keep external upstream checkouts and source references in `_ref/`; `_ref/` is ignored and must stay out of commits.
 EOF

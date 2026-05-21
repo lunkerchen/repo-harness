@@ -71,6 +71,7 @@ describe("Migration script contract", () => {
     expect(workflowContract).toContain("summarize-failures.sh");
     expect(workflowContract).toContain("verify-sprint.sh");
     expect(workflowContract).toContain("check-task-sync.sh");
+    expect(workflowContract).toContain("check-deploy-sql-order.sh");
     expect(workflowContract).toContain("check-agent-tooling.sh");
     expect(workflowContract).toContain("check-context-files.sh");
     expect(workflowContract).toContain("ensure-task-workflow.sh");
@@ -79,17 +80,18 @@ describe("Migration script contract", () => {
     expect(workflowContract).toContain("context-budget.ts");
     expect(workflowContract).toContain("capability-resolver.ts");
     expect(workflowContract).toContain("architecture-drift.sh");
+    expect(workflowContract).toContain("archive-architecture-request.sh");
     expect(workflowContract).toContain("context-contract-sync.sh");
     expect(workflowContract).toContain("workstream-sync.sh");
     expect(workflowContract).toContain("prepare-codex-handoff.sh");
     expect(workflowContract).toContain("codex-handoff-resume.sh");
     expect(workflowContract).toContain("implementation-notes.template.md");
-    expect(workflowContract).toContain("_ops/README.md");
+    expect(workflowContract).toContain("deploy/README.md");
     expect(script).toContain("pi_ensure_task_sync");
     expect(sharedLib).toContain("check:task-sync");
     expect(sharedLib).toContain("check:task-workflow");
     expect(sharedLib).toContain("_ref/");
-    expect(sharedLib).toContain("_ops/secrets/");
+    expect(sharedLib).toContain("_ops/");
     expect(script).toContain("tasks/contracts");
     expect(workflowContract).toContain("docs/architecture/index.md");
     expect(workflowContract).toContain(".ai/context/capabilities.json");
@@ -178,9 +180,12 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, ".ai/harness/workflow-contract.json"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/runs/.gitkeep"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/worktrees/.gitkeep"))).toBe(true);
-      expect(existsSync(join(repo, "_ops/README.md"))).toBe(true);
-      expect(existsSync(join(repo, "_ops/scripts/.gitkeep"))).toBe(true);
-      expect(existsSync(join(repo, "_ops/submissions/.gitkeep"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/README.md"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/scripts/.gitkeep"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/submissions/.gitkeep"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/runbooks/.gitkeep"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/release-checklists/.gitkeep"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/sql/.gitkeep"))).toBe(true);
       expect(existsSync(join(repo, "scripts/new-spec.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/new-sprint.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/new-plan.sh"))).toBe(true);
@@ -192,6 +197,7 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, "scripts/summarize-failures.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/verify-sprint.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/check-task-sync.sh"))).toBe(true);
+      expect(existsSync(join(repo, "scripts/check-deploy-sql-order.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/check-agent-tooling.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/check-context-files.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/ensure-task-workflow.sh"))).toBe(true);
@@ -301,9 +307,11 @@ describe("Migration script contract", () => {
       expect(policy.tasks.workstreams_dir).toBe("tasks/workstreams");
       expect(policy.reference_material.dir).toBe("_ref");
       expect(policy.reference_material.commit_policy).toContain("never commit");
-      expect(policy.operations.dir).toBe("_ops");
-      expect(policy.operations.tracked).toContain("_ops/submissions/");
-      expect(policy.operations.ignored).toContain("_ops/env/.env.*");
+      expect(policy.operations.dir).toBe("deploy");
+      expect(policy.operations.private_dir).toBe("_ops");
+      expect(policy.operations.tracked).toContain("deploy/submissions/");
+      expect(policy.operations.tracked).toContain("deploy/sql/");
+      expect(policy.operations.ignored).toContain("_ops/");
       expect(policy.workstreams.scope).toBe("capability");
       expect(policy.information_lifecycle.notes.dir).toBe("tasks/notes");
       expect(policy.information_lifecycle.evidence.snapshots_dir).toBe(".ai/harness/runs");
@@ -320,15 +328,18 @@ describe("Migration script contract", () => {
       expect(policy.upgrade.action_classes.preserve).toContain("user-authored hooks");
       const workflowContract = JSON.parse(readFileSync(join(repo, ".ai/harness/workflow-contract.json"), "utf-8"));
       expect(workflowContract.helpers.scripts).toContain("check-agent-tooling.sh");
+      expect(workflowContract.helpers.scripts).toContain("check-deploy-sql-order.sh");
       expect(workflowContract.helpers.scripts).toContain("switch-plan.sh");
       expect(workflowContract.helpers.scripts).toContain("contract-worktree.sh");
       expect(workflowContract.helpers.scripts).toContain("check-context-files.sh");
       expect(workflowContract.helpers.scripts).toContain("maintenance-triage.sh");
       expect(workflowContract.helpers.scripts).toContain("context-budget.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-resolver.ts");
+      expect(workflowContract.helpers.scripts).toContain("archive-architecture-request.sh");
       expect(workflowContract.helpers.scripts).toContain("workstream-sync.sh");
       expect(workflowContract.artifacts.requiredFiles).toContain("scripts/contract-worktree.sh");
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
+      expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/sql");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
@@ -343,17 +354,59 @@ describe("Migration script contract", () => {
 
       const pkg = JSON.parse(readFileSync(join(repo, "package.json"), "utf-8"));
       expect(pkg.scripts["check:context-files"]).toBe("bash scripts/check-context-files.sh");
+      expect(pkg.scripts["check:deploy-sql"]).toBe("bash scripts/check-deploy-sql-order.sh");
       expect(pkg.scripts["check:task-sync"]).toBe("bash scripts/check-task-sync.sh");
       expect(pkg.scripts["check:task-workflow"]).toBe("bash scripts/check-task-workflow.sh --strict");
 
       const gitignore = readFileSync(join(repo, ".gitignore"), "utf-8");
       expect(gitignore).toContain("# BEGIN: claude-runtime-temp (managed by project-initializer)");
       expect(gitignore).toContain("_ref/");
-      expect(gitignore).toContain("_ops/secrets/");
-      expect(gitignore).toContain("_ops/env/.env.*");
-      expect(gitignore).toContain("!_ops/env/.env.example");
+      expect(gitignore).toContain("_ops/");
+      expect(gitignore).not.toContain("_ops/secrets/");
+      expect(gitignore).not.toContain("!_ops/env/.env.example");
       expect(res.stdout).toContain("--- External Tooling ---");
       expect(res.stdout).toContain("External Tooling Report");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  test("should migrate legacy trackable _ops assets into deploy while preserving private _ops state", () => {
+    const repo = mkdtempSync(join(tmpdir(), "migration-ops-deploy-"));
+    try {
+      mkdirSync(join(repo, "_ops/scripts"), { recursive: true });
+      mkdirSync(join(repo, "_ops/submissions"), { recursive: true });
+      mkdirSync(join(repo, "_ops/sql"), { recursive: true });
+      mkdirSync(join(repo, "_ops/env"), { recursive: true });
+      mkdirSync(join(repo, "_ops/secrets"), { recursive: true });
+      writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", scripts: {} }, null, 2));
+      writeFileSync(join(repo, "_ops/scripts/deploy.sh"), "#!/bin/bash\n");
+      writeFileSync(join(repo, "_ops/submissions/review.md"), "# Review\n");
+      writeFileSync(join(repo, "_ops/sql/0001_create_users.sql"), "create table users(id integer);\n");
+      writeFileSync(join(repo, "_ops/env/.env.example"), "API_URL=\n");
+      writeFileSync(join(repo, "_ops/0002_add_orders.sql"), "create table orders(id integer);\n");
+      writeFileSync(join(repo, "_ops/runbook.md"), "# Runbook\n");
+      writeFileSync(join(repo, "_ops/env/.env.local"), "SECRET=value\n");
+      writeFileSync(join(repo, "_ops/secrets/token.txt"), "secret\n");
+
+      const res = spawnSync(
+        "bash",
+        ["scripts/migrate-project-template.sh", "--repo", repo, "--apply"],
+        { cwd: ROOT, encoding: "utf-8" }
+      );
+
+      expect(res.status).toBe(0);
+      expect(existsSync(join(repo, "deploy/scripts/deploy.sh"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/submissions/review.md"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/sql/0001_create_users.sql"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/sql/0002_add_orders.sql"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/env/.env.example"))).toBe(true);
+      expect(existsSync(join(repo, "deploy/runbook.md"))).toBe(true);
+      expect(existsSync(join(repo, "_ops/env/.env.local"))).toBe(true);
+      expect(existsSync(join(repo, "_ops/secrets/token.txt"))).toBe(true);
+      const gitignore = readFileSync(join(repo, ".gitignore"), "utf-8");
+      expect(gitignore).toContain("_ops/");
+      expect(gitignore).not.toContain("!_ops/env/.env.example");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -574,7 +627,7 @@ describe("Migration script contract", () => {
       expect(gitignore).toContain(".claude/.task-state.json");
       expect(gitignore).toContain(".claude/.active-plan");
       expect(gitignore).toContain("_ref/");
-      expect(gitignore).toContain("_ops/secrets/");
+      expect(gitignore).toContain("_ops/");
       expect(gitignore).not.toContain(".claude/.memory-context.json");
       expect(gitignore).toContain("# END: claude-runtime-temp");
     } finally {

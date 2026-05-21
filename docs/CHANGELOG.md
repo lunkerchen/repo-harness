@@ -9,6 +9,11 @@ All notable changes to this skill are documented here.
 - Made repeated `migrate-project-template.sh --apply` idempotent after a clean migration commit by normalizing first-write JSON output and preserving unchanged version stamps.
 - Removed stale `3.1 guidance` wording from migration dry-run output.
 
+### Changed
+
+- Added `deploy/sql/` as the tracked deployment SQL surface and wired a filename-order check for `0001_name.sql` style files.
+- Split deployable operations assets into tracked `deploy/` while keeping `_ops/` fully ignored for local private operations state and secrets.
+
 ## [4.0.2] - 2026-05-20
 
 ### Fixed

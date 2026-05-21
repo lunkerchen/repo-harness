@@ -180,7 +180,7 @@
 - Keep `docs/PROGRESS.md` as legacy-only. No default scaffold or strict workflow check should require it without a hook or event writer that owns it.
 - Keep `tasks/notes/<slug>.notes.md` as a slice-local decision journal only. Root `AGENTS.md`, root `CLAUDE.md`, and generated agent partials should tell agents to use it for non-obvious decisions, deviations, tradeoffs, and open questions, not durable memory or task logging.
 - Keep `_ref/` as ignored external comparison material. It can be refreshed from upstream/source systems, but it should not become a product edit or commit surface.
-- Keep `_ops/` as a commit-ready operations workspace for runbooks, submission materials, release checklists, and helper scripts. Only `_ops/secrets/` and `_ops/env/.env*` carry local secret/env values and must stay ignored; `_ops/env/.env.example` is the trackable contract shape.
+- Keep `deploy/` as the commit-ready deployment and operations workspace for runbooks, submission materials, release checklists, helper scripts, ordered SQL files under `deploy/sql/`, and env examples. Keep `_ops/` fully ignored for local secrets, real env files, provider state, artifacts, logs, and scratch files.
 
 ## 2026-05-20 Contract Worktree Lifecycle Notes
 

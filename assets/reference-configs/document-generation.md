@@ -30,4 +30,5 @@ Create these only when the agent has concrete repo evidence or the user asks:
 - Let capability `CLAUDE.md` and `AGENTS.md` carry local contract projections; root docs stay concise.
 - Keep complete workstream TODOs in `tasks/workstreams/<domain>/<capability>/`; contract blocks should link to them instead of becoming task logs.
 - Hooks may create `docs/architecture/requests/*.md`; agents own semantic snapshots and `diagram-design` HTML output.
+- Archive handled architecture requests with `scripts/archive-architecture-request.sh`; keep `docs/architecture/requests/` pending-only and preserve handled requests under `docs/architecture/requests/archive/YYYY/`.
 - Treat `diagram-design` as an external installed skill dependency at `~/.codex/skills/diagram-design`; do not copy or inline its assets into generated repos.

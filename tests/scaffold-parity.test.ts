@@ -76,11 +76,13 @@ describe("create-project-dirs scaffold parity", () => {
         "./.claude/templates/review.template.md",
         "./.claude/templates/spec.template.md",
         "./.gitignore",
-        "./_ops/.gitkeep",
-        "./_ops/README.md",
-        "./_ops/env/.gitkeep",
-        "./_ops/scripts/.gitkeep",
-        "./_ops/submissions/.gitkeep",
+        "./deploy/README.md",
+        "./deploy/env/.gitkeep",
+        "./deploy/release-checklists/.gitkeep",
+        "./deploy/runbooks/.gitkeep",
+        "./deploy/scripts/.gitkeep",
+        "./deploy/sql/.gitkeep",
+        "./deploy/submissions/.gitkeep",
         "./docs/CHANGELOG.md",
         "./docs/architecture/diagrams/.gitkeep",
         "./docs/architecture/domains/.gitkeep",
@@ -99,10 +101,12 @@ describe("create-project-dirs scaffold parity", () => {
         "./interfaces/types.ts",
         "./package.json",
         "./scripts/architecture-drift.sh",
+        "./scripts/archive-architecture-request.sh",
         "./scripts/archive-workflow.sh",
         "./scripts/capability-resolver.ts",
         "./scripts/check-agent-tooling.sh",
         "./scripts/check-context-files.sh",
+        "./scripts/check-deploy-sql-order.sh",
         "./scripts/check-skill-version.ts",
         "./scripts/check-task-sync.sh",
         "./scripts/check-task-workflow.sh",
@@ -139,9 +143,9 @@ describe("create-project-dirs scaffold parity", () => {
       const gitignore = readFileSync(join(cwd, ".gitignore"), "utf-8");
       expect(gitignore).toContain("# BEGIN: claude-runtime-temp (managed by project-initializer)");
       expect(gitignore).toContain("_ref/");
-      expect(gitignore).toContain("_ops/secrets/");
-      expect(gitignore).toContain("_ops/env/.env.*");
-      expect(gitignore).toContain("!_ops/env/.env.example");
+      expect(gitignore).toContain("_ops/");
+      expect(gitignore).not.toContain("_ops/secrets/");
+      expect(gitignore).not.toContain("!_ops/env/.env.example");
 
       const template = readFileSync(join(cwd, ".claude/templates/plan.template.md"), "utf-8");
       expect(template).toContain("## Agentic Routing");

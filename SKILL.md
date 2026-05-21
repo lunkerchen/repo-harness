@@ -169,7 +169,8 @@ This skill may create or update:
 - `tasks/contracts/*`
 - `tasks/reviews/*`
 - `tasks/workstreams/*`
-- `_ops/README.md`
+- `deploy/README.md`
+- `deploy/sql/*` for ordered deployment SQL files
 - `.ai/harness/*`
 - helper scripts under `scripts/`
 
@@ -179,6 +180,7 @@ When changing the engine, migration path, contract manifest, or self-hosted work
 
 ```bash
 bun test
+bash scripts/check-deploy-sql-order.sh
 bash scripts/check-task-sync.sh
 bash scripts/check-task-workflow.sh --strict
 bash scripts/migrate-project-template.sh --repo . --dry-run
