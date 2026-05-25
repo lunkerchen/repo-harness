@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { spawnSync } from "child_process";
@@ -11,11 +11,14 @@ describe("Codex installed copy sync", () => {
     const tmp = join(tmpdir(), `agentic-dev-installed-sync-${Date.now()}`);
     const source = join(tmp, "source");
     const codexSkills = join(tmp, "codex-skills");
+    const legacyAliasTarget = join(tmp, "legacy-project-initializer-target");
 
     try {
       mkdirSync(join(source, "assets", "skill-commands", "agentic-dev-plan"), { recursive: true });
       mkdirSync(join(source, "evals"), { recursive: true });
       mkdirSync(codexSkills, { recursive: true });
+      mkdirSync(legacyAliasTarget, { recursive: true });
+      symlinkSync(legacyAliasTarget, join(codexSkills, "project-initializer"), "dir");
 
       writeFileSync(join(source, "SKILL.md"), "---\nname: agentic-dev\n---\n");
       writeFileSync(join(source, "assets", "skill-commands", "agentic-dev-plan", "SKILL.md"), "---\nname: agentic-dev-plan\n---\n");
@@ -42,6 +45,9 @@ describe("Codex installed copy sync", () => {
         expect(existsSync(join(codexSkills, legacyName, "SKILL.md"))).toBe(false);
         expect(existsSync(join(codexSkills, legacyName, "assets", "skill-commands"))).toBe(false);
       }
+
+      expect(existsSync(join(legacyAliasTarget, "SKILL.md"))).toBe(false);
+      expect(existsSync(join(legacyAliasTarget, "assets", "skill-commands"))).toBe(false);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

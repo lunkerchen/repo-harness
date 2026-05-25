@@ -48,3 +48,5 @@
 - [x] Clarified `_ref/` as an occasional ignored reference checkout cache and required repo+commit/tag+path citations when it informs notes or research
 - [x] Added action-style `agentic-dev-*` command skill facades and tests while keeping hook/docs setup as internal engine steps
 - [x] Added advisory reusable-workflow packaging route hints that suggest `agentic-dev-autoplan` only after user authorization
+- [x] Fixed Codex installed-copy sync for symlinked legacy `project-initializer` fallback paths
+- [x] Bumped release metadata to 5.0.1 for package, skill-version manifest, README, stamp, and changelog

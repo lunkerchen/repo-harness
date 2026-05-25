@@ -105,6 +105,8 @@ describe("Migration script contract", () => {
     expect(script).toContain("pi_ensure_task_sync");
     expect(sharedLib).toContain("check:task-sync");
     expect(sharedLib).toContain("check:task-workflow");
+    expect(sharedLib).toContain(".claude/.trace.jsonl");
+    expect(sharedLib).toContain(".codex/");
     expect(sharedLib).toContain("_ref/");
     expect(sharedLib).toContain("_ops/");
     expect(script).toContain("tasks/contracts");
@@ -384,6 +386,8 @@ describe("Migration script contract", () => {
 
       const gitignore = readFileSync(join(repo, ".gitignore"), "utf-8");
       expect(gitignore).toContain("# BEGIN: claude-runtime-temp (managed by project-initializer)");
+      expect(gitignore).toContain(".claude/.trace.jsonl");
+      expect(gitignore).toContain(".codex/");
       expect(gitignore).toContain("_ref/");
       expect(gitignore).toContain("_ops/");
       expect(gitignore).not.toContain("_ops/secrets/");
@@ -650,6 +654,8 @@ describe("Migration script contract", () => {
       expect(gitignore).toContain("# BEGIN: claude-runtime-temp (managed by project-initializer)");
       expect(gitignore).toContain(".claude/.task-state.json");
       expect(gitignore).toContain(".claude/.active-plan");
+      expect(gitignore).toContain(".claude/.trace.jsonl");
+      expect(gitignore).toContain(".codex/");
       expect(gitignore).toContain("_ref/");
       expect(gitignore).toContain("_ops/");
       expect(gitignore).not.toContain(".claude/.memory-context.json");

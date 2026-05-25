@@ -32,6 +32,7 @@ PI_DEFAULT_RUNTIME_ENTRIES=$(cat <<'EOF_RUNTIME'
 .claude/settings.local.json
 .claude/.atomic_pending
 .claude/.session-id
+.claude/.trace.jsonl
 .claude/.tool-call-count
 .claude/.session-handoff.md
 .claude/.task-state.json
@@ -50,6 +51,7 @@ PI_DEFAULT_RUNTIME_ENTRIES=$(cat <<'EOF_RUNTIME'
 .ai/harness/architecture/events.jsonl
 .ai/harness/worktrees/
 .ai/harness/runs/
+.codex/
 EOF_RUNTIME
 )
 PI_EXTERNAL_TOOLING_HOSTS_DEFAULT=$(cat <<'EOF_EXTERNAL_TOOLING_HOSTS'

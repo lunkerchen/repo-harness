@@ -117,11 +117,11 @@
       "project_path": "icloud/brain/agentic-dev/*",
       "manifest_file": ".ai/harness/brain-manifest.json",
       "drift_check": "scripts/check-brain-manifest.sh",
+      "rule": "external knowledge stores long-lived explanations, runbooks, and patterns only; repo-local contracts, hooks, scripts, checks, and evidence remain authoritative",
       "legacy_paths": [
         "icloud/brain/agentic-dev-skill/*",
         "icloud/brain/project-initializer/*"
-      ],
-      "rule": "external knowledge stores long-lived explanations, runbooks, and patterns only; repo-local contracts, hooks, scripts, checks, and evidence remain authoritative"
+      ]
     }
   },
   "context_budget": {

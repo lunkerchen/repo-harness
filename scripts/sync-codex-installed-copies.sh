@@ -51,7 +51,9 @@ for legacy_name in agentic-dev-skill project-initializer; do
 
   # Legacy dirs are runtime fallback bundles, not discoverable Codex skills.
   # Keep scripts/assets for old resolver paths, but remove every skill facade.
-  find "$legacy_dest" -name SKILL.md -type f -delete
+  # -H handles existing legacy symlinks such as
+  # ~/.codex/skills/project-initializer -> ~/.claude/skills/project-initializer.
+  find -H "$legacy_dest" -name SKILL.md -type f -delete
   rm -rf "$legacy_dest/assets/skill-commands"
 
   echo "[sync-installed] legacy runtime fallback bundle: $legacy_dest"
