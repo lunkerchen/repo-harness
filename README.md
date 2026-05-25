@@ -80,7 +80,7 @@ Most common guards:
 - Durable progress: `tasks/workstreams/`
 - Release history: `docs/CHANGELOG.md`
 
-## Current Model (4.0.2)
+## Current Model (5.0.0)
 
 - Question flow uses **12 grouped decision points** with harness defaults inferred first.
 - Plan menu is tiered:
@@ -130,6 +130,12 @@ and tests:
 `agentic-dev-init` is for an existing repo; `agentic-dev-scaffold` creates a new
 project or module scaffold. `hooks-init`, `docs-init`, and `create-project-dirs`
 are internal steps, not public commands.
+
+Codex installed-copy rule: only `~/.codex/skills/agentic-dev` exposes the root
+skill and `agentic-dev-*` command facades. Legacy compatibility directories
+`~/.codex/skills/agentic-dev-skill` and `~/.codex/skills/project-initializer`
+are runtime fallback bundles only; they must not contain `SKILL.md` files or
+`assets/skill-commands/`.
 
 ## Maintainer Reference
 

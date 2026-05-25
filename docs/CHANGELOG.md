@@ -4,6 +4,8 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-05-25
+
 ### Fixed
 
 - Made repeated `migrate-project-template.sh --apply` idempotent after a clean migration commit by normalizing first-write JSON output and preserving unchanged version stamps.
@@ -17,6 +19,8 @@ All notable changes to this skill are documented here.
 - Added a repo-local brain manifest and workflow check for default brain pointers without making hooks depend on gbrain or iCloud.
 - Renamed the skill/package/repo display surface to `agentic-dev` while keeping `agentic-dev-skill` and `project-initializer` as legacy aliases, install paths, and generated stamp compatibility surfaces.
 - Added action-style `agentic-dev-*` command skill facades for plan, review, autoplan, init, scaffold, migrate, upgrade, repair, and check while keeping hooks/docs initialization internal.
+- Added advisory prompt-hook route hints for reusable-workflow packaging, with `agentic-dev-autoplan` handling evidence-first plans only after user authorization.
+- Added a Codex installed-copy sync helper that keeps command facades only in the canonical `agentic-dev` copy while legacy directories remain runtime fallback bundles.
 
 ## [4.0.2] - 2026-05-20
 

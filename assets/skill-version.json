@@ -1,6 +1,6 @@
 {
-  "version": "4.0.2",
-  "templateVersion": "4.0.2",
+  "version": "5.0.0",
+  "templateVersion": "5.0.0",
   "skillName": "agentic-dev",
   "contractId": "tasks-first-harness-v1",
   "legacyAliases": [
@@ -67,6 +67,10 @@
     {
       "version": "4.0.2",
       "description": "Installs all router entrypoints into generated repos and hardens capability discovery against ignored worktree caches"
+    },
+    {
+      "version": "5.0.0",
+      "description": "Renamed the public skill surface to agentic-dev, added action-style command facades, externalized optional long docs to the default brain, and kept reusable-workflow packaging behind advisory hooks plus user-approved autoplan"
     }
   ],
   "generatedProjectStamp": {

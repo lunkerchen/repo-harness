@@ -237,7 +237,7 @@
 
 ### What Changed
 - `/Users/chris/.codex/skills/agentic-dev` is now a real installed copy synced from the source repo while excluding `.git/`, `_ops/`, `node_modules/`, and `.DS_Store`.
-- `/Users/chris/.codex/skills/agentic-dev-skill` and `/Users/chris/.codex/skills/project-initializer` remain legacy Codex installed copies and were synced to the same source content so old and new skill entries do not diverge during the compatibility window.
+- `/Users/chris/.codex/skills/agentic-dev-skill` and `/Users/chris/.codex/skills/project-initializer` remain legacy Codex runtime fallback bundles. They intentionally omit `SKILL.md` files and `assets/skill-commands/` so Codex discovery does not show duplicate `agentic-dev-*` command skills.
 - `/Users/chris/.claude/skills/agentic-dev` is a symlink to `/Users/chris/.claude/skills/project-initializer`, because the legacy Claude path is the active source repo and copying a second source tree there would create avoidable drift.
 - Generated helper smoke without `AGENTIC_DEV_ROOT`, `AGENTIC_DEV_SKILL_ROOT`, or `PROJECT_INITIALIZER_ROOT` resolved upstream assets from `/Users/chris/.codex/skills/agentic-dev`.
 
@@ -256,6 +256,7 @@
 
 ### What to Preserve
 - Keep legacy installed paths functional for one compatibility window even though new installed path candidates now exist.
+- Keep only `/Users/chris/.codex/skills/agentic-dev` discoverable as a Codex personal skill; legacy Codex directories are resolver fallback bundles, not visible command surfaces.
 - Keep generated version stamps using `project-initializer@{version}+template@{templateVersion}` for this compatibility window so already-installed repos do not fail version checks.
 - Keep internal engine wording as `tasks-first harness` and contract ID `tasks-first-harness-v1`.
 - Generated repos can now resolve the upstream skill with `AGENTIC_DEV_ROOT`, then legacy `AGENTIC_DEV_SKILL_ROOT` / `PROJECT_INITIALIZER_ROOT`, then installed path candidates under `~/.codex/skills/agentic-dev`, `~/.codex/skills/agentic-dev-skill`, `~/.codex/skills/project-initializer`, `~/.claude/skills/agentic-dev`, `~/.claude/skills/agentic-dev-skill`, `~/.claude/skills/project-initializer`, `~/.agents/skills/agentic-dev`, `~/.agents/skills/agentic-dev-skill`, and `~/.agents/skills/project-initializer`.
