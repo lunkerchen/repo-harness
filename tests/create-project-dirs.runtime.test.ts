@@ -15,6 +15,7 @@ describe("create-project-dirs runtime smoke", () => {
         encoding: "utf-8",
       });
       expect(res.status).toBe(0);
+      expect(res.stdout).toContain("Codex hook trust required:");
 
       expect(existsSync(join(cwd, "interfaces/types.ts"))).toBe(true);
       expect(existsSync(join(cwd, "contracts"))).toBe(false);
@@ -116,8 +117,10 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".claude/skill-factory/registry.json"))).toBe(false);
 
       const settings = readFileSync(join(cwd, ".claude/settings.json"), "utf-8");
+      const codexHooks = readFileSync(join(cwd, ".codex/hooks.json"), "utf-8");
       const settingsTemplate = readFileSync(join(ROOT, "assets/hooks/settings.template.json"), "utf-8");
       expect(settings).toBe(settingsTemplate);
+      expect(codexHooks).toBe(settingsTemplate);
       expect(settings).toContain("trace-event.sh");
       expect(settings).toContain("session-start-context.sh");
       expect(settings).toContain("finalize-handoff.sh");
@@ -147,6 +150,8 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.runtimeFiles).not.toContain(".ai/harness/workstreams/events.jsonl");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".claude/settings.json");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".codex/hooks.json");
       expect(workflowContract.artifacts.requiredFiles).toContain("scripts/capability-resolver.ts");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");

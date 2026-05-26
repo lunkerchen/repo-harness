@@ -25,7 +25,7 @@ bash scripts/sync-codex-installed-copies.sh
 Local path model:
 
 - Source repo: `~/Projects/agentic-dev`
-- Claude skill aliases: `~/.claude/skills/agentic-dev`, `~/.claude/skills/project-initializer`
+- Claude skill aliases: `~/.claude/skills/agentic-dev`, `~/.claude/skills/agentic-dev-skill`, `~/.claude/skills/project-initializer`
 - Codex discoverable skill alias: `~/.codex/skills/agentic-dev`
 - Codex legacy fallback aliases: `~/.codex/skills/agentic-dev-skill`, `~/.codex/skills/project-initializer`
 
@@ -66,7 +66,9 @@ without creating an application stack.
 The command should end with `=== Migration Report ===` and summarize:
 
 - `Project hooks synced from:` to show where generated hook behavior comes from
-- `Team hook config target: .claude/settings.json` to show the Claude adapter entry
+- `Claude hook config target: .claude/settings.json` to show the Claude adapter entry
+- `Codex hook config target: .codex/hooks.json` to show the Codex adapter entry
+- `Codex hook trust required:` to remind the user to trust the repo hook in Codex Settings
 - `Workflow migration:` to show the repo-local harness surfaces it will create or refresh
 - `Helper scripts:` to show the operational toolchain you get after apply
 - `--- External Tooling ---` to show default gstack/Waza/gbrain routing plus advisory install/update hints
@@ -86,7 +88,9 @@ before applying anything.
 
 - `.ai/hooks/` is the only shared hook implementation you should edit first.
 - `.claude/settings.json` is the Claude adapter that dispatches into `.ai/hooks/run-hook.sh`.
-- Debug in this order: `settings.json -> run-hook.sh -> .ai/hooks/*`.
+- `.codex/hooks.json` is the Codex adapter that dispatches into the same runner.
+- Codex must mark this repo hook as trusted in Codex Settings before those hooks run.
+- Debug in this order: adapter config -> `run-hook.sh` -> `.ai/hooks/*`.
 
 ## Hook Failure Playbook
 
@@ -188,8 +192,9 @@ bash scripts/sync-codex-installed-copies.sh
 ```
 
 By default, the script keeps local Claude/Codex runtime paths linked back to the
-source repo. Set `AGENTIC_DEV_LINK_INSTALLED_COPIES=0` or `CODEX_SKILLS_ROOT`
-for copy-based staging.
+source repo. Set `AGENTIC_DEV_LINK_INSTALLED_COPIES=0` for copy-based staging,
+and set `CODEX_SKILLS_ROOT` or `CLAUDE_SKILLS_ROOT` to stage under alternate
+runtime roots.
 
 ## Maintainer Reference
 

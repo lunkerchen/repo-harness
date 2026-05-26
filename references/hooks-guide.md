@@ -8,8 +8,11 @@ Use this guide for repo-local hook configuration details.
 - Repo-local `plans/` files are the sole source of truth for the active plan.
 - Shared hook implementation: `.ai/hooks/`.
 - Team-configurable Claude adapter: `.claude/settings.json` (committable).
+- Team-configurable Codex adapter: `.codex/hooks.json` (committable).
 - Personal overrides only: `.claude/settings.local.json` (optional).
 - Claude adapter: `.claude/settings.json` dispatches into `.ai/hooks/run-hook.sh`.
+- Codex adapter: `.codex/hooks.json` dispatches into `.ai/hooks/run-hook.sh`.
+- Codex requires the repo hook to be trusted in Codex Settings before it runs.
 
 Use `.ai/hooks/` as the shared implementation layer. Use hooks as advisory accelerators, not as the only source of workflow enforcement.
 
@@ -48,7 +51,7 @@ Use `.ai/hooks/` as the shared implementation layer. Use hooks as advisory accel
 | `assets/hooks/run-hook.sh` | `.ai/hooks/run-hook.sh` |
 | `assets/hooks/*.sh` | `.ai/hooks/*.sh` |
 | `assets/hooks/lib/` | `.ai/hooks/lib/` |
-| `assets/hooks/settings.template.json` | `.claude/settings.json` |
+| `assets/hooks/settings.template.json` | `.claude/settings.json` and `.codex/hooks.json` |
 
 Bundled hook assets include:
 - `assets/hooks/tdd-guard-hook.sh`

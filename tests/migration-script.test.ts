@@ -108,7 +108,9 @@ describe("Migration script contract", () => {
     expect(sharedLib).toContain("check:task-sync");
     expect(sharedLib).toContain("check:task-workflow");
     expect(sharedLib).toContain(".claude/.trace.jsonl");
-    expect(sharedLib).toContain(".codex/");
+    expect(sharedLib).toContain(".codex/*");
+    expect(sharedLib).toContain("!.codex/hooks.json");
+    expect(sharedLib).toContain("pi_print_codex_hook_trust_notice");
     expect(sharedLib).toContain("_ref/");
     expect(sharedLib).toContain("_ops/");
     expect(script).toContain("tasks/contracts");
@@ -146,6 +148,7 @@ describe("Migration script contract", () => {
       expect(res.stdout).toContain("Advisory report (dry-run snapshot)");
       expect(res.stdout).toContain("upgrade_plan:");
       expect(res.stdout).toContain("Upgrade/reconfigure/cleanup plan");
+      expect(res.stdout).toContain("Codex hook trust required:");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -241,6 +244,7 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/lib/memory-state.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/memory-intake.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".codex/hooks.json"))).toBe(true);
       expect(existsSync(join(repo, ".claude/hooks/run-hook.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/finalize-handoff.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/session-start-context.sh"))).toBe(false);
@@ -378,6 +382,8 @@ describe("Migration script contract", () => {
       expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/sql");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/harness/brain-manifest.json");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".claude/settings.json");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".codex/hooks.json");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
@@ -399,13 +405,15 @@ describe("Migration script contract", () => {
       const gitignore = readFileSync(join(repo, ".gitignore"), "utf-8");
       expect(gitignore).toContain("# BEGIN: claude-runtime-temp (managed by project-initializer)");
       expect(gitignore).toContain(".claude/.trace.jsonl");
-      expect(gitignore).toContain(".codex/");
+      expect(gitignore).toContain(".codex/*");
+      expect(gitignore).toContain("!.codex/hooks.json");
       expect(gitignore).toContain("_ref/");
       expect(gitignore).toContain("_ops/");
       expect(gitignore).not.toContain("_ops/secrets/");
       expect(gitignore).not.toContain("!_ops/env/.env.example");
       expect(res.stdout).toContain("--- External Tooling ---");
       expect(res.stdout).toContain("External Tooling Report");
+      expect(res.stdout).toContain("Codex hook trust required:");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -667,7 +675,8 @@ describe("Migration script contract", () => {
       expect(gitignore).toContain(".claude/.task-state.json");
       expect(gitignore).toContain(".claude/.active-plan");
       expect(gitignore).toContain(".claude/.trace.jsonl");
-      expect(gitignore).toContain(".codex/");
+      expect(gitignore).toContain(".codex/*");
+      expect(gitignore).toContain("!.codex/hooks.json");
       expect(gitignore).toContain("_ref/");
       expect(gitignore).toContain("_ops/");
       expect(gitignore).not.toContain(".claude/.memory-context.json");
@@ -709,6 +718,7 @@ describe("Migration script contract", () => {
 
       expect(res.status).toBe(0);
       const settings = JSON.parse(readFileSync(join(repo, ".claude/settings.json"), "utf-8"));
+      const codexHooks = JSON.parse(readFileSync(join(repo, ".codex/hooks.json"), "utf-8"));
       expect(settings.permissions.allow).toContain("Bash(git status)");
       const postToolUse = settings.hooks.PostToolUse.flatMap((entry: any) => entry.hooks ?? []);
       const commands = postToolUse.map((entry: any) => entry.command);
@@ -716,6 +726,9 @@ describe("Migration script contract", () => {
       expect(commands.some((command: string) => command.includes("post-bash.sh"))).toBe(true);
       expect(commands.some((command: string) => command.includes("trace-event.sh"))).toBe(true);
       expect(commands.some((command: string) => command.includes("context-pressure-hook.sh"))).toBe(true);
+      const codexCommands = codexHooks.hooks.PostToolUse.flatMap((entry: any) => entry.hooks ?? []).map((entry: any) => entry.command);
+      expect(codexCommands.some((command: string) => command.includes("post-bash.sh"))).toBe(true);
+      expect(codexCommands.some((command: string) => command.includes("trace-event.sh"))).toBe(true);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

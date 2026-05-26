@@ -76,6 +76,7 @@ describe("create-project-dirs scaffold parity", () => {
         "./.claude/templates/research.template.md",
         "./.claude/templates/review.template.md",
         "./.claude/templates/spec.template.md",
+        "./.codex/hooks.json",
         "./.gitignore",
         "./deploy/README.md",
         "./deploy/env/.gitkeep",
@@ -145,6 +146,8 @@ describe("create-project-dirs scaffold parity", () => {
 
       const gitignore = readFileSync(join(cwd, ".gitignore"), "utf-8");
       expect(gitignore).toContain("# BEGIN: claude-runtime-temp (managed by project-initializer)");
+      expect(gitignore).toContain(".codex/*");
+      expect(gitignore).toContain("!.codex/hooks.json");
       expect(gitignore).toContain("_ref/");
       expect(gitignore).toContain("_ops/");
       expect(gitignore).not.toContain("_ops/secrets/");

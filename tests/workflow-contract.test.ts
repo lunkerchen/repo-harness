@@ -89,6 +89,9 @@ describe("workflow contract manifest", () => {
     expect(contract.artifacts.requiredFiles).toContain("scripts/contract-worktree.sh");
     expect(contract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
+    expect(contract.artifacts.requiredFiles).toContain(".claude/settings.json");
+    expect(contract.artifacts.requiredFiles).toContain(".codex/hooks.json");
+    expect(contract.artifacts.requiredDirectories).toContain(".codex");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");
     expect(contract.artifacts.requiredDirectories).toContain("docs/architecture/domains");

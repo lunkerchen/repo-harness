@@ -17,6 +17,14 @@ else
   CODEX_SKILLS_ROOT_WAS_SET=1
 fi
 
+if [[ -z "${CLAUDE_SKILLS_ROOT:-}" ]]; then
+  if [[ "$CODEX_SKILLS_ROOT_WAS_SET" -eq 0 ]]; then
+    CLAUDE_SKILLS_ROOT="$HOME/.claude/skills"
+  else
+    CLAUDE_SKILLS_ROOT=""
+  fi
+fi
+
 if ! command -v rsync >/dev/null 2>&1; then
   echo "[sync-installed] rsync is required." >&2
   exit 1
@@ -24,6 +32,9 @@ fi
 
 SOURCE_ROOT="${SOURCE_ROOT%/}"
 CODEX_SKILLS_ROOT="${CODEX_SKILLS_ROOT%/}"
+if [[ -n "$CLAUDE_SKILLS_ROOT" ]]; then
+  CLAUDE_SKILLS_ROOT="${CLAUDE_SKILLS_ROOT%/}"
+fi
 LINK_INSTALLED_COPIES="${AGENTIC_DEV_LINK_INSTALLED_COPIES:-}"
 if [[ -z "$LINK_INSTALLED_COPIES" && "$CODEX_SKILLS_ROOT_WAS_SET" -eq 0 ]]; then
   LINK_INSTALLED_COPIES=1
@@ -67,6 +78,7 @@ common_excludes=(
 
 sync_copy() {
   local dest="$1"
+  remove_managed_dest "$dest"
   mkdir -p "$dest"
   rsync -a --delete "${common_excludes[@]}" "$SOURCE_ROOT/" "$dest/"
 }
@@ -117,6 +129,37 @@ create_legacy_alias() {
   done < <(find "$SOURCE_ROOT/assets" -mindepth 1 -maxdepth 1)
 }
 
+sync_claude_alias_links() {
+  if [[ -z "$CLAUDE_SKILLS_ROOT" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$CLAUDE_SKILLS_ROOT"
+  local alias_name
+  local alias_dest
+  for alias_name in agentic-dev agentic-dev-skill project-initializer; do
+    alias_dest="$CLAUDE_SKILLS_ROOT/$alias_name"
+    remove_managed_dest "$alias_dest"
+    ln -s "$SOURCE_ROOT" "$alias_dest"
+    echo "[sync-installed] Claude skill alias: $alias_dest -> $SOURCE_ROOT"
+  done
+}
+
+sync_claude_alias_copies() {
+  if [[ -z "$CLAUDE_SKILLS_ROOT" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$CLAUDE_SKILLS_ROOT"
+  local alias_name
+  local alias_dest
+  for alias_name in agentic-dev agentic-dev-skill project-initializer; do
+    alias_dest="$CLAUDE_SKILLS_ROOT/$alias_name"
+    sync_copy "$alias_dest"
+    echo "[sync-installed] Claude skill copy: $alias_dest"
+  done
+}
+
 canonical_dest="$CODEX_SKILLS_ROOT/agentic-dev"
 if [[ "$LINK_INSTALLED_COPIES" == "1" ]]; then
   mkdir -p "$CODEX_SKILLS_ROOT"
@@ -130,6 +173,7 @@ if [[ "$LINK_INSTALLED_COPIES" == "1" ]]; then
     echo "[sync-installed] legacy runtime alias: $legacy_dest -> $SOURCE_ROOT"
   done
 
+  sync_claude_alias_links
   echo "[sync-installed] OK"
   exit 0
 fi
@@ -151,4 +195,5 @@ for legacy_name in agentic-dev-skill project-initializer; do
   echo "[sync-installed] legacy runtime fallback bundle: $legacy_dest"
 done
 
+sync_claude_alias_copies
 echo "[sync-installed] OK"

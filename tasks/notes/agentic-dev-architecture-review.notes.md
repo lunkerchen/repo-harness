@@ -19,6 +19,9 @@ had no capability-level map after the `agentic-dev` rename.
 - Left `.codex/hooks.json` untracked and removed it from the committed
   architecture contract because this repo only has evidence for global
   `~/.codex` runtime state, not a native repo-local `.codex/` surface.
+  Superseded on 2026-05-26 by `tasks/notes/codex-hook-adapter.notes.md` after
+  local Codex 0.130.0 evidence confirmed repo-local `.codex/hooks.json`
+  support.
 
 ## Verification Plan
 

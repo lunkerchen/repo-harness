@@ -11,12 +11,14 @@ describe("Codex installed copy sync", () => {
     const tmp = join(tmpdir(), `agentic-dev-installed-sync-${Date.now()}`);
     const source = join(tmp, "source");
     const codexSkills = join(tmp, "codex-skills");
+    const claudeSkills = join(tmp, "claude-skills");
     const legacyAliasTarget = join(tmp, "legacy-project-initializer-target");
 
     try {
       mkdirSync(join(source, "assets", "skill-commands", "agentic-dev-plan"), { recursive: true });
       mkdirSync(join(source, "evals"), { recursive: true });
       mkdirSync(codexSkills, { recursive: true });
+      mkdirSync(claudeSkills, { recursive: true });
       mkdirSync(legacyAliasTarget, { recursive: true });
       symlinkSync(legacyAliasTarget, join(codexSkills, "project-initializer"), "dir");
 
@@ -38,6 +40,7 @@ describe("Codex installed copy sync", () => {
           ...process.env,
           AGENTIC_DEV_SOURCE_ROOT: source,
           CODEX_SKILLS_ROOT: codexSkills,
+          CLAUDE_SKILLS_ROOT: claudeSkills,
         },
       });
 
@@ -56,8 +59,15 @@ describe("Codex installed copy sync", () => {
         expect(existsSync(join(codexSkills, legacyName, ".ai", "harness", "checks", "latest.json"))).toBe(false);
         expect(existsSync(join(codexSkills, legacyName, ".claude", ".trace.jsonl"))).toBe(false);
         expect(existsSync(join(codexSkills, legacyName, ".codex", "hooks.json"))).toBe(false);
+        expect(existsSync(join(claudeSkills, legacyName, "SKILL.md"))).toBe(true);
+        expect(existsSync(join(claudeSkills, legacyName, "assets", "skill-commands", "agentic-dev-plan", "SKILL.md"))).toBe(true);
       }
 
+      expect(lstatSync(join(codexSkills, "project-initializer")).isSymbolicLink()).toBe(false);
+      expect(existsSync(join(claudeSkills, "agentic-dev", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(claudeSkills, "agentic-dev", ".ai", "harness", "checks", "latest.json"))).toBe(false);
+      expect(existsSync(join(claudeSkills, "agentic-dev", ".claude", ".trace.jsonl"))).toBe(false);
+      expect(existsSync(join(claudeSkills, "agentic-dev", ".codex", "hooks.json"))).toBe(false);
       expect(existsSync(join(legacyAliasTarget, "SKILL.md"))).toBe(false);
       expect(existsSync(join(legacyAliasTarget, "assets", "skill-commands"))).toBe(false);
     } finally {
@@ -69,10 +79,12 @@ describe("Codex installed copy sync", () => {
     const tmp = join(tmpdir(), `agentic-dev-installed-link-${Date.now()}`);
     const source = join(tmp, "source");
     const codexSkills = join(tmp, "codex-skills");
+    const claudeSkills = join(tmp, "claude-skills");
 
     try {
       mkdirSync(join(source, "assets", "skill-commands", "agentic-dev-plan"), { recursive: true });
       mkdirSync(codexSkills, { recursive: true });
+      mkdirSync(claudeSkills, { recursive: true });
 
       writeFileSync(join(source, "SKILL.md"), "---\nname: agentic-dev\n---\n");
       writeFileSync(join(source, "assets", "skill-commands", "agentic-dev-plan", "SKILL.md"), "---\nname: agentic-dev-plan\n---\n");
@@ -87,17 +99,21 @@ describe("Codex installed copy sync", () => {
           AGENTIC_DEV_SOURCE_ROOT: source,
           AGENTIC_DEV_LINK_INSTALLED_COPIES: "1",
           CODEX_SKILLS_ROOT: codexSkills,
+          CLAUDE_SKILLS_ROOT: claudeSkills,
         },
       });
 
       expect(result.status).toBe(0);
       expect(lstatSync(join(codexSkills, "agentic-dev")).isSymbolicLink()).toBe(true);
+      expect(lstatSync(join(claudeSkills, "agentic-dev")).isSymbolicLink()).toBe(true);
 
       for (const legacyName of ["agentic-dev-skill", "project-initializer"]) {
         expect(existsSync(join(codexSkills, legacyName, "README.md"))).toBe(true);
         expect(existsSync(join(codexSkills, legacyName, "assets", "skill-version.json"))).toBe(true);
         expect(existsSync(join(codexSkills, legacyName, "SKILL.md"))).toBe(false);
         expect(existsSync(join(codexSkills, legacyName, "assets", "skill-commands"))).toBe(false);
+        expect(lstatSync(join(claudeSkills, legacyName)).isSymbolicLink()).toBe(true);
+        expect(existsSync(join(claudeSkills, legacyName, "SKILL.md"))).toBe(true);
       }
     } finally {
       rmSync(tmp, { recursive: true, force: true });

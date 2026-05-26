@@ -90,6 +90,7 @@ fi
 mkdir -p scripts
 mkdir -p .ai/hooks
 mkdir -p .ai/context
+mkdir -p .codex
 mkdir -p .ai/harness/checks
 mkdir -p .ai/harness/handoff
 mkdir -p .ai/harness/context-budget
@@ -178,7 +179,8 @@ fi
 ensure_task_sync_package_script
 write_runtime_gitignore_block
 
-cp "$ASSETS_HOOKS_DIR/settings.template.json" .claude/settings.json
+pi_install_hook_adapters "$PWD" "$ASSETS_HOOKS_DIR" "apply"
+pi_print_codex_hook_trust_notice
 
 cat > docs/spec.md << 'DOCS_SPEC_EOF'
 # Product Spec

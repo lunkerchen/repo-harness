@@ -51,7 +51,9 @@ PI_DEFAULT_RUNTIME_ENTRIES=$(cat <<'EOF_RUNTIME'
 .ai/harness/architecture/events.jsonl
 .ai/harness/worktrees/
 .ai/harness/runs/
-.codex/
+.codex/*
+!.codex/
+!.codex/hooks.json
 EOF_RUNTIME
 )
 PI_EXTERNAL_TOOLING_HOSTS_DEFAULT=$(cat <<'EOF_EXTERNAL_TOOLING_HOSTS'
@@ -355,6 +357,7 @@ pi_copy_file_if_apply() {
     return 0
   fi
 
+  mkdir -p "$(dirname "$dest")"
   src_abs="$(cd "$(dirname "$src")" && pwd)/$(basename "$src")"
   dest_abs="$(cd "$(dirname "$dest")" && pwd)/$(basename "$dest")"
 
@@ -362,8 +365,20 @@ pi_copy_file_if_apply() {
     return 0
   fi
 
-  mkdir -p "$(dirname "$dest")"
   cp "$src" "$dest"
+}
+
+pi_install_hook_adapters() {
+  local repo="$1"
+  local hooks_dir="$2"
+  local mode="${3:-apply}"
+
+  pi_copy_file_if_apply "$mode" "$hooks_dir/settings.template.json" "$repo/.claude/settings.json"
+  pi_copy_file_if_apply "$mode" "$hooks_dir/settings.template.json" "$repo/.codex/hooks.json"
+}
+
+pi_print_codex_hook_trust_notice() {
+  echo "Codex hook trust required: open Codex Settings and mark this repo's .codex/hooks.json as trusted before relying on hooks."
 }
 
 pi_ensure_executable_if_apply() {

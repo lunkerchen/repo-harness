@@ -12,10 +12,13 @@
 Start with the shortest truth path:
 
 1. `.claude/settings.json` wires Claude events into the repo-local hook runner.
-2. `.ai/hooks/run-hook.sh` resolves the repo root and dispatches the selected hook.
-3. `.ai/hooks/*` is the shared implementation layer and the default place to edit.
+2. `.codex/hooks.json` wires Codex events into the same repo-local hook runner.
+3. `.ai/hooks/run-hook.sh` resolves the repo root and dispatches the selected hook.
+4. `.ai/hooks/*` is the shared implementation layer and the default place to edit.
 
 If you are asking "which hook file should I edit?", default to `.ai/hooks/`.
+After installing or refreshing `.codex/hooks.json`, open Codex Settings and
+mark this repo hook as trusted; otherwise Codex will not execute it.
 
 ## Hook Failure Playbook
 

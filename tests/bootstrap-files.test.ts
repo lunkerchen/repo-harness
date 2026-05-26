@@ -119,9 +119,11 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
     expect(content).toContain("install_workflow_contract");
-    expect(content).toContain('cp "$ASSETS_HOOKS_DIR/settings.template.json" .claude/settings.json');
+    expect(content).toContain('pi_install_hook_adapters "$PWD" "$ASSETS_HOOKS_DIR" "apply"');
+    expect(content).toContain("pi_print_codex_hook_trust_notice");
     expect(content).toContain("mkdir -p .ai/hooks");
-    expect(content).toContain("settings.template.json");
+    expect(content).toContain("mkdir -p .codex");
+    expect(sharedLib).toContain("settings.template.json");
     expect(contract.helpers.scripts).toContain("switch-plan.sh");
     expect(contract.helpers.scripts).toContain("capability-resolver.ts");
     expect(contract.helpers.scripts).toContain("capability-config.ts");
@@ -211,9 +213,11 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain("pi_install_reference_configs");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
-    expect(content).toContain('cp "$ASSETS_HOOKS_DIR/settings.template.json" .claude/settings.json');
-    expect(content).toContain("settings.template.json");
+    expect(content).toContain('pi_install_hook_adapters "$PWD" "$ASSETS_HOOKS_DIR" "apply"');
+    expect(content).toContain("pi_print_codex_hook_trust_notice");
+    expect(sharedLib).toContain("settings.template.json");
     expect(content).toContain("mkdir -p .ai/hooks");
+    expect(content).toContain("mkdir -p .codex");
     expect(sharedLib).not.toContain(".skill-factory-state.json");
     expect(sharedLib).not.toContain(".memory-context.json");
     expect(sharedLib).not.toContain(".memory-snapshot.json");

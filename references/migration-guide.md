@@ -56,16 +56,16 @@ bash scripts/migrate-project-template.sh --repo /path/to/project --apply
 
 1. Syncs hook scripts from `assets/hooks/` to `<repo>/.ai/hooks/`.
 2. Removes known generated legacy `<repo>/.claude/hooks/` shims while preserving user-owned `custom-*.sh` hooks.
-3. Creates or merges `<repo>/.claude/settings.json` from `assets/hooks/settings.template.json`, dispatching into `.ai/hooks/run-hook.sh`.
-4. If `jq` exists, moves `hooks` from `settings.local.json` into `settings.json`.
+3. Creates or merges `<repo>/.claude/settings.json` and `<repo>/.codex/hooks.json` from `assets/hooks/settings.template.json`, dispatching into `.ai/hooks/run-hook.sh`.
+4. If `jq` exists, moves Claude `hooks` from `settings.local.json` into `settings.json`.
 5. Archives legacy `docs/TODO.md`, `docs/plan.md`, `docs/PROGRESS.md`, `docs/contract.md`, `docs/review.md`, `docs/handoff.md`, and `HANDOFF.md` through `scripts/migrate-workflow-docs.ts`.
 6. Ensures `docs/spec.md`, `tasks/todo.md`, `tasks/lessons.md`, `tasks/research.md`, `tasks/contracts/`, `tasks/reviews/`, `tasks/notes/`, `tasks/workstreams/`, `docs/architecture/`, `.ai/context/*`, and `.ai/harness/*` exist.
 7. Installs `.ai/harness/workflow-contract.json`, merges missing policy defaults, and preserves explicit repo overrides.
 8. Installs workflow helpers from the workflow contract manifest rather than from a hardcoded prose list.
 9. Copies the current shared harness reference configs into `docs/reference-configs/`, including external tooling guidance.
 10. Injects `check:task-sync`, `check:context-files`, and `check:task-workflow` into `package.json` when present.
-11. Prints a migration report with an external tooling advisory section.
-12. Keeps Claude hook references valid through `.claude/settings.json` while keeping implementation in `.ai/hooks/`.
+11. Prints a migration report with an external tooling advisory section and the Codex Settings hook-trust reminder.
+12. Keeps Claude and Codex hook references valid through `.claude/settings.json` and `.codex/hooks.json` while keeping implementation in `.ai/hooks/`.
 13. Never auto-installs or auto-upgrades gstack/Waza/gbrain, never starts `gbrain serve`, and never enables MCP automatically.
 
 ## External Tooling Safety Contract

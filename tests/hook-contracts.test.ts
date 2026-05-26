@@ -167,8 +167,10 @@ describe("Hook contracts", () => {
 
   test("settings template should not inject TOOL_INPUT/PROMPT argv blobs", () => {
     const settings = read("assets/hooks/settings.template.json");
+    const codexHooks = read(".codex/hooks.json");
     expect(settings).toContain("run-hook.sh");
     expect(settings).toContain(".ai/hooks/run-hook.sh");
+    expect(codexHooks).toBe(settings);
     expect(settings).toContain("SessionStart");
     expect(settings).toContain("session-start-context.sh");
     expect(settings).toContain("pre-edit-guard.sh");

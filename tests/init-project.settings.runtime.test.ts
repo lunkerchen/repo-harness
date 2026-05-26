@@ -27,9 +27,12 @@ describe("init-project settings runtime", () => {
       );
 
       expect(res.status).toBe(0);
+      expect(res.stdout).toContain("Codex hook trust required:");
       const settings = readFileSync(join(cwd, ".claude/settings.json"), "utf-8");
+      const codexHooks = readFileSync(join(cwd, ".codex/hooks.json"), "utf-8");
       const template = readFileSync(join(ROOT, "assets/hooks/settings.template.json"), "utf-8");
       expect(settings).toBe(template);
+      expect(codexHooks).toBe(template);
       expect(settings).toContain("trace-event.sh");
       expect(settings).toContain("session-start-context.sh");
       expect(settings).not.toContain("memory-intake.sh");

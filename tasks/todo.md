@@ -62,3 +62,6 @@
 - [x] Verified reference drift scan and repo workflow checks for the doc refresh
 - [x] Removed empty optional doc placeholders and refreshed command inventory docs for the current 13-command surface
 - [x] Bumped release metadata to 5.1.1 for package, skill manifest, README, stamp, and changelog
+- [x] Added Codex repo-local hook adapter generation for init, scaffold, and migration paths
+- [x] Added Codex Settings trust reminder after hook adapter configuration
+- [x] Fixed installed-copy sync so Claude skill aliases are refreshed with Codex runtime aliases

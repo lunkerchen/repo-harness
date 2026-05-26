@@ -2,6 +2,7 @@
 # Migrate an existing project to the agentic-dev tasks-first harness model.
 # - Shared hook source of truth: .ai/hooks/
 # - Claude adapter: .claude/settings.json
+# - Codex adapter: .codex/hooks.json
 # - Stable product truth: docs/spec.md
 # - Active-plan source of truth: plans/
 # - Sprint artifacts: tasks/contracts/, tasks/reviews/, .ai/context/context-map.json
@@ -643,11 +644,13 @@ inspect_project_state() {
 migrate_hooks() {
   local repo="$1"
   local project_claude_dir="$repo/.claude"
+  local project_codex_dir="$repo/.codex"
   local project_ai_hooks_dir="$repo/.ai/hooks"
   local project_settings="$project_claude_dir/settings.json"
   local project_settings_local="$project_claude_dir/settings.local.json"
+  local project_codex_hooks="$project_codex_dir/hooks.json"
 
-  run_or_echo "mkdir -p \"$project_claude_dir\" \"$project_ai_hooks_dir\""
+  run_or_echo "mkdir -p \"$project_claude_dir\" \"$project_codex_dir\" \"$project_ai_hooks_dir\""
 
   while IFS= read -r hook; do
     local rel_path dest_dir hook_name
@@ -685,6 +688,30 @@ migrate_hooks() {
     fi
   else
     echo "[dry-run] merge/copy \"$HOOK_ASSETS_DIR/settings.template.json\" -> \"$project_settings\""
+  fi
+
+  if [[ "$MODE" == "apply" ]]; then
+    if [[ -f "$project_codex_hooks" ]]; then
+      if command -v node >/dev/null 2>&1; then
+        backup_if_exists "$project_codex_hooks"
+        merge_hook_settings_json "$project_codex_hooks" "$HOOK_ASSETS_DIR/settings.template.json" "$project_codex_hooks.tmp"
+        mv "$project_codex_hooks.tmp" "$project_codex_hooks"
+        prune_removed_hook_commands "$project_codex_hooks"
+        log "Merged hook template into .codex/hooks.json"
+      else
+        log "Skipping automatic merge for .codex/hooks.json because node is unavailable; leaving existing file unchanged"
+      fi
+    else
+      if command -v node >/dev/null 2>&1; then
+        merge_hook_settings_json "$HOOK_ASSETS_DIR/settings.template.json" "$HOOK_ASSETS_DIR/settings.template.json" "$project_codex_hooks.tmp"
+        mv "$project_codex_hooks.tmp" "$project_codex_hooks"
+      else
+        cp "$HOOK_ASSETS_DIR/settings.template.json" "$project_codex_hooks"
+      fi
+      log "Wrote .codex/hooks.json from template"
+    fi
+  else
+    echo "[dry-run] merge/copy \"$HOOK_ASSETS_DIR/settings.template.json\" -> \"$project_codex_hooks\""
   fi
 
   if [[ -f "$project_settings_local" ]]; then
@@ -798,7 +825,9 @@ print_report() {
     printf '%s\n' "$INSPECT_OUTPUT"
   fi
   echo "- Project hooks synced from: $HOOK_ASSETS_DIR"
-  echo "- Team hook config target: .claude/settings.json"
+  echo "- Claude hook config target: .claude/settings.json"
+  echo "- Codex hook config target: .codex/hooks.json"
+  echo "- $(pi_print_codex_hook_trust_notice)"
   echo "- Legacy docs/TODO.md / docs/plan.md / docs/PROGRESS.md: migrated by scripts/migrate-workflow-docs.ts"
   echo "- Workflow migration: docs/spec.md + plans/ + tasks/contracts + tasks/reviews + .ai/context/context-map.json + .ai/harness/*"
   echo "- Workflow contract manifest installed at: .ai/harness/workflow-contract.json"

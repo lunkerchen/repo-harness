@@ -25,6 +25,7 @@
 - Todo archive: `tasks/archive/`.
 - Shared automation layer: `.ai/hooks/`.
 - Claude adapter layer: `.claude/settings.json` calls `.ai/hooks/run-hook.sh`.
+- Codex adapter layer: `.codex/hooks.json` calls `.ai/hooks/run-hook.sh`.
 - External reference cache: `_ref/` is an occasional ignored external checkout cache, read/refresh-only comparison material, and must stay out of commits; decisions based on it must cite repo+commit/tag+path in notes or research.
 - Deployment operations workspace: `deploy/` is commit-ready for runbooks, submission materials, release checklists, helper scripts, ordered SQL files under `deploy/sql/`, and env examples.
 - Local operations state: `_ops/` is ignored and private for secrets, real env files, provider state, artifacts, logs, and scratch files; do not commit or agent-edit `_ops/*`.
