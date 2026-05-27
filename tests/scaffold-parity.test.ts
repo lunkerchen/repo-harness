@@ -103,6 +103,7 @@ describe("create-project-dirs scaffold parity", () => {
         "./interfaces/types.ts",
         "./package.json",
         "./scripts/architecture-drift.sh",
+        "./scripts/architecture-event.ts",
         "./scripts/archive-architecture-request.sh",
         "./scripts/archive-workflow.sh",
         "./scripts/capability-config.ts",

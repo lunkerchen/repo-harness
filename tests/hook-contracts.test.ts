@@ -135,14 +135,20 @@ describe("Hook contracts", () => {
   });
 
   test("architecture drift helpers should keep detection and context sync separated", () => {
+    const eventHelper = read("assets/templates/helpers/architecture-event.ts");
     const drift = read("assets/templates/helpers/architecture-drift.sh");
     const sync = read("assets/templates/helpers/context-contract-sync.sh");
     const workstream = read("assets/templates/helpers/workstream-sync.sh");
 
+    expect(eventHelper).toContain("sync-context-map");
+    expect(eventHelper).toContain("sync-contract-files");
+    expect(eventHelper).toContain("event-json");
     expect(drift).toContain("docs/architecture/requests");
+    expect(drift).toContain("architecture-event.ts");
     expect(drift).toContain(".ai/harness/architecture/events.jsonl");
     expect(drift).toContain("workstream-sync.sh");
     expect(drift).not.toContain("BEGIN ARCHITECTURE CONTRACT");
+    expect(sync).toContain("architecture-event.ts");
     expect(sync).toContain("BEGIN ARCHITECTURE CONTRACT");
     expect(sync).toContain("Active Workstreams");
     expect(sync).toContain("discoverable_contexts");

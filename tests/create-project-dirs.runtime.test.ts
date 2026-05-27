@@ -84,6 +84,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "scripts/check-context-files.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/select-agent-context-blocks.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/capability-resolver.ts"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/architecture-event.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/capability-config.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/architecture-drift.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/archive-architecture-request.sh"))).toBe(true);
@@ -138,6 +139,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.helpers.scripts).toContain("select-agent-context-blocks.sh");
       expect(workflowContract.helpers.scripts).toContain("context-budget.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-resolver.ts");
+      expect(workflowContract.helpers.scripts).toContain("architecture-event.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-config.ts");
       expect(workflowContract.helpers.scripts).toContain("architecture-drift.sh");
       expect(workflowContract.helpers.scripts).toContain("archive-architecture-request.sh");
@@ -152,6 +154,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
       expect(workflowContract.artifacts.requiredFiles).toContain("scripts/capability-resolver.ts");
+      expect(workflowContract.artifacts.requiredFiles).toContain("scripts/architecture-event.ts");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");

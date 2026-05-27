@@ -1,6 +1,6 @@
 # Project — Research Notes
 
-> **Last Updated**: 2026-05-20
+> **Last Updated**: 2026-05-27
 > **Scope**: workflow contract manifest, inspection-first migration, progressive context/policy surfaces, harness state externalization, and DX polish for docs + hook operations
 > **Usage**: Store deep codebase findings and hidden contracts here, not in chat-only summaries.
 
@@ -273,3 +273,56 @@
 ### What to Preserve
 - Do not make correctness depend on Spawn/subagent availability. The main agent must be able to complete P1/P2/P3 research in-thread when tooling blocks delegation or spawning is not worth the context cost.
 - Keep sidecar outputs concise and evidence-backed: conclusions and file/artifact paths belong in `tasks/research.md`; raw logs belong in harness evidence or local scratch surfaces.
+
+## 2026-05-27 CodeGraph vs Understand Anything Research Notes
+
+### Sources Checked
+- `colbymchenry/codegraph` cloned into `_ref/codegraph` at tag `v0.9.5`, commit `318cda18d10266d58aaf14c54cf55fca1d39e6ed`; checked `README.md`, `src/bin/codegraph.ts`, `src/installer/targets/codex.ts`, `src/installer/instructions-template.ts`, and `src/mcp/tools.ts`.
+- `Lum1104/Understand-Anything` cloned into `_ref/Understand-Anything` at tag `v2.3.1`, commit `ca5e3b8e21d611a129b27c6a0c24f15bab460ba0`; checked `README.md`, `.codex/INSTALL.md`, `understand-anything-plugin/hooks/hooks.json`, `understand-anything-plugin/skills/understand/SKILL.md`, and shell parser/config files under `understand-anything-plugin/packages/core/src`.
+- Current tool availability: `npx -y @colbymchenry/codegraph@0.9.5 --version` returns `0.9.5`; npm `latest` is `0.9.5`. After local pilot, `/Users/kito/.local/bin/codegraph` was created as a PATH-visible shim to the npm-installed CLI.
+- Current repo shape: `rg --files -g '*.sh'` finds 82 shell scripts and `rg --files -g '*.ts'` finds 52 TypeScript files; `assets/hooks`, `.ai/hooks`, and `scripts` together include 74 shell files and 12 TypeScript files. Large shell pressure points include `scripts/lib/project-init-lib.sh` (1894 lines), `scripts/migrate-project-template.sh` (929), `.ai/hooks/hook-input.sh` (490), `scripts/context-contract-sync.sh` (431), `scripts/architecture-drift.sh` (394), and `scripts/check-task-workflow.sh` (391).
+
+### Conclusion
+- CodeGraph is the better fit for runtime agent exploration and affected-surface evidence because it is MCP/CLI-first, local SQLite-backed, AST-derived, and exposes `context`, `trace`, `callers`, `callees`, `impact`, `files`, `status`, and `affected` surfaces. Its installer supports Codex by writing `~/.codex/config.toml` and `~/.codex/AGENTS.md`, but Codex has no project-local config in CodeGraph `v0.9.5`, so this repo should avoid automatic installer writes. Human-facing setup should be one non-interactive terminal command, or an explicitly authorized agent action; `codegraph install --print-config codex` is diagnostic only.
+- Understand Anything is the better fit for human-facing architecture comprehension, onboarding, domain views, and shell-heavy explanation. It supports `shell` via simple function/source extraction and generates `.understand-anything/knowledge-graph.json` plus dashboard artifacts, but its pipeline is skill/multi-agent/documentation oriented rather than a low-latency hook/query substrate.
+- Neither tool should replace `.ai/context/capabilities.json`, `tasks/workstreams/`, architecture requests, or workflow contract checks. CodeGraph can be an advisory runtime index; Understand Anything can be an advisory documentation/dashboard layer.
+
+### Recommended Integration Boundary
+- Keep the hook adapter invariant: `.claude/settings.json` and `.codex/hooks.json` dispatch into `.ai/hooks/run-hook.sh`; do not add a second repo-local hook implementation tree.
+- Do not use CodeGraph to rewrite shell guards. First use it as an optional read-only evidence provider around TypeScript and importable source paths: `codegraph status`, `codegraph context`, `codegraph impact`, and `git diff --name-only HEAD | codegraph affected --stdin --quiet`.
+- Because CodeGraph does not support Bash/Shell as an indexed language in `v0.9.5`, shell-heavy guard semantics still need local file reads or a future TypeScript helper extraction path. Understand Anything can summarize shell scripts, but should not sit on the hot hook path.
+- Add `.codegraph/` to ignored local state before any project initialization. Treat it like `.understand-anything/` if used: advisory read model, not a committed workflow contract.
+- Do not guide users to hand-edit MCP TOML. Use `npm install -g @colbymchenry/codegraph && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph install --target codex --location global --yes`, or let the user authorize their agent to run the equivalent.
+- If a Codex launch environment cannot see `~/.local/bin/codegraph`, the authorized agent should diagnose `PATH` and shim placement. The fallback is not user-authored MCP TOML.
+
+### Local Pilot Results
+- Ran `npx -y @colbymchenry/codegraph@0.9.5 init -i .` after adding `.codegraph/` and `.understand-anything/` to local `.git/info/exclude`. It created `.codegraph/codegraph.db` only, about 1.9 MB.
+- `codegraph status .` reported 53 files, 776 nodes, 1669 edges, WAL-backed `node:sqlite`, and only `typescript` (52 files) plus `yaml` (1 file). No shell files were indexed.
+- `codegraph query findMatch --json`, `codegraph context "scripts/capability-resolver.ts findMatch match path prefix"`, and `codegraph callers normalizeRepoPath --json` were useful for the TypeScript capability resolver path, including line-level symbols and call relationships.
+- `codegraph query architecture-drift --json` returned `[]`, confirming shell-heavy workflow scripts are invisible to CodeGraph.
+- `printf 'scripts/capability-resolver.ts\n' | codegraph affected --stdin --filter 'tests/*.test.ts' --json` returned no affected tests even though `tests/capability-resolver.test.ts` exists. The likely reason is that this repo often tests scripts through process execution and path constants rather than import edges, so CodeGraph's import-dependency affected-test algorithm is not a reliable test selector here.
+- `npm install -g @colbymchenry/codegraph@0.9.5` installed the package under `/Users/kito/.hermes/node/bin/codegraph`, but that bin directory is not on this Codex shell's `PATH`. The durable fix is a PATH-visible user-bin shim: `/Users/kito/.local/bin/codegraph -> /Users/kito/.hermes/node/bin/codegraph`.
+- MCP smoke test with `codegraph serve --mcp --path .` successfully attached to a shared daemon for this repo after the shim was added; the temporary daemon was killed after the test.
+- `codegraph install --print-config codex` produced only a global Codex config block for `~/.codex/config.toml`; it did not offer project-local Codex config.
+- Temporary-HOME smoke test confirmed `codegraph install --target codex --location global --yes` creates `~/.codex/config.toml` and `~/.codex/AGENTS.md`; `--location local` skips Codex because CodeGraph `v0.9.5` does not support local Codex installation.
+
+### Shell-Reduction Implication
+- The next shell-reduction slice is not "replace hooks with CodeGraph" or "use CodeGraph affected as a test selector." The first useful slice is to move duplicated JSON parsing, slugging, and capability lookup out of shell guards into existing Bun helpers, then use CodeGraph only to reduce agent exploration around those helpers.
+- A practical pressure point is `post-edit-guard.sh -> architecture-drift.sh -> capability-resolver.ts -> context-contract-sync.sh`. CodeGraph can help agents understand the TypeScript resolver/helper side, while a Bun helper can shrink repeated shell JSON and Markdown parsing.
+
+## 2026-05-27 Architecture Event Helper Notes
+
+### What Changed
+- Added `scripts/architecture-event.ts` and template mirror `assets/templates/helpers/architecture-event.ts` as the first shell-reduction helper for the architecture drift hot path.
+- The helper now owns architecture-event JSON field extraction, repo-relative path normalization, safe token derivation, fallback scope derivation, event JSON construction, and context-map updates.
+- The helper now also owns context contract block rendering, active workstream summaries, latest snapshot/diagram lookup, and marker-based `AGENTS.md` / `CLAUDE.md` replacement through `sync-contract-files`.
+- `scripts/architecture-drift.sh` and `scripts/context-contract-sync.sh` call the helper on the normal Bun path while retaining compatibility fallbacks for older or partially installed repos.
+- The helper is now part of `assets/workflow-contract.v1.json`, `.ai/harness/workflow-contract.json`, and generated helper installation inventory.
+- `bunfig.toml` now ignores `_ref/**`, `_ops/**`, `.codegraph/**`, and `.understand-anything/**` during test discovery so advisory reference checkouts and local read models do not poison `bun test`.
+- After the latest `codegraph sync .`, CodeGraph reports 56 indexed files, 848 nodes, and 1,921 edges; `codegraph query architecture-event`, `syncContextMap`, `eventJson`, `render`, and `replaceContractBlock` now find the TypeScript helper surface.
+
+### What to Preserve
+- Keep `.ai/hooks/` as the shared hook implementation and shell adapters as thin dispatch/control-flow layers.
+- Keep capability matching in `scripts/capability-resolver.ts`; `architecture-event.ts` should centralize adapter glue, not become a second capability registry.
+- Keep `context-contract-sync.sh` responsible for command routing, capability re-resolution, and compatibility fallback only; new rendering logic should live in `architecture-event.ts`.
+- Keep shell fallbacks until downstream generated repos have gone through at least one release cycle with `architecture-event.ts` installed by default.

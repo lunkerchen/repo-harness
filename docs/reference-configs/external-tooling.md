@@ -7,6 +7,7 @@ skill routing lives in `docs/reference-configs/agentic-development-flow.md`.
 - `Waza` supplies `/think`, `/hunt`, and `/check` for daily small/medium work
 - Codex automation requires `health`, `check`, and `diagram-design` from `~/.codex/skills`
 - `gbrain` supports knowledge capture, repo sync, and handoff retrieval
+- `CodeGraph` may supply advisory MCP/CLI structure queries for supported source files
 
 Waza is Codex-first in this contract. `~/.codex/skills` is the Codex runtime
 source, while `~/.agents/skills` is only the skills CLI staging/cache path used
@@ -106,6 +107,44 @@ done
 bun add -g gbrain
 ```
 
+### CodeGraph
+
+`CodeGraph` stays advisory-first in this contract. It can speed up agent
+exploration for indexed TypeScript and other supported languages, but it does
+not replace `.ai/context/capabilities.json`, workflow checks, or shell-script
+review.
+
+Do not ask users to copy MCP TOML by hand. The user-facing path is one terminal
+command, or explicit authorization for their agent to run the same command:
+
+```bash
+npm install -g @colbymchenry/codegraph && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph install --target codex --location global --yes
+```
+
+This writes global Codex MCP config and may create `~/.codex/AGENTS.md`, so do
+not run it automatically from `agentic-dev init`, `migrate`, or `upgrade`.
+Restart Codex after the installer finishes so the MCP server is discovered.
+If a Codex launch environment still cannot find `codegraph`, an authorized
+agent should diagnose `PATH` and the `~/.local/bin/codegraph` shim. Do not make
+the user hand-edit MCP TOML as the fallback.
+
+For troubleshooting only, inspect the Codex config snippet without writing:
+
+```bash
+codegraph install --print-config codex
+```
+
+Project-local indexes are ignored runtime state:
+
+```bash
+codegraph init -i .
+codegraph status .
+```
+
+For this repo, do not treat `codegraph affected` as an authoritative test
+selector. Many tests execute scripts by path or subprocess rather than import
+edges, so run the repo verification commands instead.
+
 ## Update
 
 ### gstack
@@ -146,6 +185,12 @@ done
 ```bash
 gbrain check-update --json
 gbrain upgrade
+```
+
+### CodeGraph
+
+```bash
+npm install -g @colbymchenry/codegraph@latest && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph sync . && PATH="$HOME/.local/bin:$PATH" codegraph status .
 ```
 
 ## Manual Knowledge Sync

@@ -64,3 +64,6 @@
 - [x] Bumped release metadata to 5.1.1 for package, skill manifest, README, stamp, and changelog
 - [x] Added generated Codex hook adapter support through `.codex/hooks.json` while keeping `.ai/hooks/` as the shared implementation layer
 - [x] Bumped release metadata to 5.1.2 for the Codex hook adapter release
+- [x] Added CodeGraph advisory install guidance and a Bun `architecture-event.ts` helper to reduce shell JSON/path glue in architecture drift and context contract sync
+- [x] Scoped Bun test discovery away from ignored advisory/runtime caches such as `_ref/` and `.codegraph/`
+- [x] Moved context contract block rendering and replacement into `architecture-event.ts` while keeping shell fallbacks

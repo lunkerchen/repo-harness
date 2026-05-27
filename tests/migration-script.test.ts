@@ -96,6 +96,7 @@ describe("Migration script contract", () => {
     expect(workflowContract).toContain("maintenance-triage.sh");
     expect(workflowContract).toContain("context-budget.ts");
     expect(workflowContract).toContain("capability-resolver.ts");
+    expect(workflowContract).toContain("architecture-event.ts");
     expect(workflowContract).toContain("capability-config.ts");
     expect(workflowContract).toContain("architecture-drift.sh");
     expect(workflowContract).toContain("archive-architecture-request.sh");
@@ -378,6 +379,7 @@ describe("Migration script contract", () => {
       expect(workflowContract.helpers.scripts).toContain("maintenance-triage.sh");
       expect(workflowContract.helpers.scripts).toContain("context-budget.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-resolver.ts");
+      expect(workflowContract.helpers.scripts).toContain("architecture-event.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-config.ts");
       expect(workflowContract.helpers.scripts).toContain("archive-architecture-request.sh");
       expect(workflowContract.helpers.scripts).toContain("workstream-sync.sh");
