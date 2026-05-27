@@ -71,3 +71,4 @@
 - [x] Added passive Codex Plan / Waza think capture through `scripts/capture-plan.sh` and wired it into routing docs, policy, manifests, and tests
 - [x] Added opt-in default-brain document sync through `scripts/sync-brain-docs.sh`, manifest `repo-to-brain` entries, and PostEdit hook integration
 - [x] Bumped release metadata to 5.2.0 for package, skill manifest, README, stamp, and changelog
+- [x] Fixed `GO` approval prompts bypassing the plan gate after Waza `/think` or Codex Plan output

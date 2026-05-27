@@ -11,8 +11,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/workflow-state.sh"
 
+is_execution_approval_intent() {
+  echo "$PROMPT_TEXT" | grep -qEi "^[[:space:][:punct:]]*(go|go ahead|proceed|approved|approve|ship it|let'?s go|继续执行|批准执行|批准|开干|走起)[[:space:][:punct:]]*$"
+}
+
 is_implement_intent() {
-  echo "$PROMPT_TEXT" | grep -qEi "(implement|execute|build it|do it|实现|执行|开始写|动手)"
+  echo "$PROMPT_TEXT" | grep -qEi "(implement|execute|build it|do it|go ahead|proceed|ship it|实现|执行|开始写|动手|开干)" || is_execution_approval_intent
 }
 
 is_done_intent() {
@@ -155,11 +159,12 @@ if [ "$implement_intent" -eq 1 ]; then
 
   active_plan="$(get_active_plan || true)"
   if [ -z "$active_plan" ] || [ ! -f "$active_plan" ]; then
-    echo "[PlanStatusGuard] No active plan found in plans/. Run: bash scripts/ensure-task-workflow.sh --slug <slug> --title <title>"
+    echo "[PlanStatusGuard] No active plan found in plans/. Capture the approved planning output with: bash scripts/capture-plan.sh --slug <slug> --title <title> --status Approved --execute"
+    echo "[PlanStatusGuard] If there is no captured planning output yet, run: bash scripts/ensure-task-workflow.sh --slug <slug> --title <title>"
     hook_structured_error \
       "PlanStatusGuard" \
       "No active plan found in plans/." \
-      "Run bash scripts/ensure-task-workflow.sh --slug <slug> --title <title> before implementation." \
+      "Capture the approved planning output with bash scripts/capture-plan.sh --slug <slug> --title <title> --status Approved --execute, or run bash scripts/ensure-task-workflow.sh --slug <slug> --title <title> when no planning output exists." \
       "missing_artifact"
     exit 1
   fi

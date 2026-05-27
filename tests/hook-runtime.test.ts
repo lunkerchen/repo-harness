@@ -865,7 +865,48 @@ describe("Hook runtime behavior", () => {
 
       expect(res.status).toBe(1);
       expect(res.stdout).toContain("No active plan found in plans/");
+      expect(res.stdout).toContain("capture-plan.sh");
       expect(res.stdout).toContain("ensure-task-workflow.sh");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks terse GO approval when no active plan exists", () => {
+    const cwd = tmpWorkspace("prompt-guard-go-approval");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "GO" }),
+      });
+
+      expect(res.status).toBe(1);
+      expect(res.stdout).toContain("[PlanStatusGuard]");
+      expect(res.stdout).toContain("capture-plan.sh");
+      expect(res.stdout).toContain('"guard":"PlanStatusGuard"');
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: does not treat unrelated go phrases as implementation approval", () => {
+    const cwd = tmpWorkspace("prompt-guard-go-over");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "go over the docs first" }),
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).not.toContain("[PlanStatusGuard]");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

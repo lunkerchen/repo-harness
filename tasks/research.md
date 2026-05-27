@@ -341,6 +341,13 @@
 - Planning capture may write `plans/` and `.claude/.active-plan`, but `tasks/todo.md`, `tasks/contracts/`, `tasks/reviews/`, and worktrees should still wait for explicit implementation approval.
 - `capture-plan.sh --execute` is the approved fast path only when the user has already approved implementation; otherwise leave the captured plan in `Draft`.
 
+### 2026-05-27 Plan Approval Guard Regression
+
+- Reproduced the missed trigger with `PROMPT='GO' bash .ai/hooks/prompt-guard.sh`: before the fix it exited 0 with no `PlanStatusGuard`, while `PROMPT='开始实现'` and `PROMPT='执行'` both blocked on the missing active plan.
+- Root cause: `prompt-guard.sh:is_implement_intent` recognized explicit implementation words but not terse approval prompts such as `GO`, so a common post-Think approval did not enter the plan gate.
+- Fix boundary: recognize exact short execution approvals (`GO`, `go ahead`, `approved`, `proceed`, `ship it`, and selected Chinese approval phrases) as implement intent, but keep unrelated phrases such as `go over the docs first` non-blocking.
+- Preserve the passive plan-capture invariant: the hook still must not mutate `plans/`; it should block unsafe execution and point the agent to `scripts/capture-plan.sh --status Approved --execute` or `scripts/ensure-task-workflow.sh` when no captured planning output exists.
+
 ## 2026-05-27 Default Brain Document Sync Notes
 
 ### What Changed

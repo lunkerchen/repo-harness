@@ -4,6 +4,12 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-05-27
+
+### Fixed
+
+- Fixed terse `GO` approval prompts after Codex Plan mode or Waza `/think` so they trigger `PlanStatusGuard` and route execution through captured `plans/` artifacts instead of bypassing the workflow gate.
+
 ## [5.2.0] - 2026-05-27
 
 ### Changed
