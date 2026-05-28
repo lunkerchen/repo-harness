@@ -38,11 +38,22 @@
 - [x] `src/cli/installer/targets/claude.ts` — `supportsLocation` 两 location 都 true; `describePaths` 返回 user 或 project 各自 settings.json; `install`/`uninstall`/`detect` throw not-implemented
 - [x] `tests/cli/registry.test.ts` — 8 个 case 全 pass (ALL_TARGETS 顺序 + frozen + getTarget hit/miss + listTargetIds + 两 host `supportsLocation` + `describePaths`); 完整 `bun test` 367/0 fail / 6 skip / 36 files 112s, 无回归
 
-#### 1B — install / hook 核心
-- [ ] `src/cli/commands/install.ts` — `--target codex|claude|both --location global` 写 host 各自 global config; WriteResult 输出; 幂等
-- [ ] `src/cli/commands/hook.ts` — `agentic-dev hook <event> [args...]`: 解析 repo root → 检测 opt-in (`.ai/harness/workflow-contract.json`) → 找 `<repo>/.ai/hooks/<mapped>.sh` → exec; non-opt-in 静默 exit 0
-- [ ] `tests/cli/install.test.ts` — 幂等性 + WriteResult action 正确性 + Codex `--location local` 报错
-- [ ] `tests/cli/hook.test.ts` — opt-in detect + non-opt-in exit 0 + 不存在的 hook 报错
+#### 1B — install / hook 核心 (Z 设计: event+route) ✅ 2026-05-28 (worktree `codex/hook-global-runtime`)
+- [x] `package.json` + `bun.lock` — `bun add commander` (v14.0.3, new bun.lock)
+- [x] `src/cli/hook/route-registry.ts` — 7 routes single source of truth (event + route-id + matcher? + ordered scripts); each `Route` frozen; matcher invariant: PostToolUse 三 routes 不交叠 (Edit|Write / Bash / no-matcher)
+- [x] `src/cli/installer/shared.ts` — atomicWriteFileSync (tmp+rename), readJsonOrEmpty, deepEqual, formatJson
+- [x] `src/cli/installer/managed-entries.ts` — (新增于 impl) buildHookCommand + buildHookEntry + isManagedEntry tag detector (`agentic-dev hook` substring) + strip/merge helpers; CLI-missing shim 内嵌于 command 字符串
+- [x] `src/cli/commands/install.ts` — runInstall: 解析 target/loc, 调 target.install, 输出 WriteResult lines; `both --location local` 静默跳过 codex
+- [x] `src/cli/commands/hook.ts` — runHook: not-in-git/non-opt-in exit 0; unknown-route exit 2; missing-script exit 3; script-failed propagates; `HOOK_REPO_ROOT` 设置 (与 hook-shim.sh 平价)
+- [x] `src/cli/installer/targets/codex.ts` — real install: matcher-grouped 7 entries (`Edit|Write` / `Bash` / no-matcher); detect tag; tag-based uninstall (只删 agentic-dev managed entries); `process.env.HOME ?? os.homedir()` 测试隔离
+- [x] `src/cli/installer/targets/claude.ts` — real install: same shape; 支持 global + local; preserves sibling user hooks (Phase 0 rtk hook claude case 实测保留)
+- [x] `src/cli/index.ts` — commander.js wired; install + hook commands; status/doctor/migrate 仍 stub (1C); backward-compat SUBCOMMANDS export 保留 (1A test 兼容)
+- [x] `tests/cli/route-registry.test.ts` — 8 cases: frozen, 7 routes, matcher disjoint per event, known script set, ordered scripts, allEvents canonical order
+- [x] `tests/cli/install.test.ts` — 8 cases: codex local 报错 exit 2, 7-entry layout, CLI-missing shim 嵌入, 幂等 unchanged, claude write, sibling preservation, round-trip, both global
+- [x] `tests/cli/hook.test.ts` — 7 cases: not-in-git, non-opt-in, unknown route, missing script, ordered success, first-fail propagation, HOOK_REPO_ROOT 设置
+- [x] `tests/cli/registry.test.ts` — modify: describePaths 测试从字面 `~/` 改为 endpoint match (Phase 1B 返回绝对路径)
+- [x] **Verify**: `bun test` 390 pass / 0 fail / 6 skip / 39 files (从 1A 的 367 增加 23 新 case); smoke `HOME=$(mktemp) install --target both --location global` 7 entries 写入 + 重跑 unchanged
+- [x] **Verify**: `bash scripts/check-task-sync.sh` ✅; `bash scripts/check-task-workflow.sh --strict` ⚠️ brain doc sync drift on `docs/reference-configs/external-tooling.md` (与 1B 无关; main worktree 上 user 已改 external-tooling.md 但 brain 副本旧, 由 main worktree 处理)
 
 #### 1C — status / doctor / migrate
 - [ ] `src/cli/commands/status.ts` — CLI version + 两 host install 状态 + 当前 repo opt-in 状态 + hook 覆盖率

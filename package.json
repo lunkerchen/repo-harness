@@ -25,5 +25,8 @@
   "devDependencies": {
     "@types/bun": "latest"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "commander": "^14.0.3"
+  }
 }

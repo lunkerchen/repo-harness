@@ -154,6 +154,67 @@ User 直接 reframe: "当前 Codex 生效的主配置文件是 `/Users/ancienttw
 
 不阻塞 Phase 1 1A scaffold; 但 1G self-migration / cross-project verification 阶段必须覆盖 #5, 并把 #1-4 当作 doctor 子命令边缘测试数据。
 
+## Phase 1B Design Pivot — X → Z (event+route) (2026-05-28, post-codex consult)
+
+### Decision
+
+`agentic-dev hook <event> --route <route-id>` 替代原 `agentic-dev hook <event>` 设计。
+
+### Why pivoted (Codex consult session 019e6df7-e7c9-70e2-8872-db9869420bd0)
+
+Claude (Sonnet 4.6) 原设计有两个选项：
+- X (event-only): 5 行 adapter, CLI 内部 loop 一个 event 的所有 scripts
+- Y (event+script): 11 行 adapter, host ABI 暴露 script name
+
+**Claude 漏掉的 matcher dimension**: `.codex/hooks.json` 实际是 matcher-grouped, 不是 event-grouped:
+- `PreToolUse matcher=Edit|Write` (2 scripts)
+- `PostToolUse matcher=Edit|Write` (2 scripts)
+- `PostToolUse matcher=Bash` (1 script)
+- `PostToolUse no-matcher` (2 scripts)
+- 其他 3 event 各 1 group
+
+X 的 event-only loop **会 cross-fire**: `PostToolUse Edit` 触发时会跑 `post-bash.sh` (错). Y 把 script name 烘焙进 host ABI, Phase 2 sealed hooks 时所有 adapter 都要改.
+
+### Z design (7 routes)
+
+| Event | Route | Matcher | Scripts (ordered) |
+|-------|-------|---------|-------------------|
+| SessionStart | default | (none) | session-start-context.sh |
+| PreToolUse | edit | `Edit\|Write` | worktree-guard.sh + pre-edit-guard.sh |
+| PostToolUse | edit | `Edit\|Write` | post-edit-guard.sh + autoresearch-advisory.sh |
+| PostToolUse | bash | `Bash` | post-bash.sh |
+| PostToolUse | always | (none) | trace-event.sh + context-pressure-hook.sh |
+| UserPromptSubmit | default | (none) | prompt-guard.sh + autoresearch-advisory.sh |
+| Stop | default | (none) | finalize-handoff.sh |
+
+= **7 routes / 7 adapter entries / 7 Codex trust hashes** (vs current shim 11; vs naive X 5 错触发)
+
+### Contract surface (Codex add-ons, must hold)
+
+1. **Route id is public contract; script name is not** — Phase 2 sealed hooks 重命名 script 不影响 adapter
+2. **install 幂等** — 不重排已有 entries (Codex hash key 对 entry index 敏感, 见 Trust UX § 5)
+3. **Global command string 稳定** — 不烘焙 CLI version/absolute-path 进 command
+4. **non-opt-in repo exit 0** — 静默 fallback
+5. **CLI missing fallback** — adapter command 形如 `command -v agentic-dev >/dev/null || exit 0; exec agentic-dev hook ...`
+6. **双发保护** — global + project 都 fire 时 (Claude merge precedence + project-level adapter 仍存在), CLI 内部需 detect 或 doc 化迁移路径
+7. **Debug-only single-script** — 可保留 `hook <event> <script>` 作人工测试, 但 adapter 必须传 `--route`
+
+### Files changed for Z (vs original X plan)
+
+Added:
+- `src/cli/hook/route-registry.ts` — 7 routes single source of truth
+- `src/cli/installer/shared.ts` — atomic JSON write + deep-equal for unchanged detection
+
+Modified (vs todo's original 1B):
+- `src/cli/commands/hook.ts` — interface 改 `--route` 而非 positional script
+- `src/cli/commands/install.ts` — adapter generation 按 matcher group + route 输出 7 entries
+- `src/cli/installer/targets/codex.ts` — matcher field 写到 host config
+- `src/cli/installer/targets/claude.ts` — Claude 无 matcher 字段, 但事件分组同 Codex
+
+### 1G impact
+
+Self-migration 大幅简化: 验证 7 route 触发即可, 不需逐 script 暴露到 host. 跨 repo 验证脚本对比 canary fire 行为.
+
 ## Open Follow-ups
 
 - Phase 0 实测 trust prompt UX 的具体表现 — **部分完成** (per-new-entry prompt 行为已验证); 文案/UI/拒绝路径见上述 follow-up 1+2

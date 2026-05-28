@@ -43,10 +43,13 @@ describe('installer target registry', () => {
     expect(claudeTarget.supportsLocation('local')).toBe(true);
   });
 
-  test('describePaths returns expected host slot for each location', () => {
-    expect(codexTarget.describePaths('global')).toEqual(['~/.codex/hooks.json']);
+  test('describePaths returns expected host slot for each location (Phase 1B: absolute paths)', () => {
+    // Phase 1A scaffolds returned literal ~/ paths; Phase 1B resolves to
+    // absolute via $HOME / os.homedir(), so we assert the endpoint shape
+    // rather than the literal prefix.
+    expect(codexTarget.describePaths('global')[0]).toMatch(/\/\.codex\/hooks\.json$/);
     expect(codexTarget.describePaths('local')).toEqual([]);
-    expect(claudeTarget.describePaths('global')).toEqual(['~/.claude/settings.json']);
-    expect(claudeTarget.describePaths('local')).toEqual(['.claude/settings.json']);
+    expect(claudeTarget.describePaths('global')[0]).toMatch(/\/\.claude\/settings\.json$/);
+    expect(claudeTarget.describePaths('local')[0]).toMatch(/\/\.claude\/settings\.json$/);
   });
 });
