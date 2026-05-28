@@ -3,15 +3,15 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE_EOF'
-Usage: scripts/check-brain-manifest.sh [--manifest PATH] [--require-vault]
+Usage: scripts/check-brain-manifest.sh [--manifest PATH] [--require-root]
 
-Validates the repo-local external knowledge manifest and, when the configured
-iCloud brain vault is available locally, checks that referenced vault files exist.
+Validates the repo-local external knowledge manifest. The manifest describes
+stable repo documents that an agent may explicitly sync into ~/brain/<project>/*.
 USAGE_EOF
 }
 
 manifest_path=".ai/harness/brain-manifest.json"
-require_vault=0
+require_root=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -19,8 +19,8 @@ while [[ $# -gt 0 ]]; do
       manifest_path="${2:-}"
       shift 2
       ;;
-    --require-vault)
-      require_vault=1
+    --require-root|--require-vault)
+      require_root=1
       shift
       ;;
     --help|-h)
@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unknown argument: $1" >&2
-      usage
+      usage >&2
       exit 1
       ;;
   esac
@@ -40,12 +40,10 @@ resolve_js_runtime() {
     printf 'node'
     return 0
   fi
-
   if command -v bun >/dev/null 2>&1; then
     printf 'bun'
     return 0
   fi
-
   return 1
 }
 
@@ -55,16 +53,17 @@ if [[ -z "$runtime" ]]; then
   exit 1
 fi
 
-"$runtime" - "$manifest_path" "$require_vault" <<'JS_EOF'
+"$runtime" - "$manifest_path" "$require_root" <<'JS_EOF'
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const [, , manifestArg, requireVaultArg] = process.argv;
-const requireVault = requireVaultArg === "1";
+const [, , manifestArg, requireRootArg] = process.argv;
+const requireRoot = requireRootArg === "1";
 const repoRoot = process.cwd();
 const manifestPath = path.resolve(repoRoot, manifestArg || ".ai/harness/brain-manifest.json");
 const policyPath = path.resolve(repoRoot, ".ai/harness/policy.json");
+const brainRoot = path.resolve(process.env.REPO_HARNESS_BRAIN_ROOT || path.join(os.homedir(), "brain"));
 let issues = 0;
 
 function issue(message) {
@@ -79,27 +78,10 @@ function warn(message) {
 function readJson(filePath, label) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch (error) {
+  } catch (_error) {
     issue(`Cannot read ${label}: ${path.relative(repoRoot, filePath) || filePath}`);
     return null;
   }
-}
-
-function stripWildcard(logicalPath) {
-  return String(logicalPath || "").replace(/\/\*$/, "/");
-}
-
-function logicalToLocal(logicalPath) {
-  const value = String(logicalPath || "");
-  if (value.startsWith("icloud/brain/")) {
-    const root = process.env.ICLOUD_BRAIN_ROOT ||
-      path.join(os.homedir(), "Library", "Mobile Documents", "com~apple~CloudDocs", "brain");
-    return path.join(root, value.slice("icloud/brain/".length));
-  }
-  if (value.startsWith("~/")) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return path.resolve(repoRoot, value);
 }
 
 function normalizeRel(filePath) {
@@ -110,6 +92,22 @@ function hasDuplicate(values) {
   return values.some((value, index) => value && values.indexOf(value) !== index);
 }
 
+function unsafeRepoPath(value) {
+  const raw = String(value || "");
+  if (!raw || raw.includes("\n") || raw.includes("\r") || path.isAbsolute(raw)) return true;
+  const normalized = path.normalize(raw);
+  return normalized === ".." || normalized.startsWith(`..${path.sep}`);
+}
+
+function checkBrainPath(value, label) {
+  const raw = String(value || "");
+  if (raw.startsWith("icloud/brain/")) {
+    warn(`${label} uses legacy icloud/brain/ prefix; migrate it to brain/.`);
+    return;
+  }
+  if (!raw.startsWith("brain/")) issue(`${label} must start with brain/: ${raw || "(empty)"}`);
+}
+
 if (!fs.existsSync(manifestPath)) {
   issue(`Missing brain manifest: ${normalizeRel(manifestPath)}`);
   process.exit(1);
@@ -117,127 +115,72 @@ if (!fs.existsSync(manifestPath)) {
 
 const manifest = readJson(manifestPath, "brain manifest");
 const policy = fs.existsSync(policyPath) ? readJson(policyPath, "harness policy") : null;
+if (!manifest) process.exit(1);
 
-if (!manifest) {
-  process.exit(1);
-}
-
-const manifestRel = normalizeRel(manifestPath);
 const externalKnowledge = policy?.information_lifecycle?.external_knowledge || {};
 const policyManifest = externalKnowledge.manifest_file;
-const policyProjectPath = externalKnowledge.project_path;
-const policySyncScript = externalKnowledge.sync_script;
-
-if (policyManifest && policyManifest !== manifestRel) {
-  issue(`Policy external_knowledge.manifest_file points to ${policyManifest}, expected ${manifestRel}`);
-}
-if (policySyncScript && !fs.existsSync(path.resolve(repoRoot, policySyncScript))) {
-  issue(`Policy external_knowledge.sync_script is missing: ${policySyncScript}`);
+if (policyManifest && policyManifest !== normalizeRel(manifestPath)) {
+  issue(`Policy external_knowledge.manifest_file points to ${policyManifest}, expected ${normalizeRel(manifestPath)}`);
 }
 
-if (!manifest.version) {
-  issue("Brain manifest is missing version");
-}
-if (!manifest.project) {
-  issue("Brain manifest is missing project");
-}
-if (!manifest.default_brain_path) {
-  issue("Brain manifest is missing default_brain_path");
-}
-if (policyProjectPath && manifest.default_brain_path && policyProjectPath !== manifest.default_brain_path) {
-  issue(`Policy project_path ${policyProjectPath} does not match manifest default_brain_path ${manifest.default_brain_path}`);
-}
-if (!Array.isArray(manifest.entries)) {
-  issue("Brain manifest entries must be an array");
-}
+if (!manifest.version) issue("Brain manifest is missing version");
+if (!manifest.project) issue("Brain manifest is missing project");
+if (!manifest.default_brain_path) issue("Brain manifest is missing default_brain_path");
+else checkBrainPath(manifest.default_brain_path.replace(/\/\*$/, "/"), "default_brain_path");
+if (!Array.isArray(manifest.entries)) issue("Brain manifest entries must be an array");
+if (manifest.groups !== undefined && !Array.isArray(manifest.groups)) issue("Brain manifest groups must be an array");
+if (manifest.exclusions !== undefined && !Array.isArray(manifest.exclusions)) issue("Brain manifest exclusions must be an array");
 
 const entries = Array.isArray(manifest.entries) ? manifest.entries : [];
-const ids = entries.map((entry) => entry.id);
-const repoPaths = entries.map((entry) => entry.repo_path);
-const brainPaths = entries.map((entry) => entry.brain_path);
-const gbrainSlugs = entries.map((entry) => entry.gbrain_slug);
+const groups = Array.isArray(manifest.groups) ? manifest.groups : [];
 
-if (hasDuplicate(ids)) issue("Brain manifest contains duplicate entry ids");
-if (hasDuplicate(repoPaths)) issue("Brain manifest contains duplicate repo_path values");
-if (hasDuplicate(brainPaths)) issue("Brain manifest contains duplicate brain_path values");
-if (hasDuplicate(gbrainSlugs)) issue("Brain manifest contains duplicate gbrain_slug values");
+if (hasDuplicate(entries.map((entry) => entry.id))) issue("Brain manifest contains duplicate entry ids");
+if (hasDuplicate(groups.map((group) => group.id))) issue("Brain manifest contains duplicate group ids");
 
-const defaultPrefix = stripWildcard(manifest.default_brain_path);
-const localVaultRoot = logicalToLocal(defaultPrefix);
-const shouldCheckVault = requireVault || fs.existsSync(localVaultRoot);
-if (entries.length > 0 && !shouldCheckVault) {
-  warn(`vault root unavailable; skipped external file existence checks: ${localVaultRoot}`);
+for (const pattern of Array.isArray(manifest.exclusions) ? manifest.exclusions : []) {
+  if (unsafeRepoPath(pattern.replace(/\*\*/g, "x").replace(/\*/g, "x"))) {
+    issue(`Exclusion path is unsafe: ${pattern}`);
+  }
+}
+
+for (const group of groups) {
+  const id = group.id || "(missing id)";
+  if (!group.id) issue("Group is missing id");
+  if (!["always-sync", "archive-only", "never-sync", undefined].includes(group.lifecycle)) {
+    issue(`Group ${id} has unsupported lifecycle: ${group.lifecycle}`);
+  }
+  const sourcePaths = Array.isArray(group.source_paths) ? group.source_paths : [];
+  for (const sourcePath of sourcePaths) {
+    if (unsafeRepoPath(sourcePath)) issue(`Group ${id} has unsafe source_path: ${sourcePath}`);
+  }
+  const globs = Array.isArray(group.source_glob) ? group.source_glob : group.source_glob ? [group.source_glob] : [];
+  for (const sourceGlob of globs) {
+    if (unsafeRepoPath(String(sourceGlob).replace(/\*\*/g, "x").replace(/\*/g, "x"))) {
+      issue(`Group ${id} has unsafe source_glob: ${sourceGlob}`);
+    }
+  }
 }
 
 for (const entry of entries) {
   const id = entry.id || "(missing id)";
-  const repoPath = entry.repo_path;
-  const assetPath = entry.asset_path;
-  const brainPath = entry.brain_path;
-  const gbrainSlug = entry.gbrain_slug;
-  const maxRepoLines = Number(entry.max_repo_lines || 0);
+  const repoPath = entry.repo_path || entry.source_path || entry.sync?.source_path;
+  const brainPath = entry.brain_path || entry.sync?.brain_path;
   const syncDirection = entry.sync?.direction || entry.sync_direction || "";
-  const isRepoToBrainSync = syncDirection === "repo-to-brain";
-
   if (!entry.id) issue("Entry is missing id");
-  if (!repoPath) issue(`Entry ${id} is missing repo_path`);
-  if (!brainPath) issue(`Entry ${id} is missing brain_path`);
-  if (!gbrainSlug) issue(`Entry ${id} is missing gbrain_slug`);
+  if (repoPath && unsafeRepoPath(repoPath)) issue(`Entry ${id} has unsafe repo_path: ${repoPath}`);
+  if (brainPath) checkBrainPath(brainPath, `Entry ${id} brain_path`);
   if (syncDirection && syncDirection !== "repo-to-brain") {
     issue(`Entry ${id} has unsupported sync.direction: ${syncDirection}`);
   }
+}
 
-  if (brainPath && defaultPrefix && !String(brainPath).startsWith(defaultPrefix)) {
-    issue(`Entry ${id} brain_path is outside default_brain_path: ${brainPath}`);
-  }
-
-  if (repoPath) {
-    const repoFile = path.resolve(repoRoot, repoPath);
-    if (!fs.existsSync(repoFile)) {
-      issue(`Entry ${id} repo_path is missing: ${repoPath}`);
-    } else {
-      const content = fs.readFileSync(repoFile, "utf8");
-      if (!isRepoToBrainSync && brainPath && !content.includes(brainPath)) {
-        issue(`Entry ${id} repo stub does not mention brain_path: ${repoPath}`);
-      }
-      if (!isRepoToBrainSync && gbrainSlug && !content.includes(gbrainSlug)) {
-        issue(`Entry ${id} repo stub does not mention gbrain_slug: ${repoPath}`);
-      }
-      if (maxRepoLines > 0) {
-        const lineCount = content.endsWith("\n") ? content.split("\n").length - 1 : content.split("\n").length;
-        if (lineCount > maxRepoLines) {
-          issue(`Entry ${id} repo stub has ${lineCount} lines, max ${maxRepoLines}: ${repoPath}`);
-        }
-      }
-    }
-  }
-
-  if (repoPath && assetPath) {
-    const repoFile = path.resolve(repoRoot, repoPath);
-    const assetFile = path.resolve(repoRoot, assetPath);
-    if (!fs.existsSync(assetFile)) {
-      issue(`Entry ${id} asset_path is missing: ${assetPath}`);
-    } else if (fs.existsSync(repoFile)) {
-      const repoContent = fs.readFileSync(repoFile, "utf8");
-      const assetContent = fs.readFileSync(assetFile, "utf8");
-      if (repoContent !== assetContent) {
-        issue(`Entry ${id} repo_path and asset_path differ: ${repoPath} != ${assetPath}`);
-      }
-    }
-  }
-
-  if (brainPath && shouldCheckVault) {
-    const localBrainFile = logicalToLocal(brainPath);
-    if (!fs.existsSync(localBrainFile)) {
-      issue(`Entry ${id} brain file is missing: ${brainPath}`);
-    }
-  }
+if (requireRoot && !fs.existsSync(brainRoot)) {
+  issue(`brain root unavailable: ${brainRoot}`);
 }
 
 if (issues === 0) {
   console.log("[brain] OK");
   process.exit(0);
 }
-
 process.exit(1);
 JS_EOF
