@@ -2,7 +2,7 @@
 
 > **Source Plan**: plans/plan-20260528-1436-hook-global-runtime.md
 > **Status**: Executing
-> **Phase Progress**: Phase 0 ✅ 2026-05-28 17:11 (5 advisory micro-tests + non-opt-in repo coverage deferred to 1G); Phase 1 1A ✅ 2026-05-28 (in worktree `codex/hook-global-runtime`; scaffold/types/registry/tests, 367 pass / 0 fail / 36 files); Phase 1 1B ⏳ next (install + hook 核心; 引入 commander.js)
+> **Phase Progress**: Phase 0 ✅ 2026-05-28 17:11 (5 advisory micro-tests deferred to 1G); 1A ✅ scaffold + types (commit `bf923f8`); 1B ✅ 2026-05-28 install + hook (Z event+route, commit `ead42e3`; 390 pass / 0 fail / 39 files; sibling-preserving idempotent install verified); 1C ⏳ next (status / doctor / migrate)
 > **Generated**: 2026-05-28 14:58 (expanded from plan phases 2026-05-28 15:0X)
 > **Source Plan Slug**: hook-global-runtime
 > **Review File**: tasks/reviews/hook-global-runtime.review.md
