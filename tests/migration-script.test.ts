@@ -333,9 +333,9 @@ describe("Migration script contract", () => {
       expect(policy.external_tooling.codex_automation_profile.routes.architecture_diagram).toBe("diagram-design");
       expect(policy.external_tooling.codex_automation_profile.vendoring_policy).toBe("do-not-vendor-skill-body");
       expect(policy.external_tooling.gbrain.mcp).toBe("candidate-disabled");
-      expect(policy.external_tooling.codegraph.primary_host).toBe("codex");
+      expect(policy.external_tooling.codegraph.primary_host).toBe("both");
       expect(policy.external_tooling.codegraph.index_dir).toBe(".codegraph");
-      expect(policy.external_tooling.codegraph.readiness).toBe("required-for-codex-agent-code-navigation");
+      expect(policy.external_tooling.codegraph.readiness).toBe("required-for-agent-code-navigation");
       expect(policy.external_tooling.codegraph.hook_policy).toBe("do-not-block-hooks");
       expect(policy.external_tooling.codegraph.vendoring_policy).toBe("do-not-add-package-dependency");
       expect(policy.agentic_development.routing).toEqual({
@@ -635,7 +635,7 @@ describe("Migration script contract", () => {
       expect(policy.external_tooling.codex_automation_profile.required_skills).toEqual(["health", "check", "diagram-design"]);
       expect(policy.external_tooling.codex_automation_profile.source).toBe("~/.codex/skills");
       expect(policy.external_tooling.gbrain.mcp).toBe("configured");
-      expect(policy.external_tooling.codegraph.primary_host).toBe("codex");
+      expect(policy.external_tooling.codegraph.primary_host).toBe("both");
       expect(policy.external_tooling.codegraph.index_dir).toBe(".codegraph");
       expect(policy.agentic_development.routing.complex_engineering_plan).toBe("gstack:plan-eng-review");
       expect(policy.upgrade.strategy_version).toBe(1);
