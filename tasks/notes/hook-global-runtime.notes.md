@@ -94,7 +94,30 @@ User 直接 reframe: "当前 Codex 生效的主配置文件是 `/Users/ancienttw
 
 ## Deviations From Plan Or Spec
 
-(none yet — record here when implementation diverges from `plans/plan-20260528-1436-hook-global-runtime.md`)
+### Phase 0.5 self-migration deferred to Phase 1 (2026-05-28, post-/check)
+
+`/check` 跑 Required Checks 时发现 `.codex/hooks.json` 删除引发 cascade:
+- `scripts/check-task-workflow.sh --strict` fail (contract requires)
+- `tests/migration-script.test.ts` + `tests/bootstrap-files.test.ts` + `tests/workflow-contract.test.ts` + `tests/init-project.settings.runtime.test.ts` 10+ 处 assert `.codex/hooks.json`
+- `scripts/migrate-project-template.sh` 新项目 init 仍生成 `.codex/hooks.json`
+
+正确顺序: Phase 1 task 1B (CLI install/migrate) + 1D (contract `hookRuntime` 字段) 必须同时改 contract/tests/migrate-template。
+
+**Reverted in commit 6070209**:
+- `.codex/hooks.json` (从 backup)
+- `.claude/settings.json` hooks 段 (从 backup)
+- contract 文件 (×2) `.codex/hooks.json` 行
+- `scripts/check-task-workflow.sh` `check_required_file` 行
+
+**Kept** (push 到 main):
+- `scripts/agentic-dev.sh` + `scripts/hook-shim.sh` (Phase 0.5 deliverables)
+- 全局 `~/.codex/hooks.json` + `~/.claude/settings.json` shim 注册 (defer-check → 所有 opt-in repo 用项目级, 无双发)
+- plan / notes / contract / todo updates (Phase 1 input)
+
+**Phase 1 必须做**:
+- task 1B (CLI install/migrate): migrate 子命令必须把 contract update + test update + migrate-template-script update 一并处理, 单 commit
+- task 1D (contract bump): 加 `hookRuntime: { mode: 'global-cli' | 'project-adapter', minCliVersion }` 字段
+- task 1G (self-migration): 重做 Phase 0.5, 配合 contract/test/template 同步更新, 用 Phase 1 CLI 跑
 
 ## Open Follow-ups
 
