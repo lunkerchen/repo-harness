@@ -2,6 +2,7 @@
 
 > **Source Plan**: plans/plan-20260528-1436-hook-global-runtime.md
 > **Status**: Executing
+> **Phase Progress**: Phase 0 ✅ acceptance complete 2026-05-28 17:11 (5 advisory micro-tests + non-opt-in repo coverage deferred to Phase 1 1G); Phase 1 ⏳ pending (1A scaffold + types is next)
 > **Generated**: 2026-05-28 14:58 (expanded from plan phases 2026-05-28 15:0X)
 > **Source Plan Slug**: hook-global-runtime
 > **Review File**: tasks/reviews/hook-global-runtime.review.md
@@ -24,7 +25,7 @@
 - [x] **User**: `bash scripts/canary-global-hook.sh status` — 正常输出
 - [~] 记录 Operational Matrix 到 `docs/architecture/global-hook-runtime.md` — ✅ Row 1/3 + Trust UX Codex/Claude 主体已 confirmed; 🔶 Row 2/4/5 部分仍 manual-only (prompt 文案截图 / Codex auto-reload 时延 / 拒绝路径行为) — 见 docs 中 5 个 Micro-test 建议
 - [ ] **User**: non-opt-in repo manual 测试 — `cd <任一无 .ai/harness/workflow-contract.json 的 repo>`, 触发 PreToolUse (e.g. 编辑文件), 回来 `grep 'repo=<that-repo>' ~/.agentic-dev-canary.log` 应看到新行 (验证 silent-exit-0 不阻止 canary fire)
-- [ ] **User**: `bash scripts/canary-global-hook.sh uninstall` 清理 (Phase 0 完成 — 保留 11 pre-canary shim hash 在 config.toml; 仅删除 canary 的 5 个 hash 与 hooks.json entries)
+- [x] `bash scripts/canary-global-hook.sh uninstall` 清理 (Phase 0 完成 — 2026-05-28T17:11 验证: canary status `codex=0/5 + claude=0/5`; `[hooks.state]` 残留 16 hash 全部保留 (lines 498-543, Codex 不 GC, 已录入 Trust UX — Codex § Confirmed); backup + log preserved)
 
 ### Phase 1 — CLI 实施 (1-2 weeks)
 

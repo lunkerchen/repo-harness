@@ -1,12 +1,12 @@
 # Sprint Review: hook-global-runtime
 
-> **Status**: Pending
+> **Status**: Phase 0 acceptance complete (2026-05-28 17:11, user-acknowledged Codex side); Phase 1 contract still open
 > **Plan**: plans/plan-20260528-1436-hook-global-runtime.md
 > **Contract**: tasks/contracts/hook-global-runtime.contract.md
 > **Notes File**: tasks/notes/hook-global-runtime.notes.md
 > **Checks File**: .ai/harness/checks/latest.json
-> **Last Updated**: 2026-05-28 16:05
-> **Recommendation**: pass for Phase 0 canary prep; keep Phase 1 contract open
+> **Last Updated**: 2026-05-28 17:11
+> **Recommendation**: pass for Phase 0 operational smoke (canary prep + real host smoke + Codex user acceptance); 5 advisory micro-tests deferred; Phase 1 CLI implementation still open
 
 ## Mode Evidence
 
@@ -62,6 +62,13 @@
 - Re-run the commands listed in Verification Evidence.
 - For real host smoke, run `bash scripts/canary-global-hook.sh install`, trigger Codex/Claude events, capture `status` and log output, then run `bash scripts/canary-global-hook.sh uninstall`.
 
+## Phase 0 Acceptance Outcome (2026-05-28 17:11)
+
+- **User acknowledged Codex side**: "Codex方面我已验收" (口头, 2026-05-28); Claude 侧 acceptance 隐含 (本会话 169+ user-level fires 持续在线).
+- **Real-host smoke completed**: canary install → restart Codex + accept 5 new trust prompts (11 → 16 hash entries) → 5 events × 2 opt-in repos triggered → uninstall + verified 0/5 entries + 16/16 hash residue (Codex 不 GC).
+- **Operational Matrix data quality**: Row 1/3 完全 evidence-driven; Row 2/4/5 主体 evidence-driven; 5 manual gaps (prompt 文案/UI surface, Codex 拒绝路径, Codex 同 (i,j) 改 command, Claude ConfigChange 时延, non-opt-in repo silent-exit-0) 已标 🔶 advisory 留到 Phase 1 1G self-migration 阶段.
+- **Phase 1 design data points hardened** in `tasks/notes/hook-global-runtime.notes.md` § Phase 0 Closeout: Codex hash key composition, hash-skip behavior, Claude auto-reload timing, new-entry-only trust prompt, append-after array semantics.
+
 ## Summary
 
-- Pass this branch as a bounded Phase 0 canary-prep merge. Do not claim the full global hook runtime is complete.
+- Phase 0 operational smoke complete with real host evidence and Codex user acceptance. 5 advisory micro-tests deferred. Phase 1 CLI runtime (install/hook/status/doctor/migrate + distribution + self-migration) remains the full open scope; do not claim global hook runtime is complete until 1H closeout.

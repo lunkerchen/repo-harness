@@ -119,9 +119,44 @@ User 直接 reframe: "当前 Codex 生效的主配置文件是 `/Users/ancienttw
 - task 1D (contract bump): 加 `hookRuntime: { mode: 'global-cli' | 'project-adapter', minCliVersion }` 字段
 - task 1G (self-migration): 重做 Phase 0.5, 配合 contract/test/template 同步更新, 用 Phase 1 CLI 跑
 
+## Phase 0 Closeout (2026-05-28 17:11, Codex 侧用户验收)
+
+### What was verified end-to-end
+
+- Canary install → Codex restart + trust → 5 类 event × 2 opt-in repo 触发 → status/grep/log 取证 → uninstall 全流程跑通
+- `docs/architecture/global-hook-runtime.md` Operational Matrix:
+  - Row 1 (加载): ✅ 522+ codex fires + 169+ claude fires (含 post-restart 17:03:44 增量)
+  - Row 2 (Trust prompt UX): ✅ Codex per-new-entry prompt 行为; 11 pre-existing shim hashes 静默通过 (用户口头验收 "已重启授权 5 个新 HOOK")
+  - Row 3 (Hash 注册): ✅ 16 entries lines 498-543 in `~/.codex/config.toml`; key 格式 `<abs-path>:<event-snake>:<i>:<j>` 确认
+  - Row 4 (Auto-reload): ✅ Codex restart-time + Claude install-time (16:51:47 PreToolUse 几秒内 auto-pickup) 确认
+  - Row 5 sub (uninstall 后 hash 残留): ✅ 16/16 hash 未被 Codex GC (实测)
+- Trust UX — Codex § Confirmed 从 3 项扩到 6 项
+
+### User acceptance
+
+- 2026-05-28 用户口头确认 "Codex方面我已验收"; Claude 侧验收隐含 (本会话 169+ user-level fires 持续在线证明)
+
+### Data points hardened for Phase 1 design
+
+1. **Codex hash key = (canonical command string, event-key-with-indices)** → CLI `install` 重运行如保持 command 字符串和数组位置不变可 hash-skip, 不弹 prompt
+2. **Codex 不 GC 残留 trust hash** → CLI 需提供 `doctor --clean-trust` 或文档化 "卸载后手动改 config.toml" 路径
+3. **Claude ConfigChange 秒级 auto-reload** → CLI `install --target claude` 不需要提示用户重启
+4. **Codex new-entry-only trust prompt** → CLI 升级应优先 append 而非整体重写 hooks 段, 减少 trust 摩擦
+5. **Append-after 语义**: 新 canary entry 落到 `pre_tool_use:1:0` (shim 占 0:0 / 0:1), `post_tool_use:4:0` 等 — CLI 写 host config 要尊重已存在数组顺序, 避免改动既有 (i,j) 触发不必要 re-prompt
+
+### Phase 0 follow-ups (advisory; recommend before Phase 1 1G self-migration)
+
+1. Codex trust prompt 文案 + UI surface 截图 (Matrix Row 2 manual gap; micro-test: 临时改一条 echo 文本 + restart)
+2. Codex 拒绝路径行为 (Matrix Row 5 manual gap; micro-test: decline + 看 canary log + config.toml state)
+3. Codex 同 (i,j) 改 command 是否 re-prompt (Trust UX § manual; micro-test: echo 文本加尾随空格)
+4. Claude ConfigChange 时间 delta (Matrix Row 4 manual gap; micro-test: mtime 与下一次 fire 间隔)
+5. non-opt-in repo 触发覆盖 (todo.md Phase 0 仍 `[ ]`; 验证 silent-exit-0 不阻止 canary fire)
+
+不阻塞 Phase 1 1A scaffold; 但 1G self-migration / cross-project verification 阶段必须覆盖 #5, 并把 #1-4 当作 doctor 子命令边缘测试数据。
+
 ## Open Follow-ups
 
-- Phase 0 实测 trust prompt UX 的具体表现 (是否每次 hash change 都重新 prompt? 拒绝 trust 后 hook 行为?)
+- Phase 0 实测 trust prompt UX 的具体表现 — **部分完成** (per-new-entry prompt 行为已验证); 文案/UI/拒绝路径见上述 follow-up 1+2
 - CLI hook 调用 + 自身命令 hash 的关系 (Codex 按 command string 做 hash; CLI version change 可能导致 command string 变, 触发 re-prompt)
 - 是否在 Phase 1 就支持 `--target both` 一键安装, 或 force user 显式 install 每个 host
 - `agentic-dev migrate <repo>` 的默认行为: 直接删 `.codex/hooks.json` 还是改成 fallback shim?

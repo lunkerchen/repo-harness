@@ -82,3 +82,8 @@ Project
 
 - Treat `.codex/hooks.json` as the repo-local Codex hook adapter. Keep hook implementation under `.ai/hooks/`, keep `.claude/settings.json` and `.codex/hooks.json` as adapter config only, and reserve `~/.codex` plus other repo-local `.codex/*` files for runtime state.
 - Consider adding `bun scripts/capability-resolver.ts validate --format text` to the strict workflow gate after the architecture registry has been used through one more real slice.
+- [ ] 2026-05-28T15:47:40+0800 [high] `.ai/hooks/hook-input.sh` -> [20260528-154740-ai-hooks-ai-hooks-hook-input-sh](requests/20260528-154740-ai-hooks-ai-hooks-hook-input-sh.md)
+- [ ] 2026-05-28T15:48:16+0800 [high] `assets/hooks/hook-input.sh` -> [20260528-154816-assets-hooks-assets-hooks-hook-input-sh](requests/20260528-154816-assets-hooks-assets-hooks-hook-input-sh.md)
+- [ ] 2026-05-28T16:18:51+0800 [high] `.ai/harness/workflow-contract.json` -> [20260528-161851-ai-harness-workflow-contract-json-ai-harness-workflow-contract-json](requests/20260528-161851-ai-harness-workflow-contract-json-ai-harness-workflow-contract-json.md)
+- [ ] 2026-05-28T16:18:53+0800 [high] `scripts/check-task-workflow.sh` -> [20260528-161853-scripts-check-task-workflow-sh-scripts-check-task-workflow-sh](requests/20260528-161853-scripts-check-task-workflow-sh-scripts-check-task-workflow-sh.md)
+- [ ] 2026-05-28T16:19:11+0800 [high] `assets/workflow-contract.v1.json` -> [20260528-161911-assets-workflow-contract-v1-json-assets-workflow-contract-v1-json](requests/20260528-161911-assets-workflow-contract-v1-json-assets-workflow-contract-v1-json.md)

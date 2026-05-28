@@ -91,6 +91,7 @@ Partially observed from canary install; manual UX-only items remain.
 - ✅ Once trust is registered, fires happen silently (522+ codex fires without UX interruption in the canary window; post-restart fires at 17:03:44 Astrozi also silent).
 - ✅ **Per-new-entry trust prompt**: Codex restart after canary install showed 5 distinct trust prompts (one per new `(command, key)` combination); the 11 preexisting shim hashes silently passed without re-prompt. User reported manual acceptance: "已重启授权 5 个新 HOOK" (2026-05-28T17:03).
 - ✅ **Hash sensitivity to (command, key) tuple confirmed**: appending new entries to existing event arrays produced new `i` indices (`pre_tool_use:1:0`, `post_tool_use:4:0`, `session_start:1:0`, `user_prompt_submit:1:0`, `stop:1:0`), each triggering its own prompt. Implication: any change to either the command string or the array position will re-trust-prompt.
+- ✅ **Uninstall does not GC `[hooks.state]` residual hashes** (2026-05-28T17:11 confirmed): `bash scripts/canary-global-hook.sh uninstall` removed all 5 canary entries from `~/.codex/hooks.json` (verified canary status `installed: 0/5`), but `[hooks.state]` retained all 16 user-level entries (lines 498–543). Implication: re-installing identical canary commands at identical `(event, i, j)` positions should hash-match and skip prompt. Operator must manually edit `config.toml` to revoke stale trust.
 
 **Still manual-only — answer by running the micro-tests below:**
 
@@ -100,8 +101,6 @@ Partially observed from canary install; manual UX-only items remain.
   - **Micro-test**: 临时编辑一条 canary entry 的 echo 字符串（不影响真 shim），restart Codex，在 prompt 弹出时 decline；触发 event 看 canary log 是否新增行；grep `config.toml [hooks.state]` 看 decline 是否被记录。
 - Command 字符串内部小改是否触发新 prompt？（已知 append 新 entry 会触发；同一 (i,j) 改 command 待测）
   - **Micro-test**: 编辑 `~/.codex/hooks.json` 中现存某 canary entry 的 echo 文本（加尾随空格即可），restart Codex，看是否对该 `:<i>:<j>` key 弹新 prompt。
-- 卸载 canary 后 `[hooks.state]` 残留 hash 行为
-  - **Micro-test**: after `canary uninstall`, grep `[hooks.state]` for user-level path keys — these should remain (Codex does not GC stale entries); next install of identical commands should hash-match and skip prompt.
 
 ## Trust UX — Claude
 
