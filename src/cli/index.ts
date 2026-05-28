@@ -11,6 +11,9 @@
 import { Command } from 'commander';
 import { runInstall, type InstallTargetSpec } from './commands/install';
 import { runHook } from './commands/hook';
+import { formatStatus, runStatus } from './commands/status';
+import { formatDoctor, runDoctor } from './commands/doctor';
+import { formatMigratePlan, runMigrate } from './commands/migrate';
 import type { Location } from './installer/types';
 import type { HookEvent, RouteId } from './hook/route-registry';
 
@@ -67,15 +70,36 @@ export function buildProgram(): Command {
       process.exit(result.exitCode);
     });
 
-  for (const stubCmd of ['status', 'doctor', 'migrate'] as const) {
-    program
-      .command(stubCmd)
-      .description(`(Phase 1C stub) ${stubCmd}`)
-      .action(() => {
-        console.error(`agentic-dev ${stubCmd}: not yet implemented (Phase 1C)`);
-        process.exit(2);
-      });
-  }
+  program
+    .command('status')
+    .description('Show CLI version, host install status, route coverage, and repo opt-in state')
+    .option('--json', 'Output JSON instead of human-readable text')
+    .action((rawOpts: { json?: boolean }) => {
+      const report = runStatus();
+      console.log(formatStatus(report, rawOpts.json === true));
+      process.exit(0);
+    });
+
+  program
+    .command('doctor')
+    .description('Run read-only readiness diagnostics (PATH, version, hosts, trust state)')
+    .option('--json', 'Output JSON instead of human-readable text')
+    .action((rawOpts: { json?: boolean }) => {
+      const report = runDoctor();
+      console.log(formatDoctor(report, rawOpts.json === true));
+      process.exit(report.summary.fail > 0 ? 1 : 0);
+    });
+
+  program
+    .command('migrate')
+    .description('Migrate legacy project-level hook adapters to the global CLI (dry-run by default)')
+    .option('--apply', 'Commit changes (default is dry-run)')
+    .option('--json', 'Output JSON plan')
+    .action((rawOpts: { apply?: boolean; json?: boolean }) => {
+      const plan = runMigrate({ apply: rawOpts.apply === true });
+      console.log(formatMigratePlan(plan, rawOpts.json === true));
+      process.exit(0);
+    });
 
   return program;
 }

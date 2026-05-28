@@ -2,7 +2,7 @@
 
 > **Source Plan**: plans/plan-20260528-1436-hook-global-runtime.md
 > **Status**: Executing
-> **Phase Progress**: Phase 0 ✅ 2026-05-28 17:11 (5 advisory micro-tests deferred to 1G); 1A ✅ scaffold + types (commit `bf923f8`); 1B ✅ 2026-05-28 install + hook (Z event+route, commit `ead42e3`; 390 pass / 0 fail / 39 files; sibling-preserving idempotent install verified); 1C ⏳ next (status / doctor / migrate)
+> **Phase Progress**: Phase 0 ✅ 2026-05-28 17:11 (5 advisory micro-tests deferred to 1G); 1A ✅ scaffold (`bf923f8`); 1B ✅ install + hook (`ead42e3`, Z event+route, 7 routes); 1C ✅ 2026-05-28 status / doctor / migrate (411 pass / 0 fail / 42 files; doctor `registerCheck()` plugin point ready for codegraph-readiness Phase 2 `checkCodegraph()` 自然衔接 — main 上已有 `src/cli/tools/codegraph.ts` 待 import); 1D ⏳ next (contract bump + template updates)
 > **Generated**: 2026-05-28 14:58 (expanded from plan phases 2026-05-28 15:0X)
 > **Source Plan Slug**: hook-global-runtime
 > **Review File**: tasks/reviews/hook-global-runtime.review.md
@@ -55,10 +55,16 @@
 - [x] **Verify**: `bun test` 390 pass / 0 fail / 6 skip / 39 files (从 1A 的 367 增加 23 新 case); smoke `HOME=$(mktemp) install --target both --location global` 7 entries 写入 + 重跑 unchanged
 - [x] **Verify**: `bash scripts/check-task-sync.sh` ✅; `bash scripts/check-task-workflow.sh --strict` ⚠️ brain doc sync drift on `docs/reference-configs/external-tooling.md` (与 1B 无关; main worktree 上 user 已改 external-tooling.md 但 brain 副本旧, 由 main worktree 处理)
 
-#### 1C — status / doctor / migrate
-- [ ] `src/cli/commands/status.ts` — CLI version + 两 host install 状态 + 当前 repo opt-in 状态 + hook 覆盖率
-- [ ] `src/cli/commands/doctor.ts` — PATH 检测 + CLI version + global adapter 完整性 + trust state (grep `~/.codex/config.toml [hooks.state]`) + fallback paths
-- [ ] `src/cli/commands/migrate.ts` — 把旧项目级 `.codex/hooks.json` / `.claude/settings.json` hook 段改为 fallback shim 或删除 (`--dry-run` 默认)
+#### 1C — status / doctor / migrate  ✅ 2026-05-28 (worktree `codex/hook-global-runtime`)
+- [x] `src/cli/commands/status.ts` — `runStatus()` 返回 CLI version + per-host install 状态 (managed/expected entry count) + 7 routes 分布 + repo opt-in marker 检测; `formatStatus(report, asJson)` 支持文本/JSON 输出
+- [x] `src/cli/commands/doctor.ts` — built-in checks: PATH (via `which`) + version + per-host adapter (target.detect) + Codex trust state (regex `~/.codex/config.toml [hooks.state]` user-level keys 计数); **plugin registry** `registerCheck()` + `clearRegisteredChecks()` 让 codegraph Phase 2 注入 `checkCodegraph()` 无需改动 doctor.ts; 完全 read-only
+- [x] `src/cli/commands/migrate.ts` — `runMigrate({ apply: false })` 默认 dry-run; tag-based 识别 (`run-hook.sh` substring) 区分 legacy vs 用户 sibling hooks; `--apply` 写入 + per-file `.agentic-dev-migrate-backup`; 空 `hooks` 段会被整段删除 (清理 Claude settings.json 多余字段)
+- [x] `src/cli/index.ts` — modify: 替换 status/doctor/migrate 三个 stub 为真实 binding; `--json` flag (status + doctor + migrate); `--apply` flag (migrate); doctor exits 1 when summary.fail > 0
+- [x] `tests/cli/status.test.ts` — 7 cases: CLI version, 7 routes 分布, pre-install no entries, post-install 7/7, opt-in marker detect, non-git-repo, format text/json
+- [x] `tests/cli/doctor.test.ts` — 7 cases: 5 built-in checks present, trust state n/a, trust state count, registerCheck plugin, summary tally, format text/json; `afterEach` clears registered plugins
+- [x] `tests/cli/migrate.test.ts` — 7 cases: dry-run identify + no mutation, --apply removes + backup, sibling preservation + non-hooks settings preserved, no-op when nothing matches, missing files skipped, dry-run output reminds --apply, --json parseable
+- [x] **Verify**: `bun test` 411 pass / 0 fail / 6 skip / 42 files (从 1B 的 390 增 21 case); CLI smoke: status (在 worktree 显示 7/7 managed entries — 因 Phase 0.5 shim) + doctor (temp HOME 显示 4 warn + 1 na 是预期) + migrate dry-run (识别 8+8 legacy entries in worktree adapters)
+- [x] **Verify**: `bash scripts/check-task-sync.sh` 校验 todo 同步
 
 #### 1D — Contract / Template 更新
 - [ ] `assets/workflow-contract.v1.json` 加 `hookRuntime: { mode: "global-cli", minCliVersion: "x.y.z" }` 字段 (contract version bump)
