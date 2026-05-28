@@ -15,15 +15,16 @@
 ### Phase 0 — Operational Smoke (0.5-1 day, asymmetric scope per notes 第二轮)
 
 - [x] Write `scripts/canary-global-hook.sh` (install / uninstall / status / tail)
-- [ ] **User**: `bash scripts/canary-global-hook.sh install` (写到 ~/.codex/hooks.json + ~/.claude/settings.json)
-- [ ] **User**: 重启 Codex; 观察 trust prompt UX (是否弹? 接受是什么形态?)
-- [ ] **User**: 重启 Claude Code 或等 ConfigChange auto-reload; 验证 hook 注册成功 (e.g. `/hooks` 命令)
-- [ ] **User**: 触发事件 (SessionStart 通过重启; PreToolUse/PostToolUse 通过编辑文件; UserPromptSubmit 通过发 prompt; Stop 通过结束会话; Bash 通过运行命令) — 至少在 2-3 个项目分别测一次
-- [ ] **User**: `bash scripts/canary-global-hook.sh tail` 看 canary 日志条目, 确认两 host 都 fire
-- [ ] **User**: `grep "/Users/ancienttwo/.codex/hooks.json" ~/.codex/config.toml` 看是否新增 `[hooks.state]` user-level 条目 (确认 trust hash 注册)
-- [ ] **User**: `bash scripts/canary-global-hook.sh status` 确认状态汇总
-- [ ] 记录所有观察到 `docs/architecture/global-hook-runtime.md` 第一节 Host Operational Matrix (Codex 列 + Claude 列, 行: 加载 / trust prompt / hash 注册 / auto-reload / 拒绝 trust 行为)
-- [ ] **User**: `bash scripts/canary-global-hook.sh uninstall` 清理 (Phase 0 完成)
+- [x] **User**: `bash scripts/canary-global-hook.sh install` (写到 ~/.codex/hooks.json + ~/.claude/settings.json) — 验证: status 显示 codex=5 + claude=5 canary hooks installed
+- [x] **User**: 重启 Codex; 观察 trust prompt UX — 2026-05-28T17:03 完成; per-new-entry trust 行为已验证 (5 prompts for 5 new entries, 11 pre-existing shim hashes 静默通过)
+- [x] **User**: 重启 Claude Code 或等 ConfigChange auto-reload — 169 user-level claude fires 横跨 1h36m + 含 3 个 SessionStart 证明 auto-reload 工作
+- [~] **User**: 触发事件 in 2-3 repos — ✅ opt-in (agentic-dev + Astrozi 各覆盖全 5 events); ⚠ **non-opt-in repo 未测** (剩余 Phase 0 closeout 主要 gap)
+- [x] **User**: `bash scripts/canary-global-hook.sh tail` 看 canary 日志条目 — 711 lines, 两 host 都 fire
+- [x] **User**: `grep ... ~/.codex/config.toml` 看 `[hooks.state]` user-level 条目 — 16 entries (11 pre-canary shim + 5 canary), key 格式 `<path>:<event-snake>:<i>:<j>` 确认
+- [x] **User**: `bash scripts/canary-global-hook.sh status` — 正常输出
+- [~] 记录 Operational Matrix 到 `docs/architecture/global-hook-runtime.md` — ✅ Row 1/3 + Trust UX Codex/Claude 主体已 confirmed; 🔶 Row 2/4/5 部分仍 manual-only (prompt 文案截图 / Codex auto-reload 时延 / 拒绝路径行为) — 见 docs 中 5 个 Micro-test 建议
+- [ ] **User**: non-opt-in repo manual 测试 — `cd <任一无 .ai/harness/workflow-contract.json 的 repo>`, 触发 PreToolUse (e.g. 编辑文件), 回来 `grep 'repo=<that-repo>' ~/.agentic-dev-canary.log` 应看到新行 (验证 silent-exit-0 不阻止 canary fire)
+- [ ] **User**: `bash scripts/canary-global-hook.sh uninstall` 清理 (Phase 0 完成 — 保留 11 pre-canary shim hash 在 config.toml; 仅删除 canary 的 5 个 hash 与 hooks.json entries)
 
 ### Phase 1 — CLI 实施 (1-2 weeks)
 
