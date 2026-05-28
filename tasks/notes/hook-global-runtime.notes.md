@@ -103,6 +103,16 @@ User 直接 reframe: "当前 Codex 生效的主配置文件是 `/Users/ancienttw
 - 是否在 Phase 1 就支持 `--target both` 一键安装, 或 force user 显式 install 每个 host
 - `agentic-dev migrate <repo>` 的默认行为: 直接删 `.codex/hooks.json` 还是改成 fallback shim?
 
+## Bug Fix — `hook_json_get` false-positive WARN (2026-05-28)
+
+观察症状: Claude Code 每次 UserPromptSubmit 都在 stderr 刷一条 `[HookInput] WARN: JSON parse failed for path: .run_id (neither jq nor bun succeeded)`,被外层标成 "hook error"。
+
+根因: `assets/hooks/hook-input.sh` 和 `.ai/hooks/hook-input.sh` 中的 `hook_json_get` 把"JSON 合法但 key 不存在"与"JSON 不可解析"两种 case 用同一条 WARN 表达,触发条件只是 `parsed` 空 + stdin 非空。Claude UserPromptSubmit 载荷字段是 `session_id`/`transcript_path`/`cwd`/`prompt`/`hook_event_name`,**没有 `.run_id`** (Codex 也是按 fallback 链构造 run_id 而非直接传入),所以 `hook_get_run_id` 第一次试 `.run_id` 就稳定撞 WARN。
+
+修复: 新增 `hook_validate_stdin_json` 在首次调用时缓存一次 stdin JSON 合法性 (jq → bun → unknown),`hook_json_get` 只在 JSON 真正不可解析时才 WARN。
+
+新测试: `tests/hook-input-parse.test.ts` 覆盖 4 个 case × 2 份文件 (assets + 自宿主 `.ai/hooks/`)。
+
 ## Source Pin
 
 - `_ref/codegraph` clone at commit `02935d77` (2026-05-27), upstream `colbymchenry/codegraph`

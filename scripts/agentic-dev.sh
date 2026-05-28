@@ -1,0 +1,377 @@
+#!/usr/bin/env bash
+# scripts/agentic-dev.sh — Bash prototype of the agentic-dev CLI (Phase 0.5).
+#
+# Phase 1 will replace this with a Bun/Node binary. This bash version exists
+# so we can migrate agentic-dev itself off project-level hooks TODAY, before
+# the proper CLI ships. Subcommand names + behavior align with the planned
+# Phase 1 CLI so the port is mechanical.
+#
+# Subcommands:
+#   install [--target codex|claude|both]
+#     Copy hook-shim.sh to ~/.agentic-dev/, register global hook entries
+#     in ~/.codex/hooks.json and/or ~/.claude/settings.json.
+#     Idempotent: re-running cleans prior agentic-dev entries first.
+#
+#   migrate <repo> [--dry-run]
+#     Move <repo>'s project-level .codex/hooks.json + .claude/settings.json
+#     hook segments to global. Backs up project files; deletes .codex/hooks.json;
+#     strips .hooks from .claude/settings.json (preserves other settings).
+#
+#   uninstall [--target codex|claude|both]
+#     Remove agentic-dev hook entries from global configs (keeps shim file
+#     at ~/.agentic-dev/hook-shim.sh for fast re-install).
+#
+#   status
+#     Report install state per host + opt-in marker detection in CWD.
+#
+#   hook <event-script>.sh [args...]
+#     Direct invoke shim (for testing, debugging).
+#
+# Hooks registered (matches agentic-dev's existing .codex/hooks.json):
+#   SessionStart     → session-start-context.sh
+#   PreToolUse       → worktree-guard.sh + pre-edit-guard.sh (matcher: Edit|Write)
+#   PostToolUse      → post-edit-guard.sh + autoresearch-advisory.sh (matcher: Edit|Write)
+#                    → post-bash.sh (matcher: Bash)
+#                    → trace-event.sh (no matcher, all tools)
+#                    → context-pressure-hook.sh (no matcher, all tools)
+#   UserPromptSubmit → prompt-guard.sh + autoresearch-advisory.sh
+#   Stop             → finalize-handoff.sh
+
+set -euo pipefail
+
+AGENTIC_DIR="${HOME}/.agentic-dev"
+SHIM_PATH="${AGENTIC_DIR}/hook-shim.sh"
+SHIM_SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SHIM_SRC="${SHIM_SRC_DIR}/hook-shim.sh"
+CODEX_HOOKS="${HOME}/.codex/hooks.json"
+CLAUDE_SETTINGS="${HOME}/.claude/settings.json"
+
+# Tag-matching substring used to find/remove our entries on re-install / uninstall.
+# Catches both the canary tag ("agentic-dev-canary") and shim path ("/.agentic-dev/").
+CLEANUP_PATTERN="agentic-dev"
+
+require_jq() {
+  command -v jq >/dev/null 2>&1 || {
+    echo "[agentic-dev] ERROR: jq is required (install: brew install jq)" >&2
+    exit 1
+  }
+}
+
+# Print the hooks JSON structure (host-agnostic; same shape for Codex + Claude).
+build_hooks_json() {
+  cat <<EOF
+{
+  "SessionStart": [
+    { "hooks": [{ "type": "command", "command": "bash ${SHIM_PATH} session-start-context.sh" }] }
+  ],
+  "PreToolUse": [
+    { "matcher": "Edit|Write", "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} worktree-guard.sh" },
+        { "type": "command", "command": "bash ${SHIM_PATH} pre-edit-guard.sh" }
+    ]}
+  ],
+  "PostToolUse": [
+    { "matcher": "Edit|Write", "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} post-edit-guard.sh" },
+        { "type": "command", "command": "bash ${SHIM_PATH} autoresearch-advisory.sh" }
+    ]},
+    { "matcher": "Bash", "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} post-bash.sh" }
+    ]},
+    { "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} trace-event.sh" }
+    ]},
+    { "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} context-pressure-hook.sh" }
+    ]}
+  ],
+  "UserPromptSubmit": [
+    { "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} prompt-guard.sh" },
+        { "type": "command", "command": "bash ${SHIM_PATH} autoresearch-advisory.sh" }
+    ]}
+  ],
+  "Stop": [
+    { "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} finalize-handoff.sh" }
+    ]}
+  ]
+}
+EOF
+}
+
+# Clean any tagged entries from target file, then merge in fresh entries.
+merge_hooks_into() {
+  local file=$1
+  local backup="${file}.agentic-dev-pre-install-backup"
+
+  mkdir -p "$(dirname "$file")"
+  [ -f "$file" ] || echo '{}' > "$file"
+  [ -f "$backup" ] || cp "$file" "$backup"
+
+  local new_hooks tmp
+  new_hooks=$(build_hooks_json)
+  tmp=$(mktemp)
+
+  jq --argjson new "$new_hooks" --arg pat "$CLEANUP_PATTERN" '
+    .hooks //= {}
+    # Step 1: strip our prior entries (canary + shim) from each event array
+    | .hooks |= with_entries(
+        .value |= map(
+          .hooks |= map(select((.command // "") | contains($pat) | not))
+        )
+        | .value |= map(select((.hooks // []) | length > 0))
+      )
+    # Step 2: append fresh entries per event
+    | reduce ($new | to_entries[]) as $e (
+        .;
+        .hooks[$e.key] = ((.hooks[$e.key] // []) + $e.value)
+      )
+    # Step 3: drop now-empty event arrays
+    | .hooks |= with_entries(select(.value | length > 0))
+  ' "$file" > "$tmp" && mv "$tmp" "$file"
+
+  echo "[agentic-dev] Merged hook entries → $file"
+  echo "[agentic-dev]   Backup: $backup"
+}
+
+# Strip our tagged entries (no replacement).
+strip_hooks_from() {
+  local file=$1
+  [ -f "$file" ] || { echo "[agentic-dev] $file does not exist, skipping"; return; }
+
+  local tmp
+  tmp=$(mktemp)
+  jq --arg pat "$CLEANUP_PATTERN" '
+    .hooks //= {}
+    | .hooks |= with_entries(
+        .value |= map(
+          .hooks |= map(select((.command // "") | contains($pat) | not))
+        )
+        | .value |= map(select((.hooks // []) | length > 0))
+      )
+    | .hooks |= with_entries(select(.value | length > 0))
+  ' "$file" > "$tmp" && mv "$tmp" "$file"
+  rm -f "$tmp"
+
+  echo "[agentic-dev] Stripped agentic-dev entries from $file"
+}
+
+install_shim() {
+  mkdir -p "$AGENTIC_DIR"
+  if [ ! -f "$SHIM_SRC" ]; then
+    echo "[agentic-dev] ERROR: shim source not found at $SHIM_SRC" >&2
+    exit 1
+  fi
+  install -m 0755 "$SHIM_SRC" "$SHIM_PATH"
+  echo "[agentic-dev] Shim installed: $SHIM_PATH"
+}
+
+cmd_install() {
+  local target="both"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --target) target="$2"; shift 2 ;;
+      *) echo "[agentic-dev] unknown arg: $1" >&2; exit 1 ;;
+    esac
+  done
+
+  require_jq
+  install_shim
+
+  case "$target" in
+    codex|both) merge_hooks_into "$CODEX_HOOKS" ;;
+  esac
+  case "$target" in
+    claude|both) merge_hooks_into "$CLAUDE_SETTINGS" ;;
+  esac
+
+  cat <<EOF
+
+[agentic-dev] Install complete. Next steps:
+  1. Restart Codex (NEW trust prompt — command strings changed from canary; accept it)
+  2. Claude Code auto-reloads via ConfigChange (no action needed for already-running sessions)
+  3. Test in an opt-in repo: triggering an event should run the real .ai/hooks/<name>.sh,
+     not the canary (e.g. .ai/harness/runs/ should accumulate, not ~/.agentic-dev-canary.log)
+  4. Run '$0 status' to inspect
+  5. Run '$0 uninstall' to remove (keeps shim file at $SHIM_PATH)
+
+EOF
+}
+
+cmd_uninstall() {
+  local target="both"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --target) target="$2"; shift 2 ;;
+      *) echo "[agentic-dev] unknown arg: $1" >&2; exit 1 ;;
+    esac
+  done
+
+  require_jq
+  case "$target" in
+    codex|both) strip_hooks_from "$CODEX_HOOKS" ;;
+  esac
+  case "$target" in
+    claude|both) strip_hooks_from "$CLAUDE_SETTINGS" ;;
+  esac
+
+  echo "[agentic-dev] Uninstall complete. Shim preserved at $SHIM_PATH (re-install fast)"
+}
+
+cmd_migrate() {
+  local repo=""
+  local dry_run=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run) dry_run=1; shift ;;
+      --*) echo "[agentic-dev] unknown arg: $1" >&2; exit 1 ;;
+      *) repo="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$repo" ]; then
+    echo "[agentic-dev] usage: $0 migrate <repo-path> [--dry-run]" >&2
+    exit 1
+  fi
+  repo=$(cd "$repo" && pwd)
+  [ -d "$repo/.git" ] || [ -f "$repo/.git" ] || {
+    echo "[agentic-dev] $repo is not a git repo" >&2; exit 1
+  }
+  [ -f "$repo/.ai/harness/workflow-contract.json" ] || {
+    echo "[agentic-dev] $repo is not agentic-dev opt-in (no .ai/harness/workflow-contract.json)" >&2
+    exit 1
+  }
+
+  echo "[agentic-dev] Migrating: $repo (dry-run=$dry_run)"
+
+  local proj_codex="$repo/.codex/hooks.json"
+  local proj_claude="$repo/.claude/settings.json"
+
+  if [ -f "$proj_codex" ]; then
+    if [ "$dry_run" = "1" ]; then
+      echo "  WOULD: backup + remove $proj_codex"
+    else
+      cp "$proj_codex" "${proj_codex}.agentic-dev-migrated-backup"
+      rm "$proj_codex"
+      echo "  REMOVED: $proj_codex (backup: ${proj_codex}.agentic-dev-migrated-backup)"
+    fi
+  else
+    echo "  SKIP: $proj_codex (does not exist)"
+  fi
+
+  if [ -f "$proj_claude" ]; then
+    require_jq
+    if [ "$dry_run" = "1" ]; then
+      echo "  WOULD: strip .hooks from $proj_claude"
+    else
+      cp "$proj_claude" "${proj_claude}.agentic-dev-migrated-backup"
+      local tmp
+      tmp=$(mktemp)
+      jq 'del(.hooks)' "$proj_claude" > "$tmp" && mv "$tmp" "$proj_claude"
+      echo "  STRIPPED .hooks from: $proj_claude (backup: ${proj_claude}.agentic-dev-migrated-backup)"
+    fi
+  else
+    echo "  SKIP: $proj_claude (does not exist; no Claude project-level hooks to migrate)"
+  fi
+
+  cat <<EOF
+
+[agentic-dev] Migration of $repo complete (dry-run=$dry_run).
+Next: ensure '$0 install' has been run (global shim must be active for hooks to fire).
+EOF
+}
+
+cmd_status() {
+  require_jq
+
+  echo "=== agentic-dev CLI status ==="
+  echo "Shim source: $SHIM_SRC"
+  echo "Shim installed: $SHIM_PATH"
+  if [ -f "$SHIM_PATH" ]; then
+    echo "  size: $(stat -f %z "$SHIM_PATH" 2>/dev/null || stat -c %s "$SHIM_PATH")B"
+  else
+    echo "  (not installed — run '$0 install')"
+  fi
+  echo ""
+
+  for pair in "codex:${CODEX_HOOKS}" "claude:${CLAUDE_SETTINGS}"; do
+    local host=${pair%%:*}
+    local file=${pair#*:}
+    echo "Host: ${host}"
+    echo "  File: ${file}"
+    if [ -f "$file" ]; then
+      local count
+      count=$(jq --arg shim "$SHIM_PATH" '
+        [.hooks // {}
+         | to_entries[]
+         | .value[]
+         | .hooks // []
+         | .[]
+         | select((.command // "") | contains($shim))
+        ] | length
+      ' "$file" 2>/dev/null || echo 0)
+      echo "  agentic-dev shim hooks registered: ${count}"
+    else
+      echo "  (file does not exist)"
+    fi
+  done
+  echo ""
+
+  echo "=== Current repo opt-in check ==="
+  local repo
+  if repo=$(git rev-parse --show-toplevel 2>/dev/null); then
+    echo "  Repo: $repo"
+    if [ -f "$repo/.ai/harness/workflow-contract.json" ]; then
+      echo "  Opt-in marker: PRESENT (hooks will fire)"
+    else
+      echo "  Opt-in marker: ABSENT (hooks will exit 0 silently)"
+    fi
+    if [ -f "$repo/.codex/hooks.json" ]; then
+      echo "  WARNING: $repo/.codex/hooks.json still exists (run migrate to clean up)"
+    fi
+  else
+    echo "  (not in a git repo)"
+  fi
+  echo ""
+
+  echo "=== Codex trust state (~/.codex/config.toml) ==="
+  if [ -f "${HOME}/.codex/config.toml" ]; then
+    local pattern="^\\[hooks\\.state\\.\"${HOME}/\\.codex/hooks\\.json"
+    local user_level
+    user_level=$(grep -c "$pattern" "${HOME}/.codex/config.toml" 2>/dev/null || true)
+    user_level=${user_level:-0}
+    echo "  User-level trust hash entries: ${user_level}"
+  fi
+}
+
+cmd_hook() {
+  local hook_name="${1:-}"
+  [ -n "$hook_name" ] || { echo "[agentic-dev] usage: $0 hook <event-script>.sh" >&2; exit 1; }
+  [ -x "$SHIM_PATH" ] || { echo "[agentic-dev] shim not installed; run '$0 install' first" >&2; exit 1; }
+  exec bash "$SHIM_PATH" "$@"
+}
+
+usage() {
+  sed -n '3,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+  case "$cmd" in
+    install)   cmd_install "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    migrate)   cmd_migrate "$@" ;;
+    status)    cmd_status "$@" ;;
+    hook)      cmd_hook "$@" ;;
+    -h|--help|help|"") usage ;;
+    *)
+      echo "[agentic-dev] unknown subcommand: $cmd" >&2
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

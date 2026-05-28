@@ -54,15 +54,19 @@ Build the `agentic-dev` global CLI (类 codegraph install pattern, 但其为 hoo
 ```yaml
 allowed_paths:
   - docs/spec.md
+  - docs/architecture/global-hook-runtime.md
   - plans/
   - tasks/todo.md
   - tasks/contracts/hook-global-runtime.contract.md
   - tasks/reviews/hook-global-runtime.review.md
   - tasks/notes/hook-global-runtime.notes.md
   - .ai/context/capabilities.json
+  - .codex/hooks.json
   - assets/templates/helpers/check-task-workflow.sh
   - scripts/canary-global-hook.sh
   - scripts/check-task-workflow.sh
+  - scripts/agentic-dev.sh
+  - scripts/hook-shim.sh
   - src/
   - tests/
 ```
