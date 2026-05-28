@@ -18,8 +18,9 @@ architecture documentation, drift-request, or diagram pass.
 4. Update the smallest relevant architecture artifact:
    - umbrella status in `docs/architecture/index.md`
    - module or snapshot docs under `docs/architecture/`
-   - diagram artifact under `docs/architecture/diagrams/` when a visual flow materially helps
-5. Use `diagram-design` for generated architecture diagrams; keep generated diagrams grounded in observed repo files.
+   - Mermaid fenced block in the relevant module or snapshot Markdown when a visual flow materially helps
+   - optional human-readable diagram artifact under `docs/architecture/diagrams/`
+5. Use Markdown Mermaid as the semantic diagram source; use `diagram-design` only for human-readable HTML renderings grounded in observed repo files.
 6. Archive handled requests with:
    - `bash scripts/archive-architecture-request.sh --request <request> --status <resolved|superseded|rejected|no-change> --artifact <path> --note <text>`
 7. Verify with:
@@ -31,5 +32,5 @@ architecture documentation, drift-request, or diagram pass.
 - Does not run `scripts/migrate-project-template.sh --apply`.
 - Does not install or refresh the full harness.
 - Does not let hooks rewrite architecture prose; hooks only record drift requests.
-- Does not vendor `diagram-design`; it remains an external installed skill.
+- Does not vendor `diagram-design`; it remains an external installed skill for optional human-readable HTML.
 - Keeps `docs/architecture/requests/` pending-only by archiving handled requests.

@@ -43,6 +43,29 @@ User intent
   -> scripts/check-task-workflow.sh --strict
 ```
 
+## Semantic Diagram
+
+```mermaid
+%% architecture_module: docs/architecture/index.md
+%% human_diagram: docs/architecture/diagrams/agentic-dev-plugin-architecture.html
+%% generated_from: repo evidence + P1/P2/P3
+flowchart LR
+  intent["User / Agent Intent"]
+  public["Public Surface<br/>SKILL.md, README, AGENTS.md, CLAUDE.md"]
+  inspector["Inspector<br/>inspect-project-state.ts"]
+  migration["Migration Engine<br/>migrate-project-template.sh"]
+  assets["Contract Assets<br/>workflow contract, policy, context map, capabilities"]
+  runtime["Target Runtime Harness<br/>.ai/hooks, adapters, tasks, handoff"]
+  verify["Verification<br/>tests, checks, migration dry-run"]
+  compat["Compatibility Boundary<br/>repo-harness name, aliases, cleanup targets"]
+
+  intent --> public --> inspector --> migration
+  migration --> assets --> runtime --> verify
+  verify --> public
+  compat -. constrains .-> public
+  compat -. constrains .-> runtime
+```
+
 The input source of truth is the target repo filesystem. The first contract
 crossing is repo state to structured inspection fields: `mode`,
 `legacy_contract_version`, `drift_signals`, `required_decisions`, and

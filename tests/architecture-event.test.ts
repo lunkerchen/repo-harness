@@ -204,7 +204,8 @@ describe("architecture-event helper", () => {
       expect(agents).toContain("Human-owned note.");
       expect(agents).toContain("Capability ID: `apps-web`");
       expect(agents).toContain("Latest snapshot: `docs/architecture/snapshots/20260527-apps-web.md`");
-      expect(agents).toContain("Latest diagram: `docs/architecture/diagrams/20260527-apps-web.html`");
+      expect(agents).toContain("Semantic diagram source: `docs/architecture/snapshots/20260527-apps-web.md`");
+      expect(agents).toContain("Latest human diagram: `docs/architecture/diagrams/20260527-apps-web.html`");
       expect(agents).toContain("current_slice: Shell reduction");
     } finally {
       rmSync(cwd, { recursive: true, force: true });

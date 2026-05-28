@@ -332,7 +332,8 @@ function renderContractBlock(args: Args): string {
   const workstreamDir = requireOption(args, "workstreamDir");
   const blockSlug = safeToken(functionalBlock);
   const latestSnapshot = findLatestMatchingFile("docs/architecture/snapshots", blockSlug, ".md");
-  const latestDiagram = findLatestMatchingFile("docs/architecture/diagrams", blockSlug, ".html");
+  const latestHumanDiagram = findLatestMatchingFile("docs/architecture/diagrams", blockSlug, ".html");
+  const semanticDiagramSource = latestSnapshot === "(none yet)" ? architectureModule : latestSnapshot;
   const eventTs = args.options.eventTs || "unknown";
   const filePath = args.options.filePath || "unknown";
   const severity = args.options.severity || "unknown";
@@ -362,7 +363,8 @@ function renderContractBlock(args: Args): string {
     `- LSP/tooling profile: \`${lspProfile}\``,
     "- Verification: Use root required checks plus local commands recorded in this capability contract.",
     `- Latest snapshot: \`${latestSnapshot}\``,
-    `- Latest diagram: \`${latestDiagram}\``,
+    `- Semantic diagram source: \`${semanticDiagramSource}\``,
+    `- Latest human diagram: \`${latestHumanDiagram}\``,
     `- Pending architecture request: \`${requestFile}\``,
     "",
     "## Active Workstreams",

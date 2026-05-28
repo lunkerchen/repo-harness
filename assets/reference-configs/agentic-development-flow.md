@@ -13,7 +13,7 @@ root prompt concise; this file owns the detailed routing.
 | Small or medium feature/fix plan | Waza `/think` | Concise approved plan, then implementation on request |
 | Bug, regression, error, crash, failing test | Waza `/hunt` | Root cause sentence with evidence before any fix |
 | Implemented diff, pre-merge, release follow-through | Waza `/check` | Review findings, safe fixes, verification, and shipment state |
-| Architecture diagram or system-flow diagram | `diagram-design` | Mermaid or structured diagram artifact grounded in repo context |
+| Architecture diagram or system-flow diagram | Markdown Mermaid first, `diagram-design` for human HTML | Semantic Mermaid in architecture docs plus optional rendered HTML grounded in repo context |
 
 ## repo-harness Command Surface
 

@@ -418,9 +418,13 @@ if architecture_event sync-contract-files \
 fi
 
 latest_snapshot="$({ find docs/architecture/snapshots -type f -name "*${block_slug}*.md" 2>/dev/null || true; } | sort | tail -1)"
-latest_diagram="$({ find docs/architecture/diagrams -type f -name "*${block_slug}*.html" 2>/dev/null || true; } | sort | tail -1)"
+latest_human_diagram="$({ find docs/architecture/diagrams -type f -name "*${block_slug}*.html" 2>/dev/null || true; } | sort | tail -1)"
 latest_snapshot="${latest_snapshot:-(none yet)}"
-latest_diagram="${latest_diagram:-(none yet)}"
+latest_human_diagram="${latest_human_diagram:-(none yet)}"
+semantic_diagram_source="$architecture_module"
+if [[ "$latest_snapshot" != "(none yet)" ]]; then
+  semantic_diagram_source="$latest_snapshot"
+fi
 active_workstreams="$(format_active_workstreams "$workstream_dir")"
 
 block_tmp="$(mktemp)"
@@ -446,7 +450,8 @@ cat > "$block_tmp" <<EOF_BLOCK
 - LSP/tooling profile: \`${lsp_profile}\`
 - Verification: Use root required checks plus local commands recorded in this capability contract.
 - Latest snapshot: \`${latest_snapshot}\`
-- Latest diagram: \`${latest_diagram}\`
+- Semantic diagram source: \`${semantic_diagram_source}\`
+- Latest human diagram: \`${latest_human_diagram}\`
 - Pending architecture request: \`${request_file:-unknown}\`
 
 ## Active Workstreams

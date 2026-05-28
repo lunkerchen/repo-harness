@@ -580,6 +580,13 @@ describe("Hook runtime behavior", () => {
       const event = readFileSync(join(cwd, ".ai/harness/architecture/events.jsonl"), "utf-8");
       expect(event).toContain('"severity":"high"');
       expect(event).toContain('"spawn_recommended":true');
+      const requestFile = readdirSync(join(cwd, "docs/architecture/requests")).find((name) =>
+        name.endsWith(".md")
+      );
+      expect(requestFile).toBeDefined();
+      const request = readFileSync(join(cwd, "docs/architecture/requests", requestFile || ""), "utf-8");
+      expect(request).toContain("Mermaid fenced block");
+      expect(request).toContain("Markdown semantic source");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

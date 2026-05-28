@@ -75,7 +75,8 @@ bash scripts/migrate-project-template.sh --repo . --dry-run
 - LSP/tooling profile: `typescript-lsp`
 - Verification: Use root required checks plus local commands recorded in this capability contract.
 - Latest snapshot: `(none yet)`
-- Latest diagram: `(none yet)`
+- Semantic diagram source: `docs/architecture/modules/runtime-harness/hook-adapters.md`
+- Latest human diagram: `(none yet)`
 - Pending architecture request: `docs/architecture/requests/20260529-004238-ai-hooks-ai-hooks-lib-workflow-state-sh.md`
 
 ## Active Workstreams

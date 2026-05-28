@@ -351,7 +351,8 @@ if [[ ! -f "$index_file" ]]; then
 ## Current Snapshot
 
 - Latest snapshot: (none yet)
-- Latest diagram: (none yet)
+- Semantic diagram source: ${architecture_module}
+- Latest human diagram: (none yet)
 
 ## Pending Requests
 
@@ -383,7 +384,8 @@ cat > "$request_file" <<EOF_REQUEST
 - If functional block is not \`root\`, read its local \`AGENTS.md\` / \`CLAUDE.md\`.
 - Decide whether this change affects module boundaries, entrypoints, dependency rules, runtime paths, or verification commands.
 - For substantial changes, write a snapshot under \`docs/architecture/snapshots/\`.
-- When a visual explains the boundary better than prose, generate one standalone \`\$diagram-design\` architecture HTML file under \`docs/architecture/diagrams/\`.
+- When a visual explains the boundary better than prose, add or update a Mermaid fenced block in the relevant architecture module or snapshot Markdown first; that Markdown is the semantic source for LLM readers.
+- When a human-readable rendering is useful, generate a matching \`\$diagram-design\` architecture HTML file under \`docs/architecture/diagrams/\` and link it back to the Markdown semantic source.
 - Treat \`diagram-design\` as an external installed skill dependency at \`~/.codex/skills/diagram-design\`; do not copy, vendor, or inline its templates into this repo.
 - If this starts or advances durable execution, run \`scripts/workstream-sync.sh ensure --block "${functional_block}" --request "${request_file}"\`.
 - After the snapshot or diagram is produced, run \`scripts/context-contract-sync.sh sync-latest\` so the local architecture contract block links to the latest artifacts.
