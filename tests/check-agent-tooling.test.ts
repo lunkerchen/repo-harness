@@ -267,6 +267,7 @@ describe("check-agent-tooling", () => {
           ...process.env,
           HOME: envRoot.home,
           PATH: `${envRoot.fakeBin}:${process.env.PATH ?? ""}`,
+          AGENTIC_DEV_CODEGRAPH_ALLOW_REPO_LOCAL: "0",
         },
       });
 
@@ -295,12 +296,13 @@ describe("check-agent-tooling", () => {
       expect(report.tools.gbrain.mcp_hosts.claude.status).toBe("disabled");
       expect(report.tools.gbrain.mcp_hosts.codex.status).toBe("disabled");
       expect(report.tools.gbrain.impact.knowledge_tasks).toBe("manual-only");
-      expect(report.tools.codegraph.status).toBe("present");
+      expect(report.tools.codegraph.status).toBe("partial");
       expect(report.tools.codegraph.primary_host).toBe("codex");
+      expect(report.tools.codegraph.source).toBe("global");
       expect(report.tools.codegraph.version).toBe("0.9.6");
       expect(report.tools.codegraph.mcp_hosts.codex.status).toBe("configured");
       expect(report.tools.codegraph.project_index.status).toBe("up-to-date");
-      expect(report.tools.codegraph.impact.code_navigation).toBe("full");
+      expect(report.tools.codegraph.impact.code_navigation).toBe("missing");
     } finally {
       rmSync(envRoot.root, { recursive: true, force: true });
     }
@@ -375,6 +377,7 @@ describe("check-agent-tooling", () => {
           ...process.env,
           HOME: envRoot.home,
           PATH: `${envRoot.fakeBin}:${process.env.PATH ?? ""}`,
+          AGENTIC_DEV_CODEGRAPH_ALLOW_REPO_LOCAL: "0",
         },
       });
 
@@ -423,12 +426,14 @@ describe("check-agent-tooling", () => {
           ...process.env,
           HOME: envRoot.home,
           PATH: `${envRoot.fakeBin}:${process.env.PATH ?? ""}`,
+          AGENTIC_DEV_CODEGRAPH_ALLOW_REPO_LOCAL: "0",
         },
       });
 
       expect(res.status).toBe(2);
       const report = JSON.parse(res.stdout);
       expect(report.tools.codegraph.status).toBe("partial");
+      expect(report.tools.codegraph.source).toBe("global");
       expect(report.tools.codegraph.mcp_hosts.codex.status).toBe("missing");
       expect(res.stderr).toContain("CodeGraph readiness is partial");
     } finally {
@@ -464,6 +469,7 @@ describe("check-agent-tooling", () => {
           ...process.env,
           HOME: envRoot.home,
           PATH: `${envRoot.fakeBin}:${process.env.PATH ?? ""}`,
+          AGENTIC_DEV_CODEGRAPH_ALLOW_REPO_LOCAL: "0",
         },
       });
 
@@ -519,6 +525,7 @@ describe("check-agent-tooling", () => {
           ...process.env,
           HOME: envRoot.home,
           PATH: `${envRoot.fakeBin}:${process.env.PATH ?? ""}`,
+          AGENTIC_DEV_CODEGRAPH_ALLOW_REPO_LOCAL: "0",
         },
       });
 
@@ -534,6 +541,41 @@ describe("check-agent-tooling", () => {
       expect(codex.stale_shared_rules).toEqual(["durable-context.md"]);
       expect(report.tools.waza.update_status).toBe("update-available");
       expect(report.tools.waza.update_reason).toContain("rules/durable-context.md");
+    } finally {
+      rmSync(envRoot.root, { recursive: true, force: true });
+    }
+  });
+
+  test("prefers a local CodeGraph binary and reports global drift", () => {
+    const envRoot = setupFakeEnvironment("check-agent-tooling-codegraph-local");
+    const localBin = join(envRoot.root, "localbin");
+    try {
+      mkdirSync(localBin, { recursive: true });
+      mkdirSync(join(envRoot.home, ".codex"), { recursive: true });
+      writeFileSync(join(envRoot.home, ".codex", "config.toml"), "[mcp_servers.codegraph]\ncommand = \"codegraph\"\n");
+      writeFakeNpx(envRoot.fakeBin);
+      writeFakeGbrain(envRoot.fakeBin);
+      writeFakeCodeGraph(localBin, { version: "0.9.6" });
+      writeFakeCodeGraph(envRoot.fakeBin, { version: "0.8.0" });
+
+      const res = spawnSync("bash", [SCRIPT, "--json", "--host", "codex"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: envRoot.home,
+          PATH: `${envRoot.fakeBin}:${process.env.PATH ?? ""}`,
+          AGENTIC_DEV_CODEGRAPH_LOCAL_BIN: join(localBin, "codegraph"),
+        },
+      });
+
+      expect(res.status).toBe(0);
+      const report = JSON.parse(res.stdout);
+      expect(report.tools.codegraph.status).toBe("present");
+      expect(report.tools.codegraph.source).toBe("local");
+      expect(report.tools.codegraph.local_version).toBe("0.9.6");
+      expect(report.tools.codegraph.global_version).toBe("0.8.0");
+      expect(report.tools.codegraph.drift).toEqual({ local: "0.9.6", global: "0.8.0", using: "local" });
     } finally {
       rmSync(envRoot.root, { recursive: true, force: true });
     }

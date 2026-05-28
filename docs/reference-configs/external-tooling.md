@@ -118,6 +118,24 @@ agent exploration for indexed TypeScript and other supported languages, but it
 does not replace `.ai/context/capabilities.json`, workflow checks, tests,
 architecture drift events, or shell-script review.
 
+This self-host repo vendors CodeGraph as a dev dependency so `bun install`
+materializes `node_modules/.bin/codegraph` and `scripts/ensure-codegraph.sh`
+can manage the local index. Generated downstream repos keep the global MCP
+installer default unless their local policy explicitly opts into vendoring.
+
+Read-only check:
+
+```bash
+bash scripts/ensure-codegraph.sh --check --json
+```
+
+Local index mutation:
+
+```bash
+bash scripts/ensure-codegraph.sh --init
+bash scripts/ensure-codegraph.sh --sync
+```
+
 Do not ask users to copy MCP TOML by hand. The user-facing path is one terminal
 command, or explicit authorization for their agent to run the same command:
 

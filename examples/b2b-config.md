@@ -14,7 +14,7 @@ Sample output from `/project-init` with Plan C (B2B SaaS):
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Vite 6.x + React 19 + TypeScript |
+| Frontend | Vite 8.x + React 19 + TypeScript |
 | Routing | TanStack Router |
 | Data | TanStack Query + Zustand |
 | UI | shadcn/ui + Tailwind CSS |

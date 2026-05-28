@@ -20,6 +20,7 @@
     "sync:codex-installed": "bash scripts/sync-codex-installed-copies.sh"
   },
   "devDependencies": {
+    "@colbymchenry/codegraph": "^0.9.6",
     "@types/bun": "latest"
   },
   "private": true

@@ -77,7 +77,9 @@ const WAZA_MANAGED_SKILLS = ["check", "design", "health", "hunt", "learn", "read
 const WAZA_SHARED_RULES = ["anti-patterns.md", "chinese.md", "durable-context.md", "english.md"];
 const CODEX_AUTOMATION_SKILLS = ["health", "check", "diagram-design"];
 const CODEGRAPH_PACKAGE = "@colbymchenry/codegraph";
-const CODEGRAPH_INSTALL_COMMAND = `npm install -g ${CODEGRAPH_PACKAGE} && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph install --target codex --location global --yes`;
+const CODEGRAPH_GLOBAL_INSTALL_COMMAND = `npm install -g ${CODEGRAPH_PACKAGE} && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph install --target codex --location global --yes`;
+const CODEGRAPH_LOCAL_INSTALL_COMMAND = "bun install";
+const CODEGRAPH_ENSURE_COMMAND = "bash scripts/ensure-codegraph.sh";
 const WAZA_STAGING_ROOT = path.join(HOME, ".agents");
 const WAZA_STAGING_DIR = path.join(WAZA_STAGING_ROOT, "skills");
 const WAZA_STAGING_RULES_DIR = path.join(WAZA_STAGING_ROOT, "rules");
@@ -112,6 +114,15 @@ function readJson(filePath) {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch (_error) {
     return null;
+  }
+}
+
+function fileIsExecutable(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch (_error) {
+    return false;
   }
 }
 
@@ -980,10 +991,99 @@ function parseCodeGraphProjectStatus(output) {
   return "unavailable";
 }
 
+function resolvePathCommand(command) {
+  const pathValue = process.env.PATH || "";
+  for (const dir of pathValue.split(path.delimiter)) {
+    if (!dir) continue;
+    const candidate = path.join(dir, command);
+    if (fileIsExecutable(candidate)) return candidate;
+  }
+  return null;
+}
+
+function codeGraphPackageDeclared() {
+  const pkg = readJson(path.join(REPO_ROOT, "package.json"));
+  if (!pkg || typeof pkg !== "object") return false;
+  return Boolean(
+    pkg.devDependencies?.[CODEGRAPH_PACKAGE] ||
+      pkg.dependencies?.[CODEGRAPH_PACKAGE] ||
+      pkg.optionalDependencies?.[CODEGRAPH_PACKAGE]
+  );
+}
+
+function resolveCodeGraphBinary() {
+  const allowRepoLocal = process.env.AGENTIC_DEV_CODEGRAPH_ALLOW_REPO_LOCAL !== "0";
+  const allowGlobal = process.env.AGENTIC_DEV_CODEGRAPH_ALLOW_GLOBAL !== "0";
+  const localCandidates = [];
+  const localOverride = process.env.AGENTIC_DEV_CODEGRAPH_LOCAL_BIN;
+  const globalOverride = process.env.AGENTIC_DEV_CODEGRAPH_GLOBAL_BIN;
+
+  if (localOverride) localCandidates.push(localOverride);
+  if (allowRepoLocal) localCandidates.push(path.join(REPO_ROOT, "node_modules", ".bin", "codegraph"));
+
+  let localBinPath = null;
+  for (const candidate of localCandidates) {
+    if (candidate && fileIsExecutable(candidate)) {
+      localBinPath = candidate;
+      break;
+    }
+  }
+
+  let globalBinPath = null;
+  if (allowGlobal) {
+    if (globalOverride && fileIsExecutable(globalOverride)) {
+      globalBinPath = globalOverride;
+    } else if (!globalOverride) {
+      globalBinPath = resolvePathCommand("codegraph");
+    }
+  }
+
+  if (localBinPath) {
+    return {
+      source: "local",
+      bin_path: localBinPath,
+      local_bin_path: localBinPath,
+      global_bin_path: globalBinPath,
+      global_fallback_used: false,
+    };
+  }
+
+  if (globalBinPath) {
+    return {
+      source: "global",
+      bin_path: globalBinPath,
+      local_bin_path: null,
+      global_bin_path: globalBinPath,
+      global_fallback_used: true,
+    };
+  }
+
+  return {
+    source: "missing",
+    bin_path: null,
+    local_bin_path: null,
+    global_bin_path: null,
+    global_fallback_used: false,
+  };
+}
+
+function codeGraphVersion(binPath) {
+  if (!binPath) return null;
+  const result = run(binPath, ["--version"], { timeoutMs: 1000 });
+  return result.ok ? result.stdout.trim() || null : null;
+}
+
 function detectCodeGraph() {
-  const versionResult = run("codegraph", ["--version"], { timeoutMs: 1000 });
-  const cliPresent = versionResult.ok;
-  const version = cliPresent ? versionResult.stdout.trim() || null : null;
+  const resolution = resolveCodeGraphBinary();
+  const cliPresent = Boolean(resolution.bin_path);
+  const version = codeGraphVersion(resolution.bin_path);
+  const globalVersion = resolution.global_bin_path && resolution.global_bin_path !== resolution.bin_path
+    ? codeGraphVersion(resolution.global_bin_path)
+    : resolution.source === "global"
+      ? version
+      : null;
+  const localVersion = resolution.source === "local" ? version : null;
+  const packageDeclared = codeGraphPackageDeclared();
   const mcpHosts = {};
 
   for (const host of SELECTED_HOSTS) {
@@ -995,7 +1095,7 @@ function detectCodeGraph() {
 
   const codexSelected = SELECTED_HOSTS.includes("codex");
   const codexConfigured = !codexSelected || mcpHosts.codex?.status === "configured";
-  const statusResult = cliPresent ? run("codegraph", ["status", "."], { timeoutMs: 1500 }) : null;
+  const statusResult = cliPresent ? run(resolution.bin_path, ["status", "."], { timeoutMs: 1500 }) : null;
   const statusOutput = `${statusResult?.stdout || ""}\n${statusResult?.stderr || ""}`;
   const projectIndexStatus = cliPresent ? parseCodeGraphProjectStatus(statusOutput) : "unavailable";
   const indexInitialized = fs.existsSync(path.join(REPO_ROOT, ".codegraph"))
@@ -1009,9 +1109,10 @@ function detectCodeGraph() {
     : latestVersion && version
       ? (String(latestVersion) === String(version) ? "up-to-date" : "update-available")
       : "unknown";
+  const localDependencyMissing = packageDeclared && resolution.source === "global";
   const status = !cliPresent
     ? "missing"
-    : !codexConfigured || projectIndexStatus === "not-initialized" || projectIndexStatus === "unavailable"
+    : localDependencyMissing || !codexConfigured || projectIndexStatus === "not-initialized" || projectIndexStatus === "unavailable"
       ? "partial"
       : projectIndexStatus === "stale" || projectIndexStatus === "unknown"
         ? "warning"
@@ -1022,6 +1123,8 @@ function detectCodeGraph() {
     status,
     reason: !cliPresent
       ? "CodeGraph CLI is not installed."
+      : localDependencyMissing
+        ? "CodeGraph global fallback is present, but this repo declares a local dev dependency that is not installed."
       : !codexConfigured
         ? "CodeGraph CLI is present, but Codex MCP is not configured."
         : projectIndexStatus === "not-initialized"
@@ -1036,7 +1139,18 @@ function detectCodeGraph() {
     package: CODEGRAPH_PACKAGE,
     primary_host: "codex",
     cli_present: cliPresent,
+    source: resolution.source,
+    bin_path: resolution.bin_path,
+    local_bin_path: resolution.local_bin_path,
+    global_bin_path: resolution.global_bin_path,
+    global_fallback_used: resolution.global_fallback_used,
     version,
+    local_version: localVersion,
+    global_version: globalVersion,
+    dependency_declared: packageDeclared,
+    drift: localVersion && globalVersion && localVersion !== globalVersion
+      ? { local: localVersion, global: globalVersion, using: resolution.source }
+      : null,
     latest_version: latestVersion,
     update_status: updateStatus,
     update_reason: !checkUpdates
@@ -1053,10 +1167,12 @@ function detectCodeGraph() {
       path: path.join(REPO_ROOT, ".codegraph"),
       command: "codegraph status .",
     },
-    install_command: CODEGRAPH_INSTALL_COMMAND,
-    init_command: "codegraph init -i .",
-    sync_command: "codegraph sync .",
-    upgrade_command: `npm install -g ${CODEGRAPH_PACKAGE}@latest && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph sync .`,
+    install_command: packageDeclared ? CODEGRAPH_LOCAL_INSTALL_COMMAND : CODEGRAPH_GLOBAL_INSTALL_COMMAND,
+    ensure_command: packageDeclared ? CODEGRAPH_ENSURE_COMMAND : null,
+    mcp_install_command: CODEGRAPH_GLOBAL_INSTALL_COMMAND,
+    init_command: packageDeclared ? "bash scripts/ensure-codegraph.sh --init" : "codegraph init -i .",
+    sync_command: packageDeclared ? "bash scripts/ensure-codegraph.sh --sync" : "codegraph sync .",
+    upgrade_command: packageDeclared ? "bun update @colbymchenry/codegraph && bash scripts/ensure-codegraph.sh --sync" : `npm install -g ${CODEGRAPH_PACKAGE}@latest && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph sync .`,
     uninstall_command: "codegraph uninstall --target codex --location global --yes",
     readiness: {
       required_for: "codex-agent-code-navigation",
@@ -1185,7 +1301,10 @@ function printText(result) {
 
   const codegraph = result.tools.codegraph;
   console.log(`CodeGraph [${codegraph.status}]`);
-  console.log(`  - CLI: ${codegraph.cli_present ? `present${codegraph.version ? ` (v${codegraph.version})` : ""}` : "missing"}`);
+  console.log(`  - CLI: ${codegraph.cli_present ? `present${codegraph.version ? ` (v${codegraph.version})` : ""} via ${codegraph.source}` : "missing"}`);
+  if (codegraph.drift) {
+    console.log(`  - Drift: local=${codegraph.drift.local}, global=${codegraph.drift.global}, using=${codegraph.drift.using}`);
+  }
   for (const host of SELECTED_HOSTS) {
     const entry = codegraph.mcp_hosts[host];
     console.log(`  - ${entry.label} MCP: ${entry.status}`);
@@ -1193,7 +1312,10 @@ function printText(result) {
   console.log(`  - Project index: ${codegraph.project_index.status}`);
   console.log(`  - Updates: ${codegraph.update_status} (${codegraph.update_reason})`);
   console.log(`  - Impact: code-navigation=${codegraph.impact.code_navigation}, hooks=${codegraph.impact.hook_correctness}`);
-  console.log(`  - Install: ${codegraph.install_command}`);
+  console.log(`  - Install deps: ${codegraph.install_command}`);
+  if (codegraph.ensure_command) {
+    console.log(`  - Ensure: ${codegraph.ensure_command}`);
+  }
   console.log(`  - Init index: ${codegraph.init_command}`);
   console.log(`  - Sync index: ${codegraph.sync_command}`);
 }

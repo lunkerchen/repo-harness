@@ -63,6 +63,7 @@ allowed_paths:
   # Package and CLI surface
   - package.json
   - bun.lock
+  - bunfig.toml
   - tsconfig.json
   - scripts/ensure-codegraph.sh
   - scripts/check-agent-tooling.sh
@@ -89,8 +90,11 @@ allowed_paths:
 
   # Docs / architecture / root agent guidance
   - docs/architecture/index.md
+  - docs/architecture/domains/verification.md
+  - docs/architecture/modules/public-surface/root-router.md
   - docs/architecture/modules/verification/codegraph-readiness.md
   - docs/reference-configs/external-tooling.md
+  - assets/reference-configs/external-tooling.md
   - .ai/context/capabilities.json
   - CLAUDE.md
   - AGENTS.md

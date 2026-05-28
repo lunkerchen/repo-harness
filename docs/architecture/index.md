@@ -22,13 +22,13 @@ Authoritative surfaces:
 - Engine: `scripts/inspect-project-state.ts`, `scripts/migrate-project-template.sh`, `scripts/migrate-workflow-docs.ts`, `scripts/create-project-dirs.sh`, `scripts/lib/project-init-lib.sh`.
 - Contract assets: `assets/workflow-contract.v1.json`, `.ai/harness/workflow-contract.json`, `.ai/harness/policy.json`, `.ai/context/context-map.json`, `.ai/context/capabilities.json`.
 - Runtime harness: `assets/hooks/`, `.ai/hooks/`, `.claude/settings.json`, and ignored `.ai/harness/*` runtime state.
-- Verification: `tests/`, `evals/`, `scripts/check-task-workflow.sh`, `scripts/check-task-sync.sh`, `scripts/check-agent-tooling.sh`, `scripts/check-brain-manifest.sh`, `scripts/sync-brain-docs.sh`.
+- Verification: `tests/`, `evals/`, `scripts/check-task-workflow.sh`, `scripts/check-task-sync.sh`, `scripts/check-agent-tooling.sh`, `scripts/ensure-codegraph.sh`, `scripts/check-brain-manifest.sh`, `scripts/sync-brain-docs.sh`.
 
 Out of scope:
 
 - Product application scaffolds after their first generated skeleton.
 - `_ref/` external reference checkouts and `_ops/` private operations state.
-- Installing, upgrading, or enabling external tools such as Waza, gstack, gbrain, CodeGraph, or MCP servers.
+- Installing, upgrading, or enabling external host tools such as Waza, gstack, gbrain, or MCP servers. This self-host repo may vendor CodeGraph as a dev dependency, but generated downstream repos keep CodeGraph host setup explicit unless local policy opts in.
 - Vendoring external skill bodies such as `diagram-design`.
 
 ## Umbrella Hierarchy

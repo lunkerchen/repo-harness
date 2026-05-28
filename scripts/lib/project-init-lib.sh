@@ -799,7 +799,7 @@ pi_external_tooling_defaults_summary() {
 - Waza: Codex-first, managed skills check/design/health/hunt/learn/read/think/write, stage upstream in ~/.agents/skills, sync verified copies into ~/.codex/skills
 - Codex automation profile: required health/check/diagram-design from ~/.codex/skills; do not vendor skill bodies
 - gbrain MCP: candidate-disabled
-- CodeGraph: required Codex agent readiness tool, global Codex MCP install by explicit user command or authorized agent action, per-repo ignored .codegraph/ index, never a package dependency
+- CodeGraph: required Codex agent readiness tool, global Codex MCP install by explicit user command or authorized agent action, per-repo ignored .codegraph/ index; generated repos do not add it as a package dependency unless local policy opts in
 - Auto-actions: never install, upgrade, serve, sync, or enable MCP automatically
 EOF_EXTERNAL_TOOLING_DEFAULTS
 }

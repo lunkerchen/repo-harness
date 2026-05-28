@@ -170,6 +170,24 @@
 - `bun test tests/helper-scripts.test.ts tests/scaffold-parity.test.ts tests/output-parity.test.ts tests/agents-assembly.test.ts`
 - First targeted run exposed an AGENTS line-budget regression at 263/260 lines; partial wording was compressed and the second targeted run passed 68 tests.
 
+## 2026-05-28 CodeGraph Readiness Slice Notes
+
+### What Changed
+- `agentic-dev` now declares `@colbymchenry/codegraph` as a self-host `devDependency`; `bun install` materializes `node_modules/.bin/codegraph`.
+- `scripts/check-agent-tooling.sh` resolves CodeGraph local-first, then global fallback, and reports `source`, local/global bin paths, version drift, and fallback use.
+- `scripts/ensure-codegraph.sh --check --json` is a read-only wrapper around the existing tooling detector. Mutating `--init` and `--sync` paths remain explicit and do not write MCP config.
+- Generated downstream policy remains global-MCP-first with `vendoring_policy: do-not-add-package-dependency`; the self-host exception lives in `.ai/harness/policy.json` and docs.
+
+### Why
+- The implementation preserves the split between host adapter installation and tool readiness. `install --target` stays host-only; CodeGraph readiness is a tool lifecycle concern.
+- The existing tooling detector already carried MCP/index/readiness semantics, so the first slice changed that detector instead of creating a second readiness truth.
+
+### Verification
+- `bun test tests/check-agent-tooling.test.ts tests/cli/codegraph-resolver.test.ts`
+- `bash scripts/ensure-codegraph.sh --check --json`
+- `bash scripts/check-agent-tooling.sh --host codex --strict-readiness --json`
+- `bunfig.toml` now sets `[test].root = "tests"` because Bun 1.3.10 still discovered `_ref/codegraph/__tests__` despite `pathIgnorePatterns`; repo-owned verification must not be poisoned by ignored reference checkouts.
+
 ## 2026-05-28 Active Plan Marker Migration Notes
 
 ### What Changed
