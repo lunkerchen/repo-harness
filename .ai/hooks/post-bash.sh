@@ -28,8 +28,14 @@ if [[ "$EXIT_CODE" != "0" ]]; then
 fi
 
 checks_file="$(workflow_checks_file)"
-mkdir -p "$(dirname "$checks_file")"
-cat > "$checks_file" <<EOF_CHECKS
+post_bash_checks_file="$(dirname "$checks_file")/post-bash-latest.json"
+target_checks_file="$checks_file"
+if [[ -f "$checks_file" ]] && grep -Eq '"source"[[:space:]]*:[[:space:]]*"verify-sprint"' "$checks_file"; then
+  target_checks_file="$post_bash_checks_file"
+fi
+
+mkdir -p "$(dirname "$target_checks_file")"
+cat > "$target_checks_file" <<EOF_CHECKS
 {
   "source": "post-bash",
   "command": "$(printf '%s' "$COMMAND_TEXT" | sed 's/"/\\"/g')",
@@ -39,4 +45,8 @@ cat > "$checks_file" <<EOF_CHECKS
 }
 EOF_CHECKS
 
-echo "[ChecksFile] Updated ${checks_file}."
+if [[ "$target_checks_file" != "$checks_file" ]]; then
+  echo "[ChecksFile] Preserved ${checks_file}; updated ${target_checks_file}."
+else
+  echo "[ChecksFile] Updated ${checks_file}."
+fi
