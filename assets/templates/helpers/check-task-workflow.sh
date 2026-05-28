@@ -391,7 +391,7 @@ else
     contract_file="$(derive_contract_path "$active_plan")"
     if [[ ! -f "$contract_file" ]]; then
       report_issue "Active $plan_status plan is missing its task contract: $contract_file"
-    elif ! grep -Eq '^\> \*\*Capability ID\*\*: .+' "$contract_file"; then
+    elif ! grep -Eq '^> \*\*Capability ID\*\*: .+' "$contract_file"; then
       report_issue "Active task contract is missing a capability binding: $contract_file"
     fi
   fi

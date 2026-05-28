@@ -1,99 +1,135 @@
 # Task Execution Checklist (Primary)
 
-> **Source Plan**: (none)
-> **Status**: Idle
-> Generate the next execution checklist from an approved plan with:
->   bash scripts/plan-to-todo.sh --plan plans/plan-YYYYMMDD-HHMM-slug.md
+> **Source Plan**: plans/plan-20260528-1436-hook-global-runtime.md
+> **Status**: Executing
+> **Generated**: 2026-05-28 14:58 (expanded from plan phases 2026-05-28 15:0X)
+> **Source Plan Slug**: hook-global-runtime
+> **Review File**: tasks/reviews/hook-global-runtime.review.md
+> **Notes File**: tasks/notes/hook-global-runtime.notes.md
+> **Capability ID**: root
+> **Parent Run ID**: run-20260528-1458
+> **Supersedes**: (none)
 
 ## Execution
-- [x] Added selector-hooked functional-block context selection for paired `CLAUDE.md` and `AGENTS.md`
-- [x] Removed implicit `apps/*`, `packages/*`, and `services/*` agent-context generation
-- [x] Added `minimal-agentic` documentation profile with explicit full-doc opt-in
-- [x] Added lightweight `lsp_profiles` metadata for selected functional blocks
-- [x] Added conflict-triggered Codex worktree policy with Waza `/check` validation and merge-back requirements
-- [x] Run workflow and regression checks for scaffold, migration, self-host parity, and Waza-style review
-- [x] Added umbrella architecture drift requests and controlled local agent context contract sync hooks
-- [x] Added explicit `.ai/context/capabilities.json` capability registry and longest-prefix resolver
-- [x] Bound architecture drift, context contract sync, and workstream sync to capability IDs
-- [x] Removed standalone `.ai/harness/workstreams/events.jsonl` in favor of `.ai/harness/events.jsonl`
-- [x] Added capability registry validation to strict workflow checks
-- [x] Renamed default runtime interface scaffold from `contracts/` to `interfaces/`
-- [x] Deprecated default root `specs/` scaffold in favor of `docs/spec.md`, `interfaces/`, and tests
-- [x] Deprecated `docs/PROGRESS.md` as a generated or required workflow surface; keep it as legacy migration input only
-- [x] Clarified `tasks/notes/` as task-local decision notes in root `AGENTS.md` / `CLAUDE.md` and template partials
-- [x] Updated `_ref/` and `_ops/` initialization, policy, gitignore, and hook guard rules
-- [x] Added the `project-initializer` architecture diagram and linked it from the architecture index
-- [x] Added contract-level worktree lifecycle start/finish automation with sprint verification and clean fast-forward merge gate
-- [x] Rebased contract worktree lifecycle onto 4.0.0 and preserved worktrees placeholder/runtime-state checks
-- [x] Added manifest-driven upgrade/reconfigure/cleanup strategy for legacy workflow versions
-- [x] Extended inspector output with concrete upgrade plans and stale managed-config detection
-- [x] Replaced migration cleanup heredoc with workflow-contract-owned `known_generated` removals
-- [x] Added global Claude/Codex working-rules reference config and synced user-level global files
-- [x] Bumped release metadata to 4.0.1 for package, skill-version manifest, README, and changelog
-- [x] Bumped release metadata to 4.0.2 and installed router entrypoint helpers into generated repos
-- [x] Fixed repeated migration apply idempotency for generated policy, Claude settings, and version stamp files
-- [x] Removed stale 3.1 wording from migration dry-run output
-- [x] Split deployable operations assets into tracked `deploy/` and ignored private `_ops/`
-- [x] Added tracked `deploy/sql/` with ordered SQL filename validation
-- [x] Added architecture drift request archive helper and pending-index cleanup rule
-- [x] Externalized optional reference-config long docs to `icloud/brain/agentic-dev/*` and kept repo stubs for contract-safe discovery
-- [x] Added `.ai/harness/brain-manifest.json` and `scripts/check-brain-manifest.sh` to guard default brain pointer drift
-- [x] Renamed the skill/package/repo display surface to `agentic-dev` while preserving `agentic-dev-skill` and `project-initializer` as legacy aliases, install paths, and generated stamp compatibility surfaces
-- [x] Added `AGENTIC_DEV_ROOT` and `agentic-dev` installed-path resolution while preserving `AGENTIC_DEV_SKILL_ROOT`, `PROJECT_INITIALIZER_ROOT`, and legacy path fallbacks
-- [x] Synced real Codex installed copies for `agentic-dev`, `agentic-dev-skill`, and legacy `project-initializer`, with Claude new-name aliases pointing at the source repo
-- [x] Added `agentic-dev-skill` and `project-initializer` to `SKILL.md` `when_to_use` metadata as legacy triggers during the rename window
-- [x] Fixed Codex duplicate command discovery by making legacy Codex directories runtime fallback bundles without `SKILL.md` or `assets/skill-commands/`
-- [x] Kept the earlier Claude skill paths functional during the rename window with `agentic-dev` and `project-initializer` aliases
-- [x] Updated README usage instructions for GitHub install, existing-repo apply, command-skill routing, and installed-copy path boundaries
-- [x] Clarified `_ref/` as an occasional ignored reference checkout cache and required repo+commit/tag+path citations when it informs notes or research
-- [x] Added action-style `agentic-dev-*` command skill facades and tests while keeping hook/docs setup as internal engine steps
-- [x] Added advisory reusable-workflow packaging route hints that suggest `agentic-dev-autoplan` only after user authorization
-- [x] Added `agentic-dev-capability` for selected capability boundaries without a full init/migrate/upgrade pass
-- [x] Added `agentic-dev-architecture`, `agentic-dev-handoff`, and `agentic-dev-deploy` as focused command facades
-- [x] Migrated the git-backed source repo to `/Users/chris/Projects/agentic-dev` as the only editable source of truth and rebuilt Claude/Codex runtime paths as source-backed aliases
-- [x] Fixed Codex installed-copy sync for symlinked legacy `project-initializer` fallback paths
-- [x] Bumped release metadata to 5.0.1 for package, skill-version manifest, README, stamp, and changelog
-- [x] Bumped release metadata to 5.0.2 after excluding ignored runtime state from installed-copy sync outputs
-- [x] Made subagent/parallel research delegation a main-agent context-impact decision with a main-thread fallback path
-- [x] Hardened Waza tooling checks to compare whole skill directories and shared `rules/` files, not only `SKILL.md`
-- [x] Added filesystem-owned Evidence Contract fields and guards for approved plan execution
-- [x] Bumped release metadata to 5.1.0 for package, skill manifest, README, stamp, and changelog
-- [x] Refreshed stale `references/` docs for the current `agentic-dev` hook, migration, eval, plugin, and minimal-doc contracts
-- [x] Verified reference drift scan and repo workflow checks for the doc refresh
-- [x] Removed empty optional doc placeholders and refreshed command inventory docs for the current 13-command surface
-- [x] Bumped release metadata to 5.1.1 for package, skill manifest, README, stamp, and changelog
-- [x] Added generated Codex hook adapter support through `.codex/hooks.json` while keeping `.ai/hooks/` as the shared implementation layer
-- [x] Added Codex Settings trust reminder after hook adapter configuration
-- [x] Fixed installed-copy sync so Claude skill aliases are refreshed with Codex runtime aliases
-- [x] Bumped release metadata to 5.1.2 for the Codex hook adapter release
-- [x] Added CodeGraph advisory install guidance and a Bun `architecture-event.ts` helper to reduce shell JSON/path glue in architecture drift and context contract sync
-- [x] Scoped Bun test discovery away from ignored advisory/runtime caches such as `_ref/` and `.codegraph/`
-- [x] Moved context contract block rendering and replacement into `architecture-event.ts` while keeping shell fallbacks
-- [x] Promoted CodeGraph from advisory setup guidance to required Codex agent readiness while keeping hooks non-blocking and `.codegraph/` ignored
-- [x] Added passive Codex Plan / Waza think capture through `scripts/capture-plan.sh` and wired it into routing docs, policy, manifests, and tests
-- [x] Added opt-in default-brain document sync through `scripts/sync-brain-docs.sh`, manifest `repo-to-brain` entries, and PostEdit hook integration
-- [x] Bumped release metadata to 5.2.0 for package, skill manifest, README, stamp, and changelog
-- [x] Fixed `GO` approval prompts bypassing the plan gate after Waza `/think` or Codex Plan output
-- [x] Corrected exact approval prompts so Waza `/think` After Approval can run `capture-plan.sh --status Approved --execute` before implementation gates enforce active task artifacts
-- [x] Added a plan-start bridge so explicit Waza `/think` / Codex Plan prompts create a Draft `plans/` artifact before approval
-- [x] Extended anchored approval intent variants so natural approval phrasing reaches plan capture/projection without broadening bug-fix implementation wording
-- [x] Bumped release metadata to 5.2.3 for the approval intent variant fix
-- [x] Stripped injected skill/context blocks before prompt intent classification so expanded Waza skill bodies cannot mask `$think` plan-start intent
-- [x] Allowed explicit `$think` / plan-start prompts to create an independent Draft plan even when an older Draft plan exists
-- [x] Captured `PLEASE IMPLEMENT THIS PLAN:` prompts as Approved plans and projected them through `plan-to-todo.sh` before implementation gates continue
-- [x] Captured pure plan-shaped Markdown prompts as Approved plans while leaving trigger-question examples read-only
-- [x] Fixed hook dispatcher cwd handling so repo-relative plan capture runs inside `HOOK_REPO_ROOT`
-- [x] Routed plain new-feature prompts to Draft `plans/` creation without projecting `tasks/todo.md`
-- [x] Added root `CLAUDE.md` / `AGENTS.md` generation for init/migrate paths even when no functional blocks are selected
-- [x] Kept functional-block context generation explicit while pruning `_ref/`, `_ops/`, and `.worktrees/` from legacy context discovery
-- [x] Added context-file scan regression coverage so ignored external references cannot poison prompt safety checks
-- [x] Applied autoresearch-style workflow inventory to `plans/plan-*.md` and `tasks/contracts/*.contract.md` generation
-- [x] Preserved approval, review, and worktree gates while replacing latest-plan-first wording with explicit active-marker semantics
-- [x] Verified plan/contract inventory generation with helper, scaffold, assembly, and output parity tests
-- [x] Migrated active-plan marker authority to `.ai/harness/active-plan` with `.claude/.active-plan` legacy fallback
-- [x] Updated active-plan readers, writers, switch, archive, handoff, policy, migration, and generated helper mirrors
-- [x] Added compatibility coverage for legacy marker reads, host-neutral marker reads, dual-write capture, and concurrent plan switch
-- [x] Ran autoresearch for hook workflow routing and promoted the winning `SKILL.md` hook protocol mutation
-- [x] Implemented `autoresearch-advisory.sh` as a long-running hook workflow guard for prompt and post-edit optimization intent
-- [x] Moved local autoresearch run products under ignored `autoresearch/` and preserved advisory hook session readback
-- [x] Kept `autoresearch-advisory.sh` self-host-only by removing it from default hook assets and generated adapter templates
+
+### Phase 0 — Operational Smoke (0.5-1 day, asymmetric scope per notes 第二轮)
+
+- [x] Write `scripts/canary-global-hook.sh` (install / uninstall / status / tail)
+- [ ] **User**: `bash scripts/canary-global-hook.sh install` (写到 ~/.codex/hooks.json + ~/.claude/settings.json)
+- [ ] **User**: 重启 Codex; 观察 trust prompt UX (是否弹? 接受是什么形态?)
+- [ ] **User**: 重启 Claude Code 或等 ConfigChange auto-reload; 验证 hook 注册成功 (e.g. `/hooks` 命令)
+- [ ] **User**: 触发事件 (SessionStart 通过重启; PreToolUse/PostToolUse 通过编辑文件; UserPromptSubmit 通过发 prompt; Stop 通过结束会话; Bash 通过运行命令) — 至少在 2-3 个项目分别测一次
+- [ ] **User**: `bash scripts/canary-global-hook.sh tail` 看 canary 日志条目, 确认两 host 都 fire
+- [ ] **User**: `grep "/Users/ancienttwo/.codex/hooks.json" ~/.codex/config.toml` 看是否新增 `[hooks.state]` user-level 条目 (确认 trust hash 注册)
+- [ ] **User**: `bash scripts/canary-global-hook.sh status` 确认状态汇总
+- [ ] 记录所有观察到 `docs/architecture/global-hook-runtime.md` 第一节 Host Operational Matrix (Codex 列 + Claude 列, 行: 加载 / trust prompt / hash 注册 / auto-reload / 拒绝 trust 行为)
+- [ ] **User**: `bash scripts/canary-global-hook.sh uninstall` 清理 (Phase 0 完成)
+
+### Phase 1 — CLI 实施 (1-2 weeks)
+
+#### 1A — Scaffold + Types
+- [ ] `package.json` 加 bin 字段 + bin entry 路径
+- [ ] `src/cli/index.ts` — commander.js 入口, 注册 5 子命令 stubs
+- [ ] `src/cli/installer/types.ts` — `Target` / `Location = 'global'|'local'` / `WriteResult { files[], action: created|updated|unchanged|removed }` (参考 `_ref/codegraph/src/installer/targets/types.ts:15,51-62`)
+- [ ] `src/cli/installer/targets/registry.ts` — extensible registry (参考 `_ref/codegraph/src/installer/targets/registry.ts:20-29`)
+- [ ] `src/cli/installer/targets/codex.ts` — `supportsLocation = loc === 'global'` (参考 `_ref/codegraph/src/installer/targets/codex.ts:57-59`)
+- [ ] `src/cli/installer/targets/claude.ts` — `supportsLocation = both`
+- [ ] `tests/cli/registry.test.ts` — registry plug-in / lookup
+
+#### 1B — install / hook 核心
+- [ ] `src/cli/commands/install.ts` — `--target codex|claude|both --location global` 写 host 各自 global config; WriteResult 输出; 幂等
+- [ ] `src/cli/commands/hook.ts` — `agentic-dev hook <event> [args...]`: 解析 repo root → 检测 opt-in (`.ai/harness/workflow-contract.json`) → 找 `<repo>/.ai/hooks/<mapped>.sh` → exec; non-opt-in 静默 exit 0
+- [ ] `tests/cli/install.test.ts` — 幂等性 + WriteResult action 正确性 + Codex `--location local` 报错
+- [ ] `tests/cli/hook.test.ts` — opt-in detect + non-opt-in exit 0 + 不存在的 hook 报错
+
+#### 1C — status / doctor / migrate
+- [ ] `src/cli/commands/status.ts` — CLI version + 两 host install 状态 + 当前 repo opt-in 状态 + hook 覆盖率
+- [ ] `src/cli/commands/doctor.ts` — PATH 检测 + CLI version + global adapter 完整性 + trust state (grep `~/.codex/config.toml [hooks.state]`) + fallback paths
+- [ ] `src/cli/commands/migrate.ts` — 把旧项目级 `.codex/hooks.json` / `.claude/settings.json` hook 段改为 fallback shim 或删除 (`--dry-run` 默认)
+
+#### 1D — Contract / Template 更新
+- [ ] `assets/workflow-contract.v1.json` 加 `hookRuntime: { mode: "global-cli", minCliVersion: "x.y.z" }` 字段 (contract version bump)
+- [ ] `.ai/harness/workflow-contract.json` 同步上述 schema (自迁移验证)
+- [ ] `scripts/migrate-project-template.sh` — 新项目不再写项目级 `.codex/hooks.json` / `.claude/settings.json` hook 段
+- [ ] `scripts/lib/project-init-lib.sh` — 同上
+- [ ] `.ai/harness/policy.json` — 加 hookRuntime policy 字段
+- [ ] `scripts/check-agent-tooling.sh` — 加 `agentic-dev --version` 检测 + global hook installed 检测
+- [ ] `CLAUDE.md` Operating Rules — 加一行 hook runtime 现在是 global CLI
+- [ ] `AGENTS.md` 同步
+
+#### 1E — Docs
+- [ ] `docs/architecture/global-hook-runtime.md` — 完整版: Host Operational Matrix (Phase 0 输出填入) + Trust UX 章节 + Migration Guide + Failure mode 章节
+- [ ] `docs/reference-configs/external-tooling.md` — 加 `agentic-dev` 安装步骤 + Codex/Claude host 配置说明
+
+#### 1F — Distribution (抄 codegraph 模式)
+- [ ] `package.json` 加 build 脚本 (pkg 打包 Node 为多 arch binary: darwin/arm64 + darwin/x64 + linux/x64 + linux/arm64)
+- [ ] `.github/workflows/release.yml` (或扩展现有) — 自动构建 + 发 GitHub Releases
+- [ ] `install.sh` — curl-bash installer (参考 `_ref/codegraph/install.sh`)
+- [ ] `install.ps1` — PowerShell installer (参考 `_ref/codegraph/install.ps1`)
+- [ ] (可选 Phase 1 后期) Homebrew tap
+
+#### 1G — Self-Migration + 验证
+- [ ] 自迁移 agentic-dev 自身: 跑 `agentic-dev install --target both`, 验证现有 hook 行为 (PreToolUse/PostToolUse/SessionStart/UserPromptSubmit/Stop) 仍触发, `.ai/harness/*` 仍正常写入
+- [ ] 跨项目验证: 在 1-2 个真实 opt-in repo (例如 Astrozi) 跑 install, 测 hook 行为
+- [ ] 非 opt-in repo (任一无 `.ai/harness/workflow-contract.json` 的 repo) 跑 hook 触发, 应静默
+- [ ] `bun test` 全部 pass
+- [ ] `bash scripts/check-task-sync.sh` pass
+- [ ] `bash scripts/check-task-workflow.sh --strict` pass
+- [ ] `bun scripts/inspect-project-state.ts --repo . --format text` pass
+- [ ] `bash scripts/migrate-project-template.sh --repo . --dry-run` pass
+- [ ] `bash scripts/check-agent-tooling.sh --host both` pass
+
+#### 1H — Closeout
+- [ ] `tasks/reviews/hook-global-runtime.review.md` — evaluator 填 pass
+- [ ] `scripts/verify-sprint.sh` — 跑通
+- [ ] `bash scripts/contract-worktree.sh finish --merge` — 合回 main
+
+### Phase 2+ (Future Direction — OUT OF SCOPE)
+
+- (后续 plan) Approach B: sealed hooks (`.ai/hooks/*` + `lib/workflow-state.sh` 下沉到 CLI bundle)
+- (后续 plan) Cross-repo task aggregation (`agentic-dev status --all`)
+- (后续 plan) MCP server 暴露 workflow state
+- (后续 plan) 加 cursor/opencode/gemini 等 target
+- (后续 plan) Bun → Rust/Go 语言迁移 (视分发需求)
+
+## Verification (machine + manual, 抄自 plan)
+
+```bash
+# === Phase 0 — Operational Smoke ===
+bash scripts/canary-global-hook.sh install
+# 重启 Codex / Claude, 触发各事件, 观察日志 + trust 行为
+bash scripts/canary-global-hook.sh tail
+bash scripts/canary-global-hook.sh status
+grep "/Users/ancienttwo/.codex/hooks.json" ~/.codex/config.toml   # 看 user-level trust hash
+bash scripts/canary-global-hook.sh uninstall
+
+# === Phase 1 — CLI ===
+agentic-dev --version
+agentic-dev install --target codex --location global
+agentic-dev install --target codex --location local   # 应报错 (Codex 仅 global)
+agentic-dev install --target claude --location global
+agentic-dev install --target both --location global   # 一键安装
+agentic-dev install --target both --location global   # 第二次应输出 action=unchanged (幂等)
+agentic-dev status
+agentic-dev doctor
+cd /Users/ancienttwo/Projects/agentic-dev
+agentic-dev hook PreToolUse Edit   # 应调用 .ai/hooks/pre-edit-guard.sh
+cd <some-non-opt-in-repo>
+agentic-dev hook PreToolUse Edit   # 应静默 exit 0
+agentic-dev migrate /path/to/some/old-repo --dry-run
+bun test
+bash scripts/check-task-sync.sh
+bash scripts/check-task-workflow.sh --strict
+bun scripts/inspect-project-state.ts --repo . --format text
+bash scripts/migrate-project-template.sh --repo . --dry-run
+bash scripts/check-agent-tooling.sh --host both
+
+# === E2E — 新项目零 hook 配置面 ===
+mkdir /tmp/test-new-project && cd /tmp/test-new-project
+git init
+bash <path-to>/agentic-dev/scripts/migrate-project-template.sh --repo .
+test ! -f .codex/hooks.json
+test ! -f .claude/settings.json
+test -f .ai/harness/workflow-contract.json
+# 触发 Edit, 验证 global hook 仍调用 .ai/hooks/post-edit-guard.sh
+```
