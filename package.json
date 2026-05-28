@@ -7,6 +7,9 @@
     "url": "https://github.com/Ancienttwo/agentic-dev.git"
   },
   "type": "module",
+  "bin": {
+    "agentic-dev": "src/cli/index.ts"
+  },
   "scripts": {
     "benchmark:skills": "bun scripts/run-skill-evals.ts",
     "test": "bun test",
@@ -23,5 +26,8 @@
     "@colbymchenry/codegraph": "^0.9.6",
     "@types/bun": "latest"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "commander": "^14.0.3"
+  }
 }

@@ -54,4 +54,4 @@ The initial captured plan picked the right product shape, but it missed three ex
 
 ## Remaining Gap
 
-- The full `agentic-dev tools ensure codegraph` and `agentic-dev doctor` command registration is intentionally deferred until hook-global runtime Phase 1A provides the shared CLI scaffold.
+- The shared CLI scaffold is now available on `main` after merging hook-global-runtime Phase 1A-1C. The remaining gap is wiring `checkCodegraph()` and `ensureCodegraph()` into the merged command surface without regressing the host-adapter-only `install --target` boundary.

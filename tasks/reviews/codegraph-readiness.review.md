@@ -19,7 +19,7 @@
 
 - Review findings were written into the plan, contract, and notes.
 - Dependency + detector slice implemented on 2026-05-28.
-- Full contract remains open until `agentic-dev tools ensure codegraph` and `agentic-dev doctor` are registered after the hook-global runtime CLI scaffold lands.
+- Full contract remains open until `agentic-dev tools ensure codegraph` and `agentic-dev doctor` are registered on the merged hook-global-runtime CLI surface and the review can change to `Recommendation: pass`.
 
 ## Current Blocking Findings
 
@@ -42,8 +42,8 @@
 | Plan clarity | 8/10 | Scope now names contract, generated policy, and existing detector reuse. |
 | Boundary control | 8/10 | Host install and tool readiness are kept separate. |
 | Test readiness | 8/10 | Detector and read-only ensure tests exist; full CLI tests remain pending. |
-| Execution readiness | 7/10 | Dependency + detector slice is implemented; command registration waits for the CLI scaffold. |
+| Execution readiness | 7/10 | Dependency + detector slice is implemented; command registration still needs to land on the merged CLI surface. |
 
 ## Summary
 
-The first implementation slice is coherent and verified. Do not treat this review as completion of the CodeGraph readiness contract until the full CLI surface lands and the recommendation changes to `pass`.
+The first implementation slice is coherent and verified. The shared CLI scaffold is now present on `main`, but the CodeGraph commands are still not wired into it. Do not treat this review as completion of the CodeGraph readiness contract until that integration lands and the recommendation changes to `pass`.
