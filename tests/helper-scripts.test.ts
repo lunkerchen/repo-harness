@@ -921,6 +921,84 @@ describe("Workflow helper scripts", () => {
     }
   });
 
+  test("verify-contract --read-only should not rewrite contract Status on failure", () => {
+    const cwd = tmpWorkspace("helper-verify-contract-read-only");
+    try {
+      mkdirSync(join(cwd, "scripts"), { recursive: true });
+      copyHelpers(cwd);
+
+      const contractPath = join(cwd, "task.contract.md");
+      writeFileSync(
+        contractPath,
+        [
+          "# Task Contract: read-only",
+          "",
+          "> **Status**: Pending",
+          "",
+          "```yaml",
+          "exit_criteria:",
+          "  files_exist:",
+          "    - src/does-not-exist.ts",
+          "  commands_succeed:",
+          "    - false",
+          "```",
+          "",
+        ].join("\n")
+      );
+      const originalContent = readFileSync(contractPath, "utf-8");
+
+      const res = run(
+        "bash",
+        ["scripts/verify-contract.sh", "--contract", "task.contract.md", "--strict", "--read-only"],
+        cwd
+      );
+
+      expect(res.status).toBe(1);
+      expect(readFileSync(contractPath, "utf-8")).toBe(originalContent);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("verify-contract --read-only should not rewrite contract Status on pass", () => {
+    const cwd = tmpWorkspace("helper-verify-contract-read-only-pass");
+    try {
+      mkdirSync(join(cwd, "scripts"), { recursive: true });
+      mkdirSync(join(cwd, "src"), { recursive: true });
+      copyHelpers(cwd);
+
+      writeFileSync(join(cwd, "src/index.ts"), "export const value = 1;\n");
+      const contractPath = join(cwd, "task.contract.md");
+      writeFileSync(
+        contractPath,
+        [
+          "# Task Contract: read-only pass",
+          "",
+          "> **Status**: Pending",
+          "",
+          "```yaml",
+          "exit_criteria:",
+          "  files_exist:",
+          "    - src/index.ts",
+          "```",
+          "",
+        ].join("\n")
+      );
+      const originalContent = readFileSync(contractPath, "utf-8");
+
+      const res = run(
+        "bash",
+        ["scripts/verify-contract.sh", "--contract", "task.contract.md", "--strict", "--read-only"],
+        cwd
+      );
+
+      expect(res.status).toBe(0);
+      expect(readFileSync(contractPath, "utf-8")).toBe(originalContent);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("verify-contract quiet mode should emit only summary and report file", () => {
     const cwd = tmpWorkspace("helper-verify-contract-quiet");
     try {

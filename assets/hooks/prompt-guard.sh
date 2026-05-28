@@ -23,7 +23,32 @@ is_implement_intent() {
 }
 
 is_done_intent() {
-  echo "$PROMPT_INTENT_TEXT" | grep -qEi "(done|complete|completed|finished|mark done|完成|结束|收工)"
+  # Long markdown / plan-shaped prompts often contain literal "Completed" / "Done"
+  # tokens as state-enum values (e.g. `[BrainPromote] pass/Completed-only`). Those
+  # are *not* a user declaration that the work is done. To avoid false positives:
+  #   - long prompts (>= 280 chars OR plan-shaped markdown) must declare done in
+  #     the first non-blank line via an explicit completion phrase
+  #   - short prompts keep the historically permissive match but require a word
+  #     boundary so substrings like "completionToken" no longer trigger
+  if is_plan_shaped_markdown_intent || is_embedded_approved_plan_intent; then
+    prompt_first_nonblank_line | grep -qEi "^[[:space:][:punct:]]*(/done|/complete|/finish|done\.?|mark[[:space:]]+(it[[:space:]]+|this[[:space:]]+)?(as[[:space:]]+)?done|task[[:space:]]+(is[[:space:]]+)?(done|complete|completed|finished)|all[[:space:]]+done|wrap[[:space:]]+(it[[:space:]]+)?up|完成(了|啦|吧|！|。)?|结束(吧|！|。)?|可以收工|收工(了|吧)?|宣布完成|工作完成)[[:space:][:punct:]]*$"
+    return $?
+  fi
+
+  local text_length
+  text_length=$(printf '%s' "$PROMPT_INTENT_TEXT" | wc -c | tr -d ' ')
+  if [ "${text_length:-0}" -ge 280 ]; then
+    prompt_first_nonblank_line | grep -qEi "^[[:space:][:punct:]]*(/done|/complete|/finish|done\.?|mark[[:space:]]+(it[[:space:]]+|this[[:space:]]+)?(as[[:space:]]+)?done|task[[:space:]]+(is[[:space:]]+)?(done|complete|completed|finished)|all[[:space:]]+done|wrap[[:space:]]+(it[[:space:]]+)?up|完成(了|啦|吧|！|。)?|结束(吧|！|。)?|可以收工|收工(了|吧)?|宣布完成|工作完成)[[:space:][:punct:]]*$"
+    return $?
+  fi
+
+  # Short prompts: ASCII tokens require an ASCII word boundary (so substrings
+  # like `completionToken` no longer match). CJK tokens stay as substring match
+  # because POSIX [[:space:][:punct:]] does not span multi-byte boundaries.
+  if echo "$PROMPT_INTENT_TEXT" | grep -qEi "(^|[[:space:][:punct:]])(done|complete|completed|finished|mark[[:space:]]+done)([[:space:][:punct:]]|$)"; then
+    return 0
+  fi
+  echo "$PROMPT_INTENT_TEXT" | grep -qE "(完成|结束|收工)"
 }
 
 is_spa_day_intent() {
@@ -496,7 +521,10 @@ if [ "$done_intent" -eq 1 ]; then
   fi
 
   if [ -f "scripts/verify-contract.sh" ]; then
-    if ! bash "scripts/verify-contract.sh" --contract "$contract_file" --strict; then
+    # --read-only: hook-driven verification must not rewrite the contract Status
+    # header, otherwise a transient failure (e.g. flaky `bun test`) dirties the
+    # worktree and chains into worktree-guard on the next prompt.
+    if ! bash "scripts/verify-contract.sh" --contract "$contract_file" --strict --read-only; then
       echo "[ContractGuard] Contract verification failed: $contract_file"
       hook_structured_error \
         "ContractGuard" \

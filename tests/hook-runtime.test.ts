@@ -1429,6 +1429,68 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("prompt-guard: long plan-style prompt with literal Completed token does not trigger done", () => {
+    const cwd = tmpWorkspace("prompt-guard-done-noisefilter");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "plans"), { recursive: true });
+
+      writeFileSync(
+        join(cwd, "plans/plan-20260304-1400-demo.md"),
+        "# Plan: demo\n\n> **Status**: Approved\n"
+      );
+      writeActivePlan(cwd, "plans/plan-20260304-1400-demo.md");
+
+      // Mirrors the brain-promotion-cli regression: a long markdown body where
+      // `Completed` only appears as a state-enum value in a description, never
+      // as a user declaration that the task is done.
+      const longPlanPrompt = [
+        "Continuing the brain-promotion CLI work after a context compact event.",
+        "Plan body for reference (not a fresh approved plan, just describing state):",
+        "- archive-workflow.sh emits BrainPromote only for the Completed enum value",
+        "- update tests for BrainPromote pass/Completed-only behavior across hooks",
+        "- migrate path defaults to ~/brain and accept legacy icloud/brain with warning",
+        "- ensure CLI surface is tested under tests/cli/brain.test.ts before merge",
+        "The point of this paragraph is to push the prompt above the 280 byte",
+        "threshold so the long-prompt branch of is_done_intent activates.",
+      ].join("\n");
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: longPlanPrompt }),
+      });
+
+      expect(res.stdout).not.toContain("[ContractGuard]");
+      expect(res.status).not.toBe(2);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: short prompt with completionToken substring does not trigger done", () => {
+    const cwd = tmpWorkspace("prompt-guard-done-substring");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "plans"), { recursive: true });
+
+      writeFileSync(
+        join(cwd, "plans/plan-20260304-1401-demo.md"),
+        "# Plan: demo\n\n> **Status**: Approved\n"
+      );
+      writeActivePlan(cwd, "plans/plan-20260304-1401-demo.md");
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "refresh the completionToken cache" }),
+      });
+
+      expect(res.stdout).not.toContain("[ContractGuard]");
+      expect(res.status).not.toBe(2);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("prompt-guard: allows done intent when contract verification passes", () => {
     const cwd = tmpWorkspace("prompt-guard-contract-pass");
     try {
