@@ -14,6 +14,7 @@ usage() {
 Usage:
   scripts/contract-worktree.sh start --plan <plan-file> [--path <worktree-path>] [--branch <branch-name>]
   scripts/contract-worktree.sh finish [--merge|--no-merge] [--target <branch>] [--message <commit-message>]
+  scripts/contract-worktree.sh cleanup --slug <slug> [--target <branch>] [--dry-run]
   scripts/contract-worktree.sh status
 USAGE_EOF
 }
@@ -249,6 +250,15 @@ status_worktree() {
   echo "root: $REPO_ROOT"
 }
 
+is_local_runtime_marker_path() {
+  case "$1" in
+    .ai/harness/active-plan|.ai/harness/active-worktree|.claude/.active-plan)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
 check_scope_against_contract() {
   local contract_file="$1"
   local changed_paths path blocked=0
@@ -275,6 +285,9 @@ check_scope_against_contract() {
 
   while IFS= read -r path; do
     [[ -n "$path" ]] || continue
+    if is_local_runtime_marker_path "$path"; then
+      continue
+    fi
     if ! workflow_contract_allows_path "$contract_file" "$path"; then
       echo "[ContractWorktree] Changed path is outside active contract allowed_paths: $path" >&2
       blocked=1
@@ -303,6 +316,25 @@ clean_matching_untracked_target_files() {
 
 clean_local_runtime_markers() {
   rm -f .ai/harness/active-plan .ai/harness/active-worktree .claude/.active-plan
+}
+
+latest_plan_for_slug() {
+  local slug="$1"
+  local latest
+  latest="$(find plans -maxdepth 1 -type f -name "plan-*-${slug}.md" 2>/dev/null | sort | tail -1)"
+  [[ -n "$latest" ]] || return 1
+  printf '%s' "$latest"
+}
+
+archive_finished_workflow() {
+  local plan_file="$1"
+
+  [[ -n "$plan_file" ]] || { echo "contract-worktree: no active plan found to archive" >&2; exit 1; }
+  [[ -f "$plan_file" ]] || { echo "contract-worktree: active plan not found for archive: $plan_file" >&2; exit 1; }
+  [[ -x "scripts/archive-workflow.sh" ]] || { echo "contract-worktree: scripts/archive-workflow.sh is missing or not executable" >&2; exit 1; }
+
+  echo "[ContractWorktree] Archiving completed workflow before merge: $plan_file"
+  bash "scripts/archive-workflow.sh" --plan "$plan_file" --outcome Completed
 }
 
 finish_worktree() {
@@ -349,7 +381,7 @@ finish_worktree() {
     exit 1
   fi
 
-  local current_branch slug contract_file review_file target_worktree
+  local current_branch slug active_plan contract_file review_file target_worktree
   current_branch="$(git branch --show-current)"
   [[ -n "$current_branch" ]] || { echo "contract-worktree: detached HEAD is not supported" >&2; exit 1; }
   [[ "$current_branch" != "$target_branch" ]] || { echo "contract-worktree: already on target branch $target_branch" >&2; exit 1; }
@@ -359,19 +391,26 @@ finish_worktree() {
   if [[ -f ".ai/hooks/lib/workflow-state.sh" ]]; then
     # shellcheck source=/dev/null
     . ".ai/hooks/lib/workflow-state.sh"
-    contract_file="$(workflow_active_contract || true)"
-    review_file="$(workflow_active_review || true)"
-  else
-    contract_file="tasks/contracts/${slug}.contract.md"
-    review_file="tasks/reviews/${slug}.review.md"
+    active_plan="$(get_active_plan || true)"
+    if [[ -n "$active_plan" ]]; then
+      contract_file="$(workflow_active_contract || true)"
+      review_file="$(workflow_active_review || true)"
+    fi
   fi
+
+  if [[ -z "${active_plan:-}" ]]; then
+    active_plan="$(latest_plan_for_slug "$slug" || true)"
+  fi
+  contract_file="${contract_file:-tasks/contracts/${slug}.contract.md}"
+  review_file="${review_file:-tasks/reviews/${slug}.review.md}"
 
   [[ -n "$contract_file" && -f "$contract_file" ]] || { echo "contract-worktree: no active sprint contract found" >&2; exit 1; }
   [[ -n "$review_file" && -f "$review_file" ]] || { echo "contract-worktree: no active sprint review found" >&2; exit 1; }
 
   bash "scripts/verify-sprint.sh"
-  clean_local_runtime_markers
   check_scope_against_contract "$contract_file"
+  archive_finished_workflow "$active_plan"
+  clean_local_runtime_markers
 
   if ! git diff --quiet || ! git diff --cached --quiet || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
     git add -A
@@ -399,6 +438,120 @@ finish_worktree() {
   echo "[ContractWorktree] Merged $current_branch into $target_branch at $target_worktree"
 }
 
+cleanup_worktree() {
+  local slug=""
+  local target_branch
+  local dry_run=0
+
+  target_branch="$(policy_get '.worktree_strategy.merge_back.target' 'main')"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --slug)
+        [[ -n "${2:-}" ]] || { echo "contract-worktree: --slug requires a value" >&2; exit 2; }
+        slug="$2"
+        shift 2
+        ;;
+      --target)
+        [[ -n "${2:-}" ]] || { echo "contract-worktree: --target requires a value" >&2; exit 2; }
+        target_branch="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "contract-worktree: unknown cleanup argument: $1" >&2
+        usage
+        exit 2
+        ;;
+    esac
+  done
+
+  [[ -n "$slug" ]] || { echo "contract-worktree: cleanup requires --slug" >&2; exit 2; }
+  slug="${slug#codex/}"
+  slug="$(normalize_slug "$slug")"
+  [[ -n "$slug" ]] || { echo "contract-worktree: slug is empty after normalization" >&2; exit 2; }
+
+  if is_linked_worktree; then
+    echo "contract-worktree: cleanup must run from the target primary worktree, not a linked contract worktree" >&2
+    exit 1
+  fi
+
+  local target_worktree current_root branch_prefix branch_name worktree_path metadata_file
+  branch_prefix="$(policy_get '.worktree_strategy.branch_prefix' 'codex/')"
+  branch_name="${branch_prefix}${slug}"
+  metadata_file=".ai/harness/worktrees/${slug}.json"
+  target_worktree="$(find_worktree_for_branch "$target_branch" || true)"
+  [[ -n "$target_worktree" ]] || { echo "contract-worktree: target branch has no checked-out worktree: $target_branch" >&2; exit 1; }
+
+  current_root="$(pwd -P)"
+  target_worktree="$(cd "$target_worktree" && pwd -P)"
+  if [[ "$current_root" != "$target_worktree" ]]; then
+    echo "contract-worktree: cleanup must run from target worktree $target_worktree" >&2
+    exit 1
+  fi
+
+  worktree_path="$(find_worktree_for_branch "$branch_name" || true)"
+  if [[ -n "$worktree_path" ]]; then
+    worktree_path="$(cd "$worktree_path" && pwd -P)"
+    case "$current_root" in
+      "$worktree_path"|"$worktree_path"/*)
+        echo "contract-worktree: refusing to remove current working directory: $worktree_path" >&2
+        exit 1
+        ;;
+    esac
+  fi
+
+  if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+    if ! git merge-base --is-ancestor "$branch_name" "$target_branch" >/dev/null 2>&1; then
+      echo "contract-worktree: branch $branch_name is not fully merged into $target_branch; refusing cleanup" >&2
+      exit 1
+    fi
+  else
+    echo "[ContractWorktree] Branch already absent, skipping: $branch_name"
+  fi
+
+  if [[ -n "$worktree_path" ]]; then
+    if [[ -n "$(git -C "$worktree_path" status --porcelain=v1 --untracked-files=all)" ]]; then
+      echo "contract-worktree: linked worktree is dirty, refusing cleanup: $worktree_path" >&2
+      exit 1
+    fi
+  else
+    echo "[ContractWorktree] Worktree already absent, skipping: $branch_name"
+  fi
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    echo "[ContractWorktree] dry-run cleanup slug=$slug target=$target_branch"
+    echo "[ContractWorktree] would remove worktree: ${worktree_path:-"(absent)"}"
+    echo "[ContractWorktree] would delete branch: $branch_name"
+    echo "[ContractWorktree] would remove metadata: $metadata_file"
+    return 0
+  fi
+
+  if [[ -n "$worktree_path" ]]; then
+    git worktree remove "$worktree_path"
+    echo "[ContractWorktree] Removed worktree: $worktree_path"
+  fi
+
+  if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+    git branch -d "$branch_name"
+    echo "[ContractWorktree] Deleted branch: $branch_name"
+  fi
+
+  if [[ -e "$metadata_file" ]]; then
+    rm -f "$metadata_file"
+    echo "[ContractWorktree] Removed metadata: $metadata_file"
+  else
+    echo "[ContractWorktree] Metadata already absent, skipping: $metadata_file"
+  fi
+}
+
 command_name="${1:-status}"
 shift || true
 
@@ -408,6 +561,9 @@ case "$command_name" in
     ;;
   finish)
     finish_worktree "$@"
+    ;;
+  cleanup)
+    cleanup_worktree "$@"
     ;;
   status)
     status_worktree

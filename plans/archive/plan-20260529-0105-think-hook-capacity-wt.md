@@ -1,6 +1,6 @@
 # Plan: think 现在的hook我记得是有在完成一个任务的时候，推荐下一个相关连的任务（下一刀），如果是同capacity的，应该会在同一个wt上继续。我想加一个功能就是，当任务基本开发完成，则推荐
 
-> **Status**: Draft
+> **Status**: Superseded
 > **Created**: 20260529-0105
 > **Slug**: think-hook-capacity-wt
 > **Spec**: `docs/spec.md`
@@ -8,6 +8,9 @@
 > **Sprint Contract**: `tasks/contracts/think-hook-capacity-wt.contract.md`
 > **Sprint Review**: `tasks/reviews/think-hook-capacity-wt.review.md`
 > **Implementation Notes**: `tasks/notes/think-hook-capacity-wt.notes.md`
+
+> **Superseded By**: `hook-next-action-cleanup`
+> **Superseded Reason**: Empty Draft shell replaced by the implemented unified workflow next-action and cleanup slice.
 
 ## Agentic Routing
 - Selected route:

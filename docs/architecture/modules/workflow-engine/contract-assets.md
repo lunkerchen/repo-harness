@@ -51,6 +51,17 @@ At 10x generated repos, the first failure would be self-host behavior diverging
 from generated output. The smallest coherent guard is parity tests plus
 self-migration dry-run.
 
+## 2026-05-29 Cleanup Script Policy Closeout
+
+- `worktree_strategy.cleanup_script` is part of the policy contract surface. It advertises the terminal cleanup command generated repos can call after `finish` has already archived and merged a contract worktree.
+- The runtime owner remains `scripts/contract-worktree.sh`; `.ai/harness/policy.json`, `scripts/ensure-task-workflow.sh`, and `scripts/lib/project-init-lib.sh` only publish the command shape for self-host and generated repos.
+- File-prefix capability requests such as `.ai/harness/policy.json` still belong to `workflow-engine-contract-assets`; local capability context is projected to `assets/AGENTS.md` and `assets/CLAUDE.md`.
+- No new architecture snapshot or human diagram is required because the module boundary, entrypoints, and dependency direction are unchanged.
+
+## Workstream Ledger
+
+- `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`
+
 ## Optimization Backlog
 
 - Promote `bun scripts/capability-resolver.ts validate --format text` into the strict workflow gate after one more real architecture slice.

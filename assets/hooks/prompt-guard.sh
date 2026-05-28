@@ -670,18 +670,31 @@ if [ "$done_intent" -eq 1 ]; then
     exit 2
   fi
 
-  remaining_todos=0
-  if [ -f tasks/todo.md ]; then
-    remaining_todos="$(awk '/^- \[ \]/{c++} END{print c+0}' tasks/todo.md)"
-  fi
-  if [ "${remaining_todos:-0}" -gt 0 ]; then
-    echo "[ArchiveGuard] Done intent detected but tasks/todo.md still has $remaining_todos unchecked item(s). Refusing to auto-archive."
+  task_state="$(workflow_plan_task_state "$active_plan")"
+  IFS=$'\t' read -r total_tasks done_tasks next_task <<< "$task_state"
+  remaining_tasks=$(( ${total_tasks:-0} - ${done_tasks:-0} ))
+  if [ "${remaining_tasks:-0}" -gt 0 ]; then
+    echo "[ArchiveGuard] Done intent detected but active plan still has $remaining_tasks unchecked item(s). Refusing to auto-archive."
     hook_structured_error \
       "ArchiveGuard" \
-      "Done intent with $remaining_todos unchecked todo item(s)." \
-      "Finish the remaining items or archive manually with: bash scripts/archive-workflow.sh --plan $active_plan --outcome <Completed|Abandoned|Superseded>." \
+      "Done intent with $remaining_tasks unchecked active-plan task(s)." \
+      "Finish the remaining Task Breakdown item: ${next_task:-see $active_plan}." \
       "state_violation"
-    exit 1
+    exit 2
+  fi
+
+  if workflow_is_linked_worktree; then
+    next_action="$(workflow_next_action)"
+    next_stage="$(printf '%s\n' "$next_action" | cut -f1)"
+    next_command="$(printf '%s\n' "$next_action" | cut -f2)"
+    next_message="$(printf '%s\n' "$next_action" | cut -f3-)"
+    [[ "${next_command:-}" == "-" ]] && next_command=""
+    echo "[WorkflowNextAction] Done quality gates passed for $active_plan."
+    echo "[WorkflowNextAction] ${next_message:-Finish this contract worktree.}"
+    if [ -n "${next_command:-}" ]; then
+      echo "[WorkflowNextAction] ${next_command}"
+    fi
+    exit 0
   fi
 
   if [ ! -x scripts/archive-workflow.sh ]; then

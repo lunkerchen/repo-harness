@@ -192,7 +192,7 @@ validate_block() {
       return 1
       ;;
   esac
-  [[ -d "$block" ]]
+  [[ -e "$block" ]]
 }
 
 replace_contract_block() {

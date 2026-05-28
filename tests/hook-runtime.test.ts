@@ -592,6 +592,60 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("workstream-sync accepts file capability prefixes", () => {
+    const cwd = tmpWorkspace("workstream-sync-file-prefix");
+    try {
+      installArchitectureHelpers(cwd);
+      mkdirSync(join(cwd, ".ai/context"), { recursive: true });
+      mkdirSync(join(cwd, ".ai/harness"), { recursive: true });
+      writeFileSync(join(cwd, ".ai/harness/policy.json"), "{}\n");
+      writeFileSync(join(cwd, ".ai/context/capabilities.json"), JSON.stringify({
+        version: 1,
+        capabilities: [
+          {
+            id: "workflow-engine-contract-assets",
+            domain: "workflow-engine",
+            name: "contract-assets",
+            prefixes: [".ai/harness/policy.json"],
+            contract_files: {
+              agents: ".ai/harness/AGENTS.md",
+              claude: ".ai/harness/CLAUDE.md",
+            },
+            architecture_module: "docs/architecture/modules/workflow-engine/contract-assets.md",
+            workstream_dir: "tasks/workstreams/workflow-engine/contract-assets",
+            lsp_profile: "typescript-lsp",
+            verification_hints: ["policy checks"],
+          },
+        ],
+      }, null, 2) + "\n");
+
+      const res = run("bash", [
+        "scripts/workstream-sync.sh",
+        "ensure",
+        "--block",
+        ".ai/harness/policy.json",
+        "--slug",
+        "cleanup-script-policy",
+        "--title",
+        "Cleanup Script Policy",
+      ], cwd);
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[WorkstreamSync] Ensured tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md");
+      expect(existsSync(join(cwd, "tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md"))).toBe(true);
+
+      const workstream = readFileSync(join(cwd, "tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md"), "utf-8");
+      expect(workstream).toContain("> **Functional Block**: `.ai/harness/policy.json`");
+      expect(workstream).toContain("> **Matched Prefix**: `.ai/harness/policy.json`");
+
+      const agents = readFileSync(join(cwd, ".ai/harness/AGENTS.md"), "utf-8");
+      expect(agents).toContain("Functional block: `.ai/harness/policy.json`");
+      expect(agents).toContain("Durable progress lives under `tasks/workstreams/workflow-engine/contract-assets`.");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("architecture-drift helper marks workflow-surface changes as spawn recommended", () => {
     const cwd = tmpWorkspace("architecture-drift-high");
     try {
@@ -2274,7 +2328,8 @@ describe("Hook runtime behavior", () => {
       expect(existsSync(join(cwd, ".claude/.task-handoff.md"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/.task-state.json"))).toBe(true);
       const handoff = readFileSync(join(cwd, ".claude/.task-handoff.md"), "utf-8");
-      expect(handoff).toContain("finish first task");
+      expect(handoff).toContain("second task");
+      expect(handoff).toContain("Stage: task");
       expect(handoff).toContain("Progress");
       expect(handoff).toContain("plans/plan-20260304-1410-demo.md");
     } finally {

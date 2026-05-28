@@ -690,6 +690,7 @@ ARCHITECTURE_INDEX_EOF
     "worktree_dir_template": "../{{repo}}-wt-{{slug}}",
     "start_script": "scripts/contract-worktree.sh start --plan <plan-file>",
     "finish_script": "scripts/contract-worktree.sh finish",
+    "cleanup_script": "scripts/contract-worktree.sh cleanup --slug <slug>",
     "conflict_signals": [
       "dirty_worktree_overlaps_task_files",
       "current_branch_not_suitable_for_task",

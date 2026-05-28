@@ -76,6 +76,7 @@ describe("init command", () => {
         syncSkill: false,
         hostAdapters: false,
         externalSkills: false,
+        codegraph: false,
       });
 
       expect(result.exitCode).toBe(0);
@@ -177,6 +178,7 @@ describe("init command", () => {
         hostAdapters: false,
         externalSkills: false,
         verify: false,
+        codegraph: false,
       });
 
       expect(result.exitCode).toBe(0);

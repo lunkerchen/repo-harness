@@ -82,8 +82,8 @@
         "docs/reference-configs"
       ],
       "contract_files": {
-        "agents": "AGENTS.md",
-        "claude": "CLAUDE.md"
+        "agents": "assets/AGENTS.md",
+        "claude": "assets/CLAUDE.md"
       },
       "architecture_module": "docs/architecture/modules/workflow-engine/contract-assets.md",
       "workstream_dir": "tasks/workstreams/workflow-engine/contract-assets",

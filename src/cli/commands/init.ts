@@ -17,6 +17,7 @@ import {
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { runInstall, type InstallTargetSpec } from "./install";
+import { configureCodegraph, ensureCodegraph } from "../tools/codegraph";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..", "..", "..");
@@ -30,6 +31,8 @@ export interface InitCommandOptions {
   syncSkill?: boolean;
   hostAdapters?: boolean;
   externalSkills?: boolean;
+  codegraph?: boolean;
+  configureCodegraphMcp?: boolean;
   target?: InstallTargetSpec;
   env?: NodeJS.ProcessEnv;
 }
@@ -225,6 +228,8 @@ export function runInit(opts: InitCommandOptions = {}): InitCommandResult {
   const syncSkill = opts.syncSkill !== false;
   const hostAdapters = opts.hostAdapters !== false;
   const externalSkills = opts.externalSkills !== false;
+  const codegraph = opts.codegraph !== false;
+  const configureCgMcp = opts.configureCodegraphMcp === true;
   const target = opts.target ?? "both";
   const steps: InitStep[] = [];
 
@@ -286,6 +291,51 @@ export function runInit(opts: InitCommandOptions = {}): InitCommandResult {
         : apply
           ? "repo harness did not apply cleanly"
           : "dry-run",
+    });
+  }
+
+  if (codegraph && apply) {
+    const cg = ensureCodegraph({ repoRoot, init: true, env: commandEnv });
+    const cgFailed = cg.actions.some((entry) => entry.status === "failed");
+    steps.push({
+      step: "ensure codegraph index",
+      status: cg.actions.length === 0 ? "skipped" : cgFailed ? "failed" : "ok",
+      detail:
+        cg.resolution.source === "missing"
+          ? "codegraph CLI not found; skipped (install via: repo-harness tools ensure codegraph)"
+          : cg.actions.length > 0
+            ? cg.actions.map((entry) => `${entry.action}:${entry.status}`).join(", ")
+            : `index ${cg.status}`,
+    });
+
+    const mcpHosts =
+      (cg.raw as { mcp_hosts?: Record<string, { status?: string }> }).mcp_hosts ?? {};
+    const mcpConfigured =
+      cg.resolution.source !== "missing" &&
+      ["codex", "claude"].every((host) => mcpHosts[host]?.status === "configured");
+
+    if (cg.resolution.source !== "missing" && !mcpConfigured) {
+      if (configureCgMcp) {
+        const conf = configureCodegraph({ repoRoot, target: "both", location: "global", env: commandEnv });
+        steps.push({
+          step: "configure codegraph mcp",
+          status: conf.actions.some((entry) => entry.status === "failed") ? "failed" : "ok",
+          detail: conf.actions.map((entry) => `${entry.action}:${entry.status}`).join(", "),
+        });
+      } else {
+        steps.push({
+          step: "codegraph mcp",
+          status: "skipped",
+          detail:
+            "not registered; run: repo-harness tools configure codegraph --target both --location global",
+        });
+      }
+    }
+  } else {
+    steps.push({
+      step: "ensure codegraph index",
+      status: "skipped",
+      detail: codegraph ? "dry-run" : "disabled",
     });
   }
 

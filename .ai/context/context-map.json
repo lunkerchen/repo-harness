@@ -242,6 +242,36 @@
       "priority": "high",
       "char_budget": 1200,
       "purpose": "capability-workstream"
+    },
+    {
+      "path": "assets/CLAUDE.md",
+      "priority": "high",
+      "char_budget": 1000,
+      "purpose": "capability-contract",
+      "capability_id": "workflow-engine-contract-assets",
+      "functional_block": ".ai/harness/policy.json",
+      "matched_prefix": ".ai/harness/policy.json",
+      "architecture_domain": "workflow-engine",
+      "architecture_capability": "contract-assets",
+      "target_agent": "claude",
+      "lsp_profile": "typescript-lsp",
+      "doc_scope": "capability-contract",
+      "verification_hint": "record local commands here before implementation"
+    },
+    {
+      "path": "assets/AGENTS.md",
+      "priority": "high",
+      "char_budget": 1000,
+      "purpose": "capability-contract",
+      "capability_id": "workflow-engine-contract-assets",
+      "functional_block": ".ai/harness/policy.json",
+      "matched_prefix": ".ai/harness/policy.json",
+      "architecture_domain": "workflow-engine",
+      "architecture_capability": "contract-assets",
+      "target_agent": "codex",
+      "lsp_profile": "typescript-lsp",
+      "doc_scope": "capability-contract",
+      "verification_hint": "record local commands here before implementation"
     }
   ],
   "budgets": {

@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdtempSync,
   mkdirSync,
@@ -17,6 +18,7 @@ import { spawnSync } from "child_process";
 const ROOT = join(import.meta.dir, "..");
 const HELPER_DIR = join(ROOT, "assets/templates/helpers");
 const TEMPLATE_DIR = join(ROOT, "assets/templates");
+const ASSETS_HOOKS_DIR = join(ROOT, "assets/hooks");
 
 function tmpWorkspace(prefix: string): string {
   return realpathSync(mkdtempSync(join(tmpdir(), `${prefix}-`)));
@@ -52,6 +54,49 @@ function copyHelpers(cwd: string) {
   copyFileSync(join(ROOT, "assets/workflow-contract.v1.json"), join(cwd, ".ai/harness/workflow-contract.json"));
 
   expect(run("bash", ["-lc", "chmod +x scripts/*.sh"], cwd).status).toBe(0);
+}
+
+function installHooks(cwd: string) {
+  const aiHooksDir = join(cwd, ".ai", "hooks");
+  mkdirSync(aiHooksDir, { recursive: true });
+  for (const f of readdirSync(ASSETS_HOOKS_DIR, { withFileTypes: true })) {
+    const src = join(ASSETS_HOOKS_DIR, f.name);
+    if (f.isDirectory()) {
+      cpSync(src, join(aiHooksDir, f.name), { recursive: true });
+    } else {
+      copyFileSync(src, join(aiHooksDir, f.name));
+    }
+  }
+  expect(run("bash", ["-lc", "find .ai/hooks -type f -name '*.sh' -exec chmod +x {} +"], cwd).status).toBe(0);
+}
+
+function runHook(script: string, cwd: string, stdin: string) {
+  return spawnSync("bash", [join(cwd, ".ai", "hooks", script)], {
+    cwd,
+    input: stdin,
+    encoding: "utf-8",
+    env: process.env,
+  });
+}
+
+function writeValidSprintChecks(cwd: string) {
+  mkdirSync(join(cwd, ".ai/harness/checks"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".ai/harness/checks/latest.json"),
+    JSON.stringify(
+      {
+        status: "pass",
+        source: "verify-sprint",
+        command: "bash scripts/verify-sprint.sh",
+        exit_code: 0,
+        generated_at: "2026-03-04T14:10:00+0000",
+        contract: { file: "tasks/contracts/demo.contract.md", status: "pass", exit_code: 0 },
+        review: { file: "tasks/reviews/demo.review.md", status: "pass" },
+      },
+      null,
+      2
+    ) + "\n"
+  );
 }
 
 function writeActivePlan(cwd: string, planPath: string) {
@@ -697,14 +742,154 @@ describe("Workflow helper scripts", () => {
       const finish = run("bash", ["scripts/contract-worktree.sh", "finish"], worktreePath);
       expect(finish.status).toBe(0);
       expect(finish.stdout).toContain("Sprint verification passed");
+      expect(finish.stdout).toContain("Archiving completed workflow before merge");
       expect(finish.stdout).toContain("Merged codex/demo into main");
       expect(existsSync(join(cwd, "src/modules/demo/index.ts"))).toBe(true);
+      expect(existsSync(join(cwd, "plans/plan-20260304-1450-demo.md"))).toBe(false);
+      expect(existsSync(join(cwd, "plans/archive/plan-20260304-1450-demo.md"))).toBe(true);
+      expect(existsSync(join(cwd, "tasks/notes/demo.notes.md"))).toBe(false);
+      expect(readdirSync(join(cwd, "tasks/archive")).some((name) => name.includes("demo"))).toBe(true);
 
       const log = run("git", ["log", "--oneline", "-1"], cwd);
       expect(log.stdout).toContain("feat(contract): complete demo");
+
+      const cleanup = run("bash", ["scripts/contract-worktree.sh", "cleanup", "--slug", "demo"], cwd);
+      expect(cleanup.status).toBe(0);
+      expect(cleanup.stdout).toContain("Removed worktree");
+      expect(cleanup.stdout).toContain("Deleted branch: codex/demo");
+      expect(existsSync(worktreePath)).toBe(false);
+      expect(run("git", ["show-ref", "--verify", "--quiet", "refs/heads/codex/demo"], cwd).status).not.toBe(0);
     } finally {
       run("git", ["worktree", "remove", "--force", worktreePath], cwd);
       rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  test("prompt-guard done intent in a contract worktree emits finish next action without archiving", () => {
+    const cwd = tmpWorkspace("helper-contract-done-next-action");
+    const worktreePath = `${cwd}-wt-demo`;
+    try {
+      installHooks(cwd);
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      writeFileSync(join(cwd, "docs/spec.md"), "# Spec\n");
+      initGitRepo(cwd);
+      commitAll(cwd, "init hooks");
+
+      expect(run("git", ["worktree", "add", worktreePath, "-b", "codex/demo"], cwd).status).toBe(0);
+
+      mkdirSync(join(worktreePath, "plans"), { recursive: true });
+      mkdirSync(join(worktreePath, "tasks/contracts"), { recursive: true });
+      mkdirSync(join(worktreePath, "tasks/reviews"), { recursive: true });
+      mkdirSync(join(worktreePath, "scripts"), { recursive: true });
+      writeFileSync(
+        join(worktreePath, "plans/plan-20260304-1450-demo.md"),
+        ["# Plan: demo", "", "> **Status**: Executing", "", evidenceContract(), ""].join("\n")
+      );
+      writeActivePlan(worktreePath, "plans/plan-20260304-1450-demo.md");
+      writeFileSync(
+        join(worktreePath, "tasks/todo.md"),
+        "# Deferred Goal Ledger\n\n> **Status**: Backlog\n"
+      );
+      writeFileSync(join(worktreePath, "tasks/contracts/demo.contract.md"), "# contract\n");
+      writeFileSync(
+        join(worktreePath, "tasks/reviews/demo.review.md"),
+        "# Sprint Review: demo\n\n> **Recommendation**: pass\n"
+      );
+      writeValidSprintChecks(worktreePath);
+      writeFileSync(
+        join(worktreePath, "scripts/verify-contract.sh"),
+        "#!/bin/bash\nset -euo pipefail\necho \"[verify] ok\"\n"
+      );
+      expect(run("chmod", ["+x", "scripts/verify-contract.sh"], worktreePath).status).toBe(0);
+
+      const res = runHook(
+        "prompt-guard.sh",
+        worktreePath,
+        JSON.stringify({ user_message: "任务完成了，结束吧" })
+      );
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[WorkflowNextAction] Review/checks pass; finish and fast-forward merge this contract worktree.");
+      expect(res.stdout).toContain("bash scripts/contract-worktree.sh finish");
+      expect(res.stdout).not.toContain("[AutoArchive]");
+      expect(existsSync(join(worktreePath, "plans/plan-20260304-1450-demo.md"))).toBe(true);
+      expect(existsSync(join(worktreePath, "plans/archive/plan-20260304-1450-demo.md"))).toBe(false);
+    } finally {
+      run("git", ["worktree", "remove", "--force", worktreePath], cwd);
+      rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  test("contract-worktree cleanup should dry-run then remove merged worktree, branch, and metadata", () => {
+    const cwd = tmpWorkspace("helper-contract-cleanup");
+    const worktreePath = `${cwd}-wt-demo`;
+    try {
+      copyHelpers(cwd);
+      initGitRepo(cwd);
+      writeFileSync(join(cwd, "README.md"), "# demo\n");
+      commitAll(cwd, "init cleanup");
+
+      expect(run("git", ["worktree", "add", worktreePath, "-b", "codex/demo"], cwd).status).toBe(0);
+      mkdirSync(join(cwd, ".ai/harness/worktrees"), { recursive: true });
+      writeFileSync(join(cwd, ".ai/harness/worktrees/demo.json"), '{"slug":"demo"}\n');
+
+      const dryRun = run("bash", ["scripts/contract-worktree.sh", "cleanup", "--slug", "demo", "--dry-run"], cwd);
+      expect(dryRun.status).toBe(0);
+      expect(dryRun.stdout).toContain("dry-run cleanup");
+      expect(existsSync(worktreePath)).toBe(true);
+      expect(run("git", ["show-ref", "--verify", "--quiet", "refs/heads/codex/demo"], cwd).status).toBe(0);
+      expect(existsSync(join(cwd, ".ai/harness/worktrees/demo.json"))).toBe(true);
+
+      const cleanup = run("bash", ["scripts/contract-worktree.sh", "cleanup", "--slug", "demo"], cwd);
+      expect(cleanup.status).toBe(0);
+      expect(cleanup.stdout).toContain("Removed worktree");
+      expect(cleanup.stdout).toContain("Deleted branch: codex/demo");
+      expect(cleanup.stdout).toContain("Removed metadata");
+      expect(existsSync(worktreePath)).toBe(false);
+      expect(run("git", ["show-ref", "--verify", "--quiet", "refs/heads/codex/demo"], cwd).status).not.toBe(0);
+      expect(existsSync(join(cwd, ".ai/harness/worktrees/demo.json"))).toBe(false);
+    } finally {
+      run("git", ["worktree", "remove", "--force", worktreePath], cwd);
+      rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  test("contract-worktree cleanup should refuse unmerged, dirty, and linked-cwd cleanup", () => {
+    const cwd = tmpWorkspace("helper-contract-cleanup-refuse");
+    const unmergedPath = `${cwd}-wt-unmerged`;
+    const dirtyPath = `${cwd}-wt-dirty`;
+    const linkedPath = `${cwd}-wt-linked`;
+    try {
+      copyHelpers(cwd);
+      initGitRepo(cwd);
+      writeFileSync(join(cwd, "README.md"), "# demo\n");
+      commitAll(cwd, "init cleanup refuse");
+
+      expect(run("git", ["worktree", "add", unmergedPath, "-b", "codex/unmerged"], cwd).status).toBe(0);
+      writeFileSync(join(unmergedPath, "feature.txt"), "unmerged\n");
+      commitAll(unmergedPath, "unmerged branch change");
+      const unmerged = run("bash", ["scripts/contract-worktree.sh", "cleanup", "--slug", "unmerged"], cwd);
+      expect(unmerged.status).toBe(1);
+      expect(unmerged.stderr).toContain("not fully merged");
+
+      expect(run("git", ["worktree", "add", dirtyPath, "-b", "codex/dirty"], cwd).status).toBe(0);
+      writeFileSync(join(dirtyPath, "dirty.txt"), "dirty\n");
+      const dirty = run("bash", ["scripts/contract-worktree.sh", "cleanup", "--slug", "dirty"], cwd);
+      expect(dirty.status).toBe(1);
+      expect(dirty.stderr).toContain("linked worktree is dirty");
+
+      expect(run("git", ["worktree", "add", linkedPath, "-b", "codex/linked"], cwd).status).toBe(0);
+      const linked = run("bash", ["scripts/contract-worktree.sh", "cleanup", "--slug", "linked"], linkedPath);
+      expect(linked.status).toBe(1);
+      expect(linked.stderr).toContain("cleanup must run from the target primary worktree");
+    } finally {
+      for (const path of [unmergedPath, dirtyPath, linkedPath]) {
+        run("git", ["worktree", "remove", "--force", path], cwd);
+        rmSync(path, { recursive: true, force: true });
+      }
       rmSync(cwd, { recursive: true, force: true });
     }
   }, 15000);

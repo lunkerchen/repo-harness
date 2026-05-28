@@ -268,6 +268,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.worktree_strategy.auto_for_contract_tasks).toBe(true);
       expect(policy.worktree_strategy.start_script).toBe("scripts/contract-worktree.sh start --plan <plan-file>");
       expect(policy.worktree_strategy.finish_script).toBe("scripts/contract-worktree.sh finish");
+      expect(policy.worktree_strategy.cleanup_script).toBe("scripts/contract-worktree.sh cleanup --slug <slug>");
       expect(policy.worktree_strategy.validation_route).toBe("waza:check");
       expect(policy.context_budget.zones).toEqual({ yellow: 0.55, orange: 0.7, red: 0.8 });
       expect(policy.handoff_resume.auto_start_new_session).toBe(false);

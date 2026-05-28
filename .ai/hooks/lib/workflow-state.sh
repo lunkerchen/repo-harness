@@ -317,6 +317,225 @@ workflow_todo_done() {
   grep -E '^[[:space:]]*-[[:space:]]\[[xX]\][[:space:]]+' tasks/todo.md | wc -l | tr -d ' '
 }
 
+workflow_is_linked_worktree() {
+  local git_dir
+  git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
+  [[ "$git_dir" == *".git/worktrees/"* ]]
+}
+
+workflow_current_branch() {
+  git branch --show-current 2>/dev/null || true
+}
+
+workflow_target_branch() {
+  local target
+  target="$(workflow_policy_get '.worktree_strategy.merge_back.target' '')"
+  if [[ -z "$target" ]]; then
+    target="$(workflow_policy_get '.worktree_strategy.base_branch' 'main')"
+  fi
+  printf '%s' "${target:-main}"
+}
+
+workflow_branch_prefix() {
+  workflow_policy_get '.worktree_strategy.branch_prefix' 'codex/'
+}
+
+workflow_find_worktree_for_branch() {
+  local branch="$1"
+  git worktree list --porcelain 2>/dev/null | awk -v branch_ref="refs/heads/${branch}" '
+    $1 == "worktree" { path = $2; next }
+    $1 == "branch" && $2 == branch_ref { print path; exit }
+  '
+}
+
+workflow_branch_exists() {
+  local branch="$1"
+  git show-ref --verify --quiet "refs/heads/$branch"
+}
+
+workflow_branch_merged_to_target() {
+  local branch="$1"
+  local target="$2"
+  [[ -n "$branch" && -n "$target" ]] || return 1
+  workflow_branch_exists "$branch" || return 1
+  git rev-parse --verify --quiet "$target" >/dev/null 2>&1 || return 1
+  git merge-base --is-ancestor "$branch" "$target" >/dev/null 2>&1
+}
+
+workflow_iterate_plan_tasks() {
+  local plan_file="${1:-}"
+  [[ -n "$plan_file" && -f "$plan_file" ]] || return 0
+
+  awk '
+    BEGIN { in_section = 0; task_index = 0 }
+    /^## Task Breakdown[[:space:]]*$/ { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section && /^[[:space:]]*-[[:space:]]\[[ xX]\][[:space:]]+/ {
+      task_index += 1
+      status = ($0 ~ /\[[xX]\]/) ? "completed" : "pending"
+      desc = $0
+      sub(/^[[:space:]]*-[[:space:]]\[[ xX]\][[:space:]]+/, "", desc)
+      gsub(/\r/, "", desc)
+      print task_index "\t" status "\t" desc
+    }
+  ' "$plan_file"
+}
+
+workflow_plan_task_state_from_stream() {
+  local total=0
+  local done=0
+  local next_pending=""
+  local idx status desc
+
+  while IFS=$'\t' read -r idx status desc; do
+    [[ -n "$idx" ]] || continue
+    total=$((total + 1))
+    if [[ "$status" == "completed" ]]; then
+      done=$((done + 1))
+    elif [[ -z "$next_pending" ]]; then
+      next_pending="$desc"
+    fi
+  done
+
+  printf '%s\t%s\t%s\n' "$total" "$done" "$next_pending"
+}
+
+workflow_plan_task_state() {
+  local plan_file="${1:-}"
+  local state total done next_pending
+
+  if [[ -z "$plan_file" ]]; then
+    plan_file="$(get_active_plan || true)"
+  fi
+
+  if [[ -n "$plan_file" && -f "$plan_file" ]]; then
+    state="$(workflow_iterate_plan_tasks "$plan_file" | workflow_plan_task_state_from_stream)"
+    IFS=$'\t' read -r total done next_pending <<< "$state"
+    if [[ "${total:-0}" -gt 0 ]]; then
+      printf '%s\n' "$state"
+      return 0
+    fi
+  fi
+
+  # Legacy compatibility only: current repositories keep execution in the
+  # active plan, but older generated repos may still carry a todo checklist.
+  if [[ -f "tasks/todo.md" ]] && ! grep -Eq '^> \*\*Status\*\*:[[:space:]]*Backlog[[:space:]]*$' tasks/todo.md; then
+    workflow_iterate_todo_tasks "tasks/todo.md" | workflow_plan_task_state_from_stream
+    return 0
+  fi
+
+  printf '0\t0\t\n'
+}
+
+workflow_cleanup_candidate() {
+  local target branch_prefix branch worktree slug metadata
+  target="$(workflow_target_branch)"
+  branch_prefix="$(workflow_branch_prefix)"
+
+  if is_git_repo; then
+    while IFS=$'\t' read -r branch worktree; do
+      [[ -n "$branch" ]] || continue
+      slug="${branch#${branch_prefix}}"
+      if workflow_branch_merged_to_target "$branch" "$target"; then
+        printf '%s\t%s\t%s\n' "$slug" "$branch" "$worktree"
+        return 0
+      fi
+    done < <(
+      git worktree list --porcelain 2>/dev/null | awk -v prefix="refs/heads/${branch_prefix}" '
+        $1 == "worktree" { path = $2; next }
+        $1 == "branch" && index($2, prefix) == 1 {
+          branch = substr($2, length("refs/heads/") + 1)
+          print branch "\t" path
+        }
+      '
+    )
+
+    while IFS= read -r branch; do
+      [[ -n "$branch" ]] || continue
+      slug="${branch#${branch_prefix}}"
+      if workflow_branch_merged_to_target "$branch" "$target"; then
+        printf '%s\t%s\t\n' "$slug" "$branch"
+        return 0
+      fi
+    done < <(git for-each-ref --format='%(refname:short)' "refs/heads/${branch_prefix}" 2>/dev/null || true)
+  fi
+
+  for metadata in .ai/harness/worktrees/*.json; do
+    [[ -e "$metadata" ]] || continue
+    slug="$(basename "$metadata" .json)"
+    [[ -n "$slug" ]] || continue
+    printf '%s\t%s\t\n' "$slug" "${branch_prefix}${slug}"
+    return 0
+  done
+
+  return 1
+}
+
+workflow_next_action() {
+  local active_plan task_state total done next_pending contract_file review_file checks_file checks_error
+  local target current_branch slug candidate branch worktree command message
+
+  active_plan="$(get_active_plan || true)"
+  if [[ -n "$active_plan" && -f "$active_plan" ]]; then
+    task_state="$(workflow_plan_task_state "$active_plan")"
+    IFS=$'\t' read -r total done next_pending <<< "$task_state"
+    total="${total:-0}"
+    done="${done:-0}"
+
+    if [[ "$total" -gt "$done" ]]; then
+      message="${next_pending:-continue active plan Task Breakdown}"
+      printf 'task\t-\t%s\n' "$message"
+      return 0
+    fi
+
+    contract_file="$(workflow_active_contract || true)"
+    review_file="$(workflow_active_review || true)"
+    checks_file="$(workflow_checks_file)"
+
+    if [[ -z "$review_file" || ! -f "$review_file" ]]; then
+      printf 'check\t/check\tRun /check and record a sprint review before finishing this worktree.\n'
+      return 0
+    fi
+
+    if ! workflow_review_recommends_pass "$review_file"; then
+      printf 'check\t/check\tRun /check until %s records Recommendation: pass.\n' "$review_file"
+      return 0
+    fi
+
+    if [[ -z "$contract_file" || ! -f "$contract_file" ]]; then
+      printf 'check\t/check\tRegenerate the active sprint contract, then run /check.\n'
+      return 0
+    fi
+
+    if [[ ! -f "$checks_file" ]]; then
+      printf 'check\t/check\tRun /check and verify-sprint so %s exists.\n' "$checks_file"
+      return 0
+    fi
+
+    if ! checks_error="$(workflow_checks_pass "$checks_file" "$contract_file" "$review_file")"; then
+      printf 'check\t/check\t%s\n' "$checks_error"
+      return 0
+    fi
+
+    target="$(workflow_target_branch)"
+    current_branch="$(workflow_current_branch)"
+    if workflow_is_linked_worktree && [[ -n "$current_branch" && "$current_branch" != "$target" ]]; then
+      printf 'finish\tbash scripts/contract-worktree.sh finish\tReview/checks pass; finish and fast-forward merge this contract worktree.\n'
+      return 0
+    fi
+  fi
+
+  if candidate="$(workflow_cleanup_candidate)"; then
+    IFS=$'\t' read -r slug branch worktree <<< "$candidate"
+    target="$(workflow_target_branch)"
+    command="bash scripts/contract-worktree.sh cleanup --slug ${slug} --target ${target}"
+    printf 'cleanup\t%s\tClean up merged contract worktree %s.\n' "$command" "${branch:-$slug}"
+    return 0
+  fi
+
+  printf 'none\t-\t(none)\n'
+}
+
 workflow_task_state_file() {
   printf '.claude/.task-state.json'
 }
@@ -828,6 +1047,7 @@ workflow_contract_allows_path() {
 workflow_write_handoff() {
   local reason="${1:-session-stop}"
   local handoff_file active_plan active_contract active_review active_notes checks_file next_task changed_files diff_stat spec_file source_plan parent_run_id supersedes
+  local next_action next_stage next_command next_message
   local budget_file resume_file events_file recent_commands blockers decisions goal
   local changed_count untracked_count
 
@@ -849,14 +1069,18 @@ workflow_write_handoff() {
   parent_run_id="${HOOK_RUN_ID:-${CLAUDE_RUN_ID:-${CODEX_RUN_ID:-run-$(date '+%Y%m%dT%H%M%S')-$$}}}"
   supersedes="$(workflow_read_state_field "$(workflow_task_state_file)" 'source_plan' || true)"
 
-  next_task="$(
-    {
-      grep -E '^[[:space:]]*-[[:space:]]\[[[:space:]]\][[:space:]]+' tasks/todo.md 2>/dev/null || true
-    } \
-      | head -1 \
-      | sed -E 's/^[[:space:]]*-[[:space:]]\[[[:space:]]\][[:space:]]+//'
-  )"
-  next_task="${next_task:-(none)}"
+  next_action="$(workflow_next_action)"
+  next_stage="$(printf '%s\n' "$next_action" | cut -f1)"
+  next_command="$(printf '%s\n' "$next_action" | cut -f2)"
+  next_message="$(printf '%s\n' "$next_action" | cut -f3-)"
+  [[ "${next_command:-}" == "-" ]] && next_command=""
+  next_stage="${next_stage:-none}"
+  next_message="${next_message:-(none)}"
+  if [[ -n "${next_command:-}" ]]; then
+    next_task="${next_message} Command: ${next_command}"
+  else
+    next_task="$next_message"
+  fi
 
   if is_git_repo; then
     changed_files="$(
@@ -900,6 +1124,8 @@ workflow_write_handoff() {
     goal="Continue task checklist sourced from ${source_plan}."
   elif [[ -n "$active_plan" ]]; then
     goal="Continue active plan ${active_plan}."
+  elif [[ "$next_stage" == "cleanup" ]]; then
+    goal="Clean up completed contract worktree."
   elif [[ "$next_task" != "(none)" && "$next_task" != "No active execution checklist" ]]; then
     goal="$next_task"
   else
@@ -966,6 +1192,7 @@ ${recent_commands}
 
 ## Current Status
 
+- Next action stage: ${next_stage}
 - Next recommended action: ${next_task}
 - Working tree: ${diff_stat}
 - Parent Run ID: ${parent_run_id}

@@ -371,6 +371,7 @@ describe("Migration script contract", () => {
       expect(policy.worktree_strategy.auto_for_contract_tasks).toBe(true);
       expect(policy.worktree_strategy.start_script).toBe("scripts/contract-worktree.sh start --plan <plan-file>");
       expect(policy.worktree_strategy.finish_script).toBe("scripts/contract-worktree.sh finish");
+      expect(policy.worktree_strategy.cleanup_script).toBe("scripts/contract-worktree.sh cleanup --slug <slug>");
       expect(policy.worktree_strategy.validation_route).toBe("waza:check");
       expect(policy.sidecar_research.preferred_runners).toEqual([
         "subagent",

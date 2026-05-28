@@ -683,3 +683,40 @@
 
 ### Verification
 - `bun test` covers diagnostic execution questions, stale/foreign marker self-heal, capture/worktree marker transfer, generated CodeGraph policy expectations, and migration idempotence.
+
+## 2026-05-29 Contract Worktree Done/Archive Split
+
+### Symptom
+- Contract worktree completion had two competing terminal paths: a user `done` prompt could trigger `.ai/hooks/prompt-guard.sh` AutoArchive inside the linked worktree, while `scripts/contract-worktree.sh finish` verified, committed, and fast-forward merged without archiving the plan.
+- In the primary worktree with no active marker, terse approval prompts still correctly fail with `PlanStatusGuard`; an empty Draft plan file is not an executable approved plan.
+- Handoff generation and task progress hints still had legacy `tasks/todo.md` reads, even though current execution checklists live in the active plan `## Task Breakdown`.
+
+### Root Cause
+- `.ai/hooks/prompt-guard.sh` treated all done intents the same after quality gates passed and did not distinguish primary worktree from linked contract worktree.
+- `scripts/contract-worktree.sh finish` owned the contract worktree merge path but did not call `scripts/archive-workflow.sh`, so the archive lifecycle was outside the only command that can safely commit and merge the terminal state.
+- Multiple hook/handoff surfaces computed "next task" independently, which made `/check`, `finish`, and cleanup recommendations drift from the actual contract state.
+
+### Fix
+- `.ai/hooks/lib/workflow-state.sh` now owns `workflow_plan_task_state` and `workflow_next_action`; the stage order is active plan task -> `/check` -> `finish` -> `cleanup` -> none.
+- Done intent inside a linked contract worktree now emits `[WorkflowNextAction]` from the shared helper and does not call AutoArchive.
+- `contract-worktree finish` now captures the active plan, runs `verify-sprint.sh`, checks contract scope, archives the completed workflow, clears local runtime markers, commits, and fast-forward merges.
+- `contract-worktree cleanup --slug <slug>` removes only merged linked worktrees, deletes merged branches with `git branch -d`, and removes local metadata from the target primary worktree; it refuses unmerged branches, dirty linked worktrees, and linked-cwd invocation.
+- Primary non-contract worktree AutoArchive remains for compatibility.
+- The empty Draft `plans/plan-20260529-0105-think-hook-capacity-wt.md` was moved to `plans/archive/` as Superseded housekeeping rather than treated as an executable plan.
+
+### Verification
+- `bun test tests/workflow-state-lib.test.ts tests/hook-runtime.test.ts tests/helper-scripts.test.ts tests/create-project-dirs.runtime.test.ts tests/migration-script.test.ts` covers shared next-action helper presence, handoff output, finish-time archive before merge, cleanup safety, generated policy cleanup_script, and linked-worktree done intent producing the finish next action without archive.
+
+## 2026-05-29 File-Prefix Workstream Sync Closeout
+
+### Symptom
+- The architecture request for `.ai/harness/policy.json` recommended `scripts/workstream-sync.sh ensure --block ".ai/harness/policy.json" --request ...`.
+- `scripts/capability-resolver.ts match` already resolved `.ai/harness/policy.json` to `workflow-engine-contract-assets`, but `workstream-sync.sh` and `context-contract-sync.sh` rejected the same path because their local `validate_block` functions required `[[ -d "$block" ]]`.
+
+### Fix
+- `scripts/workstream-sync.sh` and `scripts/context-contract-sync.sh` now accept existing repo-relative files or directories as capability blocks, matching the resolver's longest-prefix behavior.
+- The template mirrors under `assets/templates/helpers/` were updated with the same validation rule.
+- The `.ai/harness/policy.json` request was resolved without a new snapshot: `worktree_strategy.cleanup_script` is a policy contract field owned by `workflow-engine-contract-assets`; runtime cleanup remains owned by `scripts/contract-worktree.sh`.
+
+### Verification
+- `tests/hook-runtime.test.ts` includes a file-prefix workstream-sync fixture for `.ai/harness/policy.json`, checking the generated workstream and projected local contract block.
