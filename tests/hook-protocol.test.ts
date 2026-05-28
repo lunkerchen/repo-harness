@@ -162,7 +162,7 @@ describe("Claude Code hook protocol compliance", () => {
 
       const res = runHook("pre-edit-guard.sh", cwd, {
         stdin: JSON.stringify({
-          tool_input: { file_path: "/Users/ancienttwo/.claude/plans/some-other-file.md" },
+          tool_input: { file_path: "README.md" },
         }),
       });
       expect(res.status).toBe(2);
@@ -276,10 +276,11 @@ describe("Claude Code hook protocol compliance", () => {
     }
   });
 
-  test("hook_get_file_path: keeps paths outside the repo unchanged", () => {
+  test("pre-edit-guard: ignores paths outside the repo contract boundary", () => {
     // Case 2: an absolute path outside the repo (e.g. a global plan file under
-    // ~/.claude/plans/...) must remain absolute so guards can still recognise
-    // it as out-of-scope rather than mistakenly matching a relative pattern.
+    // ~/.claude/plans/...) must not be governed by this repo's sprint contract.
+    // The repo-local hook can normalize repo-internal absolute paths, but it
+    // should not turn an active contract into a global filesystem lock.
     const cwd = tmpWorkspace("hook-proto-abs-outside");
     const outsideRoot = realpathSync(mkdtempSync(join(tmpdir(), "hook-proto-outside-")));
     try {
@@ -313,9 +314,9 @@ describe("Claude Code hook protocol compliance", () => {
       const res = runHook("pre-edit-guard.sh", cwd, {
         stdin: JSON.stringify({ tool_input: { file_path: outsidePath } }),
       });
-      expect(res.status).toBe(2);
-      expect(res.stderr).toContain("[ContractScopeGuard]");
-      expect(res.stderr).toContain(outsidePath);
+      expect(res.status).toBe(0);
+      expect(res.stderr).not.toContain("[ContractScopeGuard]");
+      expect(res.stdout).not.toContain("[ContractScopeGuard]");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(outsideRoot, { recursive: true, force: true });

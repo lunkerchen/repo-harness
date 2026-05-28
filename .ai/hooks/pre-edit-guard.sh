@@ -24,6 +24,10 @@ is_private_ops_path() {
   esac
 }
 
+is_repo_scoped_path() {
+  [[ -n "$1" && "$1" != /* ]]
+}
+
 if [[ "$FILE_PATH" == _ref/* ]]; then
   echo "[ExternalReferenceGuard] $FILE_PATH is under _ref/."
   hook_structured_error \
@@ -51,7 +55,7 @@ if [[ "$FILE_PATH" == deploy/* ]]; then
 fi
 
 active_contract="$(workflow_active_contract || true)"
-if [[ -n "$active_contract" && -f "$active_contract" ]]; then
+if is_repo_scoped_path "$FILE_PATH" && [[ -n "$active_contract" && -f "$active_contract" ]]; then
   if ! workflow_contract_allows_path "$active_contract" "$FILE_PATH"; then
     echo "[ContractScopeGuard] $FILE_PATH is outside the active sprint contract: $active_contract"
     hook_structured_error \

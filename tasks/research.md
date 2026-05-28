@@ -615,3 +615,21 @@
 - Manual repro 1 (was failing): `echo '{"tool_input":{"file_path":"/Users/.../agentic-dev/.ai/hooks/sample.sh"}}' | bash .ai/hooks/pre-edit-guard.sh` → exit 0.
 - Manual repro 2 (regression guard): `echo '{"tool_input":{"file_path":"/Users/ancienttwo/.claude/plans/some-other-file.md"}}' | bash .ai/hooks/pre-edit-guard.sh` → exit 2 with the ContractScopeGuard stderr message intact.
 - `bash scripts/check-deploy-sql-order.sh`, `bash scripts/check-task-sync.sh`, `bash scripts/check-task-workflow.sh --strict`, `bun scripts/inspect-project-state.ts --repo . --format text`, `bash scripts/migrate-project-template.sh --repo . --dry-run`.
+
+## 2026-05-28 Hook Contract Boundary Fix (host plan files outside repo)
+
+### Symptom
+- With an active sprint contract, `pre-edit-guard.sh` blocked host/runtime plan writes such as `/Users/ancienttwo/.claude/plans/*.md` as outside `tasks/contracts/init-cli-external-skills.contract.md`.
+- The same failure shape repeated as a task-level blocker because repo-local `ContractScopeGuard` was acting like a global filesystem lock.
+
+### Root Cause
+- `hook_normalize_file_path` correctly leaves paths outside `HOOK_REPO_ROOT` absolute, but `pre-edit-guard.sh` still applied `workflow_contract_allows_path` to every `FILE_PATH`.
+- A repo contract's `allowed_paths` are repo-relative and should govern only paths in the current repo. Host plan files and scratch files are outside this repo's ownership boundary.
+
+### Fix
+- `.ai/hooks/pre-edit-guard.sh` and `assets/hooks/pre-edit-guard.sh` now apply `ContractScopeGuard` only when the normalized file path is repo-scoped, meaning non-empty and not absolute.
+- Repo-internal paths still normalize to repo-relative and remain contract-checked; repo-external absolute paths bypass only the repo sprint contract, not the host's own hook or OS/filesystem protections.
+
+### Verification
+- Manual repro: `printf '%s' '{"tool_input":{"file_path":"/Users/ancienttwo/.claude/plans/repro-hook-block.md"}}' | bash .ai/hooks/pre-edit-guard.sh` now exits 0.
+- Regression guard: `bun test tests/hook-protocol.test.ts` covers repo-internal contract blocking, repo-internal absolute normalization, repo-external boundary bypass, and allowed absolute paths.
