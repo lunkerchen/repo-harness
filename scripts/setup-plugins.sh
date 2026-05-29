@@ -4,9 +4,9 @@
 # Installs global plugins and configures global hooks in ~/.claude/settings.json.
 # Project-local hook adapters are legacy; repo opt-in lives in the workflow contract.
 # Default runtime profile:
-#   - Plan + Permissionless
-#   - Codex full access (danger-full-access + approval_policy=never semantics)
-#   - Claude --dangerously-skip-permissions
+#   - Plan-only (recommended)
+#   - Codex platform default sandbox with approval_policy=on-failure
+#   - Claude default permissions
 #   - Worktree warning by default (opt-in enforcement) + atomic checkpoint commits
 
 set -e
@@ -77,7 +77,7 @@ print_banner() {
     echo -e "${CYAN}"
     echo "╔══════════════════════════════════════════════════════════╗"
     echo "║     Claude Code Plugin Auto-Setup                        ║"
-    echo "║     Plan + Permissionless runtime profile                ║"
+    echo "║     Plan-only runtime profile                            ║"
     echo "╚══════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -136,7 +136,7 @@ install_ast_grep_skill() {
     fi
 }
 
-install_permissionless_policy_hooks() {
+install_runtime_policy_hooks() {
     echo -e "${BLUE}Installing policy hooks (worktree + atomic commit)...${NC}"
     mkdir -p "$HOOKS_DIR"
 
@@ -696,9 +696,9 @@ print_summary() {
 
     echo ""
     echo -e "${BLUE}Default runtime profile:${NC}"
-    echo -e "  - Plan + Permissionless"
-    echo -e "  - Codex: Full access semantics (danger-full-access + approval_policy=never)"
-    echo -e "  - Claude: --dangerously-skip-permissions"
+    echo -e "  - Plan-only (recommended)"
+    echo -e "  - Codex: platform default sandbox, approval_policy=on-failure"
+    echo -e "  - Claude: default permissions"
     echo -e "  - Mutations: primary tree warning; enforce via .claude/.require-worktree"
     echo -e "  - Commits: atomic checkpoints after green checks"
     echo ""
@@ -755,8 +755,8 @@ main() {
                 echo "Usage: setup-plugins.sh [options]"
                 echo ""
                 echo "Default behavior: installs essential plugins + enables $SUPERPOWERS_PLUGIN_ID"
-                echo "Runtime defaults: Plan + Permissionless, Codex full access semantics,"
-                echo "  Claude --dangerously-skip-permissions, worktree-warning mutations (opt-in enforcement),"
+                echo "Runtime defaults: Plan-only, Codex platform default sandbox with approval on failure,"
+                echo "  Claude default permissions, worktree-warning mutations (opt-in enforcement),"
                 echo "  atomic checkpoint commits after green checks."
                 echo ""
                 echo "Options:"
@@ -813,7 +813,7 @@ main() {
     mkdir -p "$SKILLS_DIR" "$HOOKS_DIR"
 
     # Install runtime policy hooks (global ~/.claude/hooks)
-    install_permissionless_policy_hooks
+    install_runtime_policy_hooks
 
     # Clone or update official plugins
     echo -e "${YELLOW}Setting up official plugins repository...${NC}"

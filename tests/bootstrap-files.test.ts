@@ -341,7 +341,7 @@ describe("Bootstrap Script Contracts", () => {
 
   test("setup script should install global policy hooks", () => {
     const setup = read("scripts/setup-plugins.sh");
-    expect(setup).toContain("install_permissionless_policy_hooks");
+    expect(setup).toContain("install_runtime_policy_hooks");
     expect(setup).toContain("worktree-guard.sh");
     expect(setup).toContain("atomic-pending.sh");
     expect(setup).toContain("hook-input.sh");

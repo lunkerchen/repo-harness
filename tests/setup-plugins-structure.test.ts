@@ -30,12 +30,12 @@ describe("setup-plugins structure", () => {
     expect(end).toBeGreaterThan(start);
 
     const heredocBody = setup.slice(start, end);
-    expect(heredocBody).not.toContain("install_permissionless_policy_hooks()");
+    expect(heredocBody).not.toContain("install_runtime_policy_hooks()");
   });
 
   test("defines policy-hook installer as a real shell function", () => {
     const setup = readSetup();
-    expect(setup).toContain("install_permissionless_policy_hooks() {");
+    expect(setup).toContain("install_runtime_policy_hooks() {");
     expect(setup).toContain("cat > \"$HOOKS_DIR/hook-input.sh\" << 'EOF'");
     expect(setup).toContain("chmod +x \"$HOOKS_DIR/worktree-guard.sh\"");
     expect(setup).toContain("\"$HOOKS_DIR/hook-input.sh\"");
