@@ -1,37 +1,41 @@
 # Implementation Notes: think-users-ancienttwo-agents-skillsthink-skill-md
 
-> **Status**: Active
+> **Status**: Complete
 > **Plan**: plans/plan-20260530-0142-think-users-ancienttwo-agents-skillsthink-skill-md.md
 > **Contract**: tasks/contracts/think-users-ancienttwo-agents-skillsthink-skill-md.contract.md
 > **Review**: tasks/reviews/think-users-ancienttwo-agents-skillsthink-skill-md.review.md
-> **Last Updated**: 2026-05-30 01:42
+> **Last Updated**: 2026-05-30 02:07
 > **Lifecycle**: notes
 
 ## Design Decisions
 
-- ...
+- Keep peer model execution outside hooks. Hooks only print the `[ExternalAcceptance]` prompt and completion gates parse review-file evidence.
+- Use `tasks/reviews/<slug>.review.md` as the single acceptance authority; `.ai/harness/checks/latest.json` mirrors parsed status for machine evidence only.
+- Allow `Manual Override:` as an explicit escape hatch for peer CLI auth/network outages, but require a concrete reason.
+- Accept direct Codex shell execution by detecting Codex-specific environment variables when `HOOK_HOST` is absent.
 
 ## Deviations From Plan Or Spec
 
-- None recorded.
+- None on scope. The implementation stayed inside hook state, prompt routing, finish/verify helpers, generated templates, docs, and tests.
 
 ## Tradeoffs Considered
 
 | Option | Decision | Reason |
 |--------|----------|--------|
-| ... | ... | ... |
+| Auto-run peer CLI from hook | Rejected | Hooks must stay fast, quiet, and auth/network independent. |
+| Store external evidence in a new file | Rejected | The review file already owns acceptance verdicts and is easier to audit. |
+| Fail hard when parser helpers are absent | Rejected | Existing generated repos may refresh helpers in stages; graceful degradation keeps old installs usable. |
 
 ## Open Questions
 
-- None.
+- Whether to add stricter missing-field diagnostics for external acceptance block parsing.
 
 ## Evidence Links
 
 - Checks: `.ai/harness/checks/latest.json`
-- Run snapshots: `.ai/harness/runs/`
+- Review: `tasks/reviews/think-users-ancienttwo-agents-skillsthink-skill-md.review.md`
+- External acceptance: `tasks/reviews/think-users-ancienttwo-agents-skillsthink-skill-md.review.md#external-acceptance-advice`
 
 ## Promotion Candidates
 
-- Promote to `tasks/lessons.md` only after a repeated correction or failure pattern.
-- Promote to `tasks/research.md` only when it is durable repo knowledge with evidence.
-- Promote to harness asset files only after verification across more than one task or fixture.
+- Promote the "hooks emit prompts but never run peer CLIs" invariant into durable workflow docs after one downstream repo validates the flow.

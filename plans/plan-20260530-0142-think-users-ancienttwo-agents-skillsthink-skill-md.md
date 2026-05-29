@@ -1,6 +1,6 @@
 # Plan: ExternalAcceptance review gate
 
-> **Status**: Executing
+> **Status**: Complete
 > **Created**: 20260530-0142
 > **Slug**: think-users-ancienttwo-agents-skillsthink-skill-md
 > **Planning Source**: waza-think
@@ -139,14 +139,14 @@ See captured planning output.
 - Exact output format for `## External Acceptance Advice`.
 
 ## Task Breakdown
-- [ ] Capture this approved plan and start an isolated contract worktree.
-- [ ] Implement workflow-state external acceptance parser and gate helpers.
-- [ ] Emit host-aware ExternalAcceptance prompt from review/release intent.
-- [ ] Enforce external acceptance in done flow and contract-worktree finish.
-- [ ] Include external acceptance status in verify-sprint structured evidence.
-- [ ] Mirror hook/helper changes to assets and generated templates/docs.
-- [ ] Add targeted tests for prompt, parser, done gate, finish gate, and verify-sprint JSON.
-- [ ] Run targeted tests and required repo checks.
+- [x] Capture this approved plan and start an isolated contract worktree.
+- [x] Implement workflow-state external acceptance parser and gate helpers.
+- [x] Emit host-aware ExternalAcceptance prompt from review/release intent.
+- [x] Enforce external acceptance in done flow and contract-worktree finish.
+- [x] Include external acceptance status in verify-sprint structured evidence.
+- [x] Mirror hook/helper changes to assets and generated templates/docs.
+- [x] Add targeted tests for prompt, parser, done gate, finish gate, and verify-sprint JSON.
+- [x] Run targeted tests and required repo checks.
 
 ## Test Plan
 - `bun test tests/hook-runtime.test.ts tests/helper-scripts.test.ts tests/workflow-state-lib.test.ts tests/hook-contracts.test.ts tests/bootstrap-files.test.ts`
@@ -167,11 +167,11 @@ See captured planning output.
 <!-- [NOTE]: prefixed inline. Claude processes all and revises. -->
 
 ## Task Breakdown
-- [ ] Capture this approved plan and start an isolated contract worktree.
-- [ ] Implement workflow-state external acceptance parser and gate helpers.
-- [ ] Emit host-aware ExternalAcceptance prompt from review/release intent.
-- [ ] Enforce external acceptance in done flow and contract-worktree finish.
-- [ ] Include external acceptance status in verify-sprint structured evidence.
-- [ ] Mirror hook/helper changes to assets and generated templates/docs.
-- [ ] Add targeted tests for prompt, parser, done gate, finish gate, and verify-sprint JSON.
-- [ ] Run targeted tests and required repo checks.
+- [x] Capture this approved plan and start an isolated contract worktree.
+- [x] Implement workflow-state external acceptance parser and gate helpers.
+- [x] Emit host-aware ExternalAcceptance prompt from review/release intent.
+- [x] Enforce external acceptance in done flow and contract-worktree finish.
+- [x] Include external acceptance status in verify-sprint structured evidence.
+- [x] Mirror hook/helper changes to assets and generated templates/docs.
+- [x] Add targeted tests for prompt, parser, done gate, finish gate, and verify-sprint JSON.
+- [x] Run targeted tests and required repo checks.

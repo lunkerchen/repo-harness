@@ -214,7 +214,7 @@ Describe the exact outcome this task must deliver.
 - Checks file: `.ai/harness/checks/latest.json`
 - Run snapshots: `.ai/harness/runs/`
 - Scope gate: edit only paths listed under `allowed_paths`; update this contract before widening scope.
-- Completion gate: `scripts/verify-sprint.sh` must see this contract pass and the review recommend pass.
+- Completion gate: `scripts/verify-sprint.sh` must see this contract pass, the review recommend pass, and `## External Acceptance Advice` pass or record a manual override.
 
 ## Allowed Paths
 
@@ -277,6 +277,18 @@ CONTRACT_TEMPLATE_EOF
 - Commands run:
 - Manual checks:
 - Supporting artifacts:
+
+## External Acceptance Advice
+
+> **External Acceptance**: unavailable
+> **External Reviewer**:
+> **External Source**:
+> **External Started**:
+> **External Completed**:
+
+- P1 blockers:
+- P2 advisories:
+- Acceptance checklist:
 
 ## Scorecard
 

@@ -95,6 +95,22 @@ function planEvidenceContract(): string {
   ].join("\n");
 }
 
+function externalAcceptanceAdvice(reviewer = "Codex", source = "codex-review"): string {
+  return [
+    "## External Acceptance Advice",
+    "",
+    "> **External Acceptance**: pass",
+    `> **External Reviewer**: ${reviewer}`,
+    `> **External Source**: ${source}`,
+    "> **External Started**: 2026-03-04T14:05:00+0800",
+    "> **External Completed**: 2026-03-04T14:06:00+0800",
+    "",
+    "- P1 blockers: none",
+    "- P2 advisories: none",
+    "- Acceptance checklist: pass",
+  ].join("\n");
+}
+
 function run(cmd: string, args: string[], cwd: string) {
   return spawnSync(cmd, args, { cwd, encoding: "utf-8" });
 }
@@ -196,7 +212,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("prompt-guard: emits host-aware [CrossReview] advisory at merge and debug moments", () => {
+  test("prompt-guard: emits host-aware [ExternalAcceptance] prompt at merge and [CrossReview] at debug moments", () => {
     const cwd = tmpWorkspace("cross-review-hint");
     try {
       installHooks(cwd);
@@ -207,6 +223,10 @@ describe("Hook runtime behavior", () => {
         env: { HOOK_HOST: "claude" },
       });
       expect(mergeClaude.status).toBe(0);
+      expect(mergeClaude.stdout).toContain("[ExternalAcceptance]");
+      expect(mergeClaude.stdout).toContain("Peer reviewer: Codex via codex-review");
+      expect(mergeClaude.stdout).toContain("Do not run /check");
+      expect(mergeClaude.stdout).toContain("## External Acceptance Advice");
       expect(mergeClaude.stdout).toContain("[CrossReview]");
       expect(mergeClaude.stdout).toContain("codex-review");
       expect(mergeClaude.stdout).not.toContain("claude-review");
@@ -217,6 +237,9 @@ describe("Hook runtime behavior", () => {
         env: { HOOK_HOST: "codex" },
       });
       expect(mergeCodex.status).toBe(0);
+      expect(mergeCodex.stdout).toContain("[ExternalAcceptance]");
+      expect(mergeCodex.stdout).toContain("Peer reviewer: Claude via /claude-review");
+      expect(mergeCodex.stdout).toContain("> **External Reviewer**: Claude");
       expect(mergeCodex.stdout).toContain("[CrossReview]");
       expect(mergeCodex.stdout).toContain("claude-review");
 
@@ -2363,7 +2386,7 @@ describe("Hook runtime behavior", () => {
       writeFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "# contract\n");
       writeFileSync(
         join(cwd, "tasks/reviews/demo.review.md"),
-        "# Sprint Review: demo\n\n> **Recommendation**: pass\n"
+        ["# Sprint Review: demo", "", "> **Recommendation**: pass", "", externalAcceptanceAdvice(), ""].join("\n")
       );
       writeValidSprintChecks(cwd);
       writeFileSync(
@@ -2379,12 +2402,53 @@ describe("Hook runtime behavior", () => {
 
       const res = runHook("prompt-guard.sh", cwd, {
         stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
       });
 
       expect(res.status).toBe(0);
       expect(res.stdout).toContain("[verify] ok");
       expect(res.stdout).toContain("[AutoArchive] All quality gates passed");
       expect(res.stdout).toContain("[archive] mocked");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when external acceptance advice is missing", () => {
+    const cwd = tmpWorkspace("prompt-guard-external-acceptance-missing");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "plans"), { recursive: true });
+      mkdirSync(join(cwd, "tasks"), { recursive: true });
+      mkdirSync(join(cwd, "tasks/contracts"), { recursive: true });
+      mkdirSync(join(cwd, "tasks/reviews"), { recursive: true });
+      mkdirSync(join(cwd, ".ai/harness/checks"), { recursive: true });
+      mkdirSync(join(cwd, "scripts"), { recursive: true });
+
+      writeFileSync(
+        join(cwd, "plans/plan-20260304-1410-demo.md"),
+        ["# Plan: demo", "", "> **Status**: Approved", "", planEvidenceContract(), ""].join("\n")
+      );
+      writeActivePlan(cwd, "plans/plan-20260304-1410-demo.md");
+      writeFileSync(
+        join(cwd, "tasks/todo.md"),
+        "# Task Execution Checklist (Primary)\n\n> **Source Plan**: plans/plan-20260304-1410-demo.md\n"
+      );
+      writeFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "# contract\n");
+      writeFileSync(join(cwd, "tasks/reviews/demo.review.md"), "# Sprint Review: demo\n\n> **Recommendation**: pass\n");
+      writeValidSprintChecks(cwd);
+      writeFileSync(join(cwd, "scripts/verify-contract.sh"), "#!/bin/bash\nset -euo pipefail\necho \"[verify] ok\"\n");
+      expect(run("chmod", ["+x", "scripts/verify-contract.sh"], cwd).status).toBe(0);
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+      });
+
+      expect(res.status).toBe(2);
+      expect(res.stdout).toContain("[ExternalAcceptanceGuard]");
+      expect(res.stdout).toContain("External acceptance section is missing");
+      expect(res.stdout).not.toContain("[EvidenceGuard]");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -2483,7 +2547,7 @@ describe("Hook runtime behavior", () => {
         writeFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "# contract\n");
         writeFileSync(
           join(cwd, "tasks/reviews/demo.review.md"),
-          "# Sprint Review: demo\n\n> **Recommendation**: pass\n"
+          ["# Sprint Review: demo", "", "> **Recommendation**: pass", "", externalAcceptanceAdvice(), ""].join("\n")
         );
         writeFileSync(join(cwd, ".ai/harness/checks/latest.json"), checks);
         writeFileSync(
@@ -2494,6 +2558,7 @@ describe("Hook runtime behavior", () => {
 
         const res = runHook("prompt-guard.sh", cwd, {
           stdin: JSON.stringify({ user_message: "done" }),
+          env: { HOOK_HOST: "claude" },
         });
 
         expect(res.status).toBe(2);

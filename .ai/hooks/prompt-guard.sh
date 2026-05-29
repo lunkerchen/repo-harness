@@ -493,6 +493,7 @@ emit_waza_route_hint() {
 
   if is_review_release_intent; then
     echo "[WazaRoute] Review/release intent detected. Default route: Waza /check."
+    emit_external_acceptance_prompt review
     emit_cross_review_hint merge
   fi
 }
@@ -518,6 +519,50 @@ emit_cross_review_hint() {
       echo "[CrossReview] Hard bug — ${skill} can give an independent ${peer} root-cause diagnosis. Agreeing diagnoses raise confidence; divergence shows where to dig."
       ;;
   esac
+}
+
+emit_external_acceptance_prompt() {
+  local mode="${1:-review}"
+  local expected_reviewer expected_source command active_plan contract_file review_file checks_file
+
+  expected_reviewer="$(workflow_external_acceptance_expected_reviewer)"
+  expected_source="$(workflow_external_acceptance_expected_source "$expected_reviewer")"
+  if [ "$expected_source" = "claude-review" ]; then
+    command="/claude-review"
+  else
+    command="codex-review"
+  fi
+
+  active_plan="$(get_active_plan || true)"
+  contract_file="$(workflow_active_contract || true)"
+  review_file="$(workflow_active_review || true)"
+  checks_file="$(workflow_checks_file)"
+
+  echo "[ExternalAcceptance] Review/release intent detected. Start peer acceptance in parallel with local /check."
+  echo "[ExternalAcceptance] Mode: $mode"
+  echo "[ExternalAcceptance] Current active plan: ${active_plan:-"(none)"}"
+  echo "[ExternalAcceptance] Current contract: ${contract_file:-"(none)"}"
+  echo "[ExternalAcceptance] Current review: ${review_file:-tasks/reviews/<slug>.review.md}"
+  echo "[ExternalAcceptance] Current checks: $checks_file"
+  echo "[ExternalAcceptance] Peer reviewer: $expected_reviewer via $command"
+  echo "[ExternalAcceptance] Diff scope for peer: branch diff against target, staged diff, unstaged diff, and untracked files."
+  cat <<EOF_EXTERNAL_ACCEPTANCE
+[ExternalAcceptance] Prompt to send with $command:
+Review the current sprint for acceptance only. Do not run /check. Do not edit files. Do not write files. Inspect the diff scope, contract, review evidence, and checks evidence, then return only a Markdown block that can be pasted into ${review_file:-tasks/reviews/<slug>.review.md}.
+
+## External Acceptance Advice
+> **External Acceptance**: pass
+> **External Reviewer**: $expected_reviewer
+> **External Source**: $expected_source
+> **External Started**: YYYY-MM-DDTHH:MM:SS+0800
+> **External Completed**: YYYY-MM-DDTHH:MM:SS+0800
+
+- P1 blockers: none
+- P2 advisories:
+- Acceptance checklist: pass
+
+If the peer CLI is unavailable, record **External Acceptance**: unavailable and include the failure reason. That does not satisfy the completion gate unless a Manual Override: line with a concrete reason is also recorded.
+EOF_EXTERNAL_ACCEPTANCE
 }
 
 strip_prompt_context_blocks() {
@@ -790,6 +835,18 @@ if [ "$done_intent" -eq 1 ]; then
       "ReviewGuard" \
       "Sprint review is missing a passing recommendation." \
       "Run Waza /check with fresh verification evidence and record a pass recommendation before marking work done." \
+      "quality_gate"
+    exit 2
+  fi
+
+  external_status="$(workflow_external_acceptance_status "$review_file")"
+  IFS=$'\t' read -r external_state external_reviewer external_source external_message <<< "$external_status"
+  if [ "$external_state" != "pass" ] && [ "$external_state" != "manual_override" ]; then
+    echo "[ExternalAcceptanceGuard] ${external_message:-External acceptance is missing.}"
+    hook_structured_error \
+      "ExternalAcceptanceGuard" \
+      "${external_message:-External acceptance is missing from $review_file.}" \
+      "Run peer acceptance via $(workflow_external_acceptance_expected_source) and record ## External Acceptance Advice in $review_file before marking work done." \
       "quality_gate"
     exit 2
   fi

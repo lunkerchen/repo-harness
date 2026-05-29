@@ -23,6 +23,18 @@
 - Implementation notes reviewed:
 - Run snapshot:
 
+## External Acceptance Advice
+
+> **External Acceptance**: unavailable
+> **External Reviewer**:
+> **External Source**:
+> **External Started**:
+> **External Completed**:
+
+- P1 blockers:
+- P2 advisories:
+- Acceptance checklist:
+
 ## Behavior Diff Notes
 
 - ...

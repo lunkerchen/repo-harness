@@ -382,6 +382,7 @@ finish_worktree() {
   fi
 
   local current_branch slug active_plan contract_file review_file target_worktree
+  local external_status external_state external_reviewer external_source external_message
   current_branch="$(git branch --show-current)"
   [[ -n "$current_branch" ]] || { echo "contract-worktree: detached HEAD is not supported" >&2; exit 1; }
   [[ "$current_branch" != "$target_branch" ]] || { echo "contract-worktree: already on target branch $target_branch" >&2; exit 1; }
@@ -406,6 +407,16 @@ finish_worktree() {
 
   [[ -n "$contract_file" && -f "$contract_file" ]] || { echo "contract-worktree: no active sprint contract found" >&2; exit 1; }
   [[ -n "$review_file" && -f "$review_file" ]] || { echo "contract-worktree: no active sprint review found" >&2; exit 1; }
+
+  if declare -F workflow_external_acceptance_status >/dev/null 2>&1; then
+    external_status="$(workflow_external_acceptance_status "$review_file")"
+    IFS=$'\t' read -r external_state external_reviewer external_source external_message <<< "$external_status"
+    if [[ "$external_state" != "pass" && "$external_state" != "manual_override" ]]; then
+      echo "contract-worktree: external acceptance gate failed: ${external_message:-missing external acceptance}" >&2
+      echo "contract-worktree: record ## External Acceptance Advice in $review_file via $(workflow_external_acceptance_expected_source) before finish" >&2
+      exit 1
+    fi
+  fi
 
   bash "scripts/verify-sprint.sh"
   check_scope_against_contract "$contract_file"

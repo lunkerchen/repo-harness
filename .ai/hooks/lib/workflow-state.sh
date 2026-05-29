@@ -478,6 +478,7 @@ workflow_cleanup_candidate() {
 
 workflow_next_action() {
   local active_plan task_state total done next_pending contract_file review_file checks_file checks_error
+  local external_status external_state external_reviewer external_source external_message expected_source
   local target current_branch slug candidate branch worktree command message
 
   active_plan="$(get_active_plan || true)"
@@ -509,6 +510,14 @@ workflow_next_action() {
 
     if [[ -z "$contract_file" || ! -f "$contract_file" ]]; then
       printf 'check\t/check\tRegenerate the active sprint contract, then run /check.\n'
+      return 0
+    fi
+
+    external_status="$(workflow_external_acceptance_status "$review_file")"
+    IFS=$'\t' read -r external_state external_reviewer external_source external_message <<< "$external_status"
+    if [[ "$external_state" != "pass" && "$external_state" != "manual_override" ]]; then
+      expected_source="$(workflow_external_acceptance_expected_source)"
+      printf 'check\t/check\t%s Run external acceptance via %s and record ## External Acceptance Advice in %s.\n' "${external_message:-External acceptance is missing.}" "$expected_source" "$review_file"
       return 0
     fi
 
@@ -1043,6 +1052,140 @@ workflow_review_recommends_pass() {
   local review_file="${1:-}"
   [[ -n "$review_file" && -f "$review_file" ]] || return 1
   grep -Eq '^> \*\*Recommendation\*\*:[[:space:]]*pass[[:space:]]*$' "$review_file"
+}
+
+workflow_external_acceptance_expected_reviewer() {
+  local host="${HOOK_HOST:-}"
+
+  if [[ -z "$host" ]]; then
+    if [[ -n "${CODEX_RUN_ID:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_SHELL:-}${CODEX_INTERNAL_ORIGINATOR_OVERRIDE:-}" ]]; then
+      host="codex"
+    elif [[ -n "${CLAUDE_RUN_ID:-}${CLAUDE_SESSION_ID:-}" ]]; then
+      host="claude"
+    else
+      host="claude"
+    fi
+  fi
+
+  if [[ "$host" == "codex" ]]; then
+    printf 'Claude'
+  else
+    printf 'Codex'
+  fi
+}
+
+workflow_external_acceptance_source_for_reviewer() {
+  local reviewer="${1:-}"
+  case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
+    claude) printf 'claude-review' ;;
+    *) printf 'codex-review' ;;
+  esac
+}
+
+workflow_external_acceptance_expected_source() {
+  local reviewer="${1:-}"
+  reviewer="${reviewer:-$(workflow_external_acceptance_expected_reviewer)}"
+  workflow_external_acceptance_source_for_reviewer "$reviewer"
+}
+
+workflow_external_acceptance_section() {
+  local review_file="${1:-}"
+  [[ -n "$review_file" && -f "$review_file" ]] || return 1
+  awk '
+    /^##[[:space:]]+External Acceptance Advice[[:space:]]*$/ { in_section = 1; next }
+    /^##[[:space:]]+/ && in_section { exit }
+    in_section { print }
+  ' "$review_file"
+}
+
+workflow_external_acceptance_field() {
+  local section="${1:-}"
+  local label="${2:-}"
+  printf '%s\n' "$section" |
+    sed -nE "s/^> \\*\\*${label}\\*\\*:[[:space:]]*([^[:space:]].*)[[:space:]]*$/\\1/p" |
+    head -n 1 |
+    sed -E 's/[[:space:]]+$//'
+}
+
+workflow_external_acceptance_status() {
+  local review_file="${1:-}"
+  local expected_reviewer="${2:-}"
+  local expected_source section acceptance reviewer source p1_blockers manual_override
+  local acceptance_lc reviewer_lc source_lc expected_reviewer_lc expected_source_lc p1_lc
+
+  expected_reviewer="${expected_reviewer:-$(workflow_external_acceptance_expected_reviewer)}"
+  expected_source="$(workflow_external_acceptance_expected_source "$expected_reviewer")"
+
+  if [[ -z "$review_file" || ! -f "$review_file" ]]; then
+    printf 'missing\t-\t-\tExternal acceptance review file is missing: %s\n' "${review_file:-tasks/reviews/<slug>.review.md}"
+    return 0
+  fi
+
+  section="$(workflow_external_acceptance_section "$review_file" || true)"
+  if [[ -z "$section" ]]; then
+    printf 'missing\t-\t-\tExternal acceptance section is missing from %s.\n' "$review_file"
+    return 0
+  fi
+
+  acceptance="$(workflow_external_acceptance_field "$section" "External Acceptance")"
+  reviewer="$(workflow_external_acceptance_field "$section" "External Reviewer")"
+  source="$(workflow_external_acceptance_field "$section" "External Source")"
+  p1_blockers="$(
+    printf '%s\n' "$section" |
+      sed -nE 's/^- P1 blockers:[[:space:]]*([^[:space:]].*)[[:space:]]*$/\1/p' |
+      head -n 1 |
+      sed -E 's/[[:space:]]+$//'
+  )"
+  manual_override="$(
+    printf '%s\n' "$section" |
+      sed -nE 's/^-?[[:space:]]*Manual Override:[[:space:]]*([^[:space:]].*)[[:space:]]*$/\1/p' |
+      head -n 1 |
+      sed -E 's/[[:space:]]+$//'
+  )"
+
+  if [[ -n "$manual_override" ]]; then
+    printf 'manual_override\t%s\t%s\tManual override recorded for external acceptance: %s\n' "${reviewer:--}" "${source:--}" "$manual_override"
+    return 0
+  fi
+
+  acceptance_lc="$(printf '%s' "$acceptance" | tr '[:upper:]' '[:lower:]')"
+  reviewer_lc="$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')"
+  source_lc="$(printf '%s' "$source" | tr '[:upper:]' '[:lower:]')"
+  expected_reviewer_lc="$(printf '%s' "$expected_reviewer" | tr '[:upper:]' '[:lower:]')"
+  expected_source_lc="$(printf '%s' "$expected_source" | tr '[:upper:]' '[:lower:]')"
+  p1_lc="$(printf '%s' "$p1_blockers" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ "$acceptance_lc" != "pass" ]]; then
+    printf 'fail\t%s\t%s\tExternal acceptance is %s; expected pass from %s via %s.\n' "${reviewer:--}" "${source:--}" "${acceptance:-missing}" "$expected_reviewer" "$expected_source"
+    return 0
+  fi
+
+  if [[ "$reviewer_lc" != "$expected_reviewer_lc" ]]; then
+    printf 'fail\t%s\t%s\tExternal reviewer is %s; expected %s.\n' "${reviewer:--}" "${source:--}" "${reviewer:-missing}" "$expected_reviewer"
+    return 0
+  fi
+
+  if [[ "$source_lc" != "$expected_source_lc" ]]; then
+    printf 'fail\t%s\t%s\tExternal source is %s; expected %s.\n' "${reviewer:--}" "${source:--}" "${source:-missing}" "$expected_source"
+    return 0
+  fi
+
+  if [[ "$p1_lc" != "none" ]]; then
+    printf 'fail\t%s\t%s\tExternal acceptance has P1 blockers: %s\n' "${reviewer:--}" "${source:--}" "${p1_blockers:-missing}"
+    return 0
+  fi
+
+  printf 'pass\t%s\t%s\tExternal acceptance passed.\n' "$reviewer" "$source"
+}
+
+workflow_external_acceptance_pass() {
+  local review_file="${1:-}"
+  local expected_reviewer="${2:-}"
+  local row status
+
+  row="$(workflow_external_acceptance_status "$review_file" "$expected_reviewer")"
+  status="${row%%$'\t'*}"
+  [[ "$status" == "pass" || "$status" == "manual_override" ]]
 }
 
 workflow_checks_pass() {

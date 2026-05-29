@@ -28,7 +28,8 @@ host-aware: `codex-review` only into `~/.claude/skills` (a Claude session asking
 Codex for an independent review) and `claude-review` only into `~/.codex/skills`
 (a Codex session asking Claude). When gstack is present, its `/codex` and
 `gstack-claude` skills are a more featureful superset; the harness skills are the
-zero-dependency baseline that always ships with `init`.
+zero-dependency baseline that always ships with `init` and the peer acceptance
+gate surface for `## External Acceptance Advice`.
 
 The review scope is the current reviewable diff, not just committed branch
 history: branch diff against the default base, staged changes, unstaged tracked

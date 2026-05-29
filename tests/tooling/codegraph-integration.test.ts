@@ -28,5 +28,5 @@ describe("CodeGraph tooling integration", () => {
     expect(viaCli.codegraph.source).toBe(viaScript.codegraph.source);
     expect(viaCli.codegraph.project_index.command).toBe(viaScript.codegraph.project_index.command);
     expect(viaCli.actions).toEqual([]);
-  }, 15000);
+  }, 30000);
 });

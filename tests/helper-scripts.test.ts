@@ -70,12 +70,12 @@ function installHooks(cwd: string) {
   expect(run("bash", ["-lc", "find .ai/hooks -type f -name '*.sh' -exec chmod +x {} +"], cwd).status).toBe(0);
 }
 
-function runHook(script: string, cwd: string, stdin: string) {
+function runHook(script: string, cwd: string, stdin: string, env?: NodeJS.ProcessEnv) {
   return spawnSync("bash", [join(cwd, ".ai", "hooks", script)], {
     cwd,
     input: stdin,
     encoding: "utf-8",
-    env: process.env,
+    env: { ...process.env, ...env },
   });
 }
 
@@ -116,6 +116,22 @@ function evidenceContract(): string {
     "- **Evaluator rubric**: Waza /check must recommend pass",
     "- **Stop condition**: stop on failing contract verification",
     "- **Rollback surface**: revert the plan branch and generated task files",
+  ].join("\n");
+}
+
+function externalAcceptanceAdvice(reviewer = "Codex", source = "codex-review"): string {
+  return [
+    "## External Acceptance Advice",
+    "",
+    "> **External Acceptance**: pass",
+    `> **External Reviewer**: ${reviewer}`,
+    `> **External Source**: ${source}`,
+    "> **External Started**: 2026-03-04T14:05:00+0800",
+    "> **External Completed**: 2026-03-04T14:06:00+0800",
+    "",
+    "- P1 blockers: none",
+    "- P2 advisories: none",
+    "- Acceptance checklist: pass",
   ].join("\n");
 }
 
@@ -658,7 +674,7 @@ describe("Workflow helper scripts", () => {
     }
   });
 
-  test("contract-worktree finish should verify, commit, and fast-forward merge into clean main", () => {
+  test("contract-worktree finish should require external acceptance, then verify, commit, and fast-forward merge", () => {
     const cwd = tmpWorkspace("helper-contract-finish");
     const worktreePath = `${cwd}-wt-demo`;
     try {
@@ -752,7 +768,33 @@ describe("Workflow helper scripts", () => {
         ].join("\n")
       );
 
-      const finish = run("bash", ["scripts/contract-worktree.sh", "finish"], worktreePath);
+      const missingExternal = run("bash", ["scripts/contract-worktree.sh", "finish"], worktreePath, { HOOK_HOST: "claude" });
+      expect(missingExternal.status).toBe(1);
+      expect(missingExternal.stderr).toContain("external acceptance gate failed");
+      expect(missingExternal.stderr).toContain("External acceptance section is missing");
+
+      writeFileSync(
+        join(worktreePath, "tasks/reviews/demo.review.md"),
+        [
+          "# Sprint Review: demo",
+          "",
+          "> **Recommendation**: pass",
+          "",
+          "## Scorecard",
+          "",
+          "| Dimension | Score | Notes |",
+          "|-----------|-------|-------|",
+          "| Functionality | 8/10 | verified |",
+          "",
+          "## Verification Evidence",
+          "- Unit test and typecheck covered by verify-sprint.",
+          "",
+          externalAcceptanceAdvice(),
+          "",
+        ].join("\n")
+      );
+
+      const finish = run("bash", ["scripts/contract-worktree.sh", "finish"], worktreePath, { HOOK_HOST: "claude" });
       expect(finish.status).toBe(0);
       expect(finish.stdout).toContain("Sprint verification passed");
       expect(finish.stdout).toContain("Archiving completed workflow before merge");
@@ -807,7 +849,7 @@ describe("Workflow helper scripts", () => {
       writeFileSync(join(worktreePath, "tasks/contracts/demo.contract.md"), "# contract\n");
       writeFileSync(
         join(worktreePath, "tasks/reviews/demo.review.md"),
-        "# Sprint Review: demo\n\n> **Recommendation**: pass\n"
+        ["# Sprint Review: demo", "", "> **Recommendation**: pass", "", externalAcceptanceAdvice(), ""].join("\n")
       );
       writeValidSprintChecks(worktreePath);
       writeFileSync(
@@ -819,7 +861,8 @@ describe("Workflow helper scripts", () => {
       const res = runHook(
         "prompt-guard.sh",
         worktreePath,
-        JSON.stringify({ user_message: "任务完成了，结束吧" })
+        JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        { HOOK_HOST: "claude" }
       );
 
       expect(res.status).toBe(0);
@@ -1401,10 +1444,10 @@ describe("Workflow helper scripts", () => {
       );
       writeFileSync(
         join(cwd, "tasks/reviews/demo.review.md"),
-        "# Sprint Review: demo\n\n> **Recommendation**: pass\n"
+        ["# Sprint Review: demo", "", "> **Recommendation**: pass", "", externalAcceptanceAdvice(), ""].join("\n")
       );
 
-      const res = run("bash", ["scripts/verify-sprint.sh"], cwd);
+      const res = run("bash", ["scripts/verify-sprint.sh"], cwd, { HOOK_HOST: "claude" });
       expect(res.status).toBe(0);
       expect(res.stdout).toContain("Sprint verification passed");
       const checks = JSON.parse(readFileSync(join(cwd, ".ai/harness/checks/latest.json"), "utf-8"));
@@ -1416,6 +1459,9 @@ describe("Workflow helper scripts", () => {
       expect(checks.contract.status).toBe("pass");
       expect(checks.review.file).toBe("tasks/reviews/demo.review.md");
       expect(checks.review.status).toBe("pass");
+      expect(checks.external_acceptance.status).toBe("pass");
+      expect(checks.external_acceptance.reviewer).toBe("Codex");
+      expect(checks.external_acceptance.source).toBe("codex-review");
       expect(checks.run_file).toMatch(/^\.ai\/harness\/runs\/.+-demo\.json$/);
       expect(existsSync(join(cwd, checks.run_file))).toBe(true);
       const snapshot = JSON.parse(readFileSync(join(cwd, checks.run_file), "utf-8"));
@@ -1470,6 +1516,7 @@ describe("Workflow helper scripts", () => {
       expect(checks.source).toBe("verify-sprint");
       expect(checks.contract.file).toBe("tasks/contracts/demo.contract.md");
       expect(checks.contract.status).toBe("fail");
+      expect(checks.external_acceptance.status).toBe("missing");
       expect(checks.run_file).toMatch(/^\.ai\/harness\/runs\/.+-demo\.json$/);
       expect(existsSync(join(cwd, checks.run_file))).toBe(true);
     } finally {

@@ -61,7 +61,7 @@ work, or shared contracts, report the P1/P2/P3 evidence explicitly.
 4. When Codex Plan mode, Waza `/think`, or `repo-harness-plan` produces a decision-complete plan, capture it into `plans/` with `scripts/capture-plan.sh --slug <slug> --title <title>` and the plan text on stdin.
 5. Approved plans must include `## Evidence Contract` with state/progress path, verification evidence, evaluator rubric, stop condition, and rollback surface before execution. `capture-plan.sh` supplies this contract for captured planning output.
 6. Convert approved plans to execution scaffolding with `scripts/plan-to-todo.sh --plan <plan>`; if approval is already explicit, use `scripts/capture-plan.sh --status Approved --execute ...`. The plan's own `## Task Breakdown` remains the execution checklist; `tasks/todo.md` remains a deferred-goal ledger. Contract-level plans are projected into a linked `codex/<slug>` worktree when the policy enables it.
-7. After substantive changes, run project checks and record evidence in `tasks/`. For contract worktrees, run Waza `/check`, fill the review artifact from that verdict, then run `scripts/contract-worktree.sh finish`.
+7. After substantive changes, run project checks and record evidence in `tasks/`. For contract worktrees, run Waza `/check`, start host-aware external acceptance in parallel, fill the review artifact from both verdicts, then run `scripts/contract-worktree.sh finish`.
 
 ## Passive Plan Capture
 
@@ -73,6 +73,6 @@ work, or shared contracts, report the P1/P2/P3 evidence explicitly.
 
 - Do not route large architecture decisions through Waza `/think` by default.
 - Do not use gstack plan review for routine local edits where `/think` or direct execution is enough.
-- Hooks may emit advisory Waza `/check` and `/health` route hints on prompt submit, and an advisory `[CrossReview]` hint suggesting `codex-review`/`claude-review` at pre-merge, debug, and spec/test moments, but must not block, mutate files, or auto-run skills based on semantic intent; the agent decides whether to act. Plan capture is an agent action after a planning mode produces a concrete plan.
+- Hooks may emit advisory Waza `/check` and `/health` route hints on prompt submit. Review/release prompts emit a host-aware `[ExternalAcceptance]` prompt telling the main agent to run the peer reviewer in parallel and paste `## External Acceptance Advice` into the review file; done/finish gates block only on that recorded evidence. Hooks must not mutate files or auto-run peer CLIs based on semantic intent. `[CrossReview]` remains a lightweight debug/spec/test advisory. Plan capture is an agent action after a planning mode produces a concrete plan.
 - Keep `office-hours` for product-demand shaping; use `plan-eng-review` when engineering execution needs to be locked.
 - Treat subagent and parallel-agent execution as a main-agent decision based on task breadth, context impact, raw-log volume, and callable tools. Do not ask the user for spawn confirmation; if no runner is callable or spawning is not worth the context cost, complete the same P1/P2/P3 trace in the main thread and persist evidence-backed conclusions in `tasks/research.md`.

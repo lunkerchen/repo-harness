@@ -112,6 +112,9 @@ describe("Hook contracts", () => {
     expect(script).toContain("HarnessMaintenance");
     expect(script).toContain("has_changes_glob");
     expect(script).toContain("emit_cross_review_hint");
+    expect(script).toContain("emit_external_acceptance_prompt");
+    expect(script).toContain("[ExternalAcceptance]");
+    expect(script).toContain("## External Acceptance Advice");
     expect(script).toContain("[CrossReview]");
     expect(script).toContain("codex-review");
     expect(script).toContain("claude-review");
