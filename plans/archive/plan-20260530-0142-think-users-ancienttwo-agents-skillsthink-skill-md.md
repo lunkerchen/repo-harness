@@ -1,6 +1,6 @@
 # Plan: ExternalAcceptance review gate
 
-> **Status**: Complete
+> **Status**: Archived
 > **Created**: 20260530-0142
 > **Slug**: think-users-ancienttwo-agents-skillsthink-skill-md
 > **Planning Source**: waza-think
