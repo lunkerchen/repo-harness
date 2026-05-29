@@ -6,11 +6,13 @@ cd "$ROOT"
 
 PACKAGE_NAME="$(bun -e 'const pkg = await Bun.file("package.json").json(); console.log(pkg.name)')"
 PACKAGE_VERSION="$(bun -e 'const pkg = await Bun.file("package.json").json(); console.log(pkg.version)')"
+NPM_RELEASE_REGISTRY="${NPM_RELEASE_REGISTRY:-https://registry.npmjs.org/}"
 LOOKUP_STDERR="$(mktemp)"
 trap 'rm -f "$LOOKUP_STDERR"' EXIT
 
 echo "[release] package: ${PACKAGE_NAME}@${PACKAGE_VERSION}"
-if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --json >/dev/null 2>"$LOOKUP_STDERR"; then
+echo "[release] registry: ${NPM_RELEASE_REGISTRY}"
+if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --json --registry "$NPM_RELEASE_REGISTRY" >/dev/null 2>"$LOOKUP_STDERR"; then
   echo "[release] ERROR: ${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
   echo "[release] Bump package.json, CLI version, status version, and tests before publishing." >&2
   exit 1

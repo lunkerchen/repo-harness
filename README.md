@@ -1,7 +1,7 @@
 # repo-harness
 
 Repo-local agentic development harness CLI and skill runtime for Claude/Codex
-workflows. Formerly `repo-harness-skill` and `project-initializer`;
+workflows. The npm package and primary command are now `repo-harness`.
 `repo-harness-skill` remains a compatibility alias, while `project-initializer`
 install paths are retired and removed by installed-copy sync.
 Repository: `https://github.com/Ancienttwo/repo-harness`
@@ -22,9 +22,12 @@ safe to adopt in a real repo.
 npx -y repo-harness init
 ```
 
-The npm package name and primary installed command are `repo-harness`.
-`repo-harness` remains a compatibility command alias. When working from a source
-checkout instead of npm, run:
+The npm package release line is `0.1.x`; generated workflow compatibility is
+tracked separately as the `5.x` model line. The `0.1.2` package publishes the
+renamed `repo-harness` CLI, user-level Claude/Codex hook adapter bootstrap,
+Waza runtime skill sync, `diagram-design` sync, and the release gate used by
+maintainers before npm publish. When working from a source checkout instead of
+npm, run:
 
 ```bash
 git clone https://github.com/Ancienttwo/repo-harness.git ~/Projects/repo-harness
@@ -128,6 +131,13 @@ Most common guards:
 - Plan source of truth: `plans/`
 - Durable progress: `tasks/workstreams/`
 - Release history: `docs/CHANGELOG.md`
+
+## Current Release
+
+- npm package: `repo-harness@0.1.2`
+- Generated workflow compatibility: `5.2.3`
+- GitHub repository: `Ancienttwo/repo-harness`
+- Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
 ## Current Model (5.2.3)
 
