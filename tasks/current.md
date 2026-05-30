@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-05-30T11:21:49+0800 -->
+<!-- updated_at: 2026-05-30T15:55:24+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: ManualClearedWithActiveWork
-> **Updated At**: 2026-05-30T11:21:49+0800
-> **Source Branch**: main
-> **Source Commit**: 6459b1a
+> **Updated At**: 2026-05-30T15:55:24+0800
+> **Source Branch**: codex/think-users-ancienttwo-agents-skillsthink-skill-md
+> **Source Commit**: 9d2f713
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: check-submit
+> **Reason**: archive-workflow
 > **Derived From**: active-plan, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -40,7 +40,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 - `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`: status=completed, current_slice=todo-01, source_plan=(none)
 ## Handoff
 
-- Exact Next Step: Clean up merged contract worktree codex/npm-release-hardening-v0-1-2. Command: bash scripts/contract-worktree.sh cleanup --slug npm-release-hardening-v0-1-2 --target main
+- Exact Next Step: External acceptance section is missing from tasks/reviews/think-users-ancienttwo-agents-skillsthink-skill-md.review.md. Run external acceptance via codex-review and record ## External Acceptance Advice in tasks/reviews/think-users-ancienttwo-agents-skillsthink-skill-md.review.md. Command: /check
 
 ## Checks
 
@@ -48,49 +48,24 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 46 changed/untracked path(s)
+- Summary: 15 changed/untracked path(s)
 
 ```
- M .ai/context/context-map.json
- M .ai/harness/policy.json
- M .ai/harness/workflow-contract.json
- M .ai/hooks/session-start-context.sh
- M AGENTS.md
- M CLAUDE.md
- M assets/AGENTS.md
- M assets/CLAUDE.md
- M assets/hooks/session-start-context.sh
- M assets/reference-configs/agentic-development-flow.md
- M assets/reference-configs/handoff-protocol.md
- M assets/reference-configs/harness-overview.md
- M assets/templates/helpers/architecture-drift.sh
- M assets/templates/helpers/architecture-event.ts
- M assets/templates/helpers/archive-workflow.sh
- M assets/templates/helpers/check-task-sync.sh
- M assets/templates/helpers/check-task-workflow.sh
- M assets/templates/helpers/context-contract-sync.sh
- M assets/templates/helpers/ensure-task-workflow.sh
- M assets/workflow-contract.v1.json
- M docs/reference-configs/agentic-development-flow.md
- M docs/reference-configs/handoff-protocol.md
- M docs/reference-configs/harness-overview.md
- M scripts/architecture-drift.sh
- M scripts/architecture-event.ts
- M scripts/archive-workflow.sh
- M scripts/check-task-sync.sh
- M scripts/check-task-workflow.sh
- M scripts/context-contract-sync.sh
- M scripts/create-project-dirs.sh
- M scripts/ensure-task-workflow.sh
- M scripts/init-project.sh
- M scripts/lib/project-init-lib.sh
- M scripts/migrate-project-template.sh
- M tests/bootstrap-files.test.ts
- M tests/create-project-dirs.runtime.test.ts
- M tests/helper-scripts.test.ts
+ M .ai/hooks/lib/session-state.sh
+ M .ai/hooks/post-bash.sh
+ M .ai/hooks/prompt-guard.sh
+ M .ai/hooks/trace-event.sh
+ M assets/hooks/lib/session-state.sh
+ M assets/hooks/post-bash.sh
+ M assets/hooks/prompt-guard.sh
+ M assets/hooks/trace-event.sh
+ M tasks/contracts/think-users-ancienttwo-agents-skillsthink-skill-md.contract.md
+ M tasks/reviews/think-users-ancienttwo-agents-skillsthink-skill-md.review.md
  M tests/hook-runtime.test.ts
- M tests/migration-script.test.ts
- M tests/scaffold-parity.test.ts
+?? plans/archive/plan-20260530-1529-think-users-ancienttwo-agents-skillsthink-skill-md.md
+?? tasks/.current.md.tmp.7YMgOX
+?? tasks/archive/notes-20260530-1555-think-users-ancienttwo-agents-skillsthink-skill-md.md
+?? tasks/archive/todo-20260530-1555-think-users-ancienttwo-agents-skillsthink-skill-md.md
 ```
 
 ## Source Artifacts

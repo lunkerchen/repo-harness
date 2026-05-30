@@ -288,6 +288,53 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("prompt-guard: Codegraph nudge is one-shot and silenced after observed CodeGraph use", () => {
+    const cwd = tmpWorkspace("codegraph-route-state");
+    try {
+      installHooks(cwd);
+
+      const first = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "帮我排查这个 hook 为什么不触发，跨多个文件" }),
+        env: { SESSION_KEY: "codegraph-session" },
+      });
+      expect(first.status).toBe(0);
+      expect(first.stdout).toContain("[CodegraphRoute]");
+
+      const second = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "帮我排查这个 hook 为什么不触发，跨多个文件" }),
+        env: { SESSION_KEY: "codegraph-session" },
+      });
+      expect(second.status).toBe(0);
+      expect(second.stdout).not.toContain("[CodegraphRoute]");
+
+      const usedCwd = tmpWorkspace("codegraph-route-used");
+      try {
+        installHooks(usedCwd);
+        const trace = runHook("trace-event.sh", usedCwd, {
+          stdin: JSON.stringify({
+            hook_event_name: "PostToolUse",
+            tool_name: "mcp__codegraph__codegraph_context",
+          }),
+          env: { SESSION_KEY: "used-session" },
+        });
+        expect(trace.status).toBe(0);
+        const markers = readdirSync(join(usedCwd, ".claude/.codegraph-state"));
+        expect(markers.some((name) => name.endsWith(".used"))).toBe(true);
+
+        const afterUse = runHook("prompt-guard.sh", usedCwd, {
+          stdin: JSON.stringify({ prompt: "谁调用了 runHook？影响面是什么？" }),
+          env: { SESSION_KEY: "used-session" },
+        });
+        expect(afterUse.status).toBe(0);
+        expect(afterUse.stdout).not.toContain("[CodegraphRoute]");
+      } finally {
+        rmSync(usedCwd, { recursive: true, force: true });
+      }
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("trace-event records host attribution metadata", () => {
     const cwd = tmpWorkspace("trace-host-metadata");
     try {
@@ -2944,6 +2991,42 @@ describe("Hook runtime behavior", () => {
       expect(latest.source).toBe("verify-sprint");
       expect(postBash.source).toBe("post-bash");
       expect(postBash.command).toBe("git status --short");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("post-bash: records broad Bash command metadata without blocking", () => {
+    const cwd = tmpWorkspace("post-bash-broad-command");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+
+      const broad = runHook("post-bash.sh", cwd, {
+        stdin: JSON.stringify({
+          tool_input: { command: "rg foo" },
+          tool_output: "src/a.ts:foo\nsrc/b.ts:foo\n",
+          exit_code: 0,
+        }),
+      });
+      expect(broad.status).toBe(0);
+      const broadJson = JSON.parse(readFileSync(join(cwd, ".ai/harness/checks/latest.json"), "utf-8"));
+      expect(broadJson.broad_command).toBe(true);
+      expect(broadJson.output_line_count).toBe(2);
+      expect(broadJson.recommended_next_tool).toBe("codegraph_context");
+
+      const precise = runHook("post-bash.sh", cwd, {
+        stdin: JSON.stringify({
+          tool_input: { command: "rg foo src/" },
+          tool_output: "src/a.ts:foo\n",
+          exit_code: 0,
+        }),
+      });
+      expect(precise.status).toBe(0);
+      const preciseJson = JSON.parse(readFileSync(join(cwd, ".ai/harness/checks/latest.json"), "utf-8"));
+      expect(preciseJson.broad_command).toBe(false);
+      expect(preciseJson.output_line_count).toBe(1);
+      expect(preciseJson.recommended_next_tool).toBe("");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

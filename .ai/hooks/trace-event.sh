@@ -35,6 +35,12 @@ duration_ms="${duration_ms:-0}"
 run_id="${run_id:-unknown}"
 session_source="${session_source:-unknown}"
 
+case "$tool_name" in
+  mcp__codegraph__*|codegraph_*)
+    session_state_mark_codegraph_used "$session_key" || true
+    ;;
+esac
+
 if [[ -n "${CODEX_SESSION_ID:-${CODEX_AGENT_NAME:-}}" ]] || [[ "$session_source" =~ [Cc]odex ]]; then
   host="codex"
 elif [[ -n "${CLAUDE_SESSION_ID:-${CLAUDE_AGENT_NAME:-}}" ]] || [[ "$session_source" =~ [Cc]laude ]]; then

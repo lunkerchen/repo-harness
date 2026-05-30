@@ -10,6 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/hook-input.sh"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/workflow-state.sh"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/lib/session-state.sh"
 
 is_execution_approval_intent() {
   echo "$PROMPT_TEXT" | grep -qEi "^[[:space:][:punct:]]*(please[[:space:][:punct:]]+)?(go ahead([[:space:]]+(with[[:space:]]+(it|this|that)|please))?|go|proceed([[:space:]]+(with[[:space:]]+(it|this|that)|please))?|approved|approve([[:space:]]+(it|this|that))?|ship it|let'?s go|继续执行|批准执行|批准|可以干(了|吧)?|可以(开始|执行)(了|吧)?|直接改(了|吧)?|整|整吧|开干|干吧|做吧|走起)([[:space:][:punct:]]+please)?[[:space:][:punct:]]*$"
@@ -475,9 +477,40 @@ is_codegraph_route_intent() {
   echo "$PROMPT_INTENT_TEXT" | grep -qEi "(who calls|what calls|callers|callees|impact|impact radius|trace[[:space:]]+(flow|path|call)|where[[:space:]].*(defined|definition)|definition of|symbol named|调用关系|谁调用|调用了谁|哪里定义|定义在哪|影响面|调用链|追踪(路径|调用|链)|从.*到.*怎么走)"
 }
 
+is_nontrivial_code_task_intent() {
+  is_trigger_question_prompt && return 1
+  is_plan_discussion_continuation_intent && return 1
+  is_plan_refinement_intent && return 1
+  is_review_release_advisory_intent && return 1
+
+  if is_diagnostic_question_intent && ! is_bug_or_hunt_intent; then
+    return 1
+  fi
+
+  if prompt_first_nonblank_line | grep -qEi "^[[:space:][:punct:]]*(git[[:space:]]+(status|log|show|diff|push|pull|commit)|status|commit|push|merge|提交|推送|合并|看状态|看看状态)([[:space:][:punct:]]|$)"; then
+    return 1
+  fi
+
+  if is_bug_or_hunt_intent || is_plain_feature_plan_start_intent || is_implement_intent; then
+    return 0
+  fi
+
+  echo "$PROMPT_INTENT_TEXT" | grep -qEi "(architecture|architectural|runtime|hook|hooks|shared contract|workflow contract|module boundary|route registry|multi[- ]?file|refactor|dependency path|架构|运行时|钩子|共享合约|工作流合约|模块边界|路由表|多文件|重构|依赖路径)"
+}
+
 emit_codegraph_route_hint() {
-  if is_codegraph_route_intent; then
+  local session_key session_file=".claude/.session-id"
+
+  mkdir -p .claude
+  session_key="$(session_state_resolve_key "$session_file")"
+
+  if session_state_codegraph_used "$session_key" || session_state_codegraph_nudged "$session_key"; then
+    return 0
+  fi
+
+  if is_codegraph_route_intent || is_nontrivial_code_task_intent; then
     echo "[CodegraphRoute] Structural code-navigation intent detected. Prefer CodeGraph context/search/callers/impact before grep/read when available."
+    session_state_mark_codegraph_nudged "$session_key" || true
   fi
 }
 
