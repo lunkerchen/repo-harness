@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-05-30T21:46:35+0800 -->
+<!-- updated_at: 2026-05-30T21:54:02+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-05-30T21:46:35+0800
+> **Updated At**: 2026-05-30T21:54:02+0800
 > **Source Branch**: main
-> **Source Commit**: b2e5c2f
+> **Source Commit**: 61c9073
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: branch-cleanup
+> **Reason**: branch-cleanup-plan-captured
 > **Derived From**: active-plan, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -45,11 +45,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 1 changed/untracked path(s)
-
-```
-?? plans/plan-20260530-2005-think-headroom-caveman-codegraph-cbm.md
-```
+- Summary: clean
 
 ## Source Artifacts
 
