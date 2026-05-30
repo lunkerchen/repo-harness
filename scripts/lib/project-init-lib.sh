@@ -39,6 +39,7 @@ PI_DEFAULT_RUNTIME_ENTRIES=$(cat <<'EOF_RUNTIME'
 .claude/.task-state.json
 .claude/.task-handoff.md
 .claude/.context-pressure/
+.claude/.codegraph-state/
 .claude/*.tmp
 .claude/*.bak
 .claude/*.bak.*

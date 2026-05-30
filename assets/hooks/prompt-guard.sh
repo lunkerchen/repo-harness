@@ -33,6 +33,9 @@ is_implement_intent() {
   if is_review_release_advisory_intent; then
     return 1
   fi
+  if is_passive_worktree_status_intent; then
+    return 1
+  fi
   echo "$PROMPT_INTENT_TEXT" | grep -qEi "(implement|execute|build it|do it|go ahead|proceed|ship it|实现|执行|开始写|动手|开干)" || is_execution_approval_intent || is_embedded_approved_plan_intent || is_plan_shaped_markdown_intent
 }
 
@@ -121,6 +124,16 @@ is_review_release_advisory_intent() {
   # on the implementation gate.
   echo "$PROMPT_INTENT_TEXT" | grep -qEi "(implement|build it|do it|实现|开始写|动手|开干)" && return 1
   return 0
+}
+
+is_passive_worktree_status_intent() {
+  is_execution_approval_intent && return 1
+  is_embedded_approved_plan_intent && return 1
+  is_plan_shaped_markdown_intent && return 1
+  is_explicit_execution_start_line && return 1
+
+  printf '%s\n' "$PROMPT_INTENT_TEXT" | grep -qEi "(plan-to-todo|worktree|linked worktree|隔离 worktree|分支|branch)" || return 1
+  printf '%s\n' "$PROMPT_INTENT_TEXT" | grep -qEi "(实现会在.*worktree.*完成|会在.*worktree.*完成|implementation will .*worktree|will .*happen.*worktree|will .*complete.*worktree)"
 }
 
 is_embedded_approved_plan_intent() {
@@ -231,8 +244,7 @@ is_think_plan_start_intent() {
 
 derive_plan_start_title() {
   local title="$PROMPT_INTENT_TEXT"
-  title="$(printf '%s' "$title" | tr '\r\n' '  ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:][:punct:]]+//; s/[[:space:]]+$//')"
-  title="$(printf '%s' "$title" | sed -E 's/\[[$]think\]\([^)]*\)/think/g; s/[$]think/think/g; s#/think#think#g')"
+  title="$(printf '%s' "$title" | tr '\r\n' '  ' | sed -E 's/\[[$]think\]\([^)]*\)/think/g; s/[$]think/think/g; s#/think#think#g; s/[[:space:]]+/ /g; s/^[[:space:][:punct:]]+//; s/[[:space:]]+$//')"
   if [[ -z "$title" ]]; then
     title="Planning Session"
   fi
@@ -970,7 +982,7 @@ if echo "$PROMPT_TEXT" | grep -qEi "(fix|patch|bug|修复|修bug|修 bug|改bug)
   echo "  检测到修复请求：先写失败测试复现问题，再重写实现。"
   emit_cross_review_hint debug
 fi
-if ! is_diagnostic_question_intent && ! is_review_release_advisory_intent && echo "$PROMPT_TEXT" | grep -qEi "(new feature|feature|implement|build|新功能|实现|开发功能|执行)"; then
+if ! is_diagnostic_question_intent && ! is_review_release_advisory_intent && ! is_passive_worktree_status_intent && echo "$PROMPT_TEXT" | grep -qEi "(new feature|feature|implement|build|新功能|实现|开发功能|执行)"; then
   echo "[BDD] Feature intent detected. Define Given-When-Then acceptance scenarios first."
   echo "  检测到新功能请求：先定义 Given-When-Then 验收场景。"
 fi

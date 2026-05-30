@@ -29,6 +29,7 @@ bun.lockb
 .claude/.task-state.json
 .claude/.task-handoff.md
 .claude/.context-pressure/
+.claude/.codegraph-state/
 .claude/*.tmp
 .claude/*.bak
 .claude/*.bak.*

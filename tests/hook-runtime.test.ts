@@ -1699,6 +1699,35 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("prompt-guard: does not include leading Waza think skill link paths in plan slugs", () => {
+    const cwd = tmpWorkspace("prompt-guard-plan-start-leading-skill-link");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      installPlanWorkflowHelpers(cwd);
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({
+          user_message: "[$think](/Users/ancienttwo/.agents/skills/think/SKILL.md) 你来出一个详细方案吧",
+        }),
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[PlanStartGate]");
+      expect(res.stdout).toContain("Created plan:");
+      const plans = readdirSync(join(cwd, "plans")).filter((name) => name.startsWith("plan-"));
+      expect(plans).toHaveLength(1);
+      expect(plans[0]).toMatch(/^plan-\d{8}-\d{4}-think-plan-\d{6}\.md$/);
+      expect(plans[0]).not.toContain("users-ancienttwo");
+      const pending = JSON.parse(readFileSync(join(cwd, ".ai/harness/planning/pending.json"), "utf-8"));
+      expect(pending.kind).toBe("waza-think");
+      expect(pending.prompt_slug).toMatch(/^think-plan-\d{6}$/);
+      expect(pending.prompt_slug).not.toContain("users-ancienttwo");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("prompt-guard: starts a new Draft plan even when an older Draft plan exists", () => {
     const cwd = tmpWorkspace("prompt-guard-plan-start-existing-draft");
     try {
@@ -2184,6 +2213,37 @@ describe("Hook runtime behavior", () => {
         expect(res.status).toBe(0);
         expect(res.stdout).not.toContain("[PlanStatusGuard] No active plan found");
       }
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: treats copied worktree status as passive context", () => {
+    const cwd = tmpWorkspace("prompt-guard-passive-worktree-status");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
+
+      const passiveStatus = [
+        "plan-to-todo 已按项目规则开了隔离 worktree：/Users/ancienttwo/Projects/agentic-dev-wt-demo，分支 codex/demo。",
+        "实现会在这个 worktree 里完成。",
+      ].join("\n");
+      const passiveRes = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: passiveStatus }),
+      });
+
+      expect(passiveRes.status).toBe(0);
+      expect(passiveRes.stdout).not.toContain("[PlanStatusGuard] No active plan found");
+      expect(passiveRes.stdout).not.toContain("[BDD] Feature intent detected");
+
+      const explicitRes = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "开始实现" }),
+      });
+
+      expect(explicitRes.status).toBe(2);
+      expect(explicitRes.stdout).toContain("[PlanStatusGuard] No active plan found");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

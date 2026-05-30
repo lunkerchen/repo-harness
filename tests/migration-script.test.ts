@@ -438,6 +438,7 @@ describe("Migration script contract", () => {
       expect(gitignore).toContain(".ai/harness/planning/");
       expect(gitignore).toContain(".claude/.active-plan");
       expect(gitignore).toContain(".claude/.trace.jsonl");
+      expect(gitignore).toContain(".claude/.codegraph-state/");
       expect(gitignore).toContain(".codex/*");
       expect(gitignore).not.toContain("!.codex/hooks.json");
       expect(gitignore).toContain("_ref/");
@@ -713,6 +714,7 @@ describe("Migration script contract", () => {
       expect(gitignore).toContain(".ai/harness/planning/");
       expect(gitignore).toContain(".claude/.active-plan");
       expect(gitignore).toContain(".claude/.trace.jsonl");
+      expect(gitignore).toContain(".claude/.codegraph-state/");
       expect(gitignore).toContain(".codex/*");
       expect(gitignore).not.toContain("!.codex/hooks.json");
       expect(gitignore).toContain("_ref/");

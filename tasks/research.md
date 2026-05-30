@@ -708,15 +708,18 @@
 - Codex `UserPromptSubmit` blocked a review/check prompt with `PlanStatusGuard` even though the prompt only asked to prepare or run evaluator evidence, for example `验收开始：基于 active plan 执行 checklist，告诉对方模型验收什么。`
 - The observed session came from Codex Plan mode: a Draft `plans/plan-*.md` existed, but no active-plan marker selected it yet, so the user's follow-up question lost planning state before the hook classified the prompt.
 - The Codex Hooks summary also showed raw `{"guard":"PlanStatusGuard",...}` telemetry because the dispatcher mirrored failing hook stdout into stderr.
+- A copied assistant status snippet such as `plan-to-todo 已按项目规则开了隔离 worktree... 实现会在这个 worktree 里完成。` could also be classified as implementation intent when pasted without the surrounding human question.
 
 ### Root Cause
 - `prompt-guard.sh:is_implement_intent` treated any `execute` / `执行` token as implementation intent before separating review/check/release routing, so "执行 checklist" and "执行 Waza /check" entered the implementation gate and hit the missing active-plan block.
 - `run-hook.sh` captured Codex failure status after the `if` compound command instead of in an `else` branch, so failing hooks returned success in direct repro; on failure it also mirrored structured telemetry JSON to stderr.
+- Passive worktree status lines were not modeled separately from user execution requests, so the word `实现` inside an assistant progress sentence could hit `PlanStatusGuard` in a primary worktree with no active marker.
 
 ### Fix Boundary
 - Review/check/release prompts now route through a dedicated advisory intent unless they contain explicit coding verbs such as `implement`, `实现`, `开始写`, `动手`, or `开干`.
 - Direct implementation approvals and bug-fix implementation prompts still enter the plan gate.
 - Codex non-`SessionStart` hook failures now preserve the real exit status and filter structured telemetry JSON from user-facing stderr while keeping direct hook stdout telemetry unchanged for trace consumers.
+- Passive worktree status snippets are now non-implementation context, while explicit execution starts such as `开始实现` still hard-block without an active plan.
 
 ## 2026-05-30 ResearchGate UserPrompt Boundary
 
@@ -747,6 +750,19 @@
 - The pending marker is intentionally not an active-plan substitute. It only represents "host/thread planning is still being discussed or needs capture."
 - Bug-fix implementation prompts still use the hard plan gate, even if stale planning context exists, because a pending design discussion is not evidence that a bug-fix plan was approved.
 - `SessionStart` injects pending capture context so Codex resume/compact does not force the user to remember that the plan body still needs to be captured.
+
+## 2026-05-30 Leading Skill Link Plan Slug Boundary
+
+### Symptom
+- A Waza `/think` prompt written as a leading markdown skill link could create plan artifacts with a slug like `think-users-ancienttwo-agents-skillsthink-skill-md`.
+- The repeated name came from the original prompt-derived slug and then propagated through plan, contract, review, archive, and current-status artifacts; it was not an active-plan marker selecting that stale Draft.
+
+### Root Cause
+- `prompt-guard.sh:derive_plan_start_title` stripped leading punctuation before collapsing `[$think](...)` to `think`. After the leading `[$` was removed, the markdown-link regex no longer matched and the local skill path became part of the title and slug.
+
+### Fix Boundary
+- Collapse Waza think skill links before trimming leading punctuation in both `.ai/hooks/prompt-guard.sh` and `assets/hooks/prompt-guard.sh`.
+- Keep the active-plan authority unchanged: `.ai/harness/active-plan` still selects executable plan state; an old Draft file by itself does not become active work.
 
 ## 2026-05-29 Contract Worktree Done/Archive Split
 
