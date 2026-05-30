@@ -6,10 +6,98 @@ workflows. The npm package and primary command are now `repo-harness`.
 install paths are retired and removed by installed-copy sync.
 Repository: `https://github.com/Ancienttwo/repo-harness`
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 This repository now dogfoods its own tasks-first contract. It is both:
 
 - the source repo for the `repo-harness` CLI and `repo-harness` skill runtime
 - a self-hosted example of the repo-local workflow it generates for other projects
+
+## What repo-harness Does
+
+`repo-harness` turns AI-assisted development from chat-memory coordination into
+repo-local workflow state. It installs a small, file-backed contract into a
+target repository so Claude, Codex, and humans can agree on:
+
+- what product intent is stable
+- which plan is approved for execution
+- what the current sprint contract allows
+- which checks and review evidence prove the work is done
+- how hooks should warn, block, trace, and hand off work across sessions
+
+It is not an agent gateway, product runtime, database service, or MCP server.
+The product boundary is deliberately boring: inspect a repo, install or refresh
+workflow files, route host events through repo-local hooks, and verify that the
+workflow surfaces stay consistent.
+
+## How It Works
+
+The design has three layers:
+
+1. **Source package**: this repository owns the CLI, command skill facades,
+   templates, hook assets, workflow contract, tests, and release gate.
+2. **Target repo contract**: `repo-harness init` or migration writes repo-local
+   files such as `docs/spec.md`, `plans/`, `tasks/`, `.ai/context/`,
+   `.ai/harness/`, helper scripts, and `.ai/hooks/`.
+3. **Host adapters**: user-level `~/.claude/settings.json` and
+   `~/.codex/hooks.json` route Claude/Codex events into `repo-harness-hook`.
+   The hook entrypoint exits silently for non-opt-in repos and dispatches into
+   the current repo's `.ai/hooks/*` scripts only when
+   `.ai/harness/workflow-contract.json` exists.
+
+The core invariant is that durable truth lives in the repo, not in a chat
+thread. Hooks are accelerators and guardrails; the authority remains the
+file-backed plan, contract, review, checks, and handoff artifacts.
+
+## Task Workflow: Plan to Closeout
+
+The diagram below assumes the harness is already installed in the repo. It shows
+the normal task lifecycle: plan, project into a sprint contract, check out the
+contract worktree when policy requires it, implement under hooks, verify, review,
+and close out.
+
+```mermaid
+flowchart TD
+  UserTask["User task or planning prompt"] --> Discovery["Due diligence<br/>P1 map, P2 trace, P3 decision"]
+  Discovery --> PlanDraft["Draft plan<br/>plans/plan-*.md"]
+  PlanDraft --> PlanReview{"Plan ready for execution?"}
+  PlanReview -->|no| Refine["Refine plan, scope, evidence contract"]
+  Refine --> PlanDraft
+  PlanReview -->|yes| Approve["Approved plan<br/>Status: Approved"]
+
+  Approve --> Project["Project plan into execution<br/>capture-plan.sh --execute<br/>or plan-to-todo.sh --plan"]
+  Project --> Active["Active markers<br/>.ai/harness/active-plan<br/>.ai/harness/active-worktree"]
+  Project --> Contract["Sprint contract<br/>tasks/contracts/task-slug.contract.md"]
+  Project --> ReviewFile["Review file<br/>tasks/reviews/task-slug.review.md"]
+  Project --> Notes["Task notes<br/>tasks/notes/task-slug.notes.md"]
+
+  Contract --> WorktreePolicy{"Contract worktree required?"}
+  WorktreePolicy -->|yes| Checkout["Checkout isolated worktree<br/>contract-worktree.sh start --plan<br/>branch codex/task-slug"]
+  WorktreePolicy -->|no| CurrentTree["Use current worktree<br/>small or explicitly allowed slice"]
+  Checkout --> Implement
+  CurrentTree --> Implement
+
+  Implement["Edit and run commands"] --> PreHooks["Pre-edit guards<br/>PlanStatusGuard, ContractScopeGuard, WorktreeGuard"]
+  PreHooks -->|blocked| ScopeFix["Fix plan, contract, worktree, or scope"]
+  ScopeFix --> Implement
+  PreHooks -->|allowed| Changes["Code, docs, tests, or config changes"]
+  Changes --> PostHooks["Post-edit and post-bash hooks<br/>trace, drift request, handoff, check evidence"]
+  PostHooks --> Verify["Run verification<br/>tests plus repo workflow checks"]
+
+  Verify --> Checks["Structured evidence<br/>.ai/harness/checks/latest.json<br/>.ai/harness/runs/*.json"]
+  Checks --> CheckReview["Evaluator review<br/>Waza /check -> review file"]
+  CheckReview --> External["External acceptance advice<br/>or explicit manual override"]
+  External --> DoneGate{"Contract, checks, review, and acceptance pass?"}
+  DoneGate -->|no| Repair["Repair failing evidence or implementation"]
+  Repair --> Implement
+  DoneGate -->|yes| Closeout["Closeout<br/>scripts/contract-worktree.sh finish"]
+
+  Closeout --> Commit["Commit contract branch"]
+  Commit --> Merge["Fast-forward target branch"]
+  Merge --> Archive["Archive plan/todo and refresh handoff"]
+  Archive --> Cleanup["Cleanup merged worktree<br/>contract-worktree.sh cleanup"]
+  Cleanup --> Done["Reviewable completed task"]
+```
 
 ## First 5 Minutes
 
