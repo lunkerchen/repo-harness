@@ -301,6 +301,15 @@ and tests:
 project or module scaffold. `hooks-init`, `docs-init`, and `create-project-dirs`
 are internal steps, not public commands.
 
+`repo-harness-scaffold` keeps the A-K plan catalog as the project-type authority
+and adds AI-native app structure through an optional `ai_native_profile` overlay.
+The default profile is `none`, so existing scaffold output remains unchanged.
+When selected, profiles such as `runtime-console`, `product-copilot`, and
+`sidecar-kernel` document the AG-UI event boundary, assistant-ui or CopilotKit
+UI runtime, Bun/Hono gateway, shared contracts, observability, and MCP/HTTP
+sidecar rules without installing model providers or making Python, Go, Rust, or
+A2UI mandatory defaults.
+
 Use `repo-harness-capability` when the harness already exists and only selected
 capability boundaries should be added. It updates `.ai/context/capabilities.json`,
 syncs the requested local `AGENTS.md` / `CLAUDE.md` contract files, and validates

@@ -12,6 +12,20 @@
 ### 核心框架
 {{CORE_DEPENDENCIES}}
 
+{{#IF AI_NATIVE_PROFILE_ENABLED}}
+## AI-Native Profile
+
+{{AI_NATIVE_TECH_STACK_SECTION}}
+
+### Boundary Rules
+
+- AG-UI is the user-visible event transport, not a replacement for app-domain contracts.
+- Bun/Hono owns the app-facing agent gateway unless an existing backend already owns that boundary.
+- Python, Go, and Rust sidecars stay behind MCP tools or narrow HTTP jobs; they do not own the UI protocol.
+- A2UI is experimental payload/schema material unless the product explicitly chooses it.
+- OpenTelemetry GenAI spans and event names are prepared as local conventions while upstream semantic conventions remain moving.
+
+{{/IF}}
 ### 开发工具
 {{DEV_TOOLS}}
 

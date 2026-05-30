@@ -23,6 +23,17 @@ export interface ProfileChoice {
   description: string;
 }
 
+export interface AiNativeProfileChoice extends ProfileChoice {
+  frontend: string;
+  runtimeProtocol: string;
+  backend: string;
+  stateDefault: string;
+  sidecarPolicy: string;
+  uiSchema: string;
+  projectStructureFile?: string;
+  techStackRows?: string[];
+}
+
 interface InitializerQuestionPackBase {
   version: "initializer-question-pack.v2" | "initializer-question-pack.v3" | "initializer-question-pack.v4";
   goal: string;
@@ -40,6 +51,8 @@ interface InitializerQuestionPackBase {
     recoveryProfile?: string;
     stateProfile?: string;
     contextProfile?: string;
+    documentationProfile?: string;
+    aiNativeProfile?: string;
   };
   runtimeProfiles: Record<string, RuntimeProfile>;
   orchestrationProfiles: Record<string, ProfileChoice>;
@@ -62,6 +75,7 @@ export interface InitializerQuestionPackV4 extends InitializerQuestionPackBase {
   recoveryProfiles: Record<string, ProfileChoice>;
   stateProfiles: Record<string, ProfileChoice>;
   contextProfiles: Record<string, ProfileChoice>;
+  aiNativeProfiles: Record<string, AiNativeProfileChoice>;
 }
 
 export type InitializerQuestionPack = InitializerQuestionPackV2 | InitializerQuestionPackV3 | InitializerQuestionPackV4;
@@ -117,12 +131,24 @@ export function getDecisionPointsByBatch(
   }, {});
 }
 
+export function getAiNativeProfileIds(
+  pack: InitializerQuestionPack = loadQuestionPack()
+): string[] {
+  if (pack.version !== "initializer-question-pack.v4") {
+    return ["none"];
+  }
+
+  return Object.keys(pack.aiNativeProfiles).sort();
+}
+
 export function getQuestionFlowSummary(planType: string): {
   planType: string;
   planTier: "core" | "preset" | "custom";
   preferredPackageManager: string;
   decisionCount: number;
   requiredDecisionCount: number;
+  aiNativeProfileDefault: string;
+  aiNativeProfileCount: number;
 } {
   const pack = loadQuestionPack();
   const resolvedPlan = resolvePlanType(planType);
@@ -134,6 +160,8 @@ export function getQuestionFlowSummary(planType: string): {
     preferredPackageManager: inferPreferredPackageManager(resolvedPlan, pack),
     decisionCount: pack.decisionPoints.length,
     requiredDecisionCount: pack.decisionPoints.filter((point) => point.required).length,
+    aiNativeProfileDefault: pack.inferredDefaults.aiNativeProfile ?? "none",
+    aiNativeProfileCount: getAiNativeProfileIds(pack).length,
   };
 }
 

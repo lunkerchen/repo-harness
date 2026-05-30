@@ -46,6 +46,16 @@
       "required": true
     },
     {
+      "id": "ai_native_profile",
+      "title": "AI-Native Profile",
+      "batch": 2,
+      "questions": [
+        "Choose AI-native overlay: none (default), chat-agent, runtime-console, product-copilot, workflow-agent, generative-ui-agent, browser-agent, research-agent, coding-agent, enterprise-agent-platform, voice-agent, or sidecar-kernel",
+        "Confirm whether generated structure should add AG-UI, assistant-ui or CopilotKit, Bun/Hono gateway, MCP/tool, sidecar, and observability boundaries"
+      ],
+      "required": false
+    },
+    {
       "id": "orchestration_profile",
       "title": "Orchestration Profile",
       "batch": 3,
@@ -167,7 +177,8 @@
     "recoveryProfile": "hybrid",
     "stateProfile": "file-backed",
     "contextProfile": "stable-root-progressive-subdir",
-    "documentationProfile": "minimal-agentic"
+    "documentationProfile": "minimal-agentic",
+    "aiNativeProfile": "none"
   },
   "runtimeProfiles": {
     "permissionless": {
@@ -248,6 +259,201 @@
     "flat-root": {
       "label": "Flat root",
       "description": "Keep a single root context surface for smaller repos that do not need functional-block context files."
+    }
+  },
+  "aiNativeProfiles": {
+    "none": {
+      "label": "None",
+      "description": "Use the selected A-K plan without an AI-native app runtime overlay.",
+      "frontend": "Existing plan default",
+      "runtimeProtocol": "None",
+      "backend": "Existing plan default",
+      "stateDefault": "Existing plan default",
+      "sidecarPolicy": "None",
+      "uiSchema": "None",
+      "techStackRows": []
+    },
+    "chat-agent": {
+      "label": "Chat agent",
+      "description": "Ordinary AI chat, RAG, or help assistant inside the selected app plan.",
+      "frontend": "Vite 8 + assistant-ui or the selected plan UI",
+      "runtimeProtocol": "AI SDK UI stream or AG-UI lite",
+      "backend": "Bun/Hono gateway or existing API boundary",
+      "stateDefault": "TanStack Query + Zustand",
+      "sidecarPolicy": "Python only when the model framework needs it",
+      "uiSchema": "Hardcoded React components",
+      "techStackRows": [
+        "| AI UI | assistant-ui chat surface |",
+        "| Agent stream | AI SDK UI stream or AG-UI lite |",
+        "| Agent gateway | Bun/Hono or existing API |",
+        "| Agent state | TanStack Query + Zustand |"
+      ]
+    },
+    "runtime-console": {
+      "label": "Runtime console",
+      "description": "Agent runtime console with trace, replay, prompt playground, approvals, artifacts, and tool-call visibility.",
+      "frontend": "Vite 8 + TanStack Router + assistant-ui + trace/timeline panels",
+      "runtimeProtocol": "AG-UI required",
+      "backend": "Bun/Hono agent gateway",
+      "stateDefault": "TanStack Query + Zustand + Jotai",
+      "sidecarPolicy": "Python sidecar allowed for model framework or eval pipelines",
+      "uiSchema": "A2UI optional experiment, not production default",
+      "projectStructureFile": "assets/project-structures/ai-native-runtime-console.txt",
+      "techStackRows": [
+        "| AI UI | assistant-ui + custom run console |",
+        "| Agent protocol | AG-UI events over HTTP streaming |",
+        "| Agent gateway | Bun/Hono `/api/agent/run` |",
+        "| Agent state | TanStack Query + Zustand + Jotai |",
+        "| Contracts | Zod/Valibot run, event, tool, approval, artifact schemas |",
+        "| Observability | OpenTelemetry spans/log events for model, tool, approval, and sidecar latency |"
+      ]
+    },
+    "product-copilot": {
+      "label": "Product copilot",
+      "description": "SaaS in-app copilot that can inspect product context and call business actions through narrow tools.",
+      "frontend": "Vite 8 + CopilotKit or assistant-ui headless",
+      "runtimeProtocol": "AG-UI",
+      "backend": "Bun/Hono agent gateway",
+      "stateDefault": "TanStack Query + Zustand/Jotai",
+      "sidecarPolicy": "MCP tools for business actions; sidecars only by capability",
+      "uiSchema": "Optional A2UI experiment",
+      "projectStructureFile": "assets/project-structures/ai-native-product-copilot.txt",
+      "techStackRows": [
+        "| Copilot UI | CopilotKit or assistant-ui headless |",
+        "| Agent protocol | AG-UI app-domain events |",
+        "| Business tools | MCP or narrow HTTP actions |",
+        "| Agent state | TanStack Query + Zustand/Jotai |"
+      ]
+    },
+    "workflow-agent": {
+      "label": "Workflow agent",
+      "description": "Visual workflow or DAG builder for composing agent steps and tool execution.",
+      "frontend": "Vite 8 + React Flow/xyflow + Monaco",
+      "runtimeProtocol": "AG-UI",
+      "backend": "Bun/Hono gateway",
+      "stateDefault": "Jotai + Zustand + TanStack Query",
+      "sidecarPolicy": "LangGraph, Temporal, Inngest, or BullMQ only when execution needs them",
+      "uiSchema": "A2UI optional experiment",
+      "techStackRows": [
+        "| Workflow UI | React Flow/xyflow + Monaco |",
+        "| Agent protocol | AG-UI workflow/run events |",
+        "| Executor | Bun/Hono gateway with optional workflow engine |",
+        "| Agent state | Jotai + Zustand + TanStack Query |"
+      ]
+    },
+    "generative-ui-agent": {
+      "label": "Generative UI agent",
+      "description": "Agent-generated forms, cards, tables, and artifacts through a safe component registry.",
+      "frontend": "Vite 8 + safe React component registry",
+      "runtimeProtocol": "AG-UI",
+      "backend": "Bun/Hono gateway",
+      "stateDefault": "Jotai + TanStack Query",
+      "sidecarPolicy": "Only when renderer or tool kernels need it",
+      "uiSchema": "A2UI experimental",
+      "techStackRows": [
+        "| Generated UI | Safe React registry |",
+        "| Agent protocol | AG-UI events carrying app-domain payloads |",
+        "| UI schema | A2UI experimental, not executable code |",
+        "| Agent state | Jotai + TanStack Query |"
+      ]
+    },
+    "browser-agent": {
+      "label": "Browser agent",
+      "description": "Browser automation, computer-use, or RPA workbench with explicit task/run visibility.",
+      "frontend": "Vite 8 custom console",
+      "runtimeProtocol": "AG-UI",
+      "backend": "Bun/Hono gateway",
+      "stateDefault": "Jotai + TanStack Query",
+      "sidecarPolicy": "Playwright, Browserbase, or Stagehand worker",
+      "uiSchema": "None by default",
+      "techStackRows": [
+        "| Browser console | Vite 8 custom run console |",
+        "| Agent protocol | AG-UI browser-run events |",
+        "| Automation worker | Playwright/Browserbase/Stagehand sidecar |",
+        "| Agent state | Jotai + TanStack Query |"
+      ]
+    },
+    "research-agent": {
+      "label": "Research agent",
+      "description": "Evidence and report workspace for deep research, artifacts, citations, and handoffs.",
+      "frontend": "Vite 8 + assistant-ui + artifact panels",
+      "runtimeProtocol": "AG-UI",
+      "backend": "Bun/Hono gateway",
+      "stateDefault": "TanStack Query + Zustand + Jotai",
+      "sidecarPolicy": "Python optional for research pipelines",
+      "uiSchema": "Hardcoded artifact components first",
+      "techStackRows": [
+        "| Research UI | assistant-ui + artifact workspace |",
+        "| Agent protocol | AG-UI evidence and artifact events |",
+        "| Research backend | Bun/Hono gateway with optional Python pipeline |",
+        "| Agent state | TanStack Query + Zustand + Jotai |"
+      ]
+    },
+    "coding-agent": {
+      "label": "Coding agent",
+      "description": "AI IDE, repo, PR, or DevOps agent with diff, terminal, and sandbox surfaces.",
+      "frontend": "Vite 8 + assistant-ui + Monaco + diff/terminal panels",
+      "runtimeProtocol": "AG-UI + MCP optional",
+      "backend": "Bun/Hono gateway",
+      "stateDefault": "Jotai + TanStack Query",
+      "sidecarPolicy": "Sandbox worker, Go, or Rust optional by capability",
+      "uiSchema": "None by default",
+      "techStackRows": [
+        "| Coding UI | assistant-ui + Monaco + diff/terminal panels |",
+        "| Agent protocol | AG-UI with optional MCP tool boundary |",
+        "| Sandbox | Worker or sidecar boundary |",
+        "| Agent state | Jotai + TanStack Query |"
+      ]
+    },
+    "enterprise-agent-platform": {
+      "label": "Enterprise agent platform",
+      "description": "Multi-tenant platform with shared agent gateway, capability-scoped sidecars, and docs/marketing shell.",
+      "frontend": "Astro for web/docs/SSR shell + Vite 8 apps",
+      "runtimeProtocol": "AG-UI",
+      "backend": "Bun/Hono gateway",
+      "stateDefault": "TanStack Query + Zustand + Jotai",
+      "sidecarPolicy": "Sidecars by capability",
+      "uiSchema": "A2UI optional experiment",
+      "techStackRows": [
+        "| Web shell | Astro docs/marketing + Vite 8 app surfaces |",
+        "| Agent protocol | AG-UI platform events |",
+        "| Agent gateway | Bun/Hono multi-tenant boundary |",
+        "| Capability sidecars | MCP/HTTP per capability |"
+      ]
+    },
+    "voice-agent": {
+      "label": "Voice agent",
+      "description": "Realtime voice or call assistant with media and run state boundaries.",
+      "frontend": "Vite 8 realtime UI",
+      "runtimeProtocol": "AG-UI side-channel + WebRTC",
+      "backend": "Bun/Hono gateway",
+      "stateDefault": "TanStack Query + Zustand",
+      "sidecarPolicy": "Realtime/media sidecar optional",
+      "uiSchema": "None by default",
+      "techStackRows": [
+        "| Voice UI | Vite 8 realtime controls |",
+        "| Agent protocol | AG-UI side-channel + WebRTC |",
+        "| Media boundary | Realtime/media sidecar optional |",
+        "| Agent state | TanStack Query + Zustand |"
+      ]
+    },
+    "sidecar-kernel": {
+      "label": "Sidecar kernel",
+      "description": "TypeScript app core with Python, Go, or Rust kernels behind MCP or narrow HTTP boundaries.",
+      "frontend": "Selected plan frontend; Vite 8 app shell when interactive",
+      "runtimeProtocol": "AG-UI when user-visible agent runs exist; MCP/HTTP for sidecars",
+      "backend": "Bun/Hono gateway owns app-facing API",
+      "stateDefault": "TanStack Query + Zustand, plus domain stores as needed",
+      "sidecarPolicy": "Python for model/eval/data pipelines, Go for workers, Rust for low-latency parsing/indexing/sandboxing",
+      "uiSchema": "None by default",
+      "projectStructureFile": "assets/project-structures/ai-native-sidecar-kernel.txt",
+      "techStackRows": [
+        "| App gateway | Bun/Hono owns app-facing API |",
+        "| Sidecar protocol | MCP tools or narrow HTTP jobs |",
+        "| Python sidecar | Model frameworks, evals, data science |",
+        "| Go sidecar | High-concurrency workers and infra adapters |",
+        "| Rust sidecar | Parsing, indexing, sandboxing, native kernels |"
+      ]
     }
   }
 }

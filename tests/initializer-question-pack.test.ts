@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "path";
 import {
+  getAiNativeProfileIds,
   getDecisionPointsByBatch,
   getQuestionFlowSummary,
   inferPreferredPackageManager,
@@ -11,12 +12,17 @@ describe("Initializer question pack", () => {
   test("should load v4 question pack by default", () => {
     const pack = loadQuestionPack();
     expect(pack.version).toBe("initializer-question-pack.v4");
-    expect(pack.decisionPoints.length).toBe(13);
+    expect(pack.decisionPoints.length).toBe(14);
     expect(pack.planTiers.core).toEqual(["A", "B", "C", "D", "E", "F"]);
     expect(pack.planTiers.presets).toEqual(["G", "H", "I", "J", "K"]);
+    expect(pack.inferredDefaults.aiNativeProfile).toBe("none");
     expect(pack.inferredDefaults.contextProfile).toBe("stable-root-progressive-subdir");
     expect(pack.inferredDefaults.documentationProfile).toBe("minimal-agentic");
     expect(pack.inferredDefaults.recoveryProfile).toBe("hybrid");
+    expect(pack.aiNativeProfiles["runtime-console"].runtimeProtocol).toBe("AG-UI required");
+    expect(pack.aiNativeProfiles["runtime-console"].projectStructureFile).toBe(
+      "assets/project-structures/ai-native-runtime-console.txt"
+    );
   });
 
   test("should still load the legacy v2 question pack when requested explicitly", () => {
@@ -29,10 +35,27 @@ describe("Initializer question pack", () => {
     const grouped = getDecisionPointsByBatch();
     expect(Object.keys(grouped).sort()).toEqual(["1", "2", "3", "4", "5"]);
     expect(grouped[1].length).toBe(2);
-    expect(grouped[2].length).toBe(2);
+    expect(grouped[2].length).toBe(3);
     expect(grouped[3].length).toBe(4);
     expect(grouped[4].length).toBe(3);
     expect(grouped[5].length).toBe(2);
+  });
+
+  test("should expose AI-native profile taxonomy without creating plan codes", () => {
+    expect(getAiNativeProfileIds()).toEqual([
+      "browser-agent",
+      "chat-agent",
+      "coding-agent",
+      "enterprise-agent-platform",
+      "generative-ui-agent",
+      "none",
+      "product-copilot",
+      "research-agent",
+      "runtime-console",
+      "sidecar-kernel",
+      "voice-agent",
+      "workflow-agent",
+    ]);
   });
 
   test("should infer package manager defaults by plan", () => {
@@ -45,7 +68,9 @@ describe("Initializer question pack", () => {
     const summary = getQuestionFlowSummary("H");
     expect(summary.planType).toBe("H");
     expect(summary.planTier).toBe("preset");
-    expect(summary.decisionCount).toBe(13);
+    expect(summary.decisionCount).toBe(14);
     expect(summary.requiredDecisionCount).toBeGreaterThan(0);
+    expect(summary.aiNativeProfileDefault).toBe("none");
+    expect(summary.aiNativeProfileCount).toBe(12);
   });
 });

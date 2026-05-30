@@ -1,7 +1,12 @@
 import { describe, test, expect } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { getPlanTier, isCorePlan, loadPlanMap } from "../scripts/assemble-template";
+import {
+  getAiNativeTemplateVariables,
+  getPlanTier,
+  isCorePlan,
+  loadPlanMap,
+} from "../scripts/assemble-template";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -14,6 +19,41 @@ describe("Plan map consistency", () => {
     const planMap = loadPlanMap();
     const planCodes = Object.keys(planMap.plans).sort();
     expect(planCodes).toEqual(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"]);
+  });
+
+  test("AI-native profiles stay as overlays, not plan codes", () => {
+    const planMap = loadPlanMap();
+    const planCodes = Object.keys(planMap.plans).sort();
+    const overlayDefaults = Object.fromEntries(
+      planCodes.map((code) => [code, planMap.plans[code].aiNativeOverlayDefaults])
+    );
+
+    expect(planCodes).not.toContain("L");
+    expect(overlayDefaults.C?.defaultProfile).toBe("none");
+    expect(overlayDefaults.C?.recommendedProfiles).toContain("runtime-console");
+    expect(overlayDefaults.D?.recommendedProfiles).toContain("sidecar-kernel");
+    expect(overlayDefaults.E?.recommendedProfiles).toContain("product-copilot");
+  });
+
+  test("AI-native template variables only activate when explicitly selected", () => {
+    const defaultOverlay = getAiNativeTemplateVariables("C", {
+      PROJECT_STRUCTURE: "base structure",
+    });
+    expect(defaultOverlay.enabled).toBe(false);
+    expect(defaultOverlay.variables.AI_NATIVE_TECH_STACK_SECTION).toBe("");
+
+    const runtimeConsoleOverlay = getAiNativeTemplateVariables("C", {
+      PROJECT_STRUCTURE: "base structure",
+      AI_NATIVE_PROFILE: "runtime-console",
+    });
+    expect(runtimeConsoleOverlay.enabled).toBe(true);
+    expect(runtimeConsoleOverlay.variables.PROJECT_STRUCTURE).toContain(
+      "AI-native Runtime Console Overlay"
+    );
+    expect(runtimeConsoleOverlay.variables.AI_NATIVE_TECH_STACK_TABLE).toContain("AG-UI");
+    expect(runtimeConsoleOverlay.variables.AI_NATIVE_TECH_STACK_SECTION).toContain(
+      "assistant-ui"
+    );
   });
 
   test("plan tiers should enforce core A-F and preset/custom G-K model", () => {

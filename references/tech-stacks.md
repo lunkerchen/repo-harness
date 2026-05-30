@@ -15,7 +15,7 @@ Start → Project Type?
 │
 ├─ Modern B2B SaaS (Internal Tools)?
 │  └─ Yes → Plan C: Vite + TanStack Router ⭐
-│      └─ AI Chat/Assistant extension: Plan C + Ant Design X
+│      └─ AI-native overlay: runtime-console, product-copilot, or chat-agent
 │
 ├─ Monorepo (Multi-project)?
 │  └─ Yes → Plan D: Bun + Turborepo
@@ -41,6 +41,58 @@ Use these only after confirming A-F does not fit:
 - Plan I: Web3 DApp (EVM chains)
 - Plan J: AI Coding Agent / TUI
 - Plan K: Fully custom stack
+
+---
+
+## AI-Native Scaffold Profiles
+
+AI-native scaffold selection is an overlay on the A-K plan catalog, not a new
+lettered project type. Keep the project type axis stable, then add a profile
+only when the generated app needs agent runtime, UI protocol, sidecar, tool, or
+observability boundaries.
+
+| Profile | Use case | Default boundary |
+|---------|----------|------------------|
+| `none` | Normal app | Use the selected A-K plan unchanged |
+| `chat-agent` | AI chat, RAG, or help assistant | assistant-ui or AI SDK stream over the existing API |
+| `runtime-console` | Trace/replay/prompt playground/approval console | Vite 8 + assistant-ui + AG-UI + Bun/Hono gateway |
+| `product-copilot` | SaaS in-app copilot | CopilotKit or assistant-ui headless + AG-UI business actions |
+| `workflow-agent` | Workflow/DAG builder | React Flow/xyflow + Monaco + AG-UI workflow events |
+| `generative-ui-agent` | Agent-generated forms/cards/tables | Safe React registry, A2UI only as experimental payload schema |
+| `browser-agent` | Browser automation/RPA workbench | AG-UI browser-run events with Playwright/Browserbase/Stagehand worker |
+| `research-agent` | Evidence/report workspace | assistant-ui + artifacts + optional Python research pipeline |
+| `coding-agent` | Repo/PR/DevOps agent | assistant-ui + Monaco/diff/terminal panels + optional MCP tools |
+| `enterprise-agent-platform` | Multi-tenant agent platform | Astro docs/marketing shell plus Vite 8 app surfaces |
+| `voice-agent` | Realtime voice or call assistant | WebRTC/media boundary with AG-UI side-channel |
+| `sidecar-kernel` | Python/Go/Rust kernels | Bun/Hono app gateway with MCP or narrow HTTP sidecars |
+
+Default policy:
+
+- Vite 8 is the default React app shell for AI-native interactive surfaces.
+- Astro stays the marketing/docs/content shell; do not use it as the agent
+  console app shell.
+- Bun/Hono owns the app-facing agent gateway unless an existing backend already
+  owns that boundary.
+- AG-UI is the event transport for complex agent runtime UIs.
+- assistant-ui is the default React chat/agent UI runtime.
+- CopilotKit is scoped to `product-copilot`, not a general runtime-console
+  default.
+- A2UI is experimental payload/schema material across trust boundaries; do not
+  present it as the production default.
+- Python is for model frameworks, eval jobs, data pipelines, and research
+  tooling; Go is for workers and infra adapters; Rust is for low-latency
+  parsing, indexing, sandboxing, and native kernels. Keep all three behind MCP
+  tools or narrow HTTP jobs unless a product-specific plan says otherwise.
+- Postgres + Drizzle is the default data baseline in generated guidance.
+  Redis, object storage, OpenTelemetry, pgvector/Qdrant, ClickHouse,
+  Temporal/Inngest/BullMQ/Trigger.dev are opt-in capabilities, not mandatory
+  defaults.
+
+Generated structure overlays currently exist for:
+
+- `assets/project-structures/ai-native-runtime-console.txt`
+- `assets/project-structures/ai-native-product-copilot.txt`
+- `assets/project-structures/ai-native-sidecar-kernel.txt`
 
 ---
 
@@ -140,13 +192,14 @@ bun add -d vitest @testing-library/react @testing-library/jest-dom jsdom
 
 ---
 
-## Plan C + Ant Design X (AI Apps)
+## Plan C AI Chat Extension
 
 **Additional Stack:**
 ```
-@ant-design/x 2.0 (AI components)
-+ @ant-design/x-markdown (Markdown rendering)
-+ @anthropic-ai/claude-agent-sdk (Claude integration)
+assistant-ui for agent/chat UI
++ AG-UI lite or AI SDK UI stream
++ Bun/Hono or existing API boundary
++ TanStack Query + Zustand for run/session state
 ```
 
 **Best For:**
@@ -157,9 +210,8 @@ bun add -d vitest @testing-library/react @testing-library/jest-dom jsdom
 
 **Additional Commands:**
 ```bash
-bun add @ant-design/x antd@6
-bun add @ant-design/x-markdown
-bun add @anthropic-ai/claude-agent-sdk
+bun add @assistant-ui/react ai
+bun add hono zod
 ```
 
 ---

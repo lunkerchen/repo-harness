@@ -280,4 +280,33 @@ describe("Output Quality Gates", () => {
     expect(unresolvedPlaceholders(claude)).toEqual([]);
     expect(unresolvedPlaceholders(agents)).toEqual([]);
   });
+
+  test("should not include AI-native scaffold profile text by default", () => {
+    const output = assembleTemplate({
+      planType: "C",
+      variables: { PROJECT_NAME: "PlainSaaS" },
+    });
+
+    expect(output).not.toContain("AI-Native Profile");
+    expect(output).not.toContain("AG-UI required");
+    expect(output).not.toContain("Bun/Hono `/api/agent/run`");
+  });
+
+  test("should include AI-native runtime console overlay when selected", () => {
+    const output = assembleTemplate({
+      planType: "C",
+      variables: {
+        PROJECT_NAME: "AgentConsole",
+        AI_NATIVE_PROFILE: "runtime-console",
+      },
+    });
+
+    expect(output).toContain("AI-native Runtime Console Overlay");
+    expect(output).toContain("AI-Native Profile");
+    expect(output).toContain("Profile: runtime-console");
+    expect(output).toContain("AG-UI required");
+    expect(output).toContain("assistant-ui + custom run console");
+    expect(output).toContain("Bun/Hono `/api/agent/run`");
+    expect(output).toContain("A2UI optional experiment, not production default");
+  });
 });

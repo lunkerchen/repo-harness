@@ -175,6 +175,23 @@ describe("create-project-dirs scaffold parity", () => {
       const contractTemplate = readFileSync(join(cwd, ".claude/templates/contract.template.md"), "utf-8");
       expect(contractTemplate).toContain("## Workflow Inventory");
       expect(contractTemplate).toContain("Completion gate: `scripts/verify-sprint.sh` must see this contract pass");
+
+      const runtimeConsole = readFileSync(
+        join(ROOT, "assets/project-structures/ai-native-runtime-console.txt"),
+        "utf-8"
+      );
+      const productCopilot = readFileSync(
+        join(ROOT, "assets/project-structures/ai-native-product-copilot.txt"),
+        "utf-8"
+      );
+      const sidecarKernel = readFileSync(
+        join(ROOT, "assets/project-structures/ai-native-sidecar-kernel.txt"),
+        "utf-8"
+      );
+      expect(runtimeConsole).toContain("Bun/Hono");
+      expect(productCopilot).toContain("business action");
+      expect(sidecarKernel).toContain("MCP/HTTP");
+      expect(agents).not.toContain("AI-native Runtime Console Overlay");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

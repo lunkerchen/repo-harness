@@ -138,6 +138,28 @@ Custom Presets (G-K):
 - Plan J: AI coding agent / TUI
 - Plan K: Fully custom configuration
 
+## AI-native scaffold overlay
+
+`repo-harness-scaffold` keeps A-K as the project-type catalog and uses
+`ai_native_profile` as a separate overlay axis. The default profile is `none`,
+so existing generated output stays on the selected A-K plan. Use an overlay only
+when the generated app needs agent runtime, UI protocol, tool, sidecar, state,
+or observability boundaries.
+
+Supported profile IDs live in `assets/initializer-question-pack.v4.json`.
+Generated structure overlays currently exist for:
+
+- `runtime-console`: Vite 8 + assistant-ui, AG-UI event transport, Bun/Hono
+  agent gateway, run store, contracts, approvals, artifacts, and telemetry
+- `product-copilot`: in-product copilot panel, AG-UI app-domain events, product
+  context loaders, business action tools, authorization and approval policies
+- `sidecar-kernel`: Bun/Hono app gateway with Python, Go, or Rust kernels behind
+  MCP tools or narrow HTTP jobs
+
+Do not turn the AI-native overlay into another lettered plan. Do not make A2UI,
+Python, Go, Rust, Redis, ClickHouse, Temporal, object storage, vector DBs, model
+providers, or tracing vendors mandatory defaults.
+
 ## Migration Rules
 
 For legacy repos, migrate old document surfaces before refreshing templates.

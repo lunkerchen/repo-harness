@@ -39,6 +39,10 @@ export interface PlanConfig {
   factorFactory?: boolean;
   tier?: "core" | "preset" | "custom";
   defaultLsp?: string;
+  aiNativeOverlayDefaults?: {
+    defaultProfile: string;
+    recommendedProfiles: string[];
+  };
   defaultHarnessProfiles?: {
     orchestration: string;
     evaluation: string;
@@ -79,11 +83,26 @@ interface RuntimeProfileConfig {
   codexPolicy: string;
 }
 
+interface AiNativeProfileConfig {
+  label: string;
+  description: string;
+  frontend: string;
+  runtimeProtocol: string;
+  backend: string;
+  stateDefault: string;
+  sidecarPolicy: string;
+  uiSchema: string;
+  projectStructureFile?: string;
+  techStackRows?: string[];
+}
+
 interface QuestionPackRuntimeConfig {
   inferredDefaults?: {
     runtimeProfile?: string;
+    aiNativeProfile?: string;
   };
   runtimeProfiles?: Record<string, RuntimeProfileConfig>;
+  aiNativeProfiles?: Record<string, AiNativeProfileConfig>;
 }
 
 // ============================================================================
@@ -118,6 +137,11 @@ const FALLBACK_TEMPLATE_VARIABLES: Record<string, string> = {
   RECOVERY_PROFILE: "hybrid",
   STATE_PROFILE: "file-backed",
   CONTEXT_PROFILE: "stable-root-progressive-subdir",
+  AI_NATIVE_PROFILE: "none",
+  AI_NATIVE_PROFILE_LABEL: "None",
+  AI_NATIVE_PROFILE_SUMMARY: "",
+  AI_NATIVE_TECH_STACK_TABLE: "",
+  AI_NATIVE_TECH_STACK_SECTION: "",
   PROHIBITIONS:
     "- No `any` in production code\n" +
     "- No `console.log` in production code\n" +
@@ -328,6 +352,14 @@ function normalizeRuntimeProfileToken(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function normalizeAiNativeProfileId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function loadQuestionPackRuntimeConfig(
   questionPackFilePath: string = QUESTION_PACK_FILE
 ): QuestionPackRuntimeConfig {
@@ -395,6 +427,105 @@ function resolveRuntimeProfileConfig(
       codexPolicy: "sandbox_mode=platform-default, approval_policy=on-failure",
     }
   );
+}
+
+function renderAiNativeProfileSummary(profileId: string, profile: AiNativeProfileConfig): string {
+  return [
+    `- Profile: ${profileId} (${profile.label})`,
+    `- Purpose: ${profile.description}`,
+    `- Frontend: ${profile.frontend}`,
+    `- Runtime protocol: ${profile.runtimeProtocol}`,
+    `- Backend boundary: ${profile.backend}`,
+    `- State default: ${profile.stateDefault}`,
+    `- Sidecar policy: ${profile.sidecarPolicy}`,
+    `- UI schema: ${profile.uiSchema}`,
+  ].join("\n");
+}
+
+function renderAiNativeTechStackRows(profile: AiNativeProfileConfig): string {
+  if (profile.techStackRows && profile.techStackRows.length > 0) {
+    return profile.techStackRows.join("\n");
+  }
+
+  return [
+    `| AI frontend | ${profile.frontend} |`,
+    `| Agent protocol | ${profile.runtimeProtocol} |`,
+    `| Agent backend | ${profile.backend} |`,
+    `| Agent state | ${profile.stateDefault} |`,
+    `| Sidecars | ${profile.sidecarPolicy} |`,
+    `| UI schema | ${profile.uiSchema} |`,
+  ].join("\n");
+}
+
+function renderAiNativeTechStackSection(profileId: string, profile: AiNativeProfileConfig): string {
+  return [
+    `### AI-native profile: ${profileId} (${profile.label})`,
+    "",
+    renderAiNativeProfileSummary(profileId, profile),
+    "",
+    "| Layer | Technology |",
+    "|-------|------------|",
+    renderAiNativeTechStackRows(profile),
+  ].join("\n");
+}
+
+export function getAiNativeTemplateVariables(
+  planType: string,
+  variables: Record<string, string> = {},
+  planMap: PlanMap = loadPlanMap()
+): { enabled: boolean; profileId: string; variables: Record<string, string> } {
+  const resolvedPlan = resolvePlanType(planType, planMap);
+  const planConfig = planMap.plans[resolvedPlan];
+  const questionPack = loadQuestionPackRuntimeConfig();
+  const defaultProfile =
+    planConfig.aiNativeOverlayDefaults?.defaultProfile ??
+    questionPack.inferredDefaults?.aiNativeProfile ??
+    "none";
+  const requestedProfile = variables.AI_NATIVE_PROFILE ?? defaultProfile;
+  const profileId = normalizeAiNativeProfileId(requestedProfile || "none") || "none";
+  const profiles = questionPack.aiNativeProfiles ?? {};
+  const profile = profiles[profileId];
+
+  if (!profile) {
+    const supported = Object.keys(profiles).sort().join(", ");
+    throw new Error(`Unsupported AI-native profile: ${requestedProfile}. Supported profiles: ${supported}`);
+  }
+
+  if (profileId === "none") {
+    return {
+      enabled: false,
+      profileId,
+      variables: {
+        AI_NATIVE_PROFILE: "none",
+        AI_NATIVE_PROFILE_LABEL: profile.label,
+        AI_NATIVE_PROFILE_SUMMARY: "",
+        AI_NATIVE_TECH_STACK_TABLE: "",
+        AI_NATIVE_TECH_STACK_SECTION: "",
+      },
+    };
+  }
+
+  const overlayStructure = profile.projectStructureFile
+    ? readRelativeTextFile(profile.projectStructureFile)
+    : "";
+  const baseStructure = variables.PROJECT_STRUCTURE ?? "";
+  const projectStructure = overlayStructure
+    ? `${baseStructure}\n\n# AI-native profile overlay: ${profileId}\n${overlayStructure}`.trim()
+    : baseStructure;
+  const techStackRows = renderAiNativeTechStackRows(profile);
+
+  return {
+    enabled: true,
+    profileId,
+    variables: {
+      PROJECT_STRUCTURE: projectStructure,
+      AI_NATIVE_PROFILE: profileId,
+      AI_NATIVE_PROFILE_LABEL: profile.label,
+      AI_NATIVE_PROFILE_SUMMARY: renderAiNativeProfileSummary(profileId, profile),
+      AI_NATIVE_TECH_STACK_TABLE: techStackRows,
+      AI_NATIVE_TECH_STACK_SECTION: renderAiNativeTechStackSection(profileId, profile),
+    },
+  };
 }
 
 /**
@@ -476,6 +607,7 @@ export function getDefaultTemplateVariables(
     PLAN_STACK: planConfig.stack,
     PLAN_TIER: planConfig.tier ?? "core",
     FACTOR_FACTORY_ENABLED: planConfig.factorFactory ? "true" : "false",
+    AI_NATIVE_PROFILE: planConfig.aiNativeOverlayDefaults?.defaultProfile ?? FALLBACK_TEMPLATE_VARIABLES.AI_NATIVE_PROFILE,
     ORCHESTRATION_PROFILE:
       planConfig.defaultHarnessProfiles?.orchestration ?? FALLBACK_TEMPLATE_VARIABLES.ORCHESTRATION_PROFILE,
     EVALUATION_PROFILE:
@@ -679,6 +811,12 @@ export function assembleTemplate(options: AssemblyOptions): string {
     TEMPLATE_VERSION: skillVersion.templateVersion,
   };
 
+  const aiNativeProfile = getAiNativeTemplateVariables(
+    resolvedPlanType,
+    mergedVariables,
+    planMap
+  );
+
   const runtimeProfileConfig = resolveRuntimeProfileConfig(
     mergedVariables.RUNTIME_PROFILE ?? "",
     mergedVariables.RUNTIME_MODE ?? ""
@@ -686,6 +824,7 @@ export function assembleTemplate(options: AssemblyOptions): string {
 
   const allVariables: Record<string, string> = {
     ...mergedVariables,
+    ...aiNativeProfile.variables,
     CLAUDE_POLICY:
       mergedVariables.CLAUDE_POLICY ?? runtimeProfileConfig.claudePolicy,
     CODEX_POLICY:
@@ -701,6 +840,7 @@ export function assembleTemplate(options: AssemblyOptions): string {
   const conditions: Record<string, boolean> = {
     CLOUDFLARE_NATIVE: includeCloudflare,
     FACTOR_FACTORY_ENABLED: includeFactorFactory,
+    AI_NATIVE_PROFILE_ENABLED: aiNativeProfile.enabled,
   };
 
   // Concatenate partials

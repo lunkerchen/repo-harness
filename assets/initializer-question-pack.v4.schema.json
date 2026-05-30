@@ -14,7 +14,8 @@
     "handoffProfiles",
     "recoveryProfiles",
     "stateProfiles",
-    "contextProfiles"
+    "contextProfiles",
+    "aiNativeProfiles"
   ],
   "properties": {
     "version": {
@@ -58,7 +59,8 @@
         "handoffProfile",
         "recoveryProfile",
         "stateProfile",
-        "contextProfile"
+        "contextProfile",
+        "aiNativeProfile"
       ],
       "properties": {
         "packageManagerPriority": { "type": "array", "items": { "type": "string" } },
@@ -68,7 +70,9 @@
         "handoffProfile": { "type": "string" },
         "recoveryProfile": { "type": "string" },
         "stateProfile": { "type": "string" },
-        "contextProfile": { "type": "string" }
+        "contextProfile": { "type": "string" },
+        "documentationProfile": { "type": "string" },
+        "aiNativeProfile": { "type": "string" }
       },
       "additionalProperties": false
     },
@@ -92,6 +96,39 @@
     },
     "contextProfiles": {
       "type": "object"
+    },
+    "aiNativeProfiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "label",
+          "description",
+          "frontend",
+          "runtimeProtocol",
+          "backend",
+          "stateDefault",
+          "sidecarPolicy",
+          "uiSchema"
+        ],
+        "properties": {
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "frontend": { "type": "string" },
+          "runtimeProtocol": { "type": "string" },
+          "backend": { "type": "string" },
+          "stateDefault": { "type": "string" },
+          "sidecarPolicy": { "type": "string" },
+          "uiSchema": { "type": "string" },
+          "projectStructureFile": { "type": "string" },
+          "techStackRows": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false

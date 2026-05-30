@@ -21,6 +21,10 @@
       "stack": "Remix + React + TypeScript",
       "tier": "core",
       "cloudflareNative": true,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["chat-agent", "product-copilot"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "browser-qa",
@@ -39,6 +43,10 @@
       "stack": "UmiJS + Ant Design Pro + TypeScript",
       "tier": "core",
       "cloudflareNative": false,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["product-copilot", "enterprise-agent-platform"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "browser-qa",
@@ -56,6 +64,10 @@
       "stack": "Vite + TanStack Router + React",
       "tier": "core",
       "cloudflareNative": true,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["runtime-console", "product-copilot", "chat-agent"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "browser-qa",
@@ -74,6 +86,10 @@
       "stack": "Bun + Turborepo",
       "tier": "core",
       "cloudflareNative": true,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["runtime-console", "sidecar-kernel", "enterprise-agent-platform"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "command-qa",
@@ -92,6 +108,10 @@
       "stack": "Astro + Starwind UI",
       "tier": "core",
       "cloudflareNative": false,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["product-copilot", "enterprise-agent-platform"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "browser-qa",
@@ -109,6 +129,10 @@
       "stack": "Expo + NativeWind",
       "tier": "core",
       "cloudflareNative": false,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["chat-agent", "voice-agent"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "browser-qa",
@@ -128,6 +152,10 @@
       "tier": "preset",
       "cloudflareNative": true,
       "factorFactory": true,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["research-agent", "sidecar-kernel", "runtime-console"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "command-qa",
@@ -145,6 +173,10 @@
       "stack": "FIX Engine + Hono + Vite",
       "tier": "preset",
       "cloudflareNative": true,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["sidecar-kernel", "runtime-console"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "command-qa",
@@ -162,6 +194,10 @@
       "stack": "Astro Landing + Vite DApp + Wagmi",
       "tier": "preset",
       "cloudflareNative": true,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["product-copilot", "sidecar-kernel"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "browser-qa",
@@ -179,6 +215,10 @@
       "stack": "OpenTUI + TypeScript",
       "tier": "preset",
       "cloudflareNative": false,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["coding-agent", "runtime-console", "sidecar-kernel"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "command-qa",
@@ -196,6 +236,10 @@
       "stack": "Manual selection",
       "tier": "custom",
       "cloudflareNative": false,
+      "aiNativeOverlayDefaults": {
+        "defaultProfile": "none",
+        "recommendedProfiles": ["runtime-console", "product-copilot", "sidecar-kernel"]
+      },
       "defaultHarnessProfiles": {
         "orchestration": "shared-long-running-harness",
         "evaluation": "command-qa",

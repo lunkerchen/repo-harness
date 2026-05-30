@@ -10,6 +10,16 @@
 |-------|------------|
 {{TECH_STACK_TABLE}}
 
+{{#IF AI_NATIVE_PROFILE_ENABLED}}
+### AI-Native Profile
+
+{{AI_NATIVE_PROFILE_SUMMARY}}
+
+| Layer | Technology |
+|-------|------------|
+{{AI_NATIVE_TECH_STACK_TABLE}}
+
+{{/IF}}
 ---
 
 ## Workflow Rules
