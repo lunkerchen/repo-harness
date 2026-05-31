@@ -14,7 +14,7 @@ usage() {
 Usage:
   scripts/ship-worktrees.sh [--target <branch>] [--remote <name>] [--slug <slug>] [--ready] [--dry-run]
   scripts/ship-worktrees.sh --local-merge [--target <branch>] [--slug <slug>] [--dry-run]
-  scripts/ship-worktrees.sh --cleanup-merged [--target <branch>] [--slug <slug>] [--dry-run]
+  scripts/ship-worktrees.sh --cleanup-merged [--target <branch>] [--slug <slug>] [--discard-scaffold-only] [--dry-run]
 
 Default mode validates finished contract worktrees, commits them through
 contract-worktree finish --no-merge, pushes their codex/* branches, and opens
@@ -100,6 +100,109 @@ list_contract_worktrees() {
       print branch "\t" path
     }
   '
+}
+
+dirty_paths_for_worktree() {
+  local worktree="$1"
+  {
+    git -C "$worktree" diff --name-only
+    git -C "$worktree" diff --cached --name-only
+    git -C "$worktree" ls-files --others --exclude-standard
+  } | sed '/^$/d' | sort -u
+}
+
+is_scaffold_path() {
+  local path="$1"
+  case "$path" in
+    tasks/todo.md|plans/plan-*.md|tasks/contracts/*.contract.md|tasks/reviews/*.review.md|tasks/notes/*.notes.md|.ai/harness/active-plan|.ai/harness/active-worktree|.claude/.active-plan|.ai/harness/worktrees/*.json)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+non_scaffold_dirty_paths() {
+  local worktree="$1" path
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    is_scaffold_path "$path" || printf '%s\n' "$path"
+  done < <(dirty_paths_for_worktree "$worktree")
+}
+
+print_dirty_paths() {
+  local worktree="$1"
+  dirty_paths_for_worktree "$worktree" | sed 's/^/  - /' >&2
+}
+
+fail_dirty_merged_worktree() {
+  local branch="$1" path="$2" non_scaffold
+  echo "ship-worktrees: dirty merged linked worktree: $branch at $path" >&2
+  echo "ship-worktrees: branch ancestry only proves committed changes are in $TARGET_BRANCH; these worktree changes are still outside $TARGET_BRANCH." >&2
+  echo "ship-worktrees: pick/apply/commit useful changes before cleanup; do not use tgz, reset --hard, git clean, or stash as closeout." >&2
+  echo "ship-worktrees: dirty paths:" >&2
+  print_dirty_paths "$path"
+
+  non_scaffold="$(non_scaffold_dirty_paths "$path")"
+  if [[ -z "$non_scaffold" ]]; then
+    echo "ship-worktrees: if these are generated plan/contract/review/notes scaffold only, rerun with --discard-scaffold-only." >&2
+  else
+    echo "ship-worktrees: --discard-scaffold-only is blocked by non-scaffold paths:" >&2
+    printf '%s\n' "$non_scaffold" | sed 's/^/  - /' >&2
+  fi
+  return 1
+}
+
+discard_scaffold_dirty_paths() {
+  local worktree="$1" path
+  local tracked_paths=()
+  local untracked_paths=()
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    if git -C "$worktree" ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then
+      tracked_paths+=("$path")
+    else
+      untracked_paths+=("$path")
+    fi
+  done < <(dirty_paths_for_worktree "$worktree")
+
+  if [[ "${#tracked_paths[@]}" -gt 0 ]]; then
+    run_cmd git -C "$worktree" reset -- "${tracked_paths[@]}"
+    run_cmd git -C "$worktree" checkout -- "${tracked_paths[@]}"
+  fi
+
+  for path in "${untracked_paths[@]}"; do
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "[Ship] would remove scaffold file: $worktree/$path"
+    else
+      rm -f "$worktree/$path"
+    fi
+  done
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "[Ship] Would discard scaffold-only changes in $worktree"
+  else
+    echo "[Ship] Discarded scaffold-only changes in $worktree"
+  fi
+}
+
+guard_dirty_merged_worktree() {
+  local branch="$1" path="$2" non_scaffold
+  [[ -z "$(git -C "$path" status --porcelain=v1 --untracked-files=all)" ]] && return 0
+
+  if [[ "$DISCARD_SCAFFOLD_ONLY" -eq 0 ]]; then
+    fail_dirty_merged_worktree "$branch" "$path"
+    return 1
+  fi
+
+  non_scaffold="$(non_scaffold_dirty_paths "$path")"
+  if [[ -n "$non_scaffold" ]]; then
+    echo "ship-worktrees: refusing --discard-scaffold-only for dirty merged linked worktree with non-scaffold paths: $branch at $path" >&2
+    printf '%s\n' "$non_scaffold" | sed 's/^/  - /' >&2
+    return 1
+  fi
+
+  discard_scaffold_dirty_paths "$path"
 }
 
 active_plan_or_empty() {
@@ -352,6 +455,7 @@ cleanup_merged() {
     [[ -n "$branch" && -n "$path" ]] || continue
     slug="${branch#${BRANCH_PREFIX}}"
     if git merge-base --is-ancestor "$branch" "$TARGET_BRANCH" >/dev/null 2>&1; then
+      guard_dirty_merged_worktree "$branch" "$path" || exit 1
       if [[ "$DRY_RUN" -eq 1 ]]; then
         run_cmd bash "scripts/contract-worktree.sh" cleanup --slug "$slug" --target "$TARGET_BRANCH" --dry-run
       else
@@ -374,6 +478,7 @@ REMOTE_NAME="origin"
 SLUG_OVERRIDE=""
 DRAFT_PR=1
 DRY_RUN=0
+DISCARD_SCAFFOLD_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -410,6 +515,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --cleanup-merged)
       MODE="cleanup-merged"
+      shift
+      ;;
+    --discard-scaffold-only)
+      DISCARD_SCAFFOLD_ONLY=1
       shift
       ;;
     --help|-h)

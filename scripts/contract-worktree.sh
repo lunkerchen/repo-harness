@@ -601,6 +601,7 @@ cleanup_worktree() {
   if [[ -n "$worktree_path" ]]; then
     if [[ -n "$(git -C "$worktree_path" status --porcelain=v1 --untracked-files=all)" ]]; then
       echo "contract-worktree: linked worktree is dirty, refusing cleanup: $worktree_path" >&2
+      echo "contract-worktree: pick/apply/commit useful changes first; scaffold-only discard belongs in scripts/ship-worktrees.sh --cleanup-merged --discard-scaffold-only" >&2
       exit 1
     fi
   else

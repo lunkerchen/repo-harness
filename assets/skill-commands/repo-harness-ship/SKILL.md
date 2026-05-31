@@ -14,12 +14,13 @@ Use this command when implementation is complete and the user wants the harness 
 2. In default PR mode, run `bash scripts/ship-worktrees.sh`; it validates review/check evidence, runs `scripts/contract-worktree.sh finish --no-merge`, pushes `codex/<slug>`, and creates a draft PR with `gh pr create --base main --head codex/<slug>`.
 3. For a dirty target branch that is explicitly attributable to the active plan, pass `--slug <slug>` so the script creates `codex/<slug>-main-closeout` and opens a PR instead of committing to `main`.
 4. For maintainer-only local closeout, run `bash scripts/ship-worktrees.sh --local-merge`; this preserves the older `finish` -> fast-forward `main` -> `cleanup` path.
-5. After a PR has merged and local `main` contains the branch, run `bash scripts/ship-worktrees.sh --cleanup-merged` to remove only proven-merged local worktrees and branches.
+5. After a PR has merged and local `main` contains the branch, run `bash scripts/ship-worktrees.sh --cleanup-merged` to remove only proven-merged local worktrees and branches. If the branch is merged but the linked worktree is dirty, pick/apply/commit useful changes first; use `--discard-scaffold-only` only when the dirty paths are generated plan/contract/review/notes scaffold.
 
 ## Boundaries
 
 - Default mode creates PRs; it does not fast-forward `main`, merge PRs, publish releases, or tag versions.
 - Does not run `git reset --hard`, `git clean`, or automatic stash.
+- Does not treat `_ops` tgz archives as a successful closeout path; merged dirty worktrees must be committed/picked/applied or explicitly discarded as scaffold-only.
 - Does not commit, push, open PRs, or cleanup when Waza `/check`, external acceptance, or `verify-sprint` evidence is missing or failing.
 - Does not absorb unrelated dirty target or sibling worktree changes.
 - Re-reads existing PR state after a create failure or before creating a new PR to avoid duplicates.
