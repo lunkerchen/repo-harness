@@ -106,6 +106,7 @@ timestamp="$(date +%Y%m%d-%H%M)"
 timestamp_human="$(date '+%Y-%m-%d %H:%M')"
 plan_base="$(basename "$plan_file")"
 slug="$(echo "$plan_base" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
+artifact_stem="$(printf '%s' "$plan_base" | sed -E 's/^plan-//; s/\.md$//')"
 parent_run_id="${HOOK_RUN_ID:-${CLAUDE_RUN_ID:-${CODEX_RUN_ID:-run-${timestamp}}}}"
 todo_source_plan="$(awk -F': ' '/^\> \*\*Source Plan\*\*:/ {print $2; exit}' tasks/todo.md 2>/dev/null | xargs)"
 
@@ -135,7 +136,10 @@ if [[ -f tasks/todo.md ]] && grep -q '[^[:space:]]' tasks/todo.md; then
   } > "$archive_todo"
 fi
 
-notes_file="tasks/notes/${slug}.notes.md"
+notes_file="tasks/notes/${artifact_stem}.notes.md"
+if [[ ! -f "$notes_file" && -f "tasks/notes/${slug}.notes.md" ]]; then
+  notes_file="tasks/notes/${slug}.notes.md"
+fi
 if [[ -f "$notes_file" ]]; then
   archive_notes="$(unique_archive_path "tasks/archive/notes-${timestamp}-${slug}.md")"
   {

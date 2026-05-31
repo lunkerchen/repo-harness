@@ -100,23 +100,55 @@ latest_plan() {
   find plans -maxdepth 1 -type f -name 'plan-*.md' 2>/dev/null | sort | tail -1
 }
 
+plan_slug_from_path() {
+  local plan_file="$1"
+  local base slug
+  base="$(basename "$plan_file")"
+  slug="$(printf '%s' "$base" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
+  printf '%s' "$slug"
+}
+
+plan_artifact_stem_from_path() {
+  local plan_file="$1"
+  local base stem
+  base="$(basename "$plan_file")"
+  stem="$(printf '%s' "$base" | sed -E 's/^plan-//; s/\.md$//')"
+  if [[ "$stem" =~ ^[0-9]{8}-[0-9]{4}-.+ ]]; then
+    printf '%s' "$stem"
+  else
+    plan_slug_from_path "$plan_file"
+  fi
+}
+
+preferred_or_legacy_path() {
+  local preferred="$1"
+  local legacy="$2"
+  if [[ -f "$preferred" ]] || [[ ! -f "$legacy" ]]; then
+    printf '%s' "$preferred"
+  else
+    printf '%s' "$legacy"
+  fi
+}
+
 derive_contract() {
   local plan_file="$1"
-  local slug
+  local slug stem
   [[ -n "$plan_file" ]] || return 1
-  slug="$(basename "$plan_file" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
-  [[ -n "$slug" ]] || return 1
-  printf 'tasks/contracts/%s.contract.md' "$slug"
+  slug="$(plan_slug_from_path "$plan_file")"
+  stem="$(plan_artifact_stem_from_path "$plan_file")"
+  [[ -n "$slug" && -n "$stem" ]] || return 1
+  preferred_or_legacy_path "tasks/contracts/${stem}.contract.md" "tasks/contracts/${slug}.contract.md"
 }
 
 derive_notes() {
   local plan_file="$1"
-  local slug notes_dir
+  local slug stem notes_dir
   [[ -n "$plan_file" ]] || return 1
-  slug="$(basename "$plan_file" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
-  [[ -n "$slug" ]] || return 1
+  slug="$(plan_slug_from_path "$plan_file")"
+  stem="$(plan_artifact_stem_from_path "$plan_file")"
+  [[ -n "$slug" && -n "$stem" ]] || return 1
   notes_dir="$(safe_repo_file "$(policy_get '.tasks.notes_dir' 'tasks/notes')" 'tasks/notes' 'tasks/')"
-  printf '%s/%s.notes.md' "$notes_dir" "$slug"
+  preferred_or_legacy_path "${notes_dir}/${stem}.notes.md" "${notes_dir}/${slug}.notes.md"
 }
 
 latest_global_handoff() {

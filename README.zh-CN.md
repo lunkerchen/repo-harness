@@ -69,9 +69,9 @@ flowchart TD
 
   Approve --> Project["投射到执行面<br/>capture-plan.sh --execute<br/>或 plan-to-todo.sh --plan"]
   Project --> Active["Active markers<br/>.ai/harness/active-plan<br/>.ai/harness/active-worktree"]
-  Project --> Contract["Sprint contract<br/>tasks/contracts/task-slug.contract.md"]
-  Project --> ReviewFile["Review file<br/>tasks/reviews/task-slug.review.md"]
-  Project --> Notes["Task notes<br/>tasks/notes/task-slug.notes.md"]
+  Project --> Contract["Sprint contract<br/>tasks/contracts/YYYYMMDD-HHMM-task-slug.contract.md"]
+  Project --> ReviewFile["Review file<br/>tasks/reviews/YYYYMMDD-HHMM-task-slug.review.md"]
+  Project --> Notes["Task notes<br/>tasks/notes/YYYYMMDD-HHMM-task-slug.notes.md"]
 
   Contract --> WorktreePolicy{"是否需要 contract worktree?"}
   WorktreePolicy -->|是| Checkout["Checkout 隔离 worktree<br/>contract-worktree.sh start --plan<br/>branch codex/task-slug"]

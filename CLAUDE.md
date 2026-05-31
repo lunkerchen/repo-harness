@@ -21,7 +21,7 @@ This repository self-hosts the `repo-harness` contract, formerly `repo-harness-s
 ## Operating Rules
 
 - Sync `tasks/` whenever substantive repo changes are made.
-- Use `tasks/notes/<slug>.notes.md` only for non-obvious slice decisions, deviations, tradeoffs, and open questions; do not use notes as durable memory or a task log, and archive/promote them deliberately when the slice closes.
+- Use `tasks/notes/<plan-stem>.notes.md` only for non-obvious slice decisions, deviations, tradeoffs, and open questions; `<plan-stem>` is the active plan filename without `plan-` and `.md` (for example `20260531-0045-governance-workflow`). Do not use notes as durable memory or a task log, and archive/promote them deliberately when the slice closes.
 - Treat `.ai/hooks/` as the shared repo-local hook implementation; user-level `~/.claude/settings.json` and `~/.codex/hooks.json` are the host adapters.
 - Keep the umbrella hierarchy explicit: architecture owns stable truth, capability contracts own local agent context, `tasks/workstreams/<domain>/<capability>/` owns durable progress, and `tasks/todo.md` owns only deferred medium/long-term goals with tradeoff and revisit trigger.
 - Treat `.ai/context/capabilities.json` as the source of truth for capability prefixes; `agent-context-blocks.txt` and nested agent files are compatibility inputs only.

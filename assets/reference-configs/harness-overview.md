@@ -5,18 +5,18 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 ## Roles
 
 - **Planner** updates `docs/spec.md`, researches constraints, and writes or approves `plans/plan-*.md`.
-- **Generator** implements only against the active sprint contract and the plan's `## Task Breakdown`, leaving `tasks/todo.md` as a deferred-goal ledger, and records task-local implementation judgments in `tasks/notes/<slug>.notes.md`.
-- **Evaluator** runs Waza `/check`, then writes `tasks/reviews/<slug>.review.md` using fresh evidence from `.ai/harness/checks/latest.json` and `.ai/harness/runs/*.json`.
+- **Generator** implements only against the active sprint contract and the plan's `## Task Breakdown`, leaving `tasks/todo.md` as a deferred-goal ledger, and records task-local implementation judgments in `tasks/notes/<plan-stem>.notes.md`.
+- **Evaluator** runs Waza `/check`, then writes `tasks/reviews/<plan-stem>.review.md` using fresh evidence from `.ai/harness/checks/latest.json` and `.ai/harness/runs/*.json`.
 
 ## State Flow
 
 1. `docs/spec.md` captures stable product intent.
 2. `plans/plan-*.md` captures a concrete execution approach.
-3. `tasks/contracts/<slug>.contract.md` defines done for the active sprint.
+3. `tasks/contracts/<plan-stem>.contract.md` defines done for the active sprint.
 4. `tasks/current.md` is a tracked mainline status snapshot derived from workflow artifacts; it is not a live lock, kanban board, or implementation gate.
 5. `tasks/todo.md` is the execution projection for the active sprint.
-6. `tasks/notes/<slug>.notes.md` records design decisions, deviations, tradeoffs, open questions, and promotion candidates for this sprint only.
-7. `tasks/reviews/<slug>.review.md` records evaluator judgment.
+6. `tasks/notes/<plan-stem>.notes.md` records design decisions, deviations, tradeoffs, open questions, and promotion candidates for this sprint only.
+7. `tasks/reviews/<plan-stem>.review.md` records evaluator judgment.
 8. `.ai/harness/policy.json` is the machine-readable workflow contract.
 9. `information_lifecycle` inside `.ai/harness/policy.json` separates notes, raw evidence, reusable assets, advisory memory, and external knowledge.
 10. `agentic_development` inside `.ai/harness/policy.json` captures product, engineering, design, bug-hunt, and review routing.
@@ -41,7 +41,7 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 - Use `docs/reference-configs/agentic-development-flow.md` for skill routing and `docs/reference-configs/external-tooling.md` for install/update commands.
 - Use `docs/reference-configs/global-working-rules.md` as the user-level Claude/Codex rule template; keep repo-local workflow contracts in repo files.
 - Externalized reference docs are indexed by `.ai/harness/brain-manifest.json` and checked by `scripts/check-brain-manifest.sh`. Valuable repo docs can opt into default-brain mirroring with `sync.direction=repo-to-brain`; `post-edit-guard.sh` then calls `scripts/sync-brain-docs.sh --changed <path>` for that specific file.
-- Contract-level execution should run in an isolated `codex/<task-slug>` worktree. Merge back only after the contract is fulfilled, `tasks/reviews/<slug>.review.md` recommends pass, and the target worktree is clean.
+- Contract-level execution should run in an isolated `codex/<task-slug>` worktree. Merge back only after the contract is fulfilled, `tasks/reviews/<plan-stem>.review.md` recommends pass, and the target worktree is clean.
 
 ## Documentation Profile
 
@@ -53,7 +53,7 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 
 ## Information Lifecycle
 
-- Notes: `tasks/notes/<slug>.notes.md` is task-local and auditable. It should not be treated as durable knowledge by default.
+- Notes: `tasks/notes/<plan-stem>.notes.md` is task-local and auditable. It should not be treated as durable knowledge by default.
 - Current status: `tasks/current.md` is a tracked derived snapshot for orientation only. It must be regenerated from source artifacts and must not contain hand-written kanban/checklist state.
 - Evidence: `.ai/harness/checks/latest.json` is the current gate, while `.ai/harness/runs/*.json` keeps immutable verification snapshots for later audit.
 - Memory: `tasks/research.md`, `tasks/lessons.md`, and gbrain are advisory. Current repo state and evidence override summaries.

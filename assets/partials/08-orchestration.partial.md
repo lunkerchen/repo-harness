@@ -36,7 +36,7 @@
 - Define per-sprint contract files in `tasks/contracts/`.
 - Verify contract exit criteria before claiming completion.
 - Require Waza `/check` to produce the matching evaluator review before any done/completed response.
-- Use `scripts/verify-contract.sh --contract tasks/contracts/{slug}.contract.md --strict`.
+- Use `scripts/verify-contract.sh --contract tasks/contracts/{plan-stem}.contract.md --strict`.
 
 ### 7. Balanced Elegance
 - Redesign hacky non-trivial fixes before shipping.

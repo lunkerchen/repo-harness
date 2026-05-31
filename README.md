@@ -77,9 +77,9 @@ flowchart TD
 
   Approve --> Project["Project plan into execution<br/>capture-plan.sh --execute<br/>or plan-to-todo.sh --plan"]
   Project --> Active["Active markers<br/>.ai/harness/active-plan<br/>.ai/harness/active-worktree"]
-  Project --> Contract["Sprint contract<br/>tasks/contracts/task-slug.contract.md"]
-  Project --> ReviewFile["Review file<br/>tasks/reviews/task-slug.review.md"]
-  Project --> Notes["Task notes<br/>tasks/notes/task-slug.notes.md"]
+  Project --> Contract["Sprint contract<br/>tasks/contracts/YYYYMMDD-HHMM-task-slug.contract.md"]
+  Project --> ReviewFile["Review file<br/>tasks/reviews/YYYYMMDD-HHMM-task-slug.review.md"]
+  Project --> Notes["Task notes<br/>tasks/notes/YYYYMMDD-HHMM-task-slug.notes.md"]
 
   Contract --> WorktreePolicy{"Contract worktree required?"}
   WorktreePolicy -->|yes| Checkout["Checkout isolated worktree<br/>contract-worktree.sh start --plan<br/>branch codex/task-slug"]

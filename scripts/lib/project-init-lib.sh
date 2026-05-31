@@ -135,9 +135,9 @@ PI_TEMPLATE_PLAN=$(cat <<'EOF_TEMPLATE_PLAN'
 > **Slug**: {{SLUG}}
 > **Spec**: `docs/spec.md`
 > **Research**: See `tasks/research.md`
-> **Sprint Contract**: `tasks/contracts/{{SLUG}}.contract.md`
-> **Sprint Review**: `tasks/reviews/{{SLUG}}.review.md`
-> **Implementation Notes**: `tasks/notes/{{SLUG}}.notes.md`
+> **Sprint Contract**: `tasks/contracts/{{ARTIFACT_STEM}}.contract.md`
+> **Sprint Review**: `tasks/reviews/{{ARTIFACT_STEM}}.review.md`
+> **Implementation Notes**: `tasks/notes/{{ARTIFACT_STEM}}.notes.md`
 
 ## Agentic Routing
 - Selected route:
@@ -151,13 +151,13 @@ PI_TEMPLATE_PLAN=$(cat <<'EOF_TEMPLATE_PLAN'
 Complete this inventory before implementation. If any line is unknown, keep the plan in Draft and fill it before projection.
 
 - Active plan: `{{PLAN_FILE}}`
-- Sprint contract: `tasks/contracts/{{SLUG}}.contract.md`
-- Sprint review: `tasks/reviews/{{SLUG}}.review.md`
-- Implementation notes: `tasks/notes/{{SLUG}}.notes.md`
+- Sprint contract: `tasks/contracts/{{ARTIFACT_STEM}}.contract.md`
+- Sprint review: `tasks/reviews/{{ARTIFACT_STEM}}.review.md`
+- Implementation notes: `tasks/notes/{{ARTIFACT_STEM}}.notes.md`
 - Deferred-goal ledger: `tasks/todo.md`
 - Current checks: `.ai/harness/checks/latest.json`
 - Run snapshots: `.ai/harness/runs/`
-- Scope authority: `tasks/contracts/{{SLUG}}.contract.md` `allowed_paths`
+- Scope authority: `tasks/contracts/{{ARTIFACT_STEM}}.contract.md` `allowed_paths`
 - Concurrency rule: `.ai/harness/active-plan` selects the active plan for this worktree when present; `.ai/harness/active-worktree` records the owning worktree; `.claude/.active-plan` is a legacy fallback during transition. If another worktree already owns active work, open or switch to the matching worktree instead of serializing unrelated plans.
 - Execution isolation: approved contract-level work projects through `scripts/plan-to-todo.sh --plan {{PLAN_FILE}}` and may start `scripts/contract-worktree.sh start --plan {{PLAN_FILE}}`.
 
@@ -180,11 +180,11 @@ Complete this inventory before implementation. If any line is unknown, keep the 
 |------|------------|--------|------------|
 
 ## Task Contracts
-- Contract file: `tasks/contracts/{{SLUG}}.contract.md`
-- Review file: `tasks/reviews/{{SLUG}}.review.md`
-- Implementation notes file: `tasks/notes/{{SLUG}}.notes.md`
+- Contract file: `tasks/contracts/{{ARTIFACT_STEM}}.contract.md`
+- Review file: `tasks/reviews/{{ARTIFACT_STEM}}.review.md`
+- Implementation notes file: `tasks/notes/{{ARTIFACT_STEM}}.notes.md`
 - Template: `.claude/templates/contract.template.md`
-- Verification command: `bash scripts/verify-contract.sh --contract tasks/contracts/{{SLUG}}.contract.md --strict`
+- Verification command: `bash scripts/verify-contract.sh --contract tasks/contracts/{{ARTIFACT_STEM}}.contract.md --strict`
 - Active plan rule: `.ai/harness/active-plan` is authoritative for this worktree when present; `.ai/harness/active-worktree` records the owning worktree; `.claude/.active-plan` is a legacy fallback during transition. Do not infer active execution from the latest non-archived plan.
 
 ## Handoff
@@ -215,8 +215,8 @@ PI_TEMPLATE_CONTRACT=$(cat <<'EOF_TEMPLATE_CONTRACT'
 > **Owner**: {{OWNER}}
 > **Capability ID**: {{CAPABILITY_ID}}
 > **Last Updated**: {{TIMESTAMP}}
-> **Review File**: `tasks/reviews/{{TASK_SLUG}}.review.md`
-> **Notes File**: `tasks/notes/{{TASK_SLUG}}.notes.md`
+> **Review File**: `{{REVIEW_FILE}}`
+> **Notes File**: `{{NOTES_FILE}}`
 
 ## Goal
 
@@ -231,8 +231,8 @@ Describe the exact outcome this task must deliver.
 
 - Source plan: `{{PLAN_FILE}}`
 - Deferred-goal ledger: `tasks/todo.md`
-- Review file: `tasks/reviews/{{TASK_SLUG}}.review.md`
-- Notes file: `tasks/notes/{{TASK_SLUG}}.notes.md`
+- Review file: `{{REVIEW_FILE}}`
+- Notes file: `{{NOTES_FILE}}`
 - Checks file: `.ai/harness/checks/latest.json`
 - Run snapshots: `.ai/harness/runs/`
 - Scope gate: edit only paths listed under `allowed_paths`; update this contract before widening scope.
@@ -244,9 +244,9 @@ Describe the exact outcome this task must deliver.
 allowed_paths:
   - plans/
   - tasks/todo.md
-  - tasks/contracts/{{TASK_SLUG}}.contract.md
-  - tasks/reviews/{{TASK_SLUG}}.review.md
-  - tasks/notes/{{TASK_SLUG}}.notes.md
+  - {{CONTRACT_FILE}}
+  - {{REVIEW_FILE}}
+  - {{NOTES_FILE}}
   - .ai/context/capabilities.json
   - src/
   - tests/
@@ -258,7 +258,7 @@ allowed_paths:
 exit_criteria:
   files_exist:
     - src/modules/{{TASK_SLUG}}/index.ts
-    - tasks/notes/{{TASK_SLUG}}.notes.md
+    - {{NOTES_FILE}}
   tests_pass:
     - path: tests/unit/{{TASK_SLUG}}.test.ts
   commands_succeed:

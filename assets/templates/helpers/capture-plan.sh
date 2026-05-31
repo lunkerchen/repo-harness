@@ -180,6 +180,7 @@ while [[ -f "$plan_file" ]]; do
   plan_file="plans/plan-${timestamp}-${slug}-v${counter}.md"
   counter=$((counter + 1))
 done
+artifact_stem="$(basename "$plan_file" .md | sed -E 's/^plan-//')"
 
 tasks="$(extract_task_breakdown "$body" || true)"
 if [[ -z "$tasks" ]]; then
@@ -197,9 +198,9 @@ cat > "$plan_file" <<PLAN_EOF
 > **Source Ref**: ${source_ref:-"(none)"}
 > **Spec**: \`docs/spec.md\`
 > **Research**: See \`tasks/research.md\`
-> **Sprint Contract**: \`tasks/contracts/${slug}.contract.md\`
-> **Sprint Review**: \`tasks/reviews/${slug}.review.md\`
-> **Implementation Notes**: \`tasks/notes/${slug}.notes.md\`
+> **Sprint Contract**: \`tasks/contracts/${artifact_stem}.contract.md\`
+> **Sprint Review**: \`tasks/reviews/${artifact_stem}.review.md\`
+> **Implementation Notes**: \`tasks/notes/${artifact_stem}.notes.md\`
 
 ## Agentic Routing
 - Selected route: ${route}
@@ -214,13 +215,13 @@ cat > "$plan_file" <<PLAN_EOF
 Complete this inventory before implementation. If any line is unknown, keep the plan in Draft and fill it before projection.
 
 - Active plan: \`${plan_file}\`
-- Sprint contract: \`tasks/contracts/${slug}.contract.md\`
-- Sprint review: \`tasks/reviews/${slug}.review.md\`
-- Implementation notes: \`tasks/notes/${slug}.notes.md\`
+- Sprint contract: \`tasks/contracts/${artifact_stem}.contract.md\`
+- Sprint review: \`tasks/reviews/${artifact_stem}.review.md\`
+- Implementation notes: \`tasks/notes/${artifact_stem}.notes.md\`
 - Deferred-goal ledger: \`tasks/todo.md\`
 - Current checks: \`.ai/harness/checks/latest.json\`
 - Run snapshots: \`.ai/harness/runs/\`
-- Scope authority: \`tasks/contracts/${slug}.contract.md\` \`allowed_paths\`
+- Scope authority: \`tasks/contracts/${artifact_stem}.contract.md\` \`allowed_paths\`
 - Concurrency rule: \`.ai/harness/active-plan\` selects the active plan for this worktree when present; \`.ai/harness/active-worktree\` records the owning worktree; \`.claude/.active-plan\` is a legacy fallback during transition. If another worktree already owns active work, open or switch to the matching worktree instead of serializing unrelated plans.
 - Execution isolation: approved contract-level work projects through \`scripts/plan-to-todo.sh --plan ${plan_file}\` and may start \`scripts/contract-worktree.sh start --plan ${plan_file}\`.
 
@@ -251,11 +252,11 @@ See captured planning output.
 | Captured plan lacks enough detail | Medium | Execution may need clarification | Stop before implementation if the captured output contradicts repo rules or lacks concrete file targets |
 
 ## Task Contracts
-- Contract file: \`tasks/contracts/${slug}.contract.md\`
-- Review file: \`tasks/reviews/${slug}.review.md\`
-- Implementation notes file: \`tasks/notes/${slug}.notes.md\`
+- Contract file: \`tasks/contracts/${artifact_stem}.contract.md\`
+- Review file: \`tasks/reviews/${artifact_stem}.review.md\`
+- Implementation notes file: \`tasks/notes/${artifact_stem}.notes.md\`
 - Template: \`.claude/templates/contract.template.md\`
-- Verification command: \`bash scripts/verify-contract.sh --contract tasks/contracts/${slug}.contract.md --strict\`
+- Verification command: \`bash scripts/verify-contract.sh --contract tasks/contracts/${artifact_stem}.contract.md --strict\`
 - Active plan rule: this captured plan is written to \`.ai/harness/active-plan\`, the owning worktree is written to \`.ai/harness/active-worktree\`, and the plan is mirrored to \`.claude/.active-plan\` unless --no-active is used. Do not infer active execution from the latest non-archived plan.
 
 ## Handoff
@@ -265,9 +266,9 @@ See captured planning output.
 
 ## Evidence Contract
 
-- **State/progress path**: \`${plan_file}\` task breakdown, \`tasks/todo.md\` deferred-goal ledger, \`tasks/contracts/${slug}.contract.md\`, \`tasks/reviews/${slug}.review.md\`, and \`tasks/notes/${slug}.notes.md\`
+- **State/progress path**: \`${plan_file}\` task breakdown, \`tasks/todo.md\` deferred-goal ledger, \`tasks/contracts/${artifact_stem}.contract.md\`, \`tasks/reviews/${artifact_stem}.review.md\`, and \`tasks/notes/${artifact_stem}.notes.md\`
 - **Verification evidence**: \`.ai/harness/checks/latest.json\`, \`.ai/harness/runs/\`, and the commands named in the captured planning output
-- **Evaluator rubric**: \`tasks/reviews/${slug}.review.md\` must record a passing Waza /check style recommendation
+- **Evaluator rubric**: \`tasks/reviews/${artifact_stem}.review.md\` must record a passing Waza /check style recommendation
 - **Stop condition**: all task breakdown items are complete, sprint verification passes, and the review recommends pass
 - **Rollback surface**: before execution remove \`${plan_file}\`; after execution revert branch \`codex/${slug}\` or the generated task artifacts
 

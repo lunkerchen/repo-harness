@@ -298,6 +298,7 @@ describe("Workflow helper scripts", () => {
 
       const plans = readdirSync(join(cwd, "plans")).filter((name) => /^plan-\d{8}-\d{4}-passive-plan\.md$/.test(name));
       expect(plans.length).toBe(1);
+      const artifactStem = plans[0].replace(/^plan-/, "").replace(/\.md$/, "");
       const planPath = join(cwd, "plans", plans[0]);
       const plan = readFileSync(planPath, "utf-8");
       expect(plan).toContain("> **Status**: Draft");
@@ -310,7 +311,7 @@ describe("Workflow helper scripts", () => {
       expect(plan).toContain("- Active plan: `plans/");
       expect(plan).toContain("scripts/contract-worktree.sh start --plan");
       expect(plan).toContain("## Evidence Contract");
-      expect(plan).toContain("tasks/contracts/passive-plan.contract.md");
+      expect(plan).toContain(`tasks/contracts/${artifactStem}.contract.md`);
       expect(plan).toContain("## Captured Planning Output");
       expect(plan).toContain("- [ ] Add capture helper");
       expect(readFileSync(join(cwd, ".ai/harness/active-plan"), "utf-8")).toBe(`plans/${plans[0]}`);
@@ -385,9 +386,12 @@ describe("Workflow helper scripts", () => {
       expect(todo).toContain("# Deferred Goal Ledger");
       expect(todo).toContain("**Status**: Backlog");
       expect(todo).not.toContain("- [ ] Implement approved capture");
-      expect(existsSync(join(cwd, "tasks/contracts/approved-capture.contract.md"))).toBe(true);
-      expect(existsSync(join(cwd, "tasks/reviews/approved-capture.review.md"))).toBe(true);
-      expect(existsSync(join(cwd, "tasks/notes/approved-capture.notes.md"))).toBe(true);
+      const planName = readdirSync(join(cwd, "plans")).find((name) => /^plan-\d{8}-\d{4}-approved-capture\.md$/.test(name));
+      expect(planName).toBeDefined();
+      const artifactStem = planName!.replace(/^plan-/, "").replace(/\.md$/, "");
+      expect(existsSync(join(cwd, `tasks/contracts/${artifactStem}.contract.md`))).toBe(true);
+      expect(existsSync(join(cwd, `tasks/reviews/${artifactStem}.review.md`))).toBe(true);
+      expect(existsSync(join(cwd, `tasks/notes/${artifactStem}.notes.md`))).toBe(true);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -601,12 +605,12 @@ describe("Workflow helper scripts", () => {
       expect(todo).toContain("Tradeoff");
       expect(todo).toContain("Revisit Trigger");
       expect(todo).not.toContain("- [ ] Step one");
-      expect(existsSync(join(cwd, "tasks/contracts/demo.contract.md"))).toBe(true);
-      expect(readFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "utf-8")).toContain("## Workflow Inventory");
-      expect(readFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "utf-8")).toContain("Scope gate: edit only paths listed under `allowed_paths`");
-      expect(existsSync(join(cwd, "tasks/notes/demo.notes.md"))).toBe(true);
-      expect(readFileSync(join(cwd, "tasks/notes/demo.notes.md"), "utf-8")).toContain("## Design Decisions");
-      expect(readFileSync(join(cwd, "tasks/reviews/demo.review.md"), "utf-8")).toContain("tasks/notes/demo.notes.md");
+      expect(existsSync(join(cwd, "tasks/contracts/20260304-1400-demo.contract.md"))).toBe(true);
+      expect(readFileSync(join(cwd, "tasks/contracts/20260304-1400-demo.contract.md"), "utf-8")).toContain("## Workflow Inventory");
+      expect(readFileSync(join(cwd, "tasks/contracts/20260304-1400-demo.contract.md"), "utf-8")).toContain("Scope gate: edit only paths listed under `allowed_paths`");
+      expect(existsSync(join(cwd, "tasks/notes/20260304-1400-demo.notes.md"))).toBe(true);
+      expect(readFileSync(join(cwd, "tasks/notes/20260304-1400-demo.notes.md"), "utf-8")).toContain("## Design Decisions");
+      expect(readFileSync(join(cwd, "tasks/reviews/20260304-1400-demo.review.md"), "utf-8")).toContain("tasks/notes/20260304-1400-demo.notes.md");
       expect(existsSync(join(cwd, ".claude/.task-state.json"))).toBe(false);
 
       const updatedPlan = readFileSync(planFile, "utf-8");
@@ -756,7 +760,7 @@ describe("Workflow helper scripts", () => {
           'test("demo", () => { expect(true).toBe(true); });\n'
       );
       writeFileSync(
-        join(worktreePath, "tasks/reviews/demo.review.md"),
+        join(worktreePath, "tasks/reviews/20260304-1450-demo.review.md"),
         [
           "# Sprint Review: demo",
           "",
@@ -780,7 +784,7 @@ describe("Workflow helper scripts", () => {
       expect(missingExternal.stderr).toContain("External acceptance section is missing");
 
       writeFileSync(
-        join(worktreePath, "tasks/reviews/demo.review.md"),
+        join(worktreePath, "tasks/reviews/20260304-1450-demo.review.md"),
         [
           "# Sprint Review: demo",
           "",

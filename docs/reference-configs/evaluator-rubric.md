@@ -9,7 +9,7 @@
 
 ## Repo Role
 
-Keep pass/fail evidence in `tasks/reviews/<slug>.review.md` and
+Keep pass/fail evidence in `tasks/reviews/<plan-stem>.review.md` and
 `.ai/harness/checks/latest.json`. Use the external rubric for detailed scoring
 dimensions and review examples.
 

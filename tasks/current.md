@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-05-31T21:10:32+0800 -->
+<!-- updated_at: 2026-05-31T21:31:13+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Active
-> **Updated At**: 2026-05-31T21:10:32+0800
+> **Updated At**: 2026-05-31T21:31:13+0800
 > **Source Branch**: main
-> **Source Commit**: 0bb35aa
+> **Source Commit**: 97d0465
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: release-0.1.3-github-release
+> **Reason**: plan-stem-task-artifact-names
 > **Derived From**: active-plan, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -50,10 +50,44 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 1 changed/untracked path(s)
+- Summary: 35 changed/untracked path(s)
 
 ```
- M deploy/release-checklists/260531-repo-harness-0.1.3.md
+ M .ai/hooks/lib/workflow-state.sh
+ M AGENTS.md
+ M CLAUDE.md
+ M README.md
+ M README.zh-CN.md
+ M assets/hooks/lib/workflow-state.sh
+ M assets/partials-agents/04-task-protocol.partial.md
+ M assets/partials-agents/06-quality-safety.partial.md
+ M assets/partials/07-footer.partial.md
+ M assets/partials/08-orchestration.partial.md
+ M assets/reference-configs/evaluator-rubric.md
+ M assets/reference-configs/harness-overview.md
+ M assets/reference-configs/sprint-contracts.md
+ M assets/templates/contract.template.md
+ M assets/templates/helpers/archive-workflow.sh
+ M assets/templates/helpers/capture-plan.sh
+ M assets/templates/helpers/codex-handoff-resume.sh
+ M assets/templates/helpers/contract-worktree.sh
+ M assets/templates/helpers/ensure-task-workflow.sh
+ M assets/templates/helpers/new-plan.sh
+ M assets/templates/helpers/plan-to-todo.sh
+ M assets/templates/plan.template.md
+ M docs/CHANGELOG.md
+ M docs/reference-configs/evaluator-rubric.md
+ M docs/reference-configs/harness-overview.md
+ M docs/reference-configs/sprint-contracts.md
+ M scripts/archive-workflow.sh
+ M scripts/capture-plan.sh
+ M scripts/codex-handoff-resume.sh
+ M scripts/contract-worktree.sh
+ M scripts/ensure-task-workflow.sh
+ M scripts/lib/project-init-lib.sh
+ M scripts/new-plan.sh
+ M scripts/plan-to-todo.sh
+ M tests/helper-scripts.test.ts
 ```
 
 ## Source Artifacts

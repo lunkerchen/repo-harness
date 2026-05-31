@@ -275,7 +275,7 @@ get_todo_source_plan() {
   awk -F': ' '/^\> \*\*Source Plan\*\*:/ {print $2; exit}' tasks/todo.md | xargs
 }
 
-derive_contract_path() {
+workflow_plan_slug_from_path() {
   local plan_file="$1"
   local base slug
 
@@ -286,7 +286,43 @@ derive_contract_path() {
     return 1
   fi
 
-  printf 'tasks/contracts/%s.contract.md' "$slug"
+  printf '%s' "$slug"
+}
+
+workflow_plan_artifact_stem_from_path() {
+  local plan_file="$1"
+  local base stem
+
+  base="$(basename "$plan_file")"
+  stem="$(printf '%s' "$base" | sed -E 's/^plan-//; s/\.md$//')"
+  if [[ "$stem" =~ ^[0-9]{8}-[0-9]{4}-.+ ]]; then
+    printf '%s' "$stem"
+    return 0
+  fi
+
+  workflow_plan_slug_from_path "$plan_file"
+}
+
+workflow_preferred_or_legacy_path() {
+  local preferred="$1"
+  local legacy="$2"
+
+  if [[ -f "$preferred" ]] || [[ ! -f "$legacy" ]]; then
+    printf '%s' "$preferred"
+  else
+    printf '%s' "$legacy"
+  fi
+}
+
+derive_contract_path() {
+  local plan_file="$1"
+  local stem slug
+
+  stem="$(workflow_plan_artifact_stem_from_path "$plan_file" || true)"
+  slug="$(workflow_plan_slug_from_path "$plan_file" || true)"
+  [[ -n "$stem" && -n "$slug" ]] || return 1
+
+  workflow_preferred_or_legacy_path "tasks/contracts/${stem}.contract.md" "tasks/contracts/${slug}.contract.md"
 }
 
 workflow_plan_slug() {
@@ -296,7 +332,7 @@ workflow_plan_slug() {
     return 1
   fi
 
-  slug="$(basename "$active_plan" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
+  slug="$(workflow_plan_slug_from_path "$active_plan" || true)"
   if [[ -n "$slug" ]]; then
     printf '%s' "$slug"
     return 0
@@ -930,7 +966,7 @@ workflow_contract_slug() {
   local active_plan slug
   active_plan="$(get_active_plan || true)"
   [[ -n "$active_plan" ]] || return 1
-  slug="$(basename "$active_plan" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
+  slug="$(workflow_plan_slug_from_path "$active_plan" || true)"
   [[ -n "$slug" ]] || return 1
   printf '%s' "$slug"
 }
@@ -945,18 +981,25 @@ workflow_active_contract() {
 }
 
 workflow_active_review() {
-  local slug
-  slug="$(workflow_contract_slug || true)"
-  [[ -n "$slug" ]] || return 1
-  printf 'tasks/reviews/%s.review.md' "$slug"
+  local active_plan stem slug reviews_dir
+  active_plan="$(get_active_plan || true)"
+  [[ -n "$active_plan" ]] || return 1
+  stem="$(workflow_plan_artifact_stem_from_path "$active_plan" || true)"
+  slug="$(workflow_plan_slug_from_path "$active_plan" || true)"
+  [[ -n "$stem" && -n "$slug" ]] || return 1
+  reviews_dir="$(workflow_repo_relative_path "$(workflow_policy_get '.tasks.reviews_dir' 'tasks/reviews')" 'tasks/reviews' 'tasks/')"
+  workflow_preferred_or_legacy_path "${reviews_dir}/${stem}.review.md" "${reviews_dir}/${slug}.review.md"
 }
 
 workflow_active_notes() {
-  local slug notes_dir
-  slug="$(workflow_contract_slug || true)"
-  [[ -n "$slug" ]] || return 1
+  local active_plan stem slug notes_dir
+  active_plan="$(get_active_plan || true)"
+  [[ -n "$active_plan" ]] || return 1
+  stem="$(workflow_plan_artifact_stem_from_path "$active_plan" || true)"
+  slug="$(workflow_plan_slug_from_path "$active_plan" || true)"
+  [[ -n "$stem" && -n "$slug" ]] || return 1
   notes_dir="$(workflow_repo_relative_path "$(workflow_policy_get '.tasks.notes_dir' 'tasks/notes')" 'tasks/notes' 'tasks/')"
-  printf '%s/%s.notes.md' "$notes_dir" "$slug"
+  workflow_preferred_or_legacy_path "${notes_dir}/${stem}.notes.md" "${notes_dir}/${slug}.notes.md"
 }
 
 workflow_checks_file() {

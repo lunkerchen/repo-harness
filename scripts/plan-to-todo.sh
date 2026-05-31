@@ -85,6 +85,26 @@ get_todo_source_plan() {
   awk -F': ' '/^\> \*\*Source Plan\*\*:/ {print $2; exit}' tasks/todo.md 2>/dev/null | xargs
 }
 
+plan_slug_from_path() {
+  local plan_file="$1"
+  local base slug
+  base="$(basename "$plan_file")"
+  slug="$(printf '%s' "$base" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
+  printf '%s' "$slug"
+}
+
+plan_artifact_stem_from_path() {
+  local plan_file="$1"
+  local base stem
+  base="$(basename "$plan_file")"
+  stem="$(printf '%s' "$base" | sed -E 's/^plan-//; s/\.md$//')"
+  if [[ "$stem" =~ ^[0-9]{8}-[0-9]{4}-.+ ]]; then
+    printf '%s' "$stem"
+  else
+    plan_slug_from_path "$plan_file"
+  fi
+}
+
 policy_get() {
   local jq_path="$1"
   local default_value="${2:-}"
@@ -176,9 +196,11 @@ unique_archive_path() {
 render_contract_file() {
   local plan_file="$1"
   local contract_file="$2"
-  local slug="$3"
-  local timestamp="$4"
-  local capability_id="$5"
+  local review_file="$3"
+  local notes_file="$4"
+  local slug="$5"
+  local timestamp="$6"
+  local capability_id="$7"
   local owner="${USER:-AI Agent}"
   local template_file=".claude/templates/contract.template.md"
   local tmp_file
@@ -193,8 +215,8 @@ render_contract_file() {
 > **Owner**: {{OWNER}}
 > **Capability ID**: {{CAPABILITY_ID}}
 > **Last Updated**: {{TIMESTAMP}}
-> **Review File**: `tasks/reviews/{{TASK_SLUG}}.review.md`
-> **Notes File**: `tasks/notes/{{TASK_SLUG}}.notes.md`
+> **Review File**: `{{REVIEW_FILE}}`
+> **Notes File**: `{{NOTES_FILE}}`
 
 ## Goal
 
@@ -209,8 +231,8 @@ Describe the exact outcome this task must deliver.
 
 - Source plan: `{{PLAN_FILE}}`
 - Deferred-goal ledger: `tasks/todo.md`
-- Review file: `tasks/reviews/{{TASK_SLUG}}.review.md`
-- Notes file: `tasks/notes/{{TASK_SLUG}}.notes.md`
+- Review file: `{{REVIEW_FILE}}`
+- Notes file: `{{NOTES_FILE}}`
 - Checks file: `.ai/harness/checks/latest.json`
 - Run snapshots: `.ai/harness/runs/`
 - Scope gate: edit only paths listed under `allowed_paths`; update this contract before widening scope.
@@ -222,9 +244,9 @@ Describe the exact outcome this task must deliver.
 allowed_paths:
   - plans/
   - tasks/todo.md
-  - tasks/contracts/{{TASK_SLUG}}.contract.md
-  - tasks/reviews/{{TASK_SLUG}}.review.md
-  - tasks/notes/{{TASK_SLUG}}.notes.md
+  - {{CONTRACT_FILE}}
+  - {{REVIEW_FILE}}
+  - {{NOTES_FILE}}
   - .ai/context/capabilities.json
   - src/
   - tests/
@@ -236,7 +258,7 @@ allowed_paths:
 exit_criteria:
   files_exist:
     - src/modules/{{TASK_SLUG}}/index.ts
-    - tasks/notes/{{TASK_SLUG}}.notes.md
+    - {{NOTES_FILE}}
   tests_pass:
     - path: tests/unit/{{TASK_SLUG}}.test.ts
   commands_succeed:
@@ -263,10 +285,18 @@ CONTRACT_TEMPLATE_EOF
   sed \
     -e "s/{{TASK_SLUG}}/${slug}/g" \
     -e "s|{{PLAN_FILE}}|${plan_file}|g" \
+    -e "s|{{CONTRACT_FILE}}|${contract_file}|g" \
+    -e "s|{{REVIEW_FILE}}|${review_file}|g" \
+    -e "s|{{NOTES_FILE}}|${notes_file}|g" \
     -e "s|{{CAPABILITY_ID}}|${capability_id}|g" \
     -e "s/{{OWNER}}/${owner}/g" \
     -e "s/{{TIMESTAMP}}/${timestamp}/g" \
-    "$template_file" > "$tmp_file"
+    "$template_file" \
+    | sed \
+      -e "s|tasks/contracts/${slug}\\.contract\\.md|${contract_file}|g" \
+      -e "s|tasks/reviews/${slug}\\.review\\.md|${review_file}|g" \
+      -e "s|tasks/notes/${slug}\\.notes\\.md|${notes_file}|g" \
+      > "$tmp_file"
   mv "$tmp_file" "$contract_file"
 }
 
@@ -469,10 +499,11 @@ mkdir -p .ai/harness/runs
 timestamp="$(date +%Y%m%d-%H%M)"
 timestamp_human="$(date '+%Y-%m-%d %H:%M')"
 plan_base="$(basename "$plan_file")"
-slug="$(echo "$plan_base" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//')"
-contract_file="tasks/contracts/${slug}.contract.md"
-review_file="tasks/reviews/${slug}.review.md"
-notes_file="tasks/notes/${slug}.notes.md"
+slug="$(plan_slug_from_path "$plan_file")"
+artifact_stem="$(plan_artifact_stem_from_path "$plan_file")"
+contract_file="tasks/contracts/${artifact_stem}.contract.md"
+review_file="tasks/reviews/${artifact_stem}.review.md"
+notes_file="tasks/notes/${artifact_stem}.notes.md"
 previous_source_plan="$(get_todo_source_plan || true)"
 parent_run_id="${HOOK_RUN_ID:-${CLAUDE_RUN_ID:-${CODEX_RUN_ID:-run-${timestamp}}}}"
 capability_id="$(extract_capability_id "$plan_file")"
@@ -602,7 +633,7 @@ else
 REVIEW_TEMPLATE_EOF
 fi
 
-render_contract_file "$plan_file" "$contract_file" "$slug" "$timestamp_human" "$capability_id"
+render_contract_file "$plan_file" "$contract_file" "$review_file" "$notes_file" "$slug" "$timestamp_human" "$capability_id"
 render_implementation_notes_file "$plan_file" "$contract_file" "$review_file" "$notes_file" "$slug" "$timestamp_human"
 sed \
   -e "s/{{TASK_SLUG}}/${slug}/g" \

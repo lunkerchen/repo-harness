@@ -4,6 +4,14 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Switched generated plan task artifacts from slug-only names to the active plan stem (`YYYYMMDD-HHMM-<slug>`) for `tasks/contracts/`, `tasks/reviews/`, and `tasks/notes/`.
+
+### Fixed
+
+- Kept workflow-state, handoff, archive, and contract-worktree helpers compatible with existing slug-only task artifacts while preferring the new plan-stem paths.
+
 ## [0.1.3] - 2026-05-31
 
 ### Added

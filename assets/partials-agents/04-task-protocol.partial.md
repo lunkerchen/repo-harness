@@ -29,16 +29,16 @@ RULES:
   - Keep multiple active plans in parallel worktrees when tasks diverge; fill workflow inventory before implementation: active plan, owning worktree, contract, review, notes, deferred ledger, checks, runs, scope owner, switching rule, and worktree path
   - Process annotation notes before implementing
   - Extract approved plan tasks into tasks/todo.md
-  - Define task contracts in tasks/contracts/{slug}.contract.md
-  - Fill tasks/reviews/{slug}.review.md from Waza /check after verification
-  - Record only non-obvious implementation decisions, deviations, tradeoffs, and open questions in tasks/notes/{slug}.notes.md
+  - Define task contracts in tasks/contracts/{plan-stem}.contract.md
+  - Fill tasks/reviews/{plan-stem}.review.md from Waza /check after verification
+  - Record only non-obvious implementation decisions, deviations, tradeoffs, and open questions in tasks/notes/{plan-stem}.notes.md
   - Verify contracts before claiming completion
   - Require review pass before claiming completion
   - Keep tasks/todo.md limited to deferred medium/long-term goals, with tradeoff and revisit trigger; do not duplicate plan Task Breakdown
   - Record correction-derived prevention rules in tasks/lessons.md
   - Distill repeated corrections into tasks/lessons.md instead of keeping them in tasks/todo.md
   - Capture deep findings and hidden contracts in tasks/research.md
-  - Keep sprint-level verification notes, behavior diffs, and residual risks in tasks/reviews/{slug}.review.md
+  - Keep sprint-level verification notes, behavior diffs, and residual risks in tasks/reviews/{plan-stem}.review.md
   - Do not use implementation notes as durable memory or task logs; archive them on close and promote only after evidence shows the rule should outlive the sprint
   - Promote implementation-ready follow-up work into a new plans/plan-{timestamp}-{slug}.md file; keep deferred goals in tasks/todo.md only when intentionally postponed
   - Treat `.ai/hooks/` as the shared automation entrypoint when repo scripts reference hook-backed workflow checks

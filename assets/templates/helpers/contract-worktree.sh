@@ -61,6 +61,18 @@ derive_slug_from_plan() {
   normalize_slug "${slug:-contract-task}"
 }
 
+derive_artifact_stem_from_plan() {
+  local plan_file="$1"
+  local plan_base stem
+  plan_base="$(basename "$plan_file")"
+  stem="$(printf '%s' "$plan_base" | sed -E 's/^plan-//; s/\.md$//')"
+  if [[ "$stem" =~ ^[0-9]{8}-[0-9]{4}-.+ ]]; then
+    printf '%s' "$stem"
+  else
+    derive_slug_from_plan "$plan_file"
+  fi
+}
+
 is_linked_worktree() {
   local git_dir
   git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
@@ -381,7 +393,7 @@ finish_worktree() {
     exit 1
   fi
 
-  local current_branch slug active_plan contract_file review_file target_worktree
+  local current_branch slug active_plan contract_file review_file target_worktree artifact_stem
   local external_status external_state external_reviewer external_source external_message
   current_branch="$(git branch --show-current)"
   [[ -n "$current_branch" ]] || { echo "contract-worktree: detached HEAD is not supported" >&2; exit 1; }
@@ -401,6 +413,18 @@ finish_worktree() {
 
   if [[ -z "${active_plan:-}" ]]; then
     active_plan="$(latest_plan_for_slug "$slug" || true)"
+  fi
+  if [[ -n "${active_plan:-}" && -z "${contract_file:-}" ]]; then
+    artifact_stem="$(derive_artifact_stem_from_plan "$active_plan")"
+    if [[ -f "tasks/contracts/${artifact_stem}.contract.md" ]] || [[ ! -f "tasks/contracts/${slug}.contract.md" ]]; then
+      contract_file="tasks/contracts/${artifact_stem}.contract.md"
+    fi
+  fi
+  if [[ -n "${active_plan:-}" && -z "${review_file:-}" ]]; then
+    artifact_stem="${artifact_stem:-$(derive_artifact_stem_from_plan "$active_plan")}"
+    if [[ -f "tasks/reviews/${artifact_stem}.review.md" ]] || [[ ! -f "tasks/reviews/${slug}.review.md" ]]; then
+      review_file="tasks/reviews/${artifact_stem}.review.md"
+    fi
   fi
   contract_file="${contract_file:-tasks/contracts/${slug}.contract.md}"
   review_file="${review_file:-tasks/reviews/${slug}.review.md}"

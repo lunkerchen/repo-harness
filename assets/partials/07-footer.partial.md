@@ -14,9 +14,9 @@ CLAUDE.md is a routing card. Keep context minimal and load only what the current
 |---------|----------------|
 | Deep codebase investigation | `tasks/research.md` |
 | Active implementation planning | `plans/plan-*.md` |
-| Sprint done definition | `tasks/contracts/<slug>.contract.md` |
-| Evaluator verdict | `tasks/reviews/<slug>.review.md` |
-| Implementation notes | `tasks/notes/<slug>.notes.md` |
+| Sprint done definition | `tasks/contracts/<plan-stem>.contract.md` |
+| Evaluator verdict | `tasks/reviews/<plan-stem>.review.md` |
+| Implementation notes | `tasks/notes/<plan-stem>.notes.md` |
 | Latest verification evidence | `.ai/harness/checks/latest.json` |
 | Historical implementation context | `plans/archive/` and `tasks/archive/` |
 | Agentic skill routing | `docs/reference-configs/agentic-development-flow.md` |
