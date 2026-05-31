@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-01T03:19:39+0800 -->
+<!-- updated_at: 2026-06-01T03:48:01+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-01T03:19:39+0800
+> **Updated At**: 2026-06-01T03:48:01+0800
 > **Source Branch**: main
-> **Source Commit**: 2b71144
+> **Source Commit**: 6518732
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: archive-workflow
+> **Reason**: release-0.1.5-published
 > **Derived From**: active-plan, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -45,11 +45,10 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 2 changed/untracked path(s)
+- Summary: 1 changed/untracked path(s)
 
 ```
-?? plans/archive/plan-20260601-0106-tgz-pick-wt.md
-?? tasks/archive/todo-20260601-0319-tgz-pick-wt.md
+ M deploy/release-checklists/260601-repo-harness-0.1.5.md
 ```
 
 ## Source Artifacts

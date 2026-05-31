@@ -2,7 +2,7 @@
 
 Date: 2026-06-01
 Filing ID: 260601-repo-harness-0.1.5
-Status: Prepared
+Status: Published
 
 ## Naming
 
@@ -48,9 +48,9 @@ without relying only on GitHub or npm metadata.
 - Full local suite after dirty WT guard passed: 544 pass, 6 skip, 0 fail.
 - `bash scripts/ensure-codegraph.sh --check --json` reported the project index up-to-date.
 - `bun src/cli/index.ts doctor --json` reported `9 ok / 0 warn / 0 fail`.
-- `npm view repo-harness version --registry https://registry.npmjs.org/` still returned `0.1.4`, so `0.1.5` remains prepared locally until publish.
+- `npm view repo-harness@0.1.5 version --registry https://registry.npmjs.org/` returned `0.1.5` after publish.
 
 ## Published Artifacts
 
-- Pending npm publish.
-- Pending GitHub release.
+- npm: https://www.npmjs.com/package/repo-harness/v/0.1.5
+- GitHub release: https://github.com/Ancienttwo/repo-harness/releases/tag/v0.1.5
