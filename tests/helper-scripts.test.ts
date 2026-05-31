@@ -1241,6 +1241,116 @@ describe("Workflow helper scripts", () => {
     }
   }, 15000);
 
+  test("ship-worktrees cleanup-merged should refuse dirty merged source worktree", () => {
+    const cwd = tmpWorkspace("helper-ship-cleanup-dirty-merged");
+    const worktreePath = `${cwd}-wt-demo`;
+    try {
+      copyHelpers(cwd);
+      initGitRepo(cwd);
+      mkdirSync(join(cwd, "src"), { recursive: true });
+      writeFileSync(join(cwd, "README.md"), "# demo\n");
+      commitAll(cwd, "init dirty merged cleanup");
+
+      expect(run("git", ["worktree", "add", worktreePath, "-b", "codex/demo"], cwd).status).toBe(0);
+      mkdirSync(join(worktreePath, "src"), { recursive: true });
+      writeFileSync(join(worktreePath, "src/demo.ts"), "export const demo = 1;\n");
+      commitAll(worktreePath, "add demo source");
+      expect(run("git", ["merge", "--ff-only", "codex/demo"], cwd).status).toBe(0);
+
+      writeFileSync(join(worktreePath, "src/demo.ts"), "export const demo = 2;\n");
+
+      const cleanup = run("bash", ["scripts/ship-worktrees.sh", "--cleanup-merged", "--target", "main"], cwd);
+      expect(cleanup.status).toBe(1);
+      expect(cleanup.stderr).toContain("dirty merged linked worktree");
+      expect(cleanup.stderr).toContain("pick/apply/commit");
+      expect(cleanup.stderr).toContain("tgz");
+      expect(cleanup.stderr).toContain("src/demo.ts");
+      expect(existsSync(worktreePath)).toBe(true);
+      expect(run("git", ["show-ref", "--verify", "--quiet", "refs/heads/codex/demo"], cwd).status).toBe(0);
+    } finally {
+      run("git", ["worktree", "remove", "--force", worktreePath], cwd);
+      rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  test("ship-worktrees cleanup-merged can discard scaffold-only dirty merged worktree", () => {
+    const cwd = tmpWorkspace("helper-ship-cleanup-scaffold-discard");
+    const worktreePath = `${cwd}-wt-demo`;
+    try {
+      copyHelpers(cwd);
+      initGitRepo(cwd);
+      mkdirSync(join(cwd, "tasks"), { recursive: true });
+      writeFileSync(join(cwd, "README.md"), "# demo\n");
+      writeFileSync(join(cwd, "tasks/todo.md"), "# Deferred Goal Ledger\n");
+      commitAll(cwd, "init scaffold cleanup");
+
+      expect(run("git", ["worktree", "add", worktreePath, "-b", "codex/demo"], cwd).status).toBe(0);
+      mkdirSync(join(cwd, ".ai/harness/worktrees"), { recursive: true });
+      writeFileSync(join(cwd, ".ai/harness/worktrees/demo.json"), '{"slug":"demo"}\n');
+
+      mkdirSync(join(worktreePath, "plans"), { recursive: true });
+      mkdirSync(join(worktreePath, "tasks/contracts"), { recursive: true });
+      mkdirSync(join(worktreePath, "tasks/reviews"), { recursive: true });
+      mkdirSync(join(worktreePath, "tasks/notes"), { recursive: true });
+      writeFileSync(join(worktreePath, "tasks/todo.md"), "# Deferred Goal Ledger\n- generated scaffold\n");
+      writeFileSync(join(worktreePath, "plans/plan-20260304-1410-demo.md"), "# Plan: demo\n");
+      writeFileSync(join(worktreePath, "tasks/contracts/demo.contract.md"), "# Contract\n");
+      writeFileSync(join(worktreePath, "tasks/reviews/demo.review.md"), "# Review\n");
+      writeFileSync(join(worktreePath, "tasks/notes/demo.notes.md"), "# Notes\n");
+
+      const cleanup = run(
+        "bash",
+        ["scripts/ship-worktrees.sh", "--cleanup-merged", "--discard-scaffold-only", "--target", "main"],
+        cwd
+      );
+      expect(cleanup.status).toBe(0);
+      expect(cleanup.stdout).toContain("Discarded scaffold-only changes");
+      expect(cleanup.stdout).toContain("Removed worktree");
+      expect(cleanup.stdout).toContain("Deleted branch: codex/demo");
+      expect(existsSync(worktreePath)).toBe(false);
+      expect(run("git", ["show-ref", "--verify", "--quiet", "refs/heads/codex/demo"], cwd).status).not.toBe(0);
+      expect(existsSync(join(cwd, ".ai/harness/worktrees/demo.json"))).toBe(false);
+    } finally {
+      run("git", ["worktree", "remove", "--force", worktreePath], cwd);
+      rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  test("ship-worktrees cleanup-merged should require explicit scaffold discard flag", () => {
+    const cwd = tmpWorkspace("helper-ship-cleanup-scaffold-no-flag");
+    const worktreePath = `${cwd}-wt-demo`;
+    try {
+      copyHelpers(cwd);
+      initGitRepo(cwd);
+      mkdirSync(join(cwd, "tasks"), { recursive: true });
+      writeFileSync(join(cwd, "README.md"), "# demo\n");
+      writeFileSync(join(cwd, "tasks/todo.md"), "# Deferred Goal Ledger\n");
+      commitAll(cwd, "init scaffold no flag cleanup");
+
+      expect(run("git", ["worktree", "add", worktreePath, "-b", "codex/demo"], cwd).status).toBe(0);
+      mkdirSync(join(worktreePath, "plans"), { recursive: true });
+      mkdirSync(join(worktreePath, "tasks/contracts"), { recursive: true });
+      writeFileSync(join(worktreePath, "tasks/todo.md"), "# Deferred Goal Ledger\n- generated scaffold\n");
+      writeFileSync(join(worktreePath, "plans/plan-20260304-1410-demo.md"), "# Plan: demo\n");
+      writeFileSync(join(worktreePath, "tasks/contracts/demo.contract.md"), "# Contract\n");
+
+      const cleanup = run("bash", ["scripts/ship-worktrees.sh", "--cleanup-merged", "--target", "main"], cwd);
+      expect(cleanup.status).toBe(1);
+      expect(cleanup.stderr).toContain("dirty merged linked worktree");
+      expect(cleanup.stderr).toContain("--discard-scaffold-only");
+      expect(existsSync(join(worktreePath, "tasks/todo.md"))).toBe(true);
+      expect(readFileSync(join(worktreePath, "tasks/todo.md"), "utf8")).toContain("generated scaffold");
+      expect(existsSync(worktreePath)).toBe(true);
+      expect(run("git", ["show-ref", "--verify", "--quiet", "refs/heads/codex/demo"], cwd).status).toBe(0);
+    } finally {
+      run("git", ["worktree", "remove", "--force", worktreePath], cwd);
+      rmSync(worktreePath, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
   test("plan-to-todo should reject non-Approved plan status", () => {
     const cwd = tmpWorkspace("helper-plan-status");
     try {

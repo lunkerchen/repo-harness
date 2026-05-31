@@ -227,11 +227,40 @@ derive_slug() {
   basename "$1" | sed -E 's/^plan-[0-9]{8}-[0-9]{4}-//; s/\.md$//'
 }
 
+plan_contract_path() {
+  local plan_file="$1" path
+  path="$(awk '
+    /^> \*\*Sprint Contract\*\*:/ {
+      sub(/^> \*\*Sprint Contract\*\*:[[:space:]]*/, "")
+      gsub(/`/, "")
+      print
+      exit
+    }
+  ' "$plan_file" | xargs)"
+
+  case "$path" in
+    tasks/contracts/*.contract.md)
+      printf '%s' "$path"
+      ;;
+  esac
+}
+
 derive_contract_path() {
   local plan_file="$1"
-  local slug
+  local explicit slug stem
+  explicit="$(plan_contract_path "$plan_file")"
+  if [[ -n "$explicit" ]]; then
+    printf '%s' "$explicit"
+    return 0
+  fi
+
   slug="$(derive_slug "$plan_file")"
-  printf 'tasks/contracts/%s.contract.md' "$slug"
+  stem="$(basename "$plan_file" | sed -E 's/^plan-//; s/\.md$//')"
+  if [[ -f "tasks/contracts/${stem}.contract.md" ]] || [[ ! -f "tasks/contracts/${slug}.contract.md" ]]; then
+    printf 'tasks/contracts/%s.contract.md' "$stem"
+  else
+    printf 'tasks/contracts/%s.contract.md' "$slug"
+  fi
 }
 
 check_required_file() {
