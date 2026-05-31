@@ -2,8 +2,8 @@
 
 Date: 2026-05-31
 Filing ID: 260531-repo-harness-0.1.3
-Source commit: 42318f7
-Status: Not published
+Published source commit: a06331f
+Status: Published
 
 ## Naming
 
@@ -33,11 +33,12 @@ without relying only on GitHub or npm metadata.
 
 ## Verification
 
-- `bash scripts/check-npm-release.sh` passed before the publish attempt.
-- A later `npm publish` attempt was intentionally interrupted before completion after a filing-name issue was identified.
-- Registry check after interruption still returned `repo-harness@0.1.3` as unpublished.
+- `bash scripts/check-npm-release.sh` passed before publish.
+- `npm publish --access public --registry https://registry.npmjs.org/` completed successfully.
+- `npm view repo-harness@0.1.3 version --json --registry https://registry.npmjs.org/` returned `0.1.3`.
+- `npm view repo-harness version --json --registry https://registry.npmjs.org/` returned `0.1.3`.
 
-## Publish Hold
+## Published Artifacts
 
-Do not publish until this filing is reviewed and the release gate is rerun from
-the final commit.
+- NPM: https://www.npmjs.com/package/repo-harness/v/0.1.3
+- GitHub release: pending tag and release creation
