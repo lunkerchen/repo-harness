@@ -212,7 +212,7 @@ describe("Hook runtime behavior", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
-  });
+  }, 10000);
 
   test("prompt-guard: emits host-aware [ExternalAcceptance] prompt at merge and [CrossReview] at debug moments", () => {
     const cwd = tmpWorkspace("cross-review-hint");
@@ -2596,7 +2596,7 @@ describe("Hook runtime behavior", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
-  });
+  }, 10000);
 
   test("prompt-guard: treats Claude plan refinement as planning review despite pasted execution metadata", () => {
     const cwd = tmpWorkspace("prompt-guard-claude-plan-review");

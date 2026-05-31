@@ -64,9 +64,8 @@ export function checkConsistency(repoRoot: string = REPO_ROOT): ConsistencyResul
   const sv = JSON.parse(readFileSync(svPath, "utf-8"));
   const skillVersionJsonVersion = sv.version as string;
 
-  // package.json.version is the npm/CLI release line. skill-version.json is the
-  // generated workflow/template compatibility line. They intentionally diverge
-  // after the project moved from skill-only distribution to CLI packaging.
+  // package.json.version is product release metadata. skill-version.json is the
+  // generated workflow/template compatibility line.
   if (packageJsonVersion !== null) {
     warnings.push(
       `package.json.version (${packageJsonVersion}) is treated as product release metadata; workflow parity uses upstream repo-harness skill-version.json only`

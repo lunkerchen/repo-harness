@@ -3,10 +3,10 @@
   "active_plan": {
     "marker_file": ".ai/harness/active-plan",
     "legacy_marker_file": ".claude/.active-plan",
-    "active_worktree_marker_file": ".ai/harness/active-worktree",
     "directory": "plans",
     "archive_directory": "plans/archive",
     "glob": "plan-*.md",
+    "active_worktree_marker_file": ".ai/harness/active-worktree",
     "source_of_truth": "per-worktree explicit marker with active-worktree owner; legacy Claude marker fallback only"
   },
   "tasks": {
@@ -54,6 +54,7 @@
       "script": "scripts/select-agent-context-blocks.sh",
       "config_file": ".ai/context/agent-context-blocks.txt",
       "env": "PROJECT_INITIALIZER_CONTEXT_BLOCKS",
+      "legacy_env": "PROJECT_INITIALIZER_CONTEXT_BLOCKS",
       "rule": "compatibility selector; capability registry is the source of truth"
     }
   },
@@ -331,6 +332,7 @@
       "primary_host": "codex",
       "install_mode": "self-host-dev-dependency-with-global-mcp-opt-in",
       "codex_config_path": "~/.codex/config.toml",
+      "claude_config_path": "~/.claude.json",
       "index_dir": ".codegraph",
       "readiness": "required-for-codex-agent-code-navigation",
       "hook_policy": "do-not-block-hooks",

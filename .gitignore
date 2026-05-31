@@ -19,7 +19,7 @@ bun.lockb
 .sisyphus/notepads/
 
 # Local Claude overrides/state
-# BEGIN: claude-runtime-temp (managed by project-initializer)
+# BEGIN: claude-runtime-temp (managed by repo-harness)
 .claude/settings.local.json
 .claude/.atomic_pending
 .claude/.session-id
@@ -50,8 +50,6 @@ bun.lockb
 .ai/harness/worktrees/
 .ai/harness/runs/
 .codex/*
-!.codex/
-!.codex/hooks.json
 .claude/.active-plan
 .claude/.plan-state/
 # END: claude-runtime-temp

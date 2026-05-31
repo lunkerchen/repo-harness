@@ -4,7 +4,8 @@
   "functional_block_selector": {
     "script": "scripts/select-agent-context-blocks.sh",
     "config_file": ".ai/context/agent-context-blocks.txt",
-    "env": "PROJECT_INITIALIZER_CONTEXT_BLOCKS",
+    "env": "REPO_HARNESS_CONTEXT_BLOCKS",
+    "legacy_env": "PROJECT_INITIALIZER_CONTEXT_BLOCKS",
     "rule": "compatibility selector; capability registry is the source of truth"
   },
   "lsp_profiles": {
@@ -113,7 +114,7 @@
       "verification_hint": "bun test tests/migration-script.test.ts tests/create-project-dirs.runtime.test.ts tests/workflow-contract.test.ts"
     },
     {
-      "path": "CLAUDE.md",
+      "path": "assets/CLAUDE.md",
       "priority": "high",
       "char_budget": 1000,
       "purpose": "capability-contract",
@@ -128,7 +129,7 @@
       "verification_hint": "bun test tests/workflow-contract.test.ts tests/scaffold-parity.test.ts"
     },
     {
-      "path": "AGENTS.md",
+      "path": "assets/AGENTS.md",
       "priority": "high",
       "char_budget": 1000,
       "purpose": "capability-contract",
@@ -143,7 +144,7 @@
       "verification_hint": "bun test tests/workflow-contract.test.ts tests/scaffold-parity.test.ts"
     },
     {
-      "path": "CLAUDE.md",
+      "path": "assets/hooks/CLAUDE.md",
       "priority": "high",
       "char_budget": 1000,
       "purpose": "capability-contract",
@@ -158,7 +159,7 @@
       "verification_hint": "bun test tests/hook-runtime.test.ts tests/hook-contracts.test.ts tests/workflow-contract.test.ts"
     },
     {
-      "path": "AGENTS.md",
+      "path": "assets/hooks/AGENTS.md",
       "priority": "high",
       "char_budget": 1000,
       "purpose": "capability-contract",
@@ -243,36 +244,6 @@
       "priority": "high",
       "char_budget": 1200,
       "purpose": "capability-workstream"
-    },
-    {
-      "path": "assets/CLAUDE.md",
-      "priority": "high",
-      "char_budget": 1000,
-      "purpose": "capability-contract",
-      "capability_id": "workflow-engine-contract-assets",
-      "functional_block": ".ai/harness/policy.json",
-      "matched_prefix": ".ai/harness/policy.json",
-      "architecture_domain": "workflow-engine",
-      "architecture_capability": "contract-assets",
-      "target_agent": "claude",
-      "lsp_profile": "typescript-lsp",
-      "doc_scope": "capability-contract",
-      "verification_hint": "record local commands here before implementation"
-    },
-    {
-      "path": "assets/AGENTS.md",
-      "priority": "high",
-      "char_budget": 1000,
-      "purpose": "capability-contract",
-      "capability_id": "workflow-engine-contract-assets",
-      "functional_block": ".ai/harness/policy.json",
-      "matched_prefix": ".ai/harness/policy.json",
-      "architecture_domain": "workflow-engine",
-      "architecture_capability": "contract-assets",
-      "target_agent": "codex",
-      "lsp_profile": "typescript-lsp",
-      "doc_scope": "capability-contract",
-      "verification_hint": "record local commands here before implementation"
     }
   ],
   "budgets": {
