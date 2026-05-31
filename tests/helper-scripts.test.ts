@@ -1881,6 +1881,27 @@ describe("Workflow helper scripts", () => {
       expect(ok.status).toBe(0);
       expect(ok.stdout).toContain("[deploy-sql] OK");
 
+      mkdirSync(join(cwd, "tests/sql"), { recursive: true });
+      writeFileSync(
+        join(cwd, "tests/sql/control_plane_invariants.sql"),
+        "-- covers deploy/sql/0001_create_users.sql only\n",
+      );
+      const missingInvariant = run("bash", ["scripts/check-deploy-sql-order.sh"], cwd);
+      expect(missingInvariant.status).toBe(1);
+      expect(missingInvariant.stdout).toContain("SQL migration must be referenced");
+
+      writeFileSync(
+        join(cwd, "tests/sql/control_plane_invariants.sql"),
+        [
+          "-- covers deploy/sql/0001_create_users.sql",
+          "-- covers deploy/sql/0002_add_orders.sql",
+          "",
+        ].join("\n"),
+      );
+      const invariantOk = run("bash", ["scripts/check-deploy-sql-order.sh"], cwd);
+      expect(invariantOk.status).toBe(0);
+      expect(invariantOk.stdout).toContain("[deploy-sql] OK");
+
       writeFileSync(join(cwd, "deploy/sql/0002_duplicate_orders.sql"), "-- duplicate prefix\n");
       const duplicate = run("bash", ["scripts/check-deploy-sql-order.sh"], cwd);
       expect(duplicate.status).toBe(1);

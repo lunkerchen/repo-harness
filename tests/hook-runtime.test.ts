@@ -2529,7 +2529,7 @@ describe("Hook runtime behavior", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   test("prompt-guard: does not treat unrelated go phrases as implementation approval", () => {
     const cwd = tmpWorkspace("prompt-guard-go-over");

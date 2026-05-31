@@ -272,12 +272,16 @@ git_status_summary() {
   fi
 
   local count
-  count="$(git status --short 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
+  count="$(git_status_short_filtered | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
   if [[ "${count:-0}" -eq 0 ]]; then
     printf 'clean'
   else
     printf '%s changed/untracked path(s)' "$count"
   fi
+}
+
+git_status_short_filtered() {
+  git status --short 2>/dev/null | grep -Ev '^[? MARCUD!]{2}[[:space:]]+tasks/\.current\.md\.tmp\.[^[:space:]]+$' || true
 }
 
 git_status_files() {
@@ -286,7 +290,7 @@ git_status_files() {
     return 0
   fi
   local files
-  files="$(git status --short 2>/dev/null | head -40)"
+  files="$(git_status_short_filtered | head -40)"
   if [[ -n "$files" ]]; then
     printf '%s\n' "$files"
   else

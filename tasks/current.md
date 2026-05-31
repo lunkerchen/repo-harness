@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-05-31T19:43:04+0800 -->
+<!-- updated_at: 2026-05-31T20:25:44+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Active
-> **Updated At**: 2026-05-31T19:43:04+0800
+> **Updated At**: 2026-05-31T20:25:44+0800
 > **Source Branch**: main
-> **Source Commit**: f06980c
+> **Source Commit**: 8eb6c72
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: prompt-guard-ts-decision-engine
+> **Reason**: release-0.1.3-changelog-complete
 > **Derived From**: active-plan, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -50,26 +50,21 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 17 changed/untracked path(s)
+- Summary: 12 changed/untracked path(s)
 
 ```
- M .ai/hooks/prompt-guard.sh
- M assets/hooks/prompt-guard.sh
- M assets/templates/helpers/plan-to-todo.sh
- M scripts/plan-to-todo.sh
- M scripts/refresh-current-status.sh
- M src/cli/hook-entry.ts
+ M README.md
+ M assets/templates/helpers/check-deploy-sql-order.sh
+ M assets/templates/helpers/refresh-current-status.sh
+ M docs/CHANGELOG.md
+ M package.json
+ M scripts/check-deploy-sql-order.sh
+ M src/cli/commands/status.ts
  M src/cli/index.ts
  M tasks/current.md
- M tasks/research.md
- M tests/cli/hook.test.ts
+ M tests/bootstrap-files.test.ts
  M tests/helper-scripts.test.ts
- M tests/hook-protocol.test.ts
  M tests/hook-runtime.test.ts
-?? plans/plan-20260531-0216-think-external-acceptance-contract-worktree-finish-sprint-verifi.md
-?? src/cli/commands/prompt-guard-decision.ts
-?? src/cli/hook/prompt-guard-decision.ts
-?? tests/cli/prompt-guard-decision.test.ts
 ```
 
 ## Source Artifacts

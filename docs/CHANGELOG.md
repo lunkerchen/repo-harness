@@ -4,6 +4,30 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-31
+
+### Added
+
+- Added AI-native scaffold profiles as overlays on the existing A-K plan catalog, including runtime-console, product-copilot, and sidecar-kernel project structures without introducing new public plan codes.
+- Added AI-native template variables so selected profiles can project focused project structures, runtime-console defaults, and tech-stack guidance while ordinary A-K scaffolds stay unchanged.
+- Added a typed prompt-guard decision engine behind `repo-harness-hook prompt-guard-decide`, keeping host adapters stable while making `intent x plan state` routing table-driven and testable.
+- Added CLI and route-level regression coverage for the internal prompt-guard decision command, the lightweight hook entrypoint, and the public `UserPromptSubmit --route default` path through real hook assets.
+- Added an optional deploy SQL invariant coverage check: when `tests/sql/control_plane_invariants.sql` exists, `check-deploy-sql-order.sh` now verifies every `deploy/sql/*.sql` migration is referenced by full path or basename.
+
+### Changed
+
+- Split prompt-guard responsibilities so shell continues to parse hook JSON, read workflow files, perform capture side effects, and render host-safe output while TypeScript owns the explicit decision table.
+- Documented the 0.1.x release surface as `repo-harness@0.1.3`, still separate from the generated workflow compatibility line (`5.2.3`).
+
+### Fixed
+
+- Routed active Draft plan prompts such as `implement this plan` and `执行这个方案` to the non-blocking PlanCaptureGate instead of hard-blocking under PlanStatusGuard.
+- Routed no-active-plan and Approved-plan execution projection prompts through the appropriate capture/projection advice instead of collapsing them into generic PlanStatusGuard or ContractGuard failures.
+- Treated copied worktree status, retrospective completion reports, and next-slice planning summaries as passive context so they do not start implementation gates merely because they quote implementation vocabulary.
+- Ensured linked contract worktrees include `.ai/harness/planning/` before pending orchestration cleanup, preserving strict workflow verification in generated worktrees.
+- Filtered `tasks/.current.md.tmp.*` refresh scratch files out of generated `tasks/current.md` snapshots, including generated repo helper parity.
+- Aligned `repo-harness --version` and `repo-harness status` with the `package.json` release version for `0.1.3`.
+
 ## [0.1.2] - 2026-05-30
 
 ### Added

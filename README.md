@@ -111,9 +111,10 @@ npx -y repo-harness init
 ```
 
 The npm package release line is `0.1.x`; generated workflow compatibility is
-tracked separately as the `5.x` model line. The `0.1.2` package publishes the
+tracked separately as the `5.x` model line. The `0.1.3` package publishes the
 renamed `repo-harness` CLI, user-level Claude/Codex hook adapter bootstrap,
-Waza runtime skill sync, `diagram-design` sync, and the release gate used by
+AI-native scaffold overlays, the typed prompt-guard decision engine, Waza
+runtime skill sync, `diagram-design` sync, and the release gate used by
 maintainers before npm publish. When working from a source checkout instead of
 npm, run:
 
@@ -222,7 +223,7 @@ Most common guards:
 
 ## Current Release
 
-- npm package: `repo-harness@0.1.2`
+- npm package: `repo-harness@0.1.3`
 - Generated workflow compatibility: `5.2.3`
 - GitHub repository: `Ancienttwo/repo-harness`
 - Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
