@@ -18,6 +18,7 @@ import { buildToolsCommand } from './commands/tools';
 import { buildBrainCommand } from './commands/brain';
 import { buildCapabilityContextCommand } from './commands/capability-context';
 import { formatSecurityScan, runSecurityScan } from './commands/security';
+import { HOOK_PROFILES, runGlobalRuntimeSetup, validateHookProfile } from './commands/global-runtime';
 import { runPromptGuardDecisionFromEnv } from './commands/prompt-guard-decision';
 import type { Location } from './installer/types';
 import type { HookEvent, RouteId } from './hook/route-registry';
@@ -30,6 +31,7 @@ export const SUBCOMMANDS = [
   'doctor',
   'migrate',
   'security',
+  'update',
   'tools',
   'brain',
   'capability-context',
@@ -44,12 +46,45 @@ export function buildProgram(): Command {
   program
     .name('repo-harness')
     .description('Repo-local agentic development harness CLI')
-    .version('0.2.0')
+    .version('0.2.1')
     .exitOverride();
 
   program
     .command('init')
-    .description('Install or refresh the repo-harness workflow in an existing repo')
+    .description('Bootstrap global Claude plugins and hook profiles from the npm package')
+    .option('--with-optional', 'Install optional plugins')
+    .option('--with-obsidian', 'Install Obsidian skills')
+    .option('--hooks <profile>', `Hook profile: ${HOOK_PROFILES.join('|')}`, 'standard')
+    .option('--no-hooks', 'Skip hook configuration')
+    .option('--lsp <plugin>', 'Install a specific LSP plugin')
+    .option('--project-type <type>', 'Auto-select LSP by repo-harness project type')
+    .action((rawOpts: {
+      withOptional?: boolean;
+      withObsidian?: boolean;
+      hooks?: string | false;
+      lsp?: string;
+      projectType?: string;
+    }) => {
+      const validationError = validateHookProfile(rawOpts.hooks, 'init');
+      if (validationError) {
+        console.error(validationError);
+        process.exit(2);
+      }
+      const result = runGlobalRuntimeSetup({
+        withOptional: rawOpts.withOptional === true,
+        withObsidian: rawOpts.withObsidian === true,
+        hooks: rawOpts.hooks,
+        lsp: rawOpts.lsp,
+        projectType: rawOpts.projectType,
+      });
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      process.exit(result.exitCode);
+    });
+
+  program
+    .command('update')
+    .description('Install or refresh the repo-local harness workflow in an existing repo')
     .option('--repo <path>', 'Target repository path (defaults to cwd)')
     .option('--dry-run', 'Plan repo harness changes without applying them')
     .option('--target <target>', `Host target for adapters and external skills: ${VALID_TARGETS.join('|')}`, 'both')
@@ -82,12 +117,12 @@ export function buildProgram(): Command {
     }) => {
       if (!VALID_TARGETS.includes(rawOpts.target as InstallTargetSpec)) {
         console.error(
-          `repo-harness init: invalid --target "${rawOpts.target}" (expected: ${VALID_TARGETS.join(', ')})`,
+          `repo-harness update: invalid --target "${rawOpts.target}" (expected: ${VALID_TARGETS.join(', ')})`,
         );
         process.exit(2);
       }
       if (!['skip', 'manifest-only', 'install-gbrain-cli'].includes(rawOpts.brainMode ?? 'skip')) {
-        console.error('repo-harness init: invalid --brain-mode (expected: skip, manifest-only, install-gbrain-cli)');
+        console.error('repo-harness update: invalid --brain-mode (expected: skip, manifest-only, install-gbrain-cli)');
         process.exit(2);
       }
       const common = {

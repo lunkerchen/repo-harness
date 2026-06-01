@@ -1,9 +1,10 @@
 /**
- * `repo-harness init` — one-shot existing-repo harness bootstrap.
+ * Existing-repo harness bootstrap/update implementation.
  *
- * This is the CLI equivalent of the `repo-harness-init` skill facade: default
- * the target repo to cwd, install/refresh the machine runtime pieces, apply the
- * repo-local workflow migration, then verify the installed harness.
+ * This backs the public `repo-harness update` command and the legacy
+ * `repo-harness-init` skill facade: default the target repo to cwd,
+ * install/refresh the machine runtime pieces, apply the repo-local workflow
+ * migration, then verify the installed harness.
  */
 
 import { spawnSync } from "child_process";

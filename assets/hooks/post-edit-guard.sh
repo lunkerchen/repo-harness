@@ -41,7 +41,9 @@ run_architecture_drift_sync() {
     if [[ -x "scripts/context-contract-sync.sh" ]]; then
       bash "scripts/context-contract-sync.sh" sync-latest || true
     fi
-    if command -v repo-harness >/dev/null 2>&1; then
+    if [[ -n "${REPO_HARNESS_CLI:-}" && -f "$REPO_HARNESS_CLI" ]] && command -v bun >/dev/null 2>&1; then
+      bun "$REPO_HARNESS_CLI" capability-context request --from-latest-architecture-event || true
+    elif command -v repo-harness >/dev/null 2>&1; then
       repo-harness capability-context request --from-latest-architecture-event || true
     elif command -v bun >/dev/null 2>&1 && [[ -f "src/cli/index.ts" ]]; then
       bun src/cli/index.ts capability-context request --from-latest-architecture-event || true
