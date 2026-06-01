@@ -4,6 +4,33 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-02
+
+### Added
+
+- Added `repo-harness init` as a thin npm CLI wrapper around
+  `scripts/setup-plugins.sh`, so users can run
+  `npx -y repo-harness init` for first-run global Claude plugin and hook-profile
+  bootstrap without cloning the source repository.
+- Added a prompt-guard CodeGraph self-heal path: before emitting the first
+  structural code-navigation hint in a session, a missing `.codegraph` index is
+  initialized with the local or PATH-visible CodeGraph binary without running the
+  heavier readiness probe.
+
+### Changed
+
+- Moved the existing repo-local harness install/refresh CLI surface to
+  `repo-harness update`, keeping `repo-harness init` focused on global runtime
+  initialization.
+- Updated the English, Chinese, Japanese, French, and Spanish READMEs for the
+  `0.2.1` npm release line and the split `init` / `update` lifecycle.
+
+### Fixed
+
+- Kept automatic hook-side CodeGraph initialization non-blocking and cleaned up
+  the Cursor rule file if current CodeGraph created it only as a side effect of
+  this automatic init.
+
 ## [0.2.0] - 2026-06-02
 
 ### Added

@@ -267,7 +267,7 @@ describe("init command", () => {
     }
   });
 
-  test("CLI --no-codegraph disables the init CodeGraph step", () => {
+  test("CLI update --no-codegraph disables the CodeGraph step", () => {
     const tmp = join(tmpdir(), `repo-harness-init-cli-codegraph-${Date.now()}`);
     try {
       mkdirSync(tmp, { recursive: true });
@@ -275,7 +275,7 @@ describe("init command", () => {
         "bun",
         [
           CLI,
-          "init",
+          "update",
           "--repo",
           tmp,
           "--dry-run",
@@ -301,6 +301,19 @@ describe("init command", () => {
       rmSync(tmp, { recursive: true, force: true });
     }
   }, 15000);
+
+  test("CLI exposes update help for repo-local refresh", () => {
+    const res = spawnSync("bun", [CLI, "update", "--help"], {
+      cwd: ROOT,
+      encoding: "utf-8",
+    });
+
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("Usage: repo-harness update");
+    expect(res.stdout).toContain("--repo <path>");
+    expect(res.stdout).toContain("--dry-run");
+    expect(res.stdout).toContain("--no-codegraph");
+  });
 
   test("configures CodeGraph MCP only when explicitly requested", () => {
     const tmp = join(tmpdir(), `repo-harness-init-configure-codegraph-${Date.now()}`);

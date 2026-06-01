@@ -34,13 +34,21 @@ This repository now dogfoods its own tasks-first contract. It is both:
   read a 1KB capability contract or query the index instead of spending thousands of
   tokens rediscovering structure.
 
-## What's New in 0.2.0
+## What's New in 0.2.1
 
-- **Install script (`scripts/setup-plugins.sh`).** One command bootstraps the global
+- **Global init command (`repo-harness init`).** One command bootstraps the global
   Claude environment: essential plugins, configurable policy hooks (worktree guard,
   atomic commit/pending), optional LSP plugins by project type, and four hook profiles
   (`standard`, `minimal`, `biome`, `biome-strict`).
-  Run `bash scripts/setup-plugins.sh [--with-optional] [--hooks <profile>]`.
+  Run `npx -y repo-harness init`; no source checkout is required.
+- **Repo refresh command (`repo-harness update`).** Existing-repo install and
+  refresh now has its own command surface, preserving the previous repo-local
+  harness migration path while keeping `init` focused on global runtime setup.
+- **CodeGraph index self-heal.** When the prompt hook detects structural
+  code-navigation intent and the repo has no `.codegraph` index, it initializes
+  the index with the local or PATH-visible CodeGraph binary before emitting the
+  route hint. This remains advisory: no dependency install, no heavy readiness
+  probe, and no prompt block if CodeGraph is unavailable.
 - **Security sentinel (`repo-harness security scan` + `security-sentinel.sh`).** A
   read-only check over high-value config injection surfaces (`~/.claude/settings.json`,
   `~/.codex/hooks.json`, repo-local `.vscode/tasks.json`, and legacy project-level
@@ -81,7 +89,7 @@ The design has three layers:
 
 1. **Source package**: this repository owns the CLI, command skill facades,
    templates, hook assets, workflow contract, tests, and release gate.
-2. **Target repo contract**: `repo-harness init` or migration writes repo-local
+2. **Target repo contract**: `repo-harness update` or migration writes repo-local
    files such as `docs/spec.md`, `plans/`, `tasks/`, `.ai/context/`,
    `.ai/harness/`, helper scripts, and `.ai/hooks/`.
 3. **Host adapters**: user-level `~/.claude/settings.json` and
@@ -159,26 +167,46 @@ flowchart TD
 This is the fastest path for an AI tooling owner evaluating whether the workflow is
 safe to adopt in a real repo.
 
-### Install or refresh the local runtime
+### Initial bootstrap
 
 ```bash
 npx -y repo-harness init
 ```
 
+`init` is the first-run global bootstrap path. It runs the packaged
+`scripts/setup-plugins.sh`, installs global Claude plugins and hook profiles, and
+defaults to `--hooks standard`. Use `--hooks <profile>` or `--no-hooks` when you
+need a different hook profile.
+
+### Install or refresh a repo-local harness
+
+```bash
+npx -y repo-harness update --dry-run
+npx -y repo-harness update
+```
+
+`update` is the existing-repo install and refresh path. Run it from a target
+repository to install or refresh workflow files, hook assets, host adapters,
+skill aliases, and repo-local verification surfaces from the current npm package.
+
 The npm package release line is now `0.2.x`; generated workflow compatibility is
-tracked separately as the `5.x` model line. The `0.2.0` package adds the global
-plugin/hook install script (`scripts/setup-plugins.sh`), the read-only config
-security sentinel (`repo-harness security scan`), and the explicit Claude/Codex
-draft-plan lifecycle, on top of the renamed `repo-harness` CLI, user-level hook
+tracked separately as the `5.x` model line. The `0.2.1` package splits first-run
+global bootstrap (`repo-harness init`) from repo-local refresh
+(`repo-harness update`), keeps the global plugin/hook installer
+(`scripts/setup-plugins.sh`), the read-only config security sentinel
+(`repo-harness security scan`), the explicit Claude/Codex draft-plan lifecycle,
+and adds non-blocking CodeGraph index initialization for structural prompt
+routing. These sit on top of the renamed `repo-harness` CLI, user-level hook
 adapter bootstrap, AI-native scaffold overlays, the typed prompt-guard decision
 engine, plan-stem task artifact naming, `REPO_HARNESS_*` runtime aliases, Waza
-runtime skill sync, and the maintainer release gate. When working from a source
-checkout instead of npm, run:
+runtime skill sync, and the maintainer release gate.
+
+Only maintainers editing the package need a source checkout:
 
 ```bash
 git clone https://github.com/Ancienttwo/repo-harness.git ~/Projects/repo-harness
 cd ~/Projects/repo-harness
-bun src/cli/index.ts init
+bun src/cli/index.ts update
 ```
 
 Local path model:
@@ -208,13 +236,13 @@ The retired `project-initializer` directories under `~/.codex/skills` and
 For an existing repo, run from the repo root:
 
 ```bash
-npx -y repo-harness init --dry-run
+npx -y repo-harness update --dry-run
 ```
 
 Apply only after the dry-run report looks correct:
 
 ```bash
-npx -y repo-harness init
+npx -y repo-harness update
 ```
 
 For a new project or module, use the `repo-harness-scaffold` command skill. For
@@ -307,7 +335,7 @@ Most common guards:
 
 ## Current Release
 
-- npm package: `repo-harness@0.2.0`
+- npm package: `repo-harness@0.2.1`
 - Generated workflow compatibility: `5.2.3`
 - GitHub repository: `Ancienttwo/repo-harness`
 - Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
@@ -338,7 +366,7 @@ Most common guards:
   - `complex -> gstack`
   - `simple -> Waza` with Codex-first runtime copies in `~/.codex/skills`
   - `knowledge -> gbrain`
-- `repo-harness init` bootstraps the Codex/Claude runtime pieces needed for the
+- `repo-harness update` bootstraps the Codex/Claude runtime pieces needed for the
   default workflow:
   - refreshes `repo-harness` skill aliases
   - installs global Codex/Claude hook adapters

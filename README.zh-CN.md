@@ -23,12 +23,17 @@ repo-local workflow 的自托管样例。
   做渐进式上下文加载：一份小而稳定的 root context（约 12KB），加上只在改到对应文件时才加载的
   capability 块。agent 读一份 1KB 的 capability 合约或查索引，而不是花上千 token 重新摸清结构。
 
-## 0.2.0 新特性
+## 0.2.1 新特性
 
-- **安装脚本（`scripts/setup-plugins.sh`）。** 一条命令完成全局 Claude 环境引导：essential plugins、
+- **全局初始化命令（`repo-harness init`）。** 一条命令引导全局 Claude 环境：essential plugins、
   可配置 policy hooks（worktree guard、atomic commit/pending）、按项目类型可选的 LSP plugins，以及
   四档 hook profile（`standard`、`minimal`、`biome`、`biome-strict`）。运行
-  `bash scripts/setup-plugins.sh [--with-optional] [--hooks <profile>]`。
+  `npx -y repo-harness init`，不需要 clone 源码仓库。
+- **仓库刷新命令（`repo-harness update`）。** 已有仓库的安装/刷新入口独立成命令，继续复用
+  原 repo-local harness migration 路径，同时让 `init` 专注于全局 runtime setup。
+- **CodeGraph index 自愈。** prompt hook 检测到结构化代码导航意图、且仓库还没有 `.codegraph`
+  index 时，会先用 repo-local 或 PATH 上的 CodeGraph binary 初始化 index，再发路由提示。这个动作仍是
+  advisory：不安装依赖、不跑重 readiness probe，CodeGraph 不可用时也不阻塞 prompt。
 - **安全哨兵（`repo-harness security scan` + `security-sentinel.sh`）。** 对高价值配置注入面做只读检查
   （`~/.claude/settings.json`、`~/.codex/hooks.json`、仓库本地 `.vscode/tasks.json`，以及 legacy 项目级
   `.claude`/`.codex` adapter）。它标记危险命令模式——远程 shell 管道、base64 解码执行、`osascript`、
@@ -62,7 +67,7 @@ repo-local hooks，然后验证这些 workflow surfaces 仍然一致。
 
 1. **源码包层**：本仓库维护 CLI、command skill facades、templates、hook assets、
    workflow contract、tests 和 release gate。
-2. **目标仓库合约层**：`repo-harness init` 或 migration 会写入 `docs/spec.md`、
+2. **目标仓库合约层**：`repo-harness update` 或 migration 会写入 `docs/spec.md`、
    `plans/`、`tasks/`、`.ai/context/`、`.ai/harness/`、helper scripts 和
    `.ai/hooks/`。
 3. **Host adapter 层**：user-level `~/.claude/settings.json` 和 `~/.codex/hooks.json`
@@ -135,26 +140,42 @@ flowchart TD
 
 这是评估一个真实仓库是否适合接入该 workflow 的最快路径。
 
-### 安装或刷新本地 runtime
+### 初次引导
 
 ```bash
 npx -y repo-harness init
 ```
 
-npm package release line 现在是 `0.2.x`；生成的 workflow compatibility model line
-单独以 `5.x` 追踪。`repo-harness@0.2.0` 新增了全局 plugin/hook 安装脚本
-（`scripts/setup-plugins.sh`）、只读的配置安全哨兵（`repo-harness security scan`），
-以及显式的 Claude/Codex draft-plan 生命周期，叠加在改名后的 CLI、user-level hook
-adapter bootstrap、AI-native scaffold overlays、typed prompt-guard decision engine、
-plan-stem task artifact 命名、`REPO_HARNESS_*` runtime aliases、Waza runtime skill
-sync，以及 maintainer 发布 npm 前使用的 release gate 之上。
+`init` 是首次全局引导入口。它运行 npm 包里自带的 `scripts/setup-plugins.sh`，
+安装全局 Claude plugins 和 hook profiles，默认等价于 `--hooks standard`。
+需要不同 hook profile 时再传 `--hooks <profile>` 或 `--no-hooks`。
 
-如果从源码 checkout 工作：
+### 安装或刷新 repo-local harness
+
+```bash
+npx -y repo-harness update --dry-run
+npx -y repo-harness update
+```
+
+`update` 是已有目标仓库的安装和刷新入口。从目标仓库根目录运行它，用当前 npm 包
+安装或刷新 workflow files、hook assets、host adapters、skill aliases 和
+repo-local verification surfaces。
+
+npm package release line 现在是 `0.2.x`；生成的 workflow compatibility model line
+单独以 `5.x` 追踪。`repo-harness@0.2.1` 把首次全局引导（`repo-harness init`）
+和 repo-local 刷新（`repo-harness update`）拆开，同时保留全局 plugin/hook 安装脚本
+（`scripts/setup-plugins.sh`）、只读配置安全哨兵（`repo-harness security scan`）、
+显式 Claude/Codex draft-plan 生命周期，并新增 prompt hook 的非阻塞 CodeGraph index 初始化。
+这些能力叠加在改名后的 CLI、user-level hook adapter bootstrap、AI-native scaffold overlays、
+typed prompt-guard decision engine、plan-stem task artifact 命名、`REPO_HARNESS_*`
+runtime aliases、Waza runtime skill sync，以及 maintainer 发布 npm 前使用的 release gate 之上。
+
+只有维护者需要在编辑 package 源码时使用 source checkout：
 
 ```bash
 git clone https://github.com/Ancienttwo/repo-harness.git ~/Projects/repo-harness
 cd ~/Projects/repo-harness
-bun src/cli/index.ts init
+bun src/cli/index.ts update
 ```
 
 本地路径模型：
@@ -180,13 +201,13 @@ symlink-backed runtime entrypoints。退休的 `project-initializer` runtime 目
 已有仓库从 repo root 执行：
 
 ```bash
-npx -y repo-harness init --dry-run
+npx -y repo-harness update --dry-run
 ```
 
 dry-run 报告正确后再应用：
 
 ```bash
-npx -y repo-harness init
+npx -y repo-harness update
 ```
 
 新项目或新模块使用 `repo-harness-scaffold` command skill。已有仓库使用
@@ -277,7 +298,7 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
 
 ## 当前 Release
 
-- npm package：`repo-harness@0.2.0`
+- npm package：`repo-harness@0.2.1`
 - Generated workflow compatibility：`5.2.3`
 - GitHub repository：`Ancienttwo/repo-harness`
 - Release history：[`docs/CHANGELOG.md`](docs/CHANGELOG.md)
@@ -292,7 +313,7 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
   - `assets/workflow-contract.v1.json`
 - Generated repos 默认使用 repo-local harness flow：
   - `docs/spec.md -> plans/ -> tasks/contracts/ -> tasks/reviews/ -> .ai/context/context-map.json -> .ai/harness/*`
-- `repo-harness init` 会刷新 runtime pieces：
+- `repo-harness update` 会刷新 runtime pieces：
   - `repo-harness` skill aliases
   - global Codex/Claude hook adapters
   - Waza skills：`check`、`design`、`health`、`hunt`、`learn`、`read`、`think`、`write`

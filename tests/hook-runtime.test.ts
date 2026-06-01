@@ -214,6 +214,50 @@ describe("Hook runtime behavior", () => {
     }
   }, 10000);
 
+  test("prompt-guard: initializes missing CodeGraph index before first structural route hint", () => {
+    const cwd = tmpWorkspace("codegraph-route-init");
+    const logFile = join(cwd, "codegraph-init.log");
+    const fakeBin = join(cwd, "fakebin");
+    const fakeCodegraph = join(fakeBin, "codegraph");
+    try {
+      installHooks(cwd);
+      mkdirSync(fakeBin, { recursive: true });
+      writeFileSync(
+        fakeCodegraph,
+        [
+          "#!/bin/bash",
+          "set -euo pipefail",
+          'printf "%s\\n" "$*" >> "$CODEGRAPH_INIT_LOG"',
+          'if [[ "${1:-}" == "init" ]]; then',
+          '  mkdir -p ".codegraph"',
+          '  printf "%s" "fake-index" > ".codegraph/codegraph.db"',
+          '  mkdir -p ".cursor/rules"',
+          '  printf "%s" "cursor-rule" > ".cursor/rules/codegraph.mdc"',
+          "fi",
+          '',
+        ].join("\n")
+      );
+      expect(run("chmod", ["+x", fakeCodegraph], cwd).status).toBe(0);
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "trace flow from runInit to ensureCodegraph" }),
+        env: {
+          CODEGRAPH_INIT_LOG: logFile,
+          PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+        },
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[CodegraphRoute] Initialized missing CodeGraph index before routing hint.");
+      expect(res.stdout).toContain("[CodegraphRoute] Structural code-navigation intent detected.");
+      expect(existsSync(join(cwd, ".codegraph/codegraph.db"))).toBe(true);
+      expect(existsSync(join(cwd, ".cursor/rules/codegraph.mdc"))).toBe(false);
+      expect(readFileSync(logFile, "utf-8")).toContain("init -i .");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
   test("prompt-guard: emits host-aware [ExternalAcceptance] prompt at merge and [CrossReview] at debug moments", () => {
     const cwd = tmpWorkspace("cross-review-hint");
     try {
@@ -721,7 +765,7 @@ describe("Hook runtime behavior", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   test("workstream-sync creates capability ledger and projects pointers into local contract", () => {
     const cwd = tmpWorkspace("workstream-sync");

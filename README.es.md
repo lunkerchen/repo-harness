@@ -34,14 +34,23 @@ repo-local que él mismo genera para los proyectos downstream.
   1KB o consulta el índice, en vez de gastar miles de tokens redescubriendo la
   estructura.
 
-## Novedades en 0.2.0
+## Novedades en 0.2.1
 
-- **Script de instalación (`scripts/setup-plugins.sh`).** Un solo comando hace el
-  bootstrap completo del entorno global de Claude: essential plugins, policy
+- **Comando de inicialización global (`repo-harness init`).** Un solo comando
+  inicializa el entorno global de Claude: essential plugins, policy
   hooks configurables (worktree guard, atomic commit/pending), LSP plugins
   opcionales según el tipo de proyecto y cuatro hook profiles (`standard`,
   `minimal`, `biome`, `biome-strict`). Ejecuta
-  `bash scripts/setup-plugins.sh [--with-optional] [--hooks <profile>]`.
+  `npx -y repo-harness init`; no necesitas clonar el repositorio fuente.
+- **Comando de refresco del repo (`repo-harness update`).** La instalación y el
+  refresco de repos existentes tienen su propia superficie de comando, manteniendo
+  la ruta de migración repo-local anterior mientras `init` queda dedicado al
+  runtime global.
+- **Auto-recuperación del índice CodeGraph.** Si el prompt hook detecta intención
+  de navegación estructural y el repo no tiene índice `.codegraph`, inicializa el
+  índice con el binario CodeGraph local o visible en PATH antes de emitir la pista.
+  Sigue siendo advisory: no instala dependencias, no ejecuta el readiness probe
+  pesado y no bloquea el prompt si CodeGraph no está disponible.
 - **Centinela de seguridad (`repo-harness security scan` + `security-sentinel.sh`).**
   Una verificación de solo lectura sobre las superficies de inyección de
   configuración de alto valor (`~/.claude/settings.json`, `~/.codex/hooks.json`,
@@ -91,7 +100,7 @@ En conjunto hay tres capas:
 1. **Capa del paquete fuente**: este repositorio mantiene la CLI, los command
    skill facades, los templates, los hook assets, el workflow contract, los tests
    y el release gate.
-2. **Capa del contract del repositorio objetivo**: `repo-harness init` o la
+2. **Capa del contract del repositorio objetivo**: `repo-harness update` o la
    migración escribe `docs/spec.md`, `plans/`, `tasks/`, `.ai/context/`,
    `.ai/harness/`, helper scripts y `.ai/hooks/`.
 3. **Capa del host adapter**: el `~/.claude/settings.json` y el
@@ -178,14 +187,13 @@ npx -y repo-harness init
 ```
 
 La npm package release line es ahora `0.2.x`; el workflow compatibility model line
-generado se rastrea por separado como `5.x`. `repo-harness@0.2.0` añade el script
-global de instalación de plugin/hook (`scripts/setup-plugins.sh`), el centinela de
-seguridad de configuración de solo lectura (`repo-harness security scan`) y el
-ciclo de vida draft-plan explícito de Claude/Codex, sobre la CLI ya renombrada, el
-bootstrap del hook adapter a nivel de usuario, los AI-native scaffold overlays, el
-typed prompt-guard decision engine, el naming de task artifacts por plan-stem, los
-`REPO_HARNESS_*` runtime aliases, el sync de Waza runtime skills, y el release gate
-que usa el maintainer antes de publicar en npm.
+generado se rastrea por separado como `5.x`. `repo-harness@0.2.1` separa el
+bootstrap global inicial (`repo-harness init`) del refresco repo-local
+(`repo-harness update`), conserva el instalador global de plugin/hook
+(`scripts/setup-plugins.sh`), el centinela de seguridad de configuración de solo
+lectura (`repo-harness security scan`), el ciclo de vida draft-plan explícito de
+Claude/Codex y añade inicialización no bloqueante del índice CodeGraph para el
+routing estructural de prompts.
 
 Si trabajas desde un checkout del código fuente:
 
@@ -220,13 +228,13 @@ del runtime `project-initializer` ya retirado los limpia
 En un repositorio existente, ejecuta desde el repo root:
 
 ```bash
-npx -y repo-harness init --dry-run
+npx -y repo-harness update --dry-run
 ```
 
 Aplica solo después de que el reporte del dry-run sea correcto:
 
 ```bash
-npx -y repo-harness init
+npx -y repo-harness update
 ```
 
 Para un proyecto o módulo nuevo, usa el command skill `repo-harness-scaffold`. Para
@@ -320,7 +328,7 @@ Guards habituales:
 
 ## Release actual
 
-- npm package: `repo-harness@0.2.0`
+- npm package: `repo-harness@0.2.1`
 - Generated workflow compatibility: `5.2.3`
 - GitHub repository: `Ancienttwo/repo-harness`
 - Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
@@ -335,7 +343,7 @@ Guards habituales:
   - `assets/workflow-contract.v1.json`
 - Los generated repos usan por defecto el repo-local harness flow:
   - `docs/spec.md -> plans/ -> tasks/contracts/ -> tasks/reviews/ -> .ai/context/context-map.json -> .ai/harness/*`
-- `repo-harness init` refresca las runtime pieces:
+- `repo-harness update` refresca las runtime pieces:
   - los `repo-harness` skill aliases
   - los global Codex/Claude hook adapters
   - las Waza skills: `check`, `design`, `health`, `hunt`, `learn`, `read`, `think`, `write`

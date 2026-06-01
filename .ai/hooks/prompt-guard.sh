@@ -642,6 +642,55 @@ is_nontrivial_code_task_intent() {
   echo "$PROMPT_INTENT_TEXT" | grep -qEi "(architecture|architectural|runtime|hook|hooks|shared contract|workflow contract|module boundary|route registry|multi[- ]?file|refactor|dependency path|架构|运行时|钩子|共享合约|工作流合约|模块边界|路由表|多文件|重构|依赖路径)"
 }
 
+resolve_codegraph_bin() {
+  if [[ -x "node_modules/.bin/codegraph" ]]; then
+    printf '%s\n' "node_modules/.bin/codegraph"
+    return 0
+  fi
+
+  command -v codegraph 2>/dev/null || return 1
+}
+
+run_codegraph_init_command() {
+  local codegraph_bin status cursor_dir_existed cursor_rules_dir_existed cursor_rule_existed
+  codegraph_bin="$(resolve_codegraph_bin)" || return 127
+
+  cursor_dir_existed=false
+  cursor_rules_dir_existed=false
+  cursor_rule_existed=false
+  [[ -d ".cursor" ]] && cursor_dir_existed=true
+  [[ -d ".cursor/rules" ]] && cursor_rules_dir_existed=true
+  [[ -e ".cursor/rules/codegraph.mdc" ]] && cursor_rule_existed=true
+
+  set +e
+  CODEGRAPH_NO_DAEMON=1 "$codegraph_bin" init -i .
+  status=$?
+  set -e
+
+  if [[ "$cursor_rule_existed" == "false" && -f ".cursor/rules/codegraph.mdc" ]]; then
+    rm -f ".cursor/rules/codegraph.mdc"
+    [[ "$cursor_rules_dir_existed" == "false" ]] && rmdir ".cursor/rules" 2>/dev/null || true
+    [[ "$cursor_dir_existed" == "false" ]] && rmdir ".cursor" 2>/dev/null || true
+  fi
+
+  return "$status"
+}
+
+ensure_codegraph_index_for_route() {
+  local output status
+
+  [[ -f ".codegraph/codegraph.db" ]] && return 0
+
+  output="$(run_codegraph_init_command 2>&1)"
+  status=$?
+
+  if [[ "$status" -eq 0 && -f ".codegraph/codegraph.db" ]]; then
+    echo "[CodegraphRoute] Initialized missing CodeGraph index before routing hint."
+  elif [[ "$status" -ne 127 ]]; then
+    echo "[CodegraphRoute] CodeGraph index init skipped or failed; run codegraph init -i . if structural tools are unavailable."
+  fi
+}
+
 emit_codegraph_route_hint() {
   local session_key session_file=".claude/.session-id"
 
@@ -653,6 +702,7 @@ emit_codegraph_route_hint() {
   fi
 
   if is_codegraph_route_intent || is_nontrivial_code_task_intent; then
+    ensure_codegraph_index_for_route || true
     echo "[CodegraphRoute] Structural code-navigation intent detected. Prefer CodeGraph context/search/callers/impact before grep/read when available."
     session_state_mark_codegraph_nudged "$session_key" || true
   fi
