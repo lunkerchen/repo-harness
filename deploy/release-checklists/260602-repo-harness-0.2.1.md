@@ -2,7 +2,7 @@
 
 Date: 2026-06-02
 Filing ID: 260602-repo-harness-0.2.1
-Status: Prepared
+Status: Blocked on npm authentication
 
 ## Naming
 
@@ -55,13 +55,25 @@ only on GitHub or npm metadata.
   `bun scripts/inspect-project-state.ts --repo . --format text`,
   `bash scripts/migrate-project-template.sh --repo . --dry-run`, and
   `npm pack --dry-run --json`.
+- `npm publish --registry https://registry.npmjs.org/ --access public` reran the
+  full `prepublishOnly` gate successfully, then failed at the registry PUT with
+  `E404 Not Found - PUT https://registry.npmjs.org/repo-harness`.
+- npm auth state on this machine is not publish-capable: `npm whoami --registry
+  https://registry.npmjs.org/` returned `E401 Unauthorized`; `NPM_TOKEN` and
+  `NODE_AUTH_TOKEN` were unset. `~/.npmrc` contains an auth-token entry, but the
+  registry rejected it.
+- `npm view repo-harness versions name --registry https://registry.npmjs.org/`
+  confirmed the package exists and currently publishes through `0.2.0`.
 - `npm view repo-harness@0.2.1 version --registry https://registry.npmjs.org/`
   still returned 404 before publish.
-- Pending: `npm publish --registry https://registry.npmjs.org/ --access public`
-- Pending: `npm view repo-harness@0.2.1 version dist.tarball gitHead --registry
-  https://registry.npmjs.org/`
+- Blocked: publish requires a valid npm session/token with rights to
+  `repo-harness`.
+- Pending after auth is fixed: `npm publish --registry https://registry.npmjs.org/
+  --access public`
+- Pending after publish: `npm view repo-harness@0.2.1 version dist.tarball gitHead
+  --registry https://registry.npmjs.org/`
 
-## Published Artifacts  (fill in after publish)
+## Published Artifacts
 
-- npm: (pending)
+- npm: blocked by npm authentication; `0.2.1` is not on npm yet.
 - GitHub release: (pending)

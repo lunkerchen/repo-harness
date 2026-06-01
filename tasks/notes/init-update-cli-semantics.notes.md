@@ -37,3 +37,13 @@ that file did not exist before the automatic init.
   `sync-brain-docs.sh --check` unless `--require-vault` is set. Repo source files
   remain hard failures; only local CloudDocs/TCC target read failures downgrade
   to warnings to keep release checks from crashing on machine-local vault locks.
+
+## Publish Attempt
+
+- `npm publish --registry https://registry.npmjs.org/ --access public` reran the
+  full release gate successfully, then failed at the registry PUT with
+  `E404 Not Found - PUT https://registry.npmjs.org/repo-harness`.
+- The package name is valid and public registry state still stops at `0.2.0`.
+  The blocker is npm authentication on this machine: `npm whoami` returns
+  `E401 Unauthorized`, `NPM_TOKEN` and `NODE_AUTH_TOKEN` are unset, and the
+  existing `~/.npmrc` token is rejected by npmjs.
