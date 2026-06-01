@@ -1,12 +1,12 @@
 # Sprint Review: think-hook-routing
 
-> **Status**: Blocked
+> **Status**: Passed
 > **Plan**: plans/plan-20260602-0034-think-hook-routing.md
 > **Contract**: tasks/contracts/20260602-0034-think-hook-routing.contract.md
 > **Notes File**: tasks/notes/20260602-0034-think-hook-routing.notes.md
 > **Checks File**: .ai/harness/checks/latest.json
-> **Last Updated**: 2026-06-02 00:58 +0800
-> **Recommendation**: blocked: implementation passes focused/full tests; strict workflow gate is blocked by out-of-scope repo-to-brain drift
+> **Last Updated**: 2026-06-02 01:35 +0800
+> **Recommendation**: pass: implementation is merged over the landed brain-root workflow work and all required local gates pass
 
 ## Mode Evidence
 
@@ -19,17 +19,16 @@
 - Waza `/check` run: not invoked; this review records the same pass/fail fields after local verification.
 - Commands run:
   - `bun test tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/cli/prompt-guard-decision.test.ts` -> 122 pass, 0 fail.
-  - `bun test` -> 545 pass, 6 skip, 0 fail.
+  - `bun test` -> 549 pass, 6 skip, 0 fail.
   - `bash scripts/check-deploy-sql-order.sh` -> pass.
   - `bash scripts/check-task-sync.sh` -> pass.
-  - `bash scripts/check-task-workflow.sh --strict` -> blocked by repo-to-brain drift, not by this code change.
+  - `bash scripts/check-task-workflow.sh --strict` -> pass.
   - `bun scripts/inspect-project-state.ts --repo . --format text` -> pass.
   - `bash scripts/migrate-project-template.sh --repo . --dry-run` -> pass.
-- Manual checks: SHA-256 comparison showed the local brain vault copies match `/Users/ancienttwo/Projects/agentic-dev` dirty docs, while this isolated worktree has older clean-base docs for the three failing repo-to-brain entries.
-- Follow-up source check: `bash scripts/check-task-workflow.sh --strict` passes in `/Users/ancienttwo/Projects/agentic-dev`, confirming the default brain vault is already reconciled with the primary dirty worktree.
+- Manual checks: the earlier isolated-branch repo-to-brain drift was resolved by landing `58133cf`, merging the hook branch on top of main, synchronizing the three repo-to-brain reference docs from main, and verifying strict workflow there.
 - Supporting artifacts: `plans/plan-20260602-0034-think-hook-routing.md`, this review, and `tasks/notes/20260602-0034-think-hook-routing.notes.md`.
 - Implementation notes reviewed: yes.
-- Run snapshot: not produced because strict workflow remains blocked.
+- Run snapshot: `.ai/harness/checks/latest.json`.
 
 ## External Acceptance Advice
 
@@ -39,9 +38,9 @@
 > **External Started**:
 > **External Completed**:
 
-- P1 blockers: external brain vault drift for `docs/reference-configs/agentic-development-flow.md`, `docs/reference-configs/harness-overview.md`, and `docs/reference-configs/external-tooling.md`.
-- P2 advisories: do not run `scripts/sync-brain-docs.sh --all` from this isolated branch; it would overwrite vault files that currently match the dirty primary worktree.
-- Acceptance checklist: implementation behavior pass; primary docs/brain state is reconciled and strict-passing in `/Users/ancienttwo/Projects/agentic-dev`; this isolated branch remains strict-blocked until it is integrated over that dirty docs/brain-root work or that work lands first.
+- P1 blockers: none observed in local verification.
+- P2 advisories: no hook host adapter migration is required because the change stays inside `UserPromptSubmit.default -> prompt-guard.sh`.
+- Acceptance checklist: implementation behavior pass; required checks pass after merging over the landed brain-root workflow work.
 
 ## Behavior Diff Notes
 
@@ -52,26 +51,27 @@
 ## Residual Risks / Follow-ups
 
 - `is_think_plan_start_intent` remains the classifier authority. If it broadens later, it could steal generic workflow prompts from `/health`.
-- Strict workflow cannot pass in this isolated branch until the primary docs/brain-root work is integrated or lands first. Keeping it out of this branch preserves the small hook diff.
+- The final working tree still contains user-owned README imagery and a separate untracked stack-family scaffold note; those are outside this review and were not committed.
 
 ## Scorecard
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|
-| Functionality | 9/10 | Runtime behavior is covered and passes; strict workflow is blocked by external state. |
+| Functionality | 9/10 | Runtime behavior is covered and required workflow checks pass after integration. |
 | Product depth | 8/10 | Preserves explicit user skill intent without adding execution automation. |
 | Design quality | 9/10 | Reuses existing planning bridge and avoids route/adapter churn. |
 | Code quality | 9/10 | Mirrored hook/assets, focused regression tests, and full suite pass. |
 
 ## Failing Items
 
-- `bash scripts/check-task-workflow.sh --strict` fails in the isolated branch because the local brain vault differs from this branch's clean-base docs. The same command passes in the primary worktree, where the vault matches the dirty repo-to-brain docs.
+- None for this slice.
 
 ## Retest Steps
 
-- Re-run after integration order is resolved: `bash scripts/check-task-workflow.sh --strict`
-- Re-check: SHA-256 parity between the intended source docs and `$HOME/Library/Mobile Documents/com~apple~CloudDocs/brain/repo-harness/references/*.md`
+- `bun test tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/cli/prompt-guard-decision.test.ts`
+- `bun test`
+- Required workflow checks listed above.
 
 ## Summary
 
-- Implementation pass. The default brain drift is reconciled in the primary worktree, but this isolated branch remains strict-blocked by integration order so it does not absorb the unrelated dirty docs/brain-root work.
+- Implementation pass. The earlier integration-order blocker was resolved by landing `58133cf` first, merging `codex/think-hook-routing`, synchronizing repo-to-brain references from main, and re-running focused, full, and workflow verification on main.

@@ -4,7 +4,7 @@
 > **Plan**: plans/plan-20260602-0034-think-hook-routing.md
 > **Contract**: tasks/contracts/20260602-0034-think-hook-routing.contract.md
 > **Review**: tasks/reviews/20260602-0034-think-hook-routing.review.md
-> **Last Updated**: 2026-06-02 00:58 +0800
+> **Last Updated**: 2026-06-02 01:35 +0800
 > **Lifecycle**: notes
 
 ## Design Decisions
@@ -16,8 +16,8 @@
 
 ## Deviations From Plan Or Spec
 
-- `bash scripts/check-task-workflow.sh --strict` remains blocked by external brain vault drift. The vault copies for `agentic-development-flow.md`, `harness-overview.md`, and `external-tooling.md` match the dirty primary worktree, while this branch is based on clean `fdc82ec`; syncing from this worktree would overwrite that external state with older docs.
-- Follow-up reconciliation checked `/Users/ancienttwo/Projects/agentic-dev` as the correct source worktree. Its default brain vault matches those dirty docs and `bash scripts/check-task-workflow.sh --strict` passes there, so the remaining blocker is integration order, not this hook slice.
+- The isolated branch's strict workflow blocker was resolved by landing the brain-root/docs WIP first as `58133cf`, then merging `codex/think-hook-routing` into main. After main became the authority, the three repo-to-brain reference docs were synchronized from main before the final strict workflow check.
+- Two full-suite attempts were discarded as verification evidence because they ran concurrently with focused hook tests and produced hook subprocess timeouts under contention. The final focused and full suites were run alone and passed.
 
 ## Tradeoffs Considered
 
@@ -35,11 +35,10 @@
 
 - Checks: `.ai/harness/checks/latest.json`
 - Run snapshots: `.ai/harness/runs/`
-- Focused verification: `bun test tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/cli/prompt-guard-decision.test.ts` -> 122 pass, 0 fail.
-- Full verification: `bun test` -> 545 pass, 6 skip, 0 fail.
-- Required checks passing: `bash scripts/check-deploy-sql-order.sh`, `bash scripts/check-task-sync.sh`, `bun scripts/inspect-project-state.ts --repo . --format text`, `bash scripts/migrate-project-template.sh --repo . --dry-run`.
-- Required check blocked by external state: `bash scripts/check-task-workflow.sh --strict`.
-- Reconciliation evidence: `bash scripts/check-task-workflow.sh --strict` passes in `/Users/ancienttwo/Projects/agentic-dev`, where the default brain vault matches the currently dirty repo-to-brain docs.
+- Focused verification after merge: `bun test tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/cli/prompt-guard-decision.test.ts` -> 122 pass, 0 fail.
+- Full verification after merge: `bun test` -> 549 pass, 6 skip, 0 fail.
+- Required checks passing after merge: `bash scripts/check-deploy-sql-order.sh`, `bash scripts/check-task-sync.sh`, `bash scripts/check-task-workflow.sh --strict`, `bun scripts/inspect-project-state.ts --repo . --format text`, `bash scripts/migrate-project-template.sh --repo . --dry-run`.
+- Brain sync before strict verification: `bash scripts/sync-brain-docs.sh --changed docs/reference-configs/agentic-development-flow.md`, `bash scripts/sync-brain-docs.sh --changed docs/reference-configs/harness-overview.md`, and `bash scripts/sync-brain-docs.sh --changed docs/reference-configs/external-tooling.md`.
 
 ## Promotion Candidates
 

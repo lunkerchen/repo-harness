@@ -1,10 +1,10 @@
 # Sprint Contract: think-hook-routing
 
-> **Status**: Partial
+> **Status**: Complete
 > **Plan**: plans/plan-20260602-0034-think-hook-routing.md
 > **Owner**: ancienttwo
 > **Capability ID**: root
-> **Last Updated**: 2026-06-02 00:58 +0800
+> **Last Updated**: 2026-06-02 01:35 +0800
 > **Review File**: `tasks/reviews/20260602-0034-think-hook-routing.review.md`
 > **Notes File**: `tasks/notes/20260602-0034-think-hook-routing.notes.md`
 
@@ -23,7 +23,7 @@ Explicit Waza `/think` planning prompts should enter the planning workflow befor
 - New hook routes or host adapter entries.
 - Automatic execution of Waza, Claude, Codex, or external model commands from hooks.
 - Treating Draft planning output as an Approved execution plan.
-- Changes to unrelated brain, docs, release, or migration work already dirty in the primary worktree.
+- Changes to unrelated README imagery or stack-family scaffold notes.
 
 ## Workflow Inventory
 
@@ -99,9 +99,9 @@ exit_criteria:
 - Functional behavior: explicit think planning emits `/think` route guidance and still creates Draft plan plus pending orchestration.
 - Edge cases: leading markdown skill links must not leak local file paths into slugs; generic hook workflow questions without explicit planning should still route to `/health`.
 - Regression risks: ordering changes in `emit_waza_route_hint` could misclassify non-planning workflow prompts if `is_think_plan_start_intent` broadens later.
-- Verification blocker: strict workflow check is blocked by repo-to-brain doc drift owned by the primary worktree and local brain vault, outside this contract's allowed paths.
+- Verification result: the hook slice was merged after the brain-root workflow WIP landed, and the required checks now pass on main.
 
 ## Rollback Point
 
-- Commit / checkpoint: branch `codex/think-hook-routing`.
-- Revert strategy: revert the hook/test/asset changes and remove this plan scaffold before merge.
+- Commit / checkpoint: branch `codex/think-hook-routing`, merged into main after `58133cf`.
+- Revert strategy: revert the hook/test/asset changes and this workflow closeout commit.

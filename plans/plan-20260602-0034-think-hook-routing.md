@@ -1,6 +1,6 @@
 # Plan: Think Hook Routing
 
-> **Status**: Executing
+> **Status**: Complete
 > **Created**: 20260602-0034
 > **Slug**: think-hook-routing
 > **Planning Source**: waza-think
@@ -139,11 +139,11 @@ Revert the branch or restore the changed hook, asset mirror, and test files. No 
 - [x] Strengthen Stop planning completeness instructions for `/think` handoff readiness.
 - [x] Mirror the Stop hook change into `assets/hooks/stop-orchestrator.sh`.
 - [x] Add focused hook runtime regression coverage for explicit think routing with hook workflow language.
-- [x] Run focused and required verification commands, with the external brain sync drift recorded in the review.
+- [x] Run focused and required verification commands after integrating over the landed brain-root workflow work.
 
-## Known Verification Blocker
+## Integration Note
 
-- `bash scripts/check-task-workflow.sh --strict` fails in this isolated worktree because three repo-to-brain docs in the local brain vault match the dirty primary worktree under `/Users/ancienttwo/Projects/agentic-dev`, not this branch base. This slice does not sync or overwrite those external brain files because the contract explicitly excludes unrelated brain/docs work already dirty in the primary worktree.
+- The isolated hook branch originally saw strict workflow drift because the local brain vault matched the primary worktree's brain-root/docs WIP, not the branch base. That WIP landed first as `58133cf`, then `codex/think-hook-routing` was merged into main. The repo-to-brain docs were synchronized from main before the final strict workflow check.
 
 ## Annotations
 <!-- [NOTE]: prefixed inline. Claude processes all and revises. -->
@@ -154,4 +154,4 @@ Revert the branch or restore the changed hook, asset mirror, and test files. No 
 - [x] Strengthen Stop planning completeness instructions for `/think` handoff readiness.
 - [x] Mirror the Stop hook change into `assets/hooks/stop-orchestrator.sh`.
 - [x] Add focused hook runtime regression coverage for explicit think routing with hook workflow language.
-- [x] Run focused and required verification commands, with the external brain sync drift recorded in the review.
+- [x] Run focused and required verification commands after integrating over the landed brain-root workflow work.
