@@ -2,7 +2,7 @@
 
 Date: 2026-06-02
 Filing ID: 260602-repo-harness-0.2.0
-Status: Prepared
+Status: Published
 
 ## Naming
 
@@ -56,10 +56,13 @@ only on GitHub or npm metadata.
   `bun scripts/inspect-project-state.ts --repo . --format text`,
   `bash scripts/migrate-project-template.sh --repo . --dry-run`, and
   `npm pack --dry-run --json`.
-- `npm view repo-harness@0.2.0 version --registry https://registry.npmjs.org/`
-  still returned 404 before publish.
+- `npm publish --registry https://registry.npmjs.org/ --access public` passed
+  after rerunning the release gate: 558 pass, 6 skip, 0 fail.
+- `npm view repo-harness@0.2.0 version dist.tarball gitHead --registry
+  https://registry.npmjs.org/` returned `0.2.0`, the published tarball URL, and
+  package git head `51a6ff40788dc890be87fd401dd0e38b36ee562d`.
 
-## Published Artifacts  (fill in after publish)
+## Published Artifacts
 
-- npm: (pending)
-- GitHub release: (pending)
+- npm: https://www.npmjs.com/package/repo-harness/v/0.2.0
+- GitHub release: https://github.com/Ancienttwo/repo-harness/releases/tag/v0.2.0

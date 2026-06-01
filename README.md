@@ -252,6 +252,15 @@ before applying anything.
 - Codex must mark `~/.codex/hooks.json` as trusted in Codex Settings before those hooks run.
 - Debug in this order: user-level adapter config -> `repo-harness-hook` (or fallback `repo-harness hook`) -> route registry -> `.ai/hooks/*`.
 
+`SessionStart` runs two ordered scripts before work begins:
+
+```mermaid
+flowchart LR
+  SessionStart["Claude/Codex SessionStart"] --> Ctx["session-start-context.sh<br/>resume + handoff context"]
+  Ctx --> Sec["security-sentinel.sh<br/>read-only config scan, fingerprint-gated"]
+  Sec --> SSOut["SessionStart additionalContext<br/>prior-session state + SecurityConfig findings"]
+```
+
 Prompt guard has one extra internal step:
 
 ```mermaid
@@ -263,6 +272,7 @@ flowchart LR
   Shell --> Decision["repo-harness-hook prompt-guard-decide<br/>TypeScript decision table"]
   Decision --> Action["single action enum"]
   Action --> Shell
+  Shell --> RouteHint["Waza route hint<br/>explicit think/planning matched first → /think"]
   Shell --> HostOutput["host-safe allow, advice, block, or done gate output"]
 ```
 
