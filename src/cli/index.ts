@@ -46,7 +46,7 @@ export function buildProgram(): Command {
   program
     .name('repo-harness')
     .description('Repo-local agentic development harness CLI')
-    .version('0.2.1')
+    .version('0.2.2')
     .exitOverride();
 
   program
@@ -54,6 +54,7 @@ export function buildProgram(): Command {
     .description('Bootstrap global Claude plugins and hook profiles from the npm package')
     .option('--with-optional', 'Install optional plugins')
     .option('--with-obsidian', 'Install Obsidian skills')
+    .option('--with-superpowers', 'Install the Superpowers Claude marketplace plugin')
     .option('--hooks <profile>', `Hook profile: ${HOOK_PROFILES.join('|')}`, 'standard')
     .option('--no-hooks', 'Skip hook configuration')
     .option('--lsp <plugin>', 'Install a specific LSP plugin')
@@ -61,6 +62,7 @@ export function buildProgram(): Command {
     .action((rawOpts: {
       withOptional?: boolean;
       withObsidian?: boolean;
+      withSuperpowers?: boolean;
       hooks?: string | false;
       lsp?: string;
       projectType?: string;
@@ -73,9 +75,11 @@ export function buildProgram(): Command {
       const result = runGlobalRuntimeSetup({
         withOptional: rawOpts.withOptional === true,
         withObsidian: rawOpts.withObsidian === true,
+        withSuperpowers: rawOpts.withSuperpowers === true,
         hooks: rawOpts.hooks,
         lsp: rawOpts.lsp,
         projectType: rawOpts.projectType,
+        stdio: 'inherit',
       });
       if (result.stdout) process.stdout.write(result.stdout);
       if (result.stderr) process.stderr.write(result.stderr);

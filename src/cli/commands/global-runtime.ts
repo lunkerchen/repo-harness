@@ -1,4 +1,4 @@
-import { spawnSync } from 'child_process';
+import { spawnSync, type StdioOptions } from 'child_process';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -10,8 +10,10 @@ export interface GlobalRuntimeOptions {
   sourceRoot?: string;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  stdio?: 'pipe' | 'inherit';
   withOptional?: boolean;
   withObsidian?: boolean;
+  withSuperpowers?: boolean;
   hooks?: string | false;
   lsp?: string;
   projectType?: string;
@@ -32,6 +34,7 @@ export function buildGlobalRuntimeArgs(opts: GlobalRuntimeOptions): string[] {
   const args: string[] = [];
   if (opts.withOptional === true) args.push('--with-optional');
   if (opts.withObsidian === true) args.push('--with-obsidian');
+  if (opts.withSuperpowers === true) args.push('--with-superpowers');
   if (opts.hooks === false) args.push('--no-hooks');
   else if (typeof opts.hooks === 'string') args.push('--hooks', opts.hooks);
   if (opts.lsp) args.push('--lsp', opts.lsp);
@@ -68,6 +71,7 @@ export function runGlobalRuntimeSetup(opts: GlobalRuntimeOptions): GlobalRuntime
     cwd: opts.cwd ?? process.cwd(),
     encoding: 'utf-8',
     env: { ...process.env, ...(opts.env ?? {}) },
+    stdio: (opts.stdio ?? 'pipe') as StdioOptions,
   });
 
   return {

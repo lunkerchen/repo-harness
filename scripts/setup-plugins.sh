@@ -392,7 +392,7 @@ install_superpowers_plugin() {
     local settings_file="$CLAUDE_DIR/settings.json"
     local configured=false
 
-    echo -e "${BLUE}Configuring Superpowers plugin (default)...${NC}"
+    echo -e "${BLUE}Configuring Superpowers plugin...${NC}"
 
     if command_exists claude; then
         if claude plugin marketplace add "$SUPERPOWERS_MARKETPLACE" >/dev/null 2>&1; then
@@ -722,6 +722,7 @@ print_summary() {
 main() {
     local install_optional=false
     local install_obsidian=false
+    local install_superpowers=false
     local hook_type="standard"
 
     # Parse arguments
@@ -733,6 +734,10 @@ main() {
                 ;;
             --with-obsidian)
                 install_obsidian=true
+                shift
+                ;;
+            --with-superpowers)
+                install_superpowers=true
                 shift
                 ;;
             --hooks)
@@ -754,7 +759,7 @@ main() {
             --help)
                 echo "Usage: setup-plugins.sh [options]"
                 echo ""
-                echo "Default behavior: installs essential plugins + enables $SUPERPOWERS_PLUGIN_ID"
+                echo "Default behavior: installs essential plugins and hook-profile support"
                 echo "Runtime defaults: Plan-only, Codex platform default sandbox with approval on failure,"
                 echo "  Claude default permissions, worktree-warning mutations (opt-in enforcement),"
                 echo "  atomic checkpoint commits after green checks."
@@ -762,6 +767,7 @@ main() {
                 echo "Options:"
                 echo "  --with-optional    Install optional plugins (commit-commands, pr-review-toolkit, ralph-loop, etc.)"
                 echo "  --with-obsidian    Install Obsidian skills"
+                echo "  --with-superpowers Install the Superpowers Claude marketplace plugin"
                 echo "  --hooks TYPE       Hook type: standard (default), minimal, biome, biome-strict, none"
                 echo "  --no-hooks         Skip hook configuration"
                 echo "  --lsp PLUGIN       Install specific LSP plugin (e.g., typescript-lsp, pyright-lsp, gopls-lsp)"
@@ -930,9 +936,11 @@ main() {
     echo ""
     add_permissions
 
-    # Configure Superpowers marketplace plugin (default)
-    echo ""
-    install_superpowers_plugin
+    # Configure Superpowers marketplace plugin only when explicitly requested.
+    if [ "$install_superpowers" = true ]; then
+        echo ""
+        install_superpowers_plugin
+    fi
 
     # Print summary
     print_summary

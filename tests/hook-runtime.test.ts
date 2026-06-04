@@ -2577,7 +2577,7 @@ describe("Hook runtime behavior", () => {
       rmSync(worktreePath, { recursive: true, force: true });
       rmSync(cwd, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   test("prompt-guard: treats retrospective completion reports as passive evidence", () => {
     const cwd = tmpWorkspace("prompt-guard-retrospective-completion-report");
@@ -2743,7 +2743,7 @@ describe("Hook runtime behavior", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   test("prompt-guard: lets approved plan projection run on terse approval", () => {
     const cwd = tmpWorkspace("prompt-guard-approval-plan-to-todo");

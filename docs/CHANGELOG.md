@@ -4,6 +4,16 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-04
+
+### Fixed
+
+- Streamed `repo-harness init` setup output directly to the terminal so the
+  first-run `npx -y repo-harness init` path no longer looks hung while
+  `setup-plugins.sh` clones skills or runs Claude plugin setup.
+- Made the Superpowers Claude marketplace plugin opt-in via
+  `repo-harness init --with-superpowers` instead of installing it by default.
+
 ## [0.2.1] - 2026-06-02
 
 ### Added

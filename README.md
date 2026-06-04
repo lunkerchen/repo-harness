@@ -34,8 +34,12 @@ This repository now dogfoods its own tasks-first contract. It is both:
   read a 1KB capability contract or query the index instead of spending thousands of
   tokens rediscovering structure.
 
-## What's New in 0.2.1
+## What's New in 0.2.2
 
+- **Safer global init defaults.** `repo-harness init` now streams setup progress
+  directly to the terminal and no longer installs the Superpowers Claude
+  marketplace plugin by default. Use `repo-harness init --with-superpowers` only
+  when you explicitly want that marketplace plugin.
 - **Global init command (`repo-harness init`).** One command bootstraps the global
   Claude environment: essential plugins, configurable policy hooks (worktree guard,
   atomic commit/pending), optional LSP plugins by project type, and four hook profiles
@@ -190,13 +194,14 @@ repository to install or refresh workflow files, hook assets, host adapters,
 skill aliases, and repo-local verification surfaces from the current npm package.
 
 The npm package release line is now `0.2.x`; generated workflow compatibility is
-tracked separately as the `5.x` model line. The `0.2.1` package splits first-run
+tracked separately as the `5.x` model line. The `0.2.2` package splits first-run
 global bootstrap (`repo-harness init`) from repo-local refresh
 (`repo-harness update`), keeps the global plugin/hook installer
 (`scripts/setup-plugins.sh`), the read-only config security sentinel
 (`repo-harness security scan`), the explicit Claude/Codex draft-plan lifecycle,
-and adds non-blocking CodeGraph index initialization for structural prompt
-routing. These sit on top of the renamed `repo-harness` CLI, user-level hook
+adds non-blocking CodeGraph index initialization for structural prompt routing,
+and keeps Superpowers behind the explicit `--with-superpowers` opt-in flag.
+These sit on top of the renamed `repo-harness` CLI, user-level hook
 adapter bootstrap, AI-native scaffold overlays, the typed prompt-guard decision
 engine, plan-stem task artifact naming, `REPO_HARNESS_*` runtime aliases, Waza
 runtime skill sync, and the maintainer release gate.
@@ -335,7 +340,7 @@ Most common guards:
 
 ## Current Release
 
-- npm package: `repo-harness@0.2.1`
+- npm package: `repo-harness@0.2.2`
 - Generated workflow compatibility: `5.2.3`
 - GitHub repository: `Ancienttwo/repo-harness`
 - Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)

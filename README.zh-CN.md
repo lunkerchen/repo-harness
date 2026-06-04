@@ -23,8 +23,11 @@ repo-local workflow 的自托管样例。
   做渐进式上下文加载：一份小而稳定的 root context（约 12KB），加上只在改到对应文件时才加载的
   capability 块。agent 读一份 1KB 的 capability 合约或查索引，而不是花上千 token 重新摸清结构。
 
-## 0.2.1 新特性
+## 0.2.2 新特性
 
+- **更安全的全局初始化默认值。** `repo-harness init` 现在会把 setup 进度直接输出到终端，
+  不再默认安装 Superpowers Claude marketplace plugin。只有你明确需要它时，才使用
+  `repo-harness init --with-superpowers`。
 - **全局初始化命令（`repo-harness init`）。** 一条命令引导全局 Claude 环境：essential plugins、
   可配置 policy hooks（worktree guard、atomic commit/pending）、按项目类型可选的 LSP plugins，以及
   四档 hook profile（`standard`、`minimal`、`biome`、`biome-strict`）。运行
@@ -162,11 +165,11 @@ npx -y repo-harness update
 repo-local verification surfaces。
 
 npm package release line 现在是 `0.2.x`；生成的 workflow compatibility model line
-单独以 `5.x` 追踪。`repo-harness@0.2.1` 把首次全局引导（`repo-harness init`）
+单独以 `5.x` 追踪。`repo-harness@0.2.2` 把首次全局引导（`repo-harness init`）
 和 repo-local 刷新（`repo-harness update`）拆开，同时保留全局 plugin/hook 安装脚本
 （`scripts/setup-plugins.sh`）、只读配置安全哨兵（`repo-harness security scan`）、
-显式 Claude/Codex draft-plan 生命周期，并新增 prompt hook 的非阻塞 CodeGraph index 初始化。
-这些能力叠加在改名后的 CLI、user-level hook adapter bootstrap、AI-native scaffold overlays、
+显式 Claude/Codex draft-plan 生命周期，新增 prompt hook 的非阻塞 CodeGraph index 初始化，
+并把 Superpowers 放到显式 `--with-superpowers` opt-in 后面。这些能力叠加在改名后的 CLI、user-level hook adapter bootstrap、AI-native scaffold overlays、
 typed prompt-guard decision engine、plan-stem task artifact 命名、`REPO_HARNESS_*`
 runtime aliases、Waza runtime skill sync，以及 maintainer 发布 npm 前使用的 release gate 之上。
 
@@ -298,7 +301,7 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
 
 ## 当前 Release
 
-- npm package：`repo-harness@0.2.1`
+- npm package：`repo-harness@0.2.2`
 - Generated workflow compatibility：`5.2.3`
 - GitHub repository：`Ancienttwo/repo-harness`
 - Release history：[`docs/CHANGELOG.md`](docs/CHANGELOG.md)

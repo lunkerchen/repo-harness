@@ -24,12 +24,14 @@ describe('init command global runtime bootstrap', () => {
     expect(buildGlobalRuntimeArgs({
       withOptional: true,
       withObsidian: true,
+      withSuperpowers: true,
       hooks: 'biome',
       lsp: 'typescript-lsp',
       projectType: 'plan-b',
     })).toEqual([
       '--with-optional',
       '--with-obsidian',
+      '--with-superpowers',
       '--hooks',
       'biome',
       '--lsp',
@@ -99,6 +101,7 @@ describe('init command global runtime bootstrap', () => {
     });
     expect(res.status).toBe(0);
     expect(res.stdout).toContain('Usage: repo-harness init');
+    expect(res.stdout).toContain('--with-superpowers');
     expect(res.stdout).toContain('--hooks <profile>');
     expect(res.stdout).toContain('--project-type <type>');
   });
