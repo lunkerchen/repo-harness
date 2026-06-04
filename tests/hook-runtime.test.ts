@@ -1366,6 +1366,35 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("prompt-guard: falls back when copied hooks cannot reach the TypeScript decision engine", () => {
+    const cwd = tmpWorkspace("prompt-guard-shell-fallback");
+    try {
+      installHooks(cwd);
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
+
+      const res = spawnSync("bash", [join(cwd, ".ai/hooks/prompt-guard.sh")], {
+        cwd,
+        input: "",
+        encoding: "utf-8",
+        env: {
+          HOME: process.env.HOME ?? "",
+          HOOK_REPO_ROOT: cwd,
+          PATH: "/bin:/usr/bin:/usr/sbin",
+          PROMPT: "同意，执行吧",
+        },
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[PlanCaptureGate]");
+      expect(res.stdout).toContain("capture-plan.sh");
+      expect(res.stdout).not.toContain("[PromptGuard] Decision engine unavailable or failed.");
+      expect(res.stderr).toBe("");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("installHooks copies nested lib helpers", () => {
     const cwd = tmpWorkspace("hook-lib-copy");
     try {
@@ -2730,7 +2759,7 @@ describe("Hook runtime behavior", () => {
       mkdirSync(join(cwd, "docs"), { recursive: true });
       writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
 
-      for (const prompt of ["GO", "go ahead with it", "please proceed", "可以干", "可以干了"]) {
+      for (const prompt of ["GO", "go ahead with it", "please proceed", "可以干", "可以干了", "同意，执行吧"]) {
         const res = runHook("prompt-guard.sh", cwd, {
           stdin: JSON.stringify({ user_message: prompt }),
         });
@@ -2761,7 +2790,7 @@ describe("Hook runtime behavior", () => {
         ["# Plan: demo", "", "> **Status**: Approved", "", planEvidenceContract(), ""].join("\n")
       );
 
-      for (const prompt of ["GO", "go ahead with it", "implement this plan", "implement the plan", "执行这个方案", "可以干了"]) {
+      for (const prompt of ["GO", "go ahead with it", "implement this plan", "implement the plan", "执行这个方案", "可以干了", "同意，执行吧"]) {
         const res = runHook("prompt-guard.sh", cwd, {
           stdin: JSON.stringify({ user_message: prompt }),
         });
