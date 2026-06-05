@@ -29,3 +29,12 @@ code-simplifier/hookify, or LSP bundles.
 ## Verification
 
 - `bun test tests/cli/global-runtime-init.test.ts tests/cli/init.test.ts tests/setup-plugins-structure.test.ts tests/bootstrap-files.test.ts tests/action-command-skills.test.ts tests/check-agent-tooling.test.ts tests/workflow-contract.test.ts tests/create-project-dirs.runtime.test.ts tests/migration-script.test.ts`
+- `npm run check:release` passed for `repo-harness@0.2.3` after the release
+  gate was given a publish-specific shell-test timeout/concurrency budget.
+- `npm publish --registry https://registry.npmjs.org/ --access public`
+  published `repo-harness@0.2.3`; registry readback reported `latest =
+  '0.2.3'` and `gitHead = '3e87b0295c88464cd9b9d2557e63d101c4bdce59'`.
+- Clean-room `npx -y --registry https://registry.npmjs.org/
+  repo-harness@0.2.3 --version` printed `0.2.3`, and clean-room `init --help`
+  exposed the current CLI+hooks/Waza/Mermaid/brain/CodeGraph flags without a
+  Superpowers option.

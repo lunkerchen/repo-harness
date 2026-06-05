@@ -2,7 +2,7 @@
 
 Date: 2026-06-05
 Filing ID: 260605-repo-harness-0.2.3
-Status: Prepared
+Status: Published
 
 ## Naming
 
@@ -56,9 +56,37 @@ only on GitHub or npm metadata.
 - `bash scripts/migrate-project-template.sh --repo . --dry-run` passed.
 - `git diff --check` passed.
 - `bash -n scripts/setup-plugins.sh` passed.
+- `npm run check:release` passed before publish: 562 pass, 6 skip, 0 fail; it
+  also ran `bun install --frozen-lockfile`, the release-budgeted full `bun
+  test`, `bash scripts/check-deploy-sql-order.sh`, `bash
+  scripts/check-task-sync.sh`, `bash scripts/check-task-workflow.sh --strict`,
+  `bun scripts/inspect-project-state.ts --repo . --format text`, `bash
+  scripts/migrate-project-template.sh --repo . --dry-run`, and `npm pack
+  --dry-run --json`.
+- `npm publish --registry https://registry.npmjs.org/ --access public` used a
+  temporary npmrc backed by the local `_ops/env/npm.md` token, verified the
+  publish identity as `ancienttwo`, reran the full `prepublishOnly` gate
+  successfully, and published `repo-harness@0.2.3`.
+- `npm view repo-harness@0.2.3 version dist.tarball gitHead dist.shasum
+  dist.integrity --registry https://registry.npmjs.org/` returned:
+  - `version = '0.2.3'`
+  - `dist.tarball = 'https://registry.npmjs.org/repo-harness/-/repo-harness-0.2.3.tgz'`
+  - `gitHead = '3e87b0295c88464cd9b9d2557e63d101c4bdce59'`
+  - `dist.shasum = 'c162d2c8ca5a491034aea6b404f3724dc89b20ba'`
+  - `dist.integrity = 'sha512-M/HrJSSIHSV1h7S3sPzOOz3JFmy/fL3Y8iGmAN65Qfy6kJd4M2n4hIAqp53+FOKDJWw8NXdk0Kiyxms3nBiM3g=='`
+- `npm view repo-harness dist-tags --registry https://registry.npmjs.org/`
+  reported `latest = '0.2.3'`.
+- Clean-temp npm CLI smoke passed:
+  `npx -y --registry https://registry.npmjs.org/ repo-harness@0.2.3 --version`
+  printed `0.2.3`; `repo-harness@0.2.3 init --help` exposed the current CLI,
+  hook, Waza, Mermaid, brain-root, and CodeGraph flags with no Superpowers
+  option; and a minimal clean-temp `repo-harness@0.2.3 init --target codex
+  --no-cli --no-sync-skill --no-hooks --no-external-skills --no-codegraph
+  --brain-root <tmp>/brain` exited 0 and wrote only the temporary
+  `.repo-harness/config.json`.
 
 ## Published Artifacts
 
-- npm: pending
-- npm tarball: pending
-- GitHub release: pending
+- npm: https://www.npmjs.com/package/repo-harness/v/0.2.3
+- npm tarball: https://registry.npmjs.org/repo-harness/-/repo-harness-0.2.3.tgz
+- GitHub release: https://github.com/Ancienttwo/repo-harness/releases/tag/v0.2.3
