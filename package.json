@@ -42,7 +42,7 @@
     "sync:codex-installed": "bash scripts/sync-codex-installed-copies.sh"
   },
   "devDependencies": {
-    "@colbymchenry/codegraph": "^0.9.6",
+    "@colbymchenry/codegraph": "^0.9.9",
     "@types/bun": "latest"
   },
   "dependencies": {

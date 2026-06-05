@@ -1,8 +1,26 @@
 # Project — Research Notes
 
-> **Last Updated**: 2026-05-31
+> **Last Updated**: 2026-06-06
 > **Scope**: workflow contract manifest, inspection-first migration, progressive context/policy surfaces, harness state externalization, and DX polish for docs + hook operations
 > **Usage**: Store deep codebase findings and hidden contracts here, not in chat-only summaries.
+
+## 2026-06-06 CodeGraph 0.9.9 Refresh
+
+### Boundary
+- `@colbymchenry/codegraph` remains a repo-local dev dependency for this self-host repo, resolved local-first through `node_modules/.bin/codegraph`.
+- The PATH-visible global shim at `~/.local/bin/codegraph` stays on the same version so MCP fallback and direct shell use do not drift from the repo-local CLI.
+- MCP and hook adapter config were not rewritten; this was a package/index refresh only.
+
+### Trace
+- npm live latest reported `@colbymchenry/codegraph@0.9.9`; the repo previously declared `^0.9.6`.
+- `bun update @colbymchenry/codegraph` updated `package.json` and `bun.lock` to `^0.9.9`.
+- `npm install -g @colbymchenry/codegraph@latest` plus the existing `~/.local/bin/codegraph` shim made local, global, and PATH-visible `codegraph --version` all report `0.9.9`.
+- `bash scripts/ensure-codegraph.sh --sync` refreshed `.codegraph/` with the new CLI and reported `sync-index: changed`.
+
+### Verification
+- `bash scripts/ensure-codegraph.sh --check --json` reported CodeGraph `present`, version `0.9.9`, no local/global drift, and project index `up-to-date`.
+- `repo-harness doctor --json` reported `10 ok / 0 warn / 0 fail`, including CodeGraph readiness with Codex and Claude MCP configured.
+- `bun test tests/cli/codegraph.test.ts tests/cli/codegraph-resolver.test.ts tests/tooling/codegraph-integration.test.ts tests/check-agent-tooling.test.ts tests/cli/doctor.test.ts` passed with `21 pass / 0 fail`.
 
 ## Codebase Map
 | File | Purpose | Key Exports |

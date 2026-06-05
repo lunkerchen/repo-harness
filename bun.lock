@@ -8,25 +8,25 @@
         "commander": "^14.0.3",
       },
       "devDependencies": {
-        "@colbymchenry/codegraph": "^0.9.6",
+        "@colbymchenry/codegraph": "^0.9.9",
         "@types/bun": "latest",
       },
     },
   },
   "packages": {
-    "@colbymchenry/codegraph": ["@colbymchenry/codegraph@0.9.6", "https://registry.npmmirror.com/@colbymchenry/codegraph/-/codegraph-0.9.6.tgz", { "optionalDependencies": { "@colbymchenry/codegraph-darwin-arm64": "0.9.6", "@colbymchenry/codegraph-darwin-x64": "0.9.6", "@colbymchenry/codegraph-linux-arm64": "0.9.6", "@colbymchenry/codegraph-linux-x64": "0.9.6", "@colbymchenry/codegraph-win32-arm64": "0.9.6", "@colbymchenry/codegraph-win32-x64": "0.9.6" }, "bin": { "codegraph": "npm-shim.js" } }, "sha512-tMrlwtUtKKGw9f/9qvSqzwSa02Wd6YgN8TTEoKovo8oLROMMVOYiCbodzVDKa++GSNxsKtrZXHmYTzt6XiYgJw=="],
+    "@colbymchenry/codegraph": ["@colbymchenry/codegraph@0.9.9", "", { "optionalDependencies": { "@colbymchenry/codegraph-darwin-arm64": "0.9.9", "@colbymchenry/codegraph-darwin-x64": "0.9.9", "@colbymchenry/codegraph-linux-arm64": "0.9.9", "@colbymchenry/codegraph-linux-x64": "0.9.9", "@colbymchenry/codegraph-win32-arm64": "0.9.9", "@colbymchenry/codegraph-win32-x64": "0.9.9" }, "bin": { "codegraph": "npm-shim.js" } }, "sha512-23Dl9q0RHKVhJRp+Y823GfmQJjcPiRycoKN7TkaI8eJitluRvieoVlclPILqua8znvkAw9KevYziFfK3k74CBQ=="],
 
-    "@colbymchenry/codegraph-darwin-arm64": ["@colbymchenry/codegraph-darwin-arm64@0.9.6", "https://registry.npmmirror.com/@colbymchenry/codegraph-darwin-arm64/-/codegraph-darwin-arm64-0.9.6.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-686DNvhblzVcCcelhf6yZaKVZ5imbb7xptzG4Q4jkWdf/1lp/4nFi8ZUlDuVKv2Ie1N53QDGYaYJPrC7+Kjr6Q=="],
+    "@colbymchenry/codegraph-darwin-arm64": ["@colbymchenry/codegraph-darwin-arm64@0.9.9", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Mu6xhG4bF1OLeTqN2eSI5U8z2esymK/RjxP3T8cCigA4YprDIvd3XSGmTZREbDNRCuqrCi0R1LCJ7fsdFfpAPA=="],
 
-    "@colbymchenry/codegraph-darwin-x64": ["@colbymchenry/codegraph-darwin-x64@0.9.6", "https://registry.npmmirror.com/@colbymchenry/codegraph-darwin-x64/-/codegraph-darwin-x64-0.9.6.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-YbP6Nelxcs6fza5l2dftStf0cOy3Rv95oZrMYfqfUGRO7U0Y2Rcz3TWm7G5YQTL2cCUjETPFnps5cS44Ez32bg=="],
+    "@colbymchenry/codegraph-darwin-x64": ["@colbymchenry/codegraph-darwin-x64@0.9.9", "", { "os": "darwin", "cpu": "x64" }, "sha512-xShaChiPJsajmBxvr1yP2XWsYstq0kJzHwQmiUG1huWrE14tP9NJnJ36hsbzHfHiqwBOJo2+5MZHuXmmzJa/vQ=="],
 
-    "@colbymchenry/codegraph-linux-arm64": ["@colbymchenry/codegraph-linux-arm64@0.9.6", "https://registry.npmmirror.com/@colbymchenry/codegraph-linux-arm64/-/codegraph-linux-arm64-0.9.6.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-NTLBqzjSt7wPKis3n+VRFygCmtxf67/JWwQFTKpwYDrQMHspHRTw16/AoFWA4iZPJ8h/0lFfrfeaGtdnAkINtA=="],
+    "@colbymchenry/codegraph-linux-arm64": ["@colbymchenry/codegraph-linux-arm64@0.9.9", "", { "os": "linux", "cpu": "arm64" }, "sha512-zccx1m3gGB2jAGfz41U+1GQNK12mtLGuX48XyZXiyQIGFsJQCFS8v/OvShAfPygSGhUr3zKMetbkMnztp7ULtg=="],
 
-    "@colbymchenry/codegraph-linux-x64": ["@colbymchenry/codegraph-linux-x64@0.9.6", "https://registry.npmmirror.com/@colbymchenry/codegraph-linux-x64/-/codegraph-linux-x64-0.9.6.tgz", { "os": "linux", "cpu": "x64" }, "sha512-fMLGKvxZlWLOroPpOSNHx4jDlUZ3hCuoJt42El6AKoJEUWYBGYHVVVEFqqkJ2ARZ11zr7aoWgLvsfDE0ythELg=="],
+    "@colbymchenry/codegraph-linux-x64": ["@colbymchenry/codegraph-linux-x64@0.9.9", "", { "os": "linux", "cpu": "x64" }, "sha512-vQfe5VdSQb/cVo1pwO12FyzTNaDIXtN3dLuAS/LIPsg2tQVyT9fwr10QmL10qWUNBShjgnRsomHdMG7hCjW3Yg=="],
 
-    "@colbymchenry/codegraph-win32-arm64": ["@colbymchenry/codegraph-win32-arm64@0.9.6", "https://registry.npmmirror.com/@colbymchenry/codegraph-win32-arm64/-/codegraph-win32-arm64-0.9.6.tgz", { "os": "win32", "cpu": "arm64" }, "sha512-Jbf/TDkhc45MujmwuZpaOO+66bxwRNuc8azZoCRnYNgCeZTCtN/hGa6IaPppmXPPqwDzeEiSQA4ozj30BqjMug=="],
+    "@colbymchenry/codegraph-win32-arm64": ["@colbymchenry/codegraph-win32-arm64@0.9.9", "", { "os": "win32", "cpu": "arm64" }, "sha512-U2QlTT434ulbEw6sTJVS+VNhjJUbZqCnw8tXuXSKkcuzGPZq/Hxoofe9UpY77+J9hAJu9PwwiWjEEaiDX9yb1w=="],
 
-    "@colbymchenry/codegraph-win32-x64": ["@colbymchenry/codegraph-win32-x64@0.9.6", "https://registry.npmmirror.com/@colbymchenry/codegraph-win32-x64/-/codegraph-win32-x64-0.9.6.tgz", { "os": "win32", "cpu": "x64" }, "sha512-RTREYQhT84tZwI0AGENDSwISmrveJt5XB4qNSDvTh6lZKoGqRUZFuiMssouberHub51yTyimuY+2nRDlCclqyw=="],
+    "@colbymchenry/codegraph-win32-x64": ["@colbymchenry/codegraph-win32-x64@0.9.9", "", { "os": "win32", "cpu": "x64" }, "sha512-N7Xgt80BeEy78nNeqHaUgcsngxmy1Hty570QSa4hOh4zl6z6v6n7i9ZSUfraktESVUkfmMbUwoqfEzVwUbB0/g=="],
 
     "@types/bun": ["@types/bun@1.3.14", "https://registry.npmmirror.com/@types/bun/-/bun-1.3.14.tgz", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
