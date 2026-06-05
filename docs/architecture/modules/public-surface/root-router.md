@@ -22,7 +22,8 @@ Weak dependencies:
 
 - Compatibility name `repo-harness-skill`.
 - Retired `project-initializer` install paths, which are cleanup targets only.
-- `repo-harness init` owns the one-shot Codex/Claude runtime bootstrap for Waza and `mermaid`.
+- `repo-harness init` owns first-run global bootstrap: install the CLI, install user-level hook adapters, configure Waza, persist the brain root, and configure CodeGraph MCP.
+- `repo-harness update` owns repo-local harness adoption and refresh.
 - gstack/gbrain policy references remain advisory; this self-host repo vendors CodeGraph as a dev dependency while downstream generated repos keep global MCP setup explicit unless policy opts in.
 
 Out of scope:
@@ -33,17 +34,26 @@ Out of scope:
 
 ## P2 Trace
 
-Concrete route: user asks for an existing repo install -> root `SKILL.md`
-selects `repo-harness-init` semantics -> `repo-harness init` defaults the target
-repo to cwd unless `--repo` is supplied -> the command runs
-`inspect-project-state.ts --repo <repo> --format text` -> if no legacy state is
-found, `migrate-project-template.sh --repo <repo> --apply` installs or refreshes
-the workflow -> Waza and `mermaid` are bootstrapped for the selected
-host target -> `check-task-workflow.sh --strict` verifies the target repo.
+Concrete route: user asks for first-run host setup -> root `README.md` selects
+`repo-harness init` -> the command installs the current package as the global
+CLI, refreshes repo-harness skill aliases, installs user-level hook adapters,
+configures Waza `think`/`hunt`/`check`/`health`, writes the selected brain root
+to `~/.repo-harness/config.json`, and configures CodeGraph MCP for the selected
+host target.
 
-Input source of truth is the target repo path, not the user's wording. The first
-type transformation is repo filesystem state into `mode`, `legacy_contract_version`,
-`drift_signals`, `required_decisions`, and `upgrade_plan`. The final output is a
+Concrete route: user asks for an existing repo install -> root `SKILL.md`
+selects `repo-harness-init` semantics -> that action routes to
+`repo-harness update` or `migrate-project-template.sh --repo <repo> --apply` ->
+the command runs `inspect-project-state.ts --repo <repo> --format text` -> if no
+legacy state is found, `migrate-project-template.sh --repo <repo> --apply`
+installs or refreshes the workflow -> repo-local checks verify the target repo.
+
+For global bootstrap, the input source of truth is the selected host target and
+brain root, not the current directory. For repo-local adoption, the source of
+truth is the target repo path, not the user's wording. The first repo-local type
+transformation is repo filesystem state into `mode`,
+`legacy_contract_version`, `drift_signals`, `required_decisions`, and
+`upgrade_plan`. The final output is either a configured host runtime or a
 file-backed harness plus verification report.
 
 Error paths:

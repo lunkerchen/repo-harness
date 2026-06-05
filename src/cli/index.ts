@@ -1,10 +1,9 @@
 #!/usr/bin/env bun
 /**
- * repo-harness CLI entry — Phase 1B.
+ * repo-harness CLI entry.
  *
- * Wires commander.js to install, hook, status, doctor, migrate, security, and tools
- * command bodies. Keeps the Phase 1A `SUBCOMMANDS` / `Subcommand` exports
- * importable by Phase 1A tests so the scaffold contract survives the rewrite.
+ * Wires commander.js to the global runtime bootstrap, repo-local update,
+ * hook adapter, status, doctor, migrate, security, and tool command bodies.
  */
 
 import { Command } from 'commander';
@@ -18,7 +17,7 @@ import { buildToolsCommand } from './commands/tools';
 import { buildBrainCommand } from './commands/brain';
 import { buildCapabilityContextCommand } from './commands/capability-context';
 import { formatSecurityScan, runSecurityScan } from './commands/security';
-import { HOOK_PROFILES, runGlobalRuntimeSetup, validateHookProfile } from './commands/global-runtime';
+import { runGlobalRuntimeSetup } from './commands/global-runtime';
 import { runPromptGuardDecisionFromEnv } from './commands/prompt-guard-decision';
 import type { Location } from './installer/types';
 import type { HookEvent, RouteId } from './hook/route-registry';
@@ -46,39 +45,50 @@ export function buildProgram(): Command {
   program
     .name('repo-harness')
     .description('Repo-local agentic development harness CLI')
-    .version('0.2.1')
+    .version('0.2.3')
     .exitOverride();
 
   program
     .command('init')
-    .description('Bootstrap global Claude plugins and hook profiles from the npm package')
-    .option('--with-optional', 'Install optional plugins')
-    .option('--with-obsidian', 'Install Obsidian skills')
-    .option('--hooks <profile>', `Hook profile: ${HOOK_PROFILES.join('|')}`, 'standard')
-    .option('--no-hooks', 'Skip hook configuration')
-    .option('--lsp <plugin>', 'Install a specific LSP plugin')
-    .option('--project-type <type>', 'Auto-select LSP by repo-harness project type')
+    .description('Install the repo-harness CLI, global hook adapters, and required runtime dependencies')
+    .option('--target <target>', `Host target for adapters and runtime skills: ${VALID_TARGETS.join('|')}`, 'both')
+    .option('--no-cli', 'Skip installing the repo-harness CLI globally')
+    .option('--no-sync-skill', 'Skip refreshing repo-harness skill aliases under host skill roots')
+    .option('--no-hooks', 'Skip global hook adapter installation')
+    .option('--no-external-skills', 'Skip Waza and Mermaid skill bootstrap')
+    .option('--no-codegraph', 'Skip CodeGraph CLI/MCP configuration')
+    .option('--brain-root <path>', 'Brain vault root to persist for repo-harness brain commands')
+    .option('--json', 'Output JSON instead of human-readable text')
     .action((rawOpts: {
-      withOptional?: boolean;
-      withObsidian?: boolean;
+      target: string;
+      cli?: boolean;
+      syncSkill?: boolean;
       hooks?: string | false;
-      lsp?: string;
-      projectType?: string;
+      externalSkills?: boolean;
+      codegraph?: boolean;
+      brainRoot?: string;
+      json?: boolean;
     }) => {
-      const validationError = validateHookProfile(rawOpts.hooks, 'init');
-      if (validationError) {
-        console.error(validationError);
+      if (!VALID_TARGETS.includes(rawOpts.target as InstallTargetSpec)) {
+        console.error(
+          `repo-harness init: invalid --target "${rawOpts.target}" (expected: ${VALID_TARGETS.join(', ')})`,
+        );
         process.exit(2);
       }
       const result = runGlobalRuntimeSetup({
-        withOptional: rawOpts.withOptional === true,
-        withObsidian: rawOpts.withObsidian === true,
-        hooks: rawOpts.hooks,
-        lsp: rawOpts.lsp,
-        projectType: rawOpts.projectType,
+        target: rawOpts.target as InstallTargetSpec,
+        installCli: rawOpts.cli !== false,
+        syncSkill: rawOpts.syncSkill !== false,
+        hostAdapters: rawOpts.hooks !== false,
+        externalSkills: rawOpts.externalSkills !== false,
+        codegraph: rawOpts.codegraph !== false,
+        brainRoot: rawOpts.brainRoot,
       });
-      if (result.stdout) process.stdout.write(result.stdout);
-      if (result.stderr) process.stderr.write(result.stderr);
+      if (rawOpts.json === true) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        for (const line of result.lines) console.log(line);
+      }
       process.exit(result.exitCode);
     });
 

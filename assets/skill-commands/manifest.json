@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "surface": "repo-harness-action-style-skill-commands",
+  "surface": "repo-harness-cli-hooks-command-facades",
   "source": "assets/skill-commands",
   "router": "repo-harness",
   "commands": [
@@ -41,10 +41,10 @@
     },
     {
       "name": "repo-harness-scaffold",
-      "class": "project-scaffolding",
+      "class": "branch-project-scaffolding",
       "mutatesRepoByDefault": true,
       "engine": "init-project.sh plus workflow install",
-      "summary": "Creates a new project or module scaffold from plan catalog A-K and attaches the harness."
+      "summary": "Branch command that creates a new project or module scaffold from plan catalog A-K and attaches the harness."
     },
     {
       "name": "repo-harness-migrate",

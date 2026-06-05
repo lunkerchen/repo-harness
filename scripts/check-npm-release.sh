@@ -25,7 +25,9 @@ if ! grep -Eq 'E404|404 Not Found|No match found|not in this registry' "$LOOKUP_
 fi
 
 bun install --frozen-lockfile
-bun test
+BUN_TEST_TIMEOUT_MS="${BUN_TEST_TIMEOUT_MS:-60000}"
+BUN_TEST_MAX_CONCURRENCY="${BUN_TEST_MAX_CONCURRENCY:-4}"
+bun test --timeout "$BUN_TEST_TIMEOUT_MS" --max-concurrency "$BUN_TEST_MAX_CONCURRENCY"
 bash scripts/check-deploy-sql-order.sh
 bash scripts/check-task-sync.sh
 bash scripts/check-task-workflow.sh --strict

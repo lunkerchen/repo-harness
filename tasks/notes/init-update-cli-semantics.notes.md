@@ -7,9 +7,12 @@ npx -y repo-harness init
 npx -y repo-harness update
 ```
 
-`init` is the first-run global bootstrap. It stays a thin wrapper around the
-packaged `scripts/setup-plugins.sh`, so npm users can install global Claude
-plugins and hook profiles without cloning the source repository.
+`init` is the first-run global bootstrap. It no longer wraps the legacy
+`scripts/setup-plugins.sh` Claude plugin installer. The active path installs the
+current package as the global CLI, refreshes repo-harness skill aliases, installs
+user-level Codex/Claude hook adapters, configures Waza
+`think`/`hunt`/`check`/`health`, persists the brain root in
+`~/.repo-harness/config.json`, and configures CodeGraph MCP.
 
 `update` owns existing repo-local harness installation and refresh. It reuses the
 existing `runInit` implementation for workflow files, hook assets, host adapters,

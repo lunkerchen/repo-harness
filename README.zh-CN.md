@@ -23,11 +23,14 @@ repo-local workflow 的自托管样例。
   做渐进式上下文加载：一份小而稳定的 root context（约 12KB），加上只在改到对应文件时才加载的
   capability 块。agent 读一份 1KB 的 capability 合约或查索引，而不是花上千 token 重新摸清结构。
 
-## 0.2.1 新特性
+## 0.2.3 新特性
 
-- **全局初始化命令（`repo-harness init`）。** 一条命令引导全局 Claude 环境：essential plugins、
-  可配置 policy hooks（worktree guard、atomic commit/pending）、按项目类型可选的 LSP plugins，以及
-  四档 hook profile（`standard`、`minimal`、`biome`、`biome-strict`）。运行
+- **更安全的全局初始化默认值。** `repo-harness init` 不再调用旧 Claude plugin setup
+  脚本，也没有 Superpowers marketplace installer 路径。
+- **全局初始化命令（`repo-harness init`）。** 一条命令安装全局 `repo-harness` CLI、
+  刷新 repo-harness skill aliases、安装 Codex/Claude user-level hook adapters、
+  配置 Waza（`think`、`hunt`、`check`、`health`）和 Mermaid、持久化 brain root，并配置
+  CodeGraph MCP。运行
   `npx -y repo-harness init`，不需要 clone 源码仓库。
 - **仓库刷新命令（`repo-harness update`）。** 已有仓库的安装/刷新入口独立成命令，继续复用
   原 repo-local harness migration 路径，同时让 `init` 专注于全局 runtime setup。
@@ -65,7 +68,7 @@ repo-local hooks，然后验证这些 workflow surfaces 仍然一致。
 
 整体分三层：
 
-1. **源码包层**：本仓库维护 CLI、command skill facades、templates、hook assets、
+1. **源码包层**：本仓库维护 CLI、CLI-backed command facades、templates、hook assets、
    workflow contract、tests 和 release gate。
 2. **目标仓库合约层**：`repo-harness update` 或 migration 会写入 `docs/spec.md`、
    `plans/`、`tasks/`、`.ai/context/`、`.ai/harness/`、helper scripts 和
@@ -146,9 +149,10 @@ flowchart TD
 npx -y repo-harness init
 ```
 
-`init` 是首次全局引导入口。它运行 npm 包里自带的 `scripts/setup-plugins.sh`，
-安装全局 Claude plugins 和 hook profiles，默认等价于 `--hooks standard`。
-需要不同 hook profile 时再传 `--hooks <profile>` 或 `--no-hooks`。
+`init` 是首次全局引导入口。它把当前 npm 包安装成全局 CLI，刷新 repo-harness
+skill aliases，安装 user-level hook adapters，配置 Waza runtime skills，把 brain
+root 持久化到 `~/.repo-harness/config.json`，并配置 CodeGraph MCP。它不会把当前目录
+默认迁移成 repo-local workflow。
 
 ### 安装或刷新 repo-local harness
 
@@ -162,9 +166,9 @@ npx -y repo-harness update
 repo-local verification surfaces。
 
 npm package release line 现在是 `0.2.x`；生成的 workflow compatibility model line
-单独以 `5.x` 追踪。`repo-harness@0.2.1` 把首次全局引导（`repo-harness init`）
-和 repo-local 刷新（`repo-harness update`）拆开，同时保留全局 plugin/hook 安装脚本
-（`scripts/setup-plugins.sh`）、只读配置安全哨兵（`repo-harness security scan`）、
+单独以 `5.x` 追踪。`repo-harness@0.2.3` 把首次全局引导（`repo-harness init`）
+和 repo-local 刷新（`repo-harness update`）拆开，同时用 typed CLI/hook/dependency
+bootstrap 替换旧全局 plugin installer 路径，保留只读配置安全哨兵（`repo-harness security scan`）、
 显式 Claude/Codex draft-plan 生命周期，并新增 prompt hook 的非阻塞 CodeGraph index 初始化。
 这些能力叠加在改名后的 CLI、user-level hook adapter bootstrap、AI-native scaffold overlays、
 typed prompt-guard decision engine、plan-stem task artifact 命名、`REPO_HARNESS_*`
@@ -210,8 +214,8 @@ dry-run 报告正确后再应用：
 npx -y repo-harness update
 ```
 
-新项目或新模块使用 `repo-harness-scaffold` command skill。已有仓库使用
-`repo-harness-init`；它会安装或刷新 harness，不会创建应用技术栈。
+新项目或新模块使用支线 command `repo-harness-scaffold`。已有仓库使用
+`repo-harness update`；它会安装或刷新 harness，不会创建应用技术栈。
 
 ### 成功长什么样
 
@@ -298,7 +302,7 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
 
 ## 当前 Release
 
-- npm package：`repo-harness@0.2.1`
+- npm package：`repo-harness@0.2.3`
 - Generated workflow compatibility：`5.2.3`
 - GitHub repository：`Ancienttwo/repo-harness`
 - Release history：[`docs/CHANGELOG.md`](docs/CHANGELOG.md)
@@ -313,24 +317,26 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
   - `assets/workflow-contract.v1.json`
 - Generated repos 默认使用 repo-local harness flow：
   - `docs/spec.md -> plans/ -> tasks/contracts/ -> tasks/reviews/ -> .ai/context/context-map.json -> .ai/harness/*`
-- `repo-harness update` 会刷新 runtime pieces：
+- `repo-harness init` 会刷新 runtime pieces：
   - `repo-harness` skill aliases
   - global Codex/Claude hook adapters
-  - Waza skills：`check`、`design`、`health`、`hunt`、`learn`、`read`、`think`、`write`
-  - 如果 source copy 存在，同步 `diagram-design`
+  - Waza skills：`think`、`hunt`、`check`、`health`
+  - 持久化 brain root 到 `~/.repo-harness/config.json`
+  - 配置 CodeGraph MCP
 - 其他外部工具保持 advisory-only：
   - `bash scripts/check-agent-tooling.sh --host both --check-updates`
-  - 不自动设置 gstack、gbrain、CodeGraph MCP、daemon 或 provider
+  - 不自动设置 gstack、gbrain MCP、CodeGraph daemon 或 provider
 
 ## Action Command Skills
 
-公共 command skill facades 在 `assets/skill-commands/`：
+公共 command facades 在 `assets/skill-commands/`；它们保留 host skill discovery
+兼容性，真正执行由 CLI 和 hooks 负责：
 
 - Planning / review：`repo-harness-plan`、`repo-harness-review`、`repo-harness-autoplan`
 - Repo workflow actions：`repo-harness-ship`、`repo-harness-init`、`repo-harness-migrate`、`repo-harness-upgrade`、`repo-harness-capability`、`repo-harness-architecture`、`repo-harness-handoff`、`repo-harness-deploy`、`repo-harness-repair`、`repo-harness-check`
-- Project creation：`repo-harness-scaffold`
+- 支线项目创建 command：`repo-harness-scaffold`
 
-`repo-harness-init` 用于已有仓库；`repo-harness-scaffold` 用于创建新项目或模块。
+`repo-harness update` 用于已有仓库；`repo-harness-scaffold` 作为支线 command 创建新项目或模块。
 `hooks-init`、`docs-init` 和 `create-project-dirs` 是内部步骤，不是公共 commands。
 
 ## Maintainer Reference

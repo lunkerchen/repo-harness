@@ -6,22 +6,23 @@
 
 ## Product Outcome
 
-Generate and migrate repo-local agentic workflow contracts for Claude and Codex.
-The skill, formerly `repo-harness-skill`, keeps root context stable, exposes
-deeper context progressively, externalizes workflow state into repo-local
-artifacts, and lets this repository self-host the same critical contract it
-generates for downstream repos.
+Install, update, generate, and migrate repo-local agentic workflow contracts for
+Claude and Codex through the `repo-harness` CLI and hook automation layer. The
+skill entrypoint, formerly `repo-harness-skill`, remains a compatibility router;
+workflow authority lives in repo-local artifacts, scripts, hooks, and the
+versioned contract this repository self-hosts for downstream repos.
 
 ## Success Criteria
 
 - Primary workflow:
-  scaffold or migrate a repo so `plans/`, `tasks/`, `.ai/context/`, `.ai/harness/`,
-  shared hooks, and verification helpers are present and internally consistent.
+  install or refresh the CLI+hooks runtime and, for repo-local adoption,
+  create/migrate `plans/`, `tasks/`, `.ai/context/`, `.ai/harness/`, shared
+  hooks, and verification helpers so they are internally consistent.
 - Command surface:
-  expose action-style `repo-harness-*` command skill facades for planning,
-  review, autoplan, ship, init, scaffold, migrate, upgrade, capability
-  configuration, architecture maintenance, handoff rollover, deploy readiness,
-  repair, and check without duplicating the workflow engine.
+  expose `repo-harness` CLI commands plus thin compatibility facades for
+  planning, review, autoplan, ship, init, scaffold, migrate, upgrade,
+  capability configuration, architecture maintenance, handoff rollover, deploy
+  readiness, repair, and check without duplicating the workflow engine.
 - Quality bar:
   self-migration is idempotent, critical parity surfaces stay aligned, and the
   required verification commands pass in this repo.
@@ -64,10 +65,10 @@ generates for downstream repos.
 - Given
   a user asks to initialize an existing repo or scaffold a new project,
   When
-  the action command surface routes the request,
+  the CLI command/facade surface routes the request,
   Then
-  `repo-harness init` and `repo-harness-init` handle existing repo adoption from
-  the target repo root without requiring `--repo .`, and
+  `repo-harness-init` routes existing repo adoption through
+  `repo-harness update` from the target repo root without requiring `--repo .`, and
   `repo-harness-scaffold` handles new project or module creation, while hook and
   docs initialization remain internal implementation steps.
 

@@ -162,7 +162,7 @@ describe("init command", () => {
     }
   });
 
-  test("bootstraps core Waza skills and Mermaid for Claude and Codex during init", () => {
+  test("bootstraps core Waza, Mermaid, and cross-review skills for Claude and Codex during update", () => {
     const tmp = join(tmpdir(), `repo-harness-init-skills-${Date.now()}`);
     const source = join(tmp, "source");
     const repo = join(tmp, "repo");
@@ -185,6 +185,7 @@ describe("init command", () => {
         syncSkill: false,
         hostAdapters: false,
         verify: false,
+        codegraph: false,
         env: {
           ...process.env,
           HOME: home,

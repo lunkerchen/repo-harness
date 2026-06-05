@@ -34,12 +34,15 @@ This repository now dogfoods its own tasks-first contract. It is both:
   read a 1KB capability contract or query the index instead of spending thousands of
   tokens rediscovering structure.
 
-## What's New in 0.2.1
+## What's New in 0.2.3
 
-- **Global init command (`repo-harness init`).** One command bootstraps the global
-  Claude environment: essential plugins, configurable policy hooks (worktree guard,
-  atomic commit/pending), optional LSP plugins by project type, and four hook profiles
-  (`standard`, `minimal`, `biome`, `biome-strict`).
+- **Safer global init defaults.** `repo-harness init` no longer calls the legacy
+  Claude plugin setup script or any Superpowers marketplace installer path.
+- **Global init command (`repo-harness init`).** One command installs the
+  `repo-harness` CLI globally, refreshes repo-harness skill aliases, installs
+  user-level Codex/Claude hook adapters, configures Waza
+  (`think`, `hunt`, `check`, `health`) plus Mermaid, persists the brain root, and
+  configures CodeGraph MCP.
   Run `npx -y repo-harness init`; no source checkout is required.
 - **Repo refresh command (`repo-harness update`).** Existing-repo install and
   refresh now has its own command surface, preserving the previous repo-local
@@ -87,7 +90,7 @@ workflow surfaces stay consistent.
 
 The design has three layers:
 
-1. **Source package**: this repository owns the CLI, command skill facades,
+1. **Source package**: this repository owns the CLI, CLI-backed command facades,
    templates, hook assets, workflow contract, tests, and release gate.
 2. **Target repo contract**: `repo-harness update` or migration writes repo-local
    files such as `docs/spec.md`, `plans/`, `tasks/`, `.ai/context/`,
@@ -173,10 +176,11 @@ safe to adopt in a real repo.
 npx -y repo-harness init
 ```
 
-`init` is the first-run global bootstrap path. It runs the packaged
-`scripts/setup-plugins.sh`, installs global Claude plugins and hook profiles, and
-defaults to `--hooks standard`. Use `--hooks <profile>` or `--no-hooks` when you
-need a different hook profile.
+`init` is the first-run global bootstrap path. It installs the current npm
+package as the global CLI, refreshes repo-harness skill aliases, installs
+user-level hook adapters, configures Waza runtime skills, persists a brain root
+under `~/.repo-harness/config.json`, and configures CodeGraph MCP. It does not
+apply repo-local workflow files to the current directory.
 
 ### Install or refresh a repo-local harness
 
@@ -190,13 +194,14 @@ repository to install or refresh workflow files, hook assets, host adapters,
 skill aliases, and repo-local verification surfaces from the current npm package.
 
 The npm package release line is now `0.2.x`; generated workflow compatibility is
-tracked separately as the `5.x` model line. The `0.2.1` package splits first-run
+tracked separately as the `5.x` model line. The `0.2.3` package splits first-run
 global bootstrap (`repo-harness init`) from repo-local refresh
-(`repo-harness update`), keeps the global plugin/hook installer
-(`scripts/setup-plugins.sh`), the read-only config security sentinel
+(`repo-harness update`), replaces the legacy global plugin installer path with
+typed CLI/hook/dependency bootstrap, keeps the read-only config security sentinel
 (`repo-harness security scan`), the explicit Claude/Codex draft-plan lifecycle,
 and adds non-blocking CodeGraph index initialization for structural prompt
-routing. These sit on top of the renamed `repo-harness` CLI, user-level hook
+routing.
+These sit on top of the renamed `repo-harness` CLI, user-level hook
 adapter bootstrap, AI-native scaffold overlays, the typed prompt-guard decision
 engine, plan-stem task artifact naming, `REPO_HARNESS_*` runtime aliases, Waza
 runtime skill sync, and the maintainer release gate.
@@ -245,8 +250,8 @@ Apply only after the dry-run report looks correct:
 npx -y repo-harness update
 ```
 
-For a new project or module, use the `repo-harness-scaffold` command skill. For
-an existing repo, use `repo-harness-init`; it installs or refreshes the harness
+For a new project or module, use the branch command `repo-harness-scaffold`. For
+an existing repo, use `repo-harness update`; it installs or refreshes the harness
 without creating an application stack.
 
 ### Success looks like this
@@ -335,7 +340,7 @@ Most common guards:
 
 ## Current Release
 
-- npm package: `repo-harness@0.2.1`
+- npm package: `repo-harness@0.2.3`
 - Generated workflow compatibility: `5.2.3`
 - GitHub repository: `Ancienttwo/repo-harness`
 - Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
@@ -366,16 +371,17 @@ Most common guards:
   - `complex -> gstack`
   - `simple -> Waza` with Codex-first runtime copies in `~/.codex/skills`
   - `knowledge -> gbrain`
-- `repo-harness update` bootstraps the Codex/Claude runtime pieces needed for the
+- `repo-harness init` bootstraps the Codex/Claude runtime pieces needed for the
   default workflow:
   - refreshes `repo-harness` skill aliases
   - installs global Codex/Claude hook adapters
-  - installs Waza skills (`think`, `hunt`, `check`, `health`) through the skills CLI
-  - installs `mermaid` into Codex/Claude skill roots through the skills CLI
+  - installs Waza skills (`think`, `hunt`, `check`, `health`) and Mermaid through the skills CLI
+  - persists the brain root in `~/.repo-harness/config.json`
+  - configures CodeGraph MCP for selected host agents
 - Other external tooling stays advisory-only:
   - `bash scripts/check-agent-tooling.sh --host both --check-updates`
   - Waza update checks compare upstream `tw93/Waza` `SKILL.md` hashes without running `npx skills check`
-  - no automatic gstack, gbrain, CodeGraph MCP, daemon, or provider setup
+  - no automatic gstack, gbrain MCP, CodeGraph daemon, or provider setup
 - Manual distillation stays repo-local:
   - repeated corrections -> `tasks/lessons.md`
   - deep findings and hidden contracts -> `tasks/research.md`
@@ -402,17 +408,16 @@ are not all bundled product dependencies.
 
 ## Action Command Skills
 
-Source-owned command skill facades live in `assets/skill-commands/`. They keep
-the public surface action-style while sharing the same router, contract, scripts,
-and tests:
+Source-owned command facades live in `assets/skill-commands/`. They keep host
+skill discovery compatible while the CLI and hooks own execution:
 
 - Planning and review: `repo-harness-plan`, `repo-harness-review`, `repo-harness-autoplan`
 - Repo workflow actions: `repo-harness-ship`, `repo-harness-init`, `repo-harness-migrate`, `repo-harness-upgrade`, `repo-harness-capability`, `repo-harness-architecture`, `repo-harness-handoff`, `repo-harness-deploy`, `repo-harness-repair`, `repo-harness-check`
-- Project creation: `repo-harness-scaffold`
+- Branch project creation command: `repo-harness-scaffold`
 
-`repo-harness-init` is for an existing repo; `repo-harness-scaffold` creates a new
-project or module scaffold. `hooks-init`, `docs-init`, and `create-project-dirs`
-are internal steps, not public commands.
+`repo-harness update` is for an existing repo; `repo-harness-scaffold` creates a
+new project or module scaffold as a side command. `hooks-init`, `docs-init`, and
+`create-project-dirs` are internal steps, not public commands.
 
 `repo-harness-scaffold` keeps the A-K plan catalog as the project-type authority
 and adds AI-native app structure through an optional `ai_native_profile` overlay.

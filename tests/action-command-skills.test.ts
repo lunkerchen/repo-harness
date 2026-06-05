@@ -28,7 +28,7 @@ function readCommand(name: string): string {
 describe("repo-harness action command skills", () => {
   test("manifest exposes exactly the public action command surface", () => {
     const manifest = JSON.parse(readFileSync(join(COMMAND_ROOT, "manifest.json"), "utf-8"));
-    expect(manifest.surface).toBe("repo-harness-action-style-skill-commands");
+    expect(manifest.surface).toBe("repo-harness-cli-hooks-command-facades");
     expect(manifest.router).toBe("repo-harness");
     expect(manifest.commands.map((entry: { name: string }) => entry.name)).toEqual(COMMANDS);
     expect(manifest.nonPublicInternalSteps).toEqual([
@@ -100,6 +100,7 @@ describe("repo-harness action command skills", () => {
 
     expect(init).toContain("existing repository");
     expect(init).toContain("Does not create a new application stack");
+    expect(init).toContain("repo-harness update");
     expect(init).toContain("migrate-project-template.sh --repo <repo> --apply");
     expect(scaffold).toContain("new project");
     expect(scaffold).toContain("plan catalog A-K");

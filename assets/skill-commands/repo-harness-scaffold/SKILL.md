@@ -1,12 +1,12 @@
 ---
 name: repo-harness-scaffold
-description: Creates a new project or module scaffold from the repo-harness plan catalog A-K, then attaches the repo-local workflow harness.
+description: Branch command that creates a new project or module scaffold from the repo-harness plan catalog A-K, then attaches the repo-local workflow harness.
 when_to_use: "repo-harness-scaffold, scaffold new project, create new app with agentic workflow, Plan A, Plan B, Plan C, Plan D, Plan E, Plan F, Plan G, Plan H, Plan I, Plan J, Plan K"
 ---
 
 # repo-harness-scaffold
 
-Use this command when the user asks to create a new project, app, or module skeleton.
+Use this branch command when the user asks to create a new project, app, or module skeleton.
 
 ## Protocol
 

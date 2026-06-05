@@ -191,18 +191,11 @@ npx -y repo-harness init
 ```
 
 La release line du package npm est désormais `0.2.x` ; la generated workflow
-compatibility model line est suivie séparément en `5.x`. `repo-harness@0.2.1`
-sépare le bootstrap global initial (`repo-harness init`) du rafraîchissement
-repo-local (`repo-harness update`), conserve l'installateur global de plugin/hook
-(`scripts/setup-plugins.sh`), la sentinelle de sécurité en lecture seule
-(`repo-harness security scan`), le cycle de vie draft-plan explicite de
-Claude/Codex, et ajoute l'initialisation non bloquante de l'index CodeGraph pour
-le routing structurel des prompts. Ces capacités reposent sur le CLI renommé, le
-bootstrap de l'adapter de hook de niveau utilisateur, les AI-native scaffold
-overlays, le typed prompt-guard decision engine, le nommage des task artifacts par
-plan-stem, les runtime aliases
-`REPO_HARNESS_*`, la Waza runtime skill sync, et le release gate que le maintainer
-utilise avant de publier sur npm.
+compatibility model line est suivie séparément en `5.x`. `repo-harness init`
+sert au bootstrap global et `repo-harness update` sert au rafraîchissement
+repo-local. `repo-harness init` configure le CLI, les hook adapters de niveau
+utilisateur, Waza, Mermaid, le brain root et CodeGraph MCP ; l'ancien chemin
+Claude plugin `scripts/setup-plugins.sh` est retiré.
 
 Si vous travaillez depuis un checkout source :
 
@@ -246,9 +239,9 @@ Appliquez seulement une fois que le rapport du dry-run est correct :
 npx -y repo-harness update
 ```
 
-Pour un nouveau projet ou un nouveau module, utilisez la command skill
-`repo-harness-scaffold`. Pour un dépôt existant, utilisez `repo-harness-init` ; il
-installe ou rafraîchit le harness sans créer de stack applicatif.
+Pour un nouveau projet ou un nouveau module, utilisez la branch command
+`repo-harness-scaffold`. Pour un dépôt existant, utilisez `repo-harness update` ;
+il installe ou rafraîchit le harness sans créer de stack applicatif.
 
 ### À quoi ressemble le succès
 
@@ -355,22 +348,24 @@ Guards courants :
 - `repo-harness update` rafraîchit les runtime pieces :
   - les `repo-harness` skill aliases
   - les global Codex/Claude hook adapters
-  - les Waza skills : `check`, `design`, `health`, `hunt`, `learn`, `read`, `think`, `write`
-  - synchronise `diagram-design` si la source copy existe
+  - les Waza skills : `think`, `hunt`, `check`, `health`
+  - Mermaid
 - Les autres outils externes restent advisory-only :
   - `bash scripts/check-agent-tooling.sh --host both --check-updates`
   - pas de configuration automatique de gstack, gbrain, CodeGraph MCP, daemon ou provider
 
 ## Action Command Skills
 
-Les command skill facades publics se trouvent dans `assets/skill-commands/` :
+Les command facades publics se trouvent dans `assets/skill-commands/` ; ils
+préservent la découverte par skills, tandis que l'exécution appartient au CLI et
+aux hooks :
 
 - Planning / review : `repo-harness-plan`, `repo-harness-review`, `repo-harness-autoplan`
 - Repo workflow actions : `repo-harness-ship`, `repo-harness-init`, `repo-harness-migrate`, `repo-harness-upgrade`, `repo-harness-capability`, `repo-harness-architecture`, `repo-harness-handoff`, `repo-harness-deploy`, `repo-harness-repair`, `repo-harness-check`
-- Project creation : `repo-harness-scaffold`
+- Branch project creation : `repo-harness-scaffold`
 
-`repo-harness-init` sert aux dépôts existants ; `repo-harness-scaffold` sert à
-créer un nouveau projet ou module. `hooks-init`, `docs-init` et
+`repo-harness update` sert aux dépôts existants ; `repo-harness-scaffold` sert de
+branch command pour créer un nouveau projet ou module. `hooks-init`, `docs-init` et
 `create-project-dirs` sont des étapes internes, pas des commands publiques.
 
 ## Maintainer Reference

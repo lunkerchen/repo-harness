@@ -187,13 +187,11 @@ npx -y repo-harness init
 ```
 
 La npm package release line es ahora `0.2.x`; el workflow compatibility model line
-generado se rastrea por separado como `5.x`. `repo-harness@0.2.1` separa el
-bootstrap global inicial (`repo-harness init`) del refresco repo-local
-(`repo-harness update`), conserva el instalador global de plugin/hook
-(`scripts/setup-plugins.sh`), el centinela de seguridad de configuración de solo
-lectura (`repo-harness security scan`), el ciclo de vida draft-plan explícito de
-Claude/Codex y añade inicialización no bloqueante del índice CodeGraph para el
-routing estructural de prompts.
+generado se rastrea por separado como `5.x`. `repo-harness init` es el bootstrap
+global y `repo-harness update` es el refresco repo-local. `repo-harness init`
+configura el CLI, los hook adapters de nivel usuario, Waza, Mermaid, el brain
+root y CodeGraph MCP; el viejo camino Claude plugin `scripts/setup-plugins.sh`
+queda retirado.
 
 Si trabajas desde un checkout del código fuente:
 
@@ -237,9 +235,9 @@ Aplica solo después de que el reporte del dry-run sea correcto:
 npx -y repo-harness update
 ```
 
-Para un proyecto o módulo nuevo, usa el command skill `repo-harness-scaffold`. Para
-un repositorio existente, usa `repo-harness-init`; este instala o refresca el
-harness y no crea el stack tecnológico de la aplicación.
+Para un proyecto o módulo nuevo, usa la branch command `repo-harness-scaffold`.
+Para un repositorio existente, usa `repo-harness update`; este instala o refresca
+el harness y no crea el stack tecnológico de la aplicación.
 
 ### Cómo se ve el éxito
 
@@ -346,22 +344,23 @@ Guards habituales:
 - `repo-harness update` refresca las runtime pieces:
   - los `repo-harness` skill aliases
   - los global Codex/Claude hook adapters
-  - las Waza skills: `check`, `design`, `health`, `hunt`, `learn`, `read`, `think`, `write`
-  - sincroniza `diagram-design` si existe la source copy
+  - las Waza skills: `think`, `hunt`, `check`, `health`
+  - Mermaid
 - El resto del external tooling se mantiene advisory-only:
   - `bash scripts/check-agent-tooling.sh --host both --check-updates`
   - no configura automáticamente gstack, gbrain, CodeGraph MCP, daemon ni provider
 
 ## Action Command Skills
 
-Los command skill facades públicos están en `assets/skill-commands/`:
+Los command facades públicos están en `assets/skill-commands/`; preservan la
+compatibilidad de discovery por skills, mientras el CLI y los hooks ejecutan:
 
 - Planning / review: `repo-harness-plan`, `repo-harness-review`, `repo-harness-autoplan`
 - Repo workflow actions: `repo-harness-ship`, `repo-harness-init`, `repo-harness-migrate`, `repo-harness-upgrade`, `repo-harness-capability`, `repo-harness-architecture`, `repo-harness-handoff`, `repo-harness-deploy`, `repo-harness-repair`, `repo-harness-check`
-- Project creation: `repo-harness-scaffold`
+- Branch project creation: `repo-harness-scaffold`
 
-`repo-harness-init` se usa para repositorios existentes; `repo-harness-scaffold` se
-usa para crear proyectos o módulos nuevos. `hooks-init`, `docs-init` y
+`repo-harness update` se usa para repositorios existentes; `repo-harness-scaffold`
+queda como branch command para crear proyectos o módulos nuevos. `hooks-init`, `docs-init` y
 `create-project-dirs` son pasos internos, no commands públicos.
 
 ## Maintainer Reference

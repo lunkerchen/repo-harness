@@ -57,7 +57,7 @@ describe("Bootstrap Script Contracts", () => {
   test("repo package should expose workflow verification scripts", () => {
     const pkg = JSON.parse(read("package.json"));
     expect(pkg.name).toBe("repo-harness");
-    expect(pkg.version).toBe("0.2.1");
+    expect(pkg.version).toBe("0.2.3");
     expect(pkg.private).toBeUndefined();
     expect(pkg.bin["repo-harness"]).toBe("src/cli/index.ts");
     expect(pkg.bin["repo-harness-hook"]).toBe("src/cli/hook-entry.ts");
@@ -348,13 +348,12 @@ describe("Bootstrap Script Contracts", () => {
     expect(settings).not.toContain("\"$PROMPT\"");
   });
 
-  test("setup script should install global policy hooks", () => {
+  test("setup script should delegate to the typed global init path", () => {
     const setup = read("scripts/setup-plugins.sh");
-    expect(setup).toContain("install_runtime_policy_hooks");
-    expect(setup).toContain("worktree-guard.sh");
-    expect(setup).toContain("atomic-pending.sh");
-    expect(setup).toContain("hook-input.sh");
-    expect(setup).toContain("atomic-commit.sh");
+    expect(setup).toContain("repo-harness init");
+    expect(setup).toContain('bun "$ROOT_DIR/src/cli/index.ts" init');
+    expect(setup).not.toContain("ESSENTIAL_PLUGINS");
+    expect(setup).not.toContain("feature-dev");
   });
 
   test("hook docs and scripts should use ToolUse event names", () => {

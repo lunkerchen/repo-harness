@@ -4,6 +4,32 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-06-05
+
+### Changed
+
+- Replaced the public `repo-harness init` path with a typed global bootstrap
+  that installs the current package as the global CLI, refreshes repo-harness
+  skill aliases, installs user-level hook adapters, configures Waza
+  `think`/`hunt`/`check`/`health`, persists the brain root, and configures
+  CodeGraph MCP without applying repo-local workflow files to the current
+  directory.
+
+### Removed
+
+- Removed the Superpowers Claude marketplace installer path entirely from the
+  active `repo-harness init` flow and from `scripts/setup-plugins.sh`.
+
+## [0.2.2] - 2026-06-04
+
+### Fixed
+
+- Streamed `repo-harness init` setup output directly to the terminal so the
+  first-run `npx -y repo-harness init` path no longer looks hung while
+  `setup-plugins.sh` clones skills or runs Claude plugin setup.
+- Made the Superpowers Claude marketplace plugin opt-in via
+  `repo-harness init --with-superpowers` instead of installing it by default.
+
 ## [0.2.1] - 2026-06-02
 
 ### Added

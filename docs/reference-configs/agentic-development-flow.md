@@ -17,7 +17,7 @@ root prompt concise; this file owns the detailed routing.
 
 ## repo-harness Command Surface
 
-Use these action-style command skills when the work is about installing,
+Use these CLI-backed command facades when the work is about installing,
 migrating, repairing, or verifying this repo-local harness:
 
 | Work type | Command | Boundary |

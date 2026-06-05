@@ -17,6 +17,10 @@ export interface ResolveBrainRootOptions {
   customPath?: string;
 }
 
+export interface RepoHarnessUserConfig {
+  brainRoot?: string;
+}
+
 function homeDir(env?: NodeJS.ProcessEnv): string {
   return env?.HOME ?? process.env.HOME ?? os.homedir();
 }
@@ -25,6 +29,30 @@ export function expandHomePath(value: string, env?: NodeJS.ProcessEnv): string {
   if (value === "~") return homeDir(env);
   if (value.startsWith("~/")) return path.join(homeDir(env), value.slice(2));
   return value;
+}
+
+export function repoHarnessConfigPath(env?: NodeJS.ProcessEnv): string {
+  return path.join(homeDir(env), ".repo-harness", "config.json");
+}
+
+function readUserConfig(env?: NodeJS.ProcessEnv): RepoHarnessUserConfig {
+  try {
+    const raw = fs.readFileSync(repoHarnessConfigPath(env), "utf-8");
+    const parsed = JSON.parse(raw) as RepoHarnessUserConfig;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+export function configureBrainRoot(root: string, env?: NodeJS.ProcessEnv): { path: string; root: string } {
+  const configPath = repoHarnessConfigPath(env);
+  const resolved = path.resolve(expandHomePath(root, env));
+  const current = readUserConfig(env);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.mkdirSync(resolved, { recursive: true });
+  fs.writeFileSync(configPath, `${JSON.stringify({ ...current, brainRoot: resolved }, null, 2)}\n`);
+  return { path: configPath, root: resolved };
 }
 
 function googleDriveRoot(home: string): string | null {
@@ -98,5 +126,7 @@ export function defaultBrainRootChoice(opts: ResolveBrainRootOptions = {}): Brai
 
 export function configuredBrainRoot(env: NodeJS.ProcessEnv = process.env): string {
   if (env.REPO_HARNESS_BRAIN_ROOT) return path.resolve(expandHomePath(env.REPO_HARNESS_BRAIN_ROOT, env));
+  const configured = readUserConfig(env).brainRoot;
+  if (configured) return path.resolve(expandHomePath(configured, env));
   return defaultBrainRootChoice({ env }).root;
 }

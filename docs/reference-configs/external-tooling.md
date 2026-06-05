@@ -14,16 +14,17 @@ source, while `~/.agents/skills` is only the skills CLI staging/cache path used
 to receive upstream `tw93/Waza` updates before syncing verified copies into
 Codex.
 
-`repo-harness init` is allowed to bootstrap the workflow-owned runtime skills in
-one pass: Waza (`think`, `hunt`, `check`, `health`) plus `mermaid` for Codex and/or Claude, plus the bundled
-cross-review skills `codex-review` (Claude host) and `claude-review` (Codex host).
-It must not silently install unrelated toolchains.
+`repo-harness init` is allowed to bootstrap the workflow-owned global runtime in
+one pass: the `repo-harness` CLI, repo-harness runtime aliases, user-level
+Codex/Claude hook adapters, Waza (`think`, `hunt`, `check`, `health`), brain
+root persistence, Mermaid, and CodeGraph CLI/MCP configuration. It must not
+silently install unrelated toolchains or Claude marketplace plugins.
 
 The cross-review skills are **harness-owned and self-contained** — their source
 lives in `assets/skills/<skill>/` and they wrap the peer CLI (`codex exec` /
 `claude -p`) in a read-only sandbox with no gstack dependency, so installing them
-is a workflow-owned runtime concern, not an unrelated toolchain. They install
-host-aware: `codex-review` only into `~/.claude/skills` (a Claude session asking
+is a workflow-owned repo-local update concern, not an unrelated toolchain. They
+install host-aware during `repo-harness update`: `codex-review` only into `~/.claude/skills` (a Claude session asking
 Codex for an independent review) and `claude-review` only into `~/.codex/skills`
 (a Codex session asking Claude). When gstack is present, its `/codex` and
 `gstack-claude` skills are a more featureful superset; the harness skills are the
@@ -36,8 +37,8 @@ changes, and untracked files are all in scope. A timeout or missing peer CLI is
 reported as unavailable review evidence, not as a pass.
 
 The Codex automation profile is a runtime reference, not a vendored copy. It
-requires Waza `health`, Waza `check`, and the standalone `mermaid` skill
-to exist under `~/.codex/skills`; the skill bodies stay owned by their original
+requires Waza `health`, Waza `check`, and the standalone `mermaid` skill to
+exist under `~/.codex/skills`; the skill bodies stay owned by their original
 installations.
 
 ## Detect Safely

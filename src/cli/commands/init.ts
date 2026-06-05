@@ -50,7 +50,7 @@ export interface GlobalContextOptions {
  * independent Codex review; `claude-review` (Codex host) lets a Codex session get
  * an independent Claude review. They are self-contained (no gstack runtime), so
  * init bootstraps them as workflow-owned runtime skills alongside Waza and
- * Mermaid — not an "unrelated toolchain".
+ * Mermaid, not as an unrelated plugin marketplace stack.
  */
 const CROSS_REVIEW_SKILLS: ReadonlyArray<{ skill: string; host: "claude" | "codex" }> = [
   { skill: "codex-review", host: "claude" },

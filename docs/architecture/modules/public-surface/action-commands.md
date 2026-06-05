@@ -1,4 +1,4 @@
-# Architecture Module: public-surface/action-commands
+# Architecture Module: public-surface/command-facades
 
 > **Capability ID**: `public-surface-action-commands`
 > **Matched Prefix**: `assets/skill-commands`
@@ -6,8 +6,10 @@
 
 ## P1 Map
 
-Action commands are thin skill facades stored under `assets/skill-commands/`.
-They expose user-facing verbs without duplicating the engine:
+Command facades are thin compatibility skill wrappers stored under
+`assets/skill-commands/`. They expose user-facing verbs for hosts that discover
+skills, while the implementation authority remains in the `repo-harness` CLI,
+scripts, hooks, and contract files:
 
 - `repo-harness-plan`
 - `repo-harness-review`
@@ -24,8 +26,8 @@ They expose user-facing verbs without duplicating the engine:
 - `repo-harness-repair`
 - `repo-harness-check`
 
-The manifest at `assets/skill-commands/manifest.json` is the public command
-catalog. The root `SKILL.md` remains the router over the same engine.
+The manifest at `assets/skill-commands/manifest.json` is the compatibility
+facade catalog. The root `SKILL.md` remains the router over the same engine.
 
 ## P2 Trace
 
@@ -53,14 +55,15 @@ Error paths:
 
 ## P3 Decision
 
-The action-command model exists to keep users choosing intent rather than
-implementation steps. It preserves the invariant that `hooks-init`, `docs-init`,
-and `create-project-dirs` are internal steps, not public commands.
+The facade model exists to keep users choosing intent rather than implementation
+steps while the CLI+hooks path owns execution. It preserves the invariant that
+`hooks-init`, `docs-init`, and `create-project-dirs` are internal steps, not
+public commands.
 
 At 10x commands, the first failure would be duplicate policy across command
 files. The smallest coherent guard is the manifest plus tests and architecture
 docs that assert command inventory, mutability defaults, and public boundaries
-from the same action-style surface.
+from the same CLI-backed facade surface.
 
 ## Optimization Backlog
 

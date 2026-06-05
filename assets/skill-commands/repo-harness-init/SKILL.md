@@ -11,11 +11,11 @@ Use this command for an existing repository that needs the repo-local agentic wo
 ## Protocol
 
 1. Confirm the target repo path.
-2. If running from the target repo root, use `repo-harness init`; do not require `--repo .`.
+2. If running from the target repo root, use `repo-harness update`; do not require `--repo .`.
 3. Run `bun scripts/inspect-project-state.ts --repo <repo> --format text`.
 4. If the repo is legacy, route to `repo-harness-migrate`.
-5. Otherwise run the safe path through `repo-harness init` or `bash scripts/migrate-project-template.sh --repo <repo> --apply`.
-6. Bootstrap the expected host runtime skills in the same pass: Waza (`think`, `hunt`, `check`, `health`) and `mermaid` for Codex/Claude when source copies are available.
+5. Otherwise run the safe path through `repo-harness update` or `bash scripts/migrate-project-template.sh --repo <repo> --apply`.
+6. Bootstrap the expected host runtime dependencies in the same pass: Waza (`think`, `hunt`, `check`, `health`) and the bundled cross-review skills when source copies are available.
 7. Verify with `bash scripts/check-task-workflow.sh --strict` inside the target repo when the helper exists.
 
 ## Boundaries

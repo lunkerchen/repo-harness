@@ -1,22 +1,23 @@
 ---
 name: repo-harness
-description: routes repo-harness requests to action-style init, scaffold, migrate, audit, repair, and ship workflows
+description: routes repo-harness requests through the CLI and hook automation plugin for init, update, scaffold, migrate, audit, repair, and ship workflows
 when_to_use: "repo-harness, repo-harness-skill compatibility, initialize repo-local agentic development harness, scaffold new project with repo-harness, migrate repo-local agentic development harness, audit repo-local agentic development harness, repair repo-local agentic development harness"
 ---
 
 # repo-harness
 
-`repo-harness` is the repo-local agentic development harness skill. It is a thin
-router over a versioned workflow engine and action-style command facades.
+`repo-harness` is the CLI and hook automation plugin for repo-local agentic
+development. The skill entrypoint is a compatibility router over the versioned
+workflow engine and CLI command facades.
 
 Compatibility boundary:
 
-- internal engine: tasks-first harness
+- internal engine: CLI plus hook-backed tasks-first harness
 - contract ID: tasks-first-harness-v1
 - canonical skill, CLI, and package name: `repo-harness`
 - compatibility trigger/runtime fallback: `repo-harness-skill`
 - retired legacy alias: `project-initializer`
-- new-project creation surface: `repo-harness-scaffold`
+- new-project creation surface: `repo-harness-scaffold` (secondary generator)
 
 `repo-harness-skill` may still route old prompts and runtime fallback lookups.
 It must not expose duplicate Codex command facades. `project-initializer` is a
@@ -34,8 +35,8 @@ The skill should not carry the whole workflow contract in prose. It should:
 
 ## When to use
 
-- initialize a new repo with Codex/Codex-compatible workflow scaffolding
-- create a new project or module scaffold, then attach the harness
+- install or refresh the CLI+hooks workflow in an existing repo
+- create a new project or module scaffold only when the user asks for a new product/module skeleton, then attach the harness
 - migrate an older repo to the current tasks-first harness
 - audit drift between prompts, hooks, scripts, and repo-local contract files
 - repair broken task-sync, workflow-contract, or handoff surfaces
@@ -115,10 +116,12 @@ The main engine entrypoints are:
 - `scripts/check-task-workflow.sh`
 - `scripts/create-project-dirs.sh`
 
-## Action Command Surface
+## CLI Command Facade Surface
 
-The public command skills live in `assets/skill-commands/` as thin facades over
-the same engine. Use action-style names for discoverability:
+The command facades live in `assets/skill-commands/` as compatibility wrappers
+over the same CLI and hook engine. Use them for routing when the host discovers
+skills; the implementation authority stays in the CLI, scripts, hooks, and
+contract files:
 
 - `repo-harness-plan`: interactive planning; no repo mutation by default
 - `repo-harness-review`: plan review across product, engineering, design, and DevEx
@@ -275,7 +278,10 @@ Migration defaults:
 - distill repeated corrections into `tasks/lessons.md`
 - merge missing `external_tooling` defaults into `.ai/harness/policy.json` without overwriting explicit user values
 - keep gstack/gbrain/CodeGraph detection advisory-only; do not auto-install, auto-upgrade, auto-sync, or auto-enable MCP
-- let `repo-harness init` bootstrap required Codex/Claude runtime skills in one pass: Waza (`think`, `hunt`, `check`, `health`) plus `mermaid` through the skills CLI
+- let `repo-harness init` bootstrap the required global runtime in one pass:
+  CLI install, repo-harness runtime alias sync, user-level hook adapters, Waza
+  (`think`, `hunt`, `check`, `health`), Mermaid, brain root persistence, and
+  CodeGraph CLI/MCP configuration
 - treat Waza as Codex-first: `~/.codex/skills` is the Codex runtime source, `~/.agents/skills` is only skills CLI staging/cache, and updates require stage -> copy to Codex -> `cmp` verification
 
 ## Repo-Local Contract

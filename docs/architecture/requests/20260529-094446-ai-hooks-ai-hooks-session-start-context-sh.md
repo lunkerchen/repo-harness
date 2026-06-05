@@ -23,8 +23,8 @@
 - Decide whether this change affects module boundaries, entrypoints, dependency rules, runtime paths, or verification commands.
 - For substantial changes, write a snapshot under `docs/architecture/snapshots/`.
 - When a visual explains the boundary better than prose, add or update a Mermaid fenced block in the relevant architecture module or snapshot Markdown first; that Markdown is the semantic source for LLM readers.
-- When a human-readable rendering is useful, generate a matching `$diagram-design` architecture HTML file under `docs/architecture/diagrams/` and link it back to the Markdown semantic source.
-- Treat `diagram-design` as an external installed skill dependency at `~/.codex/skills/diagram-design`; do not copy, vendor, or inline its templates into this repo.
+- When a human-readable rendering is useful, generate a matching `$mermaid` architecture HTML file under `docs/architecture/diagrams/` and link it back to the Markdown semantic source.
+- Treat `mermaid` as an external installed skill dependency at `~/.codex/skills/mermaid`; do not copy, vendor, or inline its templates into this repo.
 - If this starts or advances durable execution, run `scripts/workstream-sync.sh ensure --block ".ai/hooks" --request "docs/architecture/requests/20260529-094446-ai-hooks-ai-hooks-session-start-context-sh.md"`.
 - After the snapshot or diagram is produced, run `scripts/context-contract-sync.sh sync-latest` so the local architecture contract block links to the latest artifacts.
 
