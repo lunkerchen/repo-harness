@@ -480,6 +480,9 @@ bun scripts/assemble-template.ts --target agents --plan C --name "MyProject"
 bun run benchmark:skills --dry-run
 ```
 
+Dry-run benchmark output is a wiring smoke only. Release or readiness evidence
+needs a non-dry-run eval with grader output.
+
 ### Run one eval across both Claude and Codex
 
 ```bash
@@ -534,5 +537,5 @@ bash scripts/check-task-workflow.sh --strict
 bun scripts/inspect-project-state.ts --repo . --format text
 bash scripts/migrate-project-template.sh --repo . --dry-run
 bash scripts/check-agent-tooling.sh --host both --check-updates
-bun run benchmark:skills --dry-run
+bun run benchmark:skills --eval route-workflow-check
 ```
