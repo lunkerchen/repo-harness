@@ -1060,18 +1060,103 @@ workflow_handoff_file() {
   workflow_repo_relative_path "$(workflow_policy_get '.harness.handoff_file' '.ai/harness/handoff/current.md')" '.ai/harness/handoff/current.md' '.ai/harness/'
 }
 
+# mkdir-based mutual exclusion (macOS ships no flock). Spins ~2s, breaks locks
+# older than 60s (crashed holder), and as a last resort runs the command
+# unlocked rather than wedging an advisory hook.
+workflow_with_lock() {
+  local name="$1"
+  shift
+  local lock_root lock_dir waited=0 now mtime status=0
+  lock_root="$(dirname "$(workflow_events_file)")/.locks"
+  lock_dir="$lock_root/${name}.lock"
+  if ! mkdir -p "$lock_root" 2>/dev/null; then
+    "$@" || status=$?
+    return "$status"
+  fi
+
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    if [[ "$waited" -ge 40 ]]; then
+      now="$(date +%s)"
+      mtime="$(stat -f '%m' "$lock_dir" 2>/dev/null || stat -c '%Y' "$lock_dir" 2>/dev/null || echo 0)"
+      if [[ "${mtime:-0}" -gt 0 && $((now - mtime)) -ge 60 ]]; then
+        rmdir "$lock_dir" 2>/dev/null || true
+        waited=0
+        continue
+      fi
+      "$@" || status=$?
+      return "$status"
+    fi
+    sleep 0.05
+    waited=$((waited + 1))
+  done
+
+  "$@" || status=$?
+  rmdir "$lock_dir" 2>/dev/null || true
+  return "$status"
+}
+
+workflow_locked_append_line() {
+  printf '%s\n' "$2" >> "$1"
+}
+
+workflow_locked_increment_file() {
+  local file="$1" value
+  value="$(cat "$file" 2>/dev/null | tr -cd '0-9')"
+  value=$(( ${value:-0} + 1 ))
+  printf '%s\n' "$value" > "$file"
+  printf '%s' "$value"
+}
+
+# Atomic read-increment-write for small counter files (concurrent PostToolUse
+# hooks used to lose increments via unlocked read-modify-write).
+workflow_increment_counter() {
+  local file="$1"
+  workflow_with_lock "counter-$(basename "$file")" workflow_locked_increment_file "$file"
+}
+
+# Rotate an events JSONL file once it exceeds limits. Cold-path only (session
+# start); holds the same lock as appends so no event line is lost mid-rotate.
+workflow_rotate_events_file() {
+  local file="$1" max_lines="${2:-2000}" max_bytes="${3:-524288}" keep="${4:-500}"
+  [[ -f "$file" ]] || return 0
+  local lines bytes
+  lines="$(wc -l < "$file" 2>/dev/null | tr -cd '0-9')"
+  bytes="$(wc -c < "$file" 2>/dev/null | tr -cd '0-9')"
+  if [[ "${lines:-0}" -le "$max_lines" && "${bytes:-0}" -le "$max_bytes" ]]; then
+    return 0
+  fi
+  [[ "${lines:-0}" -gt "$keep" ]] || return 0
+  workflow_with_lock "evt-$(basename "$file")" workflow_rotate_events_file_locked "$file" "$lines" "$keep"
+}
+
+workflow_rotate_events_file_locked() {
+  local file="$1" lines="$2" keep="$3"
+  local archive_dir archive_file tmp cut
+  archive_dir="$(dirname "$file")/archive"
+  archive_file="$archive_dir/$(basename "$file" .jsonl)-$(date '+%Y%m').jsonl"
+  cut=$((lines - keep))
+  mkdir -p "$archive_dir" 2>/dev/null || return 0
+  tmp="$(mktemp 2>/dev/null)" || return 0
+  if head -n "$cut" "$file" >> "$archive_file" 2>/dev/null && tail -n "$keep" "$file" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$file"
+    echo "[WorkflowState] Rotated $(basename "$file"): archived $cut lines to $archive_file" >&2
+  else
+    rm -f "$tmp"
+  fi
+}
+
 workflow_append_event() {
   local event_type="$1"
   local reason="${2:-}"
   local extra_json="${3:-{}}"
-  local events_file run_id
+  local events_file run_id line=""
 
   workflow_ensure_harness_surface
   events_file="$(workflow_events_file)"
   run_id="${HOOK_RUN_ID:-${CLAUDE_RUN_ID:-${CODEX_RUN_ID:-run-$(date '+%Y%m%dT%H%M%S')-$$}}}"
 
   if command -v jq >/dev/null 2>&1; then
-    jq -nc \
+    line="$(jq -nc \
       --arg ts "$(date '+%Y-%m-%dT%H:%M:%S%z')" \
       --arg event_type "$event_type" \
       --arg reason "$reason" \
@@ -1083,16 +1168,17 @@ workflow_append_event() {
         reason: $reason,
         run_id: $run_id,
         extra: (try ($extra_json | fromjson) catch {})
-      }' >> "$events_file"
-    return 0
+      }')"
+  else
+    line="$(printf '{"ts":"%s","event_type":"%s","reason":"%s","run_id":"%s"}' \
+      "$(workflow_json_escape "$(date '+%Y-%m-%dT%H:%M:%S%z')")" \
+      "$(workflow_json_escape "$event_type")" \
+      "$(workflow_json_escape "$reason")" \
+      "$(workflow_json_escape "$run_id")")"
   fi
 
-  printf '{"ts":"%s","event_type":"%s","reason":"%s","run_id":"%s"}\n' \
-    "$(workflow_json_escape "$(date '+%Y-%m-%dT%H:%M:%S%z')")" \
-    "$(workflow_json_escape "$event_type")" \
-    "$(workflow_json_escape "$reason")" \
-    "$(workflow_json_escape "$run_id")" \
-    >> "$events_file"
+  [[ -n "$line" ]] || return 0
+  workflow_with_lock "evt-$(basename "$events_file")" workflow_locked_append_line "$events_file" "$line"
 }
 
 workflow_write_run_summary() {

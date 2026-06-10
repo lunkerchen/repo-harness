@@ -9,6 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/workflow-state.sh"
 
+# Cold-path housekeeping: both event logs grow unbounded otherwise.
+workflow_rotate_events_file "$(workflow_events_file)" 2>/dev/null || true
+workflow_rotate_events_file ".ai/harness/architecture/events.jsonl" 2>/dev/null || true
+
 resume_file="$(workflow_resume_packet_file)"
 
 resume_available() {

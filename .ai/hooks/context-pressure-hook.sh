@@ -21,10 +21,10 @@ SESSION_SAFE_KEY="$(session_state_safe_key "$SESSION_KEY")"
 COUNT_FILE="$COUNTER_DIR/${SESSION_SAFE_KEY}.count"
 WARN_FILE="$COUNTER_DIR/${SESSION_SAFE_KEY}.warned"
 RED_FILE="$COUNTER_DIR/${SESSION_SAFE_KEY}.red"
-COUNT="$(session_state_read_count "$COUNT_FILE")"
-COUNT=$((COUNT + 1))
+# Locked read-increment-write: concurrent PostToolUse hooks used to lose
+# increments and under-report context pressure.
+COUNT="$(workflow_increment_counter "$COUNT_FILE")"
 
-echo "$COUNT" > "$COUNT_FILE"
 echo "$COUNT" > ".claude/.tool-call-count"
 
 SESSION_ID="$(hook_get_session_id "${1:-}")"

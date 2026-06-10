@@ -24,8 +24,10 @@ export HOOK_REPO_ROOT="$REPO_ROOT"
 cd "$REPO_ROOT"
 
 if [[ "${HOOK_HOST:-}" == "codex" && "$HOOK_NAME" == "stop-orchestrator.sh" ]]; then
-  tmp_stdout="$(mktemp)"
-  tmp_stderr="$(mktemp)"
+  if ! tmp_stdout="$(mktemp)" || ! tmp_stderr="$(mktemp)"; then
+    # No temp space: run unfiltered rather than silently dropping the hook.
+    exec bash "$HOOK_PATH" "$@"
+  fi
   if bash "$HOOK_PATH" "$@" >"$tmp_stdout" 2>"$tmp_stderr"; then
     if grep -q '"decision"[[:space:]]*:' "$tmp_stdout"; then
       cat "$tmp_stdout"
@@ -46,8 +48,10 @@ if [[ "${HOOK_HOST:-}" == "codex" && "$HOOK_NAME" == "stop-orchestrator.sh" ]]; 
 fi
 
 if [[ "${HOOK_HOST:-}" == "codex" && "$HOOK_NAME" != "session-start-context.sh" ]]; then
-  tmp_stdout="$(mktemp)"
-  tmp_stderr="$(mktemp)"
+  if ! tmp_stdout="$(mktemp)" || ! tmp_stderr="$(mktemp)"; then
+    # No temp space: run unfiltered rather than silently dropping the hook.
+    exec bash "$HOOK_PATH" "$@"
+  fi
   if bash "$HOOK_PATH" "$@" >"$tmp_stdout" 2>"$tmp_stderr"; then
     rm -f "$tmp_stdout" "$tmp_stderr"
     exit 0

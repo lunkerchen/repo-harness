@@ -8,7 +8,10 @@ session_state_new_session_id() {
   fi
 
   local agent_name="${CLAUDE_AGENT_NAME:-${CODEX_AGENT_NAME:-unknown}}"
-  printf 'session-%s-%s-%s-%s' "$(date +%Y%m%d%H%M%S)" "$agent_name" "$$" "$RANDOM"
+  local entropy
+  entropy="$(head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n')"
+  [[ -n "$entropy" ]] || entropy="${RANDOM}${RANDOM}"
+  printf 'session-%s-%s-%s-%s' "$(date +%Y%m%d%H%M%S)" "$agent_name" "$$" "$entropy"
 }
 
 session_state_resolve_key() {

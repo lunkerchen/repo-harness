@@ -115,8 +115,20 @@ hook_json_get() {
     parsed="$(hook_json_extract_with_bun "$HOOK_STDIN_JSON" "$path" || true)"
   fi
 
-  if [[ -z "$parsed" && "${HOOK_STDIN_JSON_VALID:-}" == "" ]]; then
-    echo "[HookInput] WARN: stdin is not valid JSON while requesting path: $path (neither jq nor bun could parse it)" >&2
+  if [[ -z "$parsed" ]]; then
+    case "${HOOK_STDIN_JSON_VALID:-}" in
+      "")
+        echo "[HookInput] WARN: stdin is not valid JSON while requesting path: $path (jq/bun could not parse it)" >&2
+        ;;
+      unknown)
+        # No validator on this system: defaults are silently used. Warn once
+        # per process so jq-less hosts are discoverable without spamming.
+        if [[ -z "${HOOK_INPUT_WARNED_NO_VALIDATOR:-}" ]]; then
+          echo "[HookInput] WARN: neither jq nor bun is available; hook input falls back to defaults (first missed path: $path)" >&2
+          HOOK_INPUT_WARNED_NO_VALIDATOR=1
+        fi
+        ;;
+    esac
   fi
 
   if [[ -n "$parsed" ]]; then
