@@ -120,6 +120,23 @@ is_bug_or_hunt_intent() {
   echo "$PROMPT_INTENT_TEXT" | grep -qEi "(fix|patch|bug|error|crash|broken|regression|报错|崩溃|修复|不工作|跑不通|为什么.*错|排查|查查|定位问题|debug)"
 }
 
+# Precise bug-FIX classifier for the TDD advisory. is_bug_or_hunt_intent stays
+# deliberately broad because it is only used as an exclusion; this one is a
+# positive trigger, so a bare "bug" substring (找出Bug, review for bugs, prefix,
+# fixture) must NOT fire. Requires an explicit fix verb or a breakage report.
+is_bug_fix_intent() {
+  # English fix verbs with word-ish boundaries (no \b: BSD/GNU portability).
+  if printf '%s\n' "$PROMPT_INTENT_TEXT" | grep -qEi "(^|[^[:alpha:]])(fix(es|ed|ing)?|patch(es|ed|ing)?|hotfix)([^[:alpha:]]|$)|bug[[:space:]_-]?fix"; then
+    return 0
+  fi
+  # Chinese fix verbs.
+  if printf '%s\n' "$PROMPT_INTENT_TEXT" | grep -qEi "修复|修一下|修个|修掉|修好|修不好|反复修|修bug|修 bug|改bug|改 bug|解决.{0,24}(bug|缺陷|报错|崩溃)"; then
+    return 0
+  fi
+  # Breakage reports imply "make it work again" even without a fix verb.
+  printf '%s\n' "$PROMPT_INTENT_TEXT" | grep -qEi "(报错|崩溃|闪退|跑不通|不工作|坏了|挂了|crash(es|ed|ing)?|broken|stack[[:space:]]?trace|regression|used to work|no longer works|stopped working)"
+}
+
 is_plain_feature_plan_start_intent() {
   is_trigger_question_prompt && return 1
   is_plan_discussion_continuation_intent && return 1
@@ -739,7 +756,13 @@ emit_waza_route_hint() {
     return
   fi
 
-  if echo "$PROMPT_INTENT_TEXT" | grep -qEi "(agent|agents|codex|claude|hook|hooks|workflow|tooling|config|AGENTS\\.md|CLAUDE\\.md|健康度|健康检查|配置检查|配置|钩子|工作流|技能配置|AI coding|agent instructions)"; then
+  # /health needs a health/audit/diagnostic VERB and a tooling NOUN. A bare
+  # tooling noun ("review the hook framework") used to short-circuit here and
+  # misroute review intent to /health; the joint condition keeps /health for
+  # genuine environment/config health asks and behavior diagnostics about the
+  # tooling itself, and lets reviews fall through to /check.
+  if echo "$PROMPT_INTENT_TEXT" | grep -qEi "(健康度|健康检查|体检|诊断|环境检查|配置检查|检查.{0,24}(配置|环境|工具链|钩子|hook|健康)|审计.{0,24}(配置|环境|工具链|钩子|hook|agent)|health[[:space:]]?check|tooling[[:space:]]+check|audit.{0,40}(setup|tooling|config|environment)|为什么|为啥|怎么回事|不工作|没生效|没触发|被拦|拦截|not firing|why)" \
+    && echo "$PROMPT_INTENT_TEXT" | grep -qEi "(agent|agents|codex|claude|hook|hooks|workflow|tooling|config|AGENTS\\.md|CLAUDE\\.md|钩子|工作流|技能配置|配置|环境|工具链|AI coding|agent instructions)"; then
     echo "[WazaRoute] Agent workflow/tooling intent detected. Default route: Waza /health."
     return
   fi
@@ -1514,7 +1537,9 @@ if is_spa_day_intent; then
 fi
 
 # --- TDD/BDD Context Injection ---
-if echo "$PROMPT_TEXT" | grep -qEi "(fix|patch|bug|修复|修bug|修 bug|改bug)"; then
+# Gated like the BDD rule below: diagnostic/review/consultation prompts that
+# merely mention bugs (找出Bug, review for bugs) must not trigger fix advice.
+if ! is_diagnostic_question_intent && ! is_plan_consultation_intent && ! is_review_release_advisory_intent && ! is_passive_worktree_status_intent && ! is_next_slice_or_status_advisory_intent && ! is_retrospective_completion_report_intent && is_bug_fix_intent; then
   echo "[TDD] Bug-fix intent detected. Reproduce with a failing test first."
   echo "  检测到修复请求：先写失败测试复现问题，再重写实现。"
   emit_cross_review_hint debug

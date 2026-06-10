@@ -214,6 +214,60 @@ describe("Hook runtime behavior", () => {
     }
   }, 10000);
 
+  test("prompt-guard: review/audit prompts that mention bugs or hooks do not misfire TDD or /health (regression)", () => {
+    const cwd = tmpWorkspace("intent-precision");
+    try {
+      installHooks(cwd);
+
+      // The exact prompt that produced three false advisories in a live session:
+      // a framework review request must not trigger bug-fix TDD advice, the
+      // debug cross-review hint, or the /health route.
+      const auditRes = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({
+          prompt: "这是我的一个自动化hook vibe coding framework，请review整个flow，找出Bug并提出优化方案",
+        }),
+        env: { HOOK_HOST: "claude" },
+      });
+      expect(auditRes.status).toBe(0);
+      expect(auditRes.stdout).not.toContain("[TDD] Bug-fix intent detected");
+      expect(auditRes.stdout).not.toContain("Hard bug");
+      expect(auditRes.stdout).not.toContain("Waza /health");
+      expect(auditRes.stdout).toContain("Waza /check");
+
+      // Bare bug nouns in find/diagnose requests stay silent on TDD.
+      const findBugs = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "找出这个模块里的Bug" }),
+      });
+      expect(findBugs.status).toBe(0);
+      expect(findBugs.stdout).not.toContain("[TDD] Bug-fix intent detected");
+
+      // English substrings (prefix/fixture) must not count as fix verbs.
+      const substringRes = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "rename the route prefix and update the test fixture naming" }),
+      });
+      expect(substringRes.status).toBe(0);
+      expect(substringRes.stdout).not.toContain("[TDD] Bug-fix intent detected");
+
+      // Genuine fix requests still get the TDD advisory + debug cross-review.
+      const fixRes = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "fix the login crash on submit" }),
+        env: { HOOK_HOST: "claude" },
+      });
+      expect(fixRes.status).toBe(0);
+      expect(fixRes.stdout).toContain("[TDD] Bug-fix intent detected");
+      expect(fixRes.stdout).toContain("[CrossReview]");
+
+      // Genuine health asks still route to /health.
+      const healthRes = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "审计一下 agent hook 配置环境健康度" }),
+      });
+      expect(healthRes.status).toBe(0);
+      expect(healthRes.stdout).toContain("Waza /health");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 15000);
+
   test("prompt-guard: initializes missing CodeGraph index before first structural route hint", () => {
     const cwd = tmpWorkspace("codegraph-route-init");
     const logFile = join(cwd, "codegraph-init.log");
