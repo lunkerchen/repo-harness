@@ -4,13 +4,13 @@
 > **Plan**: plans/plan-20260610-1040-hook-framework-audit-fixes.md
 > **Owner**: chris
 > **Capability ID**: root
-> **Last Updated**: 2026-06-10 12:41 +0800
+> **Last Updated**: 2026-06-10 13:25 +0800
 > **Review File**: `tasks/reviews/20260610-1040-hook-framework-audit-fixes.review.md`
 > **Notes File**: `tasks/notes/20260610-1040-hook-framework-audit-fixes.notes.md`
 
 ## Goal
 
-Land the verified hook framework audit merge batch: trust-gate repo-local hook execution, harden architecture contract block rewrites, tighten prompt-guard review/bug-fix routing, add lock/rotation safeguards for hook state, triage dead hooks into deleted or rewired paths, and cover the changes with focused and full-suite verification.
+Land the verified hook framework audit merge batch: trust-gate repo-local hook execution, harden architecture contract block rewrites, tighten prompt-guard review/bug-fix routing, add lock/rotation safeguards for hook state, triage dead hooks into deleted or rewired paths, harden the downstream sync/performance chain, and cover the changes with focused and full-suite verification.
 
 ## Scope
 
@@ -20,8 +20,9 @@ Land the verified hook framework audit merge batch: trust-gate repo-local hook e
 - Prompt-guard bug-fix/review routing regressions and hook state lock/rotation hardening.
 - Dead-hook retirement/rewiring across `.ai/hooks`, `assets/hooks`, templates, docs, runtime tests, and route-script drift checks.
 - Workflow helper fixes needed by this closeout: preserve deferred ledger rows and avoid false no-active-plan matches.
-- Out of scope:
 - Slice 5 downstream-chain/performance work: `[SyncChain] WARN` observability, stale pending lifecycle, resolver stderr separation, generated hook timeouts, symlink-realpath containment in `sync-brain-docs.sh`, and measured prompt-guard/brain-sync optimization.
+- Out of scope:
+- None remaining for the captured hook-framework audit plan.
 
 ## Workflow Inventory
 
@@ -67,12 +68,18 @@ exit_criteria:
     - tests/hook-shim-trust.test.ts
     - tests/contract-block-rewrite.test.ts
     - tests/workflow-state-lock.test.ts
+    - tests/helper-scripts.test.ts
+    - tests/hook-runtime.test.ts
+    - tests/cli/install.test.ts
   artifacts_exist:
     - tasks/notes/20260610-1040-hook-framework-audit-fixes.notes.md
   tests_pass:
     - path: tests/hook-shim-trust.test.ts
     - path: tests/contract-block-rewrite.test.ts
     - path: tests/workflow-state-lock.test.ts
+    - path: tests/helper-scripts.test.ts
+    - path: tests/hook-runtime.test.ts
+    - path: tests/cli/install.test.ts
   commands_succeed:
     - bun test
     - bash scripts/check-deploy-sql-order.sh
@@ -90,9 +97,9 @@ exit_criteria:
 
 ## Acceptance Notes (Human Review)
 
-- Functional behavior: untrusted opt-in repos skip repo-local hooks until trusted; review/audit prompts mentioning bugs route to `/check` without TDD/CrossReview false positives; missing advisory SessionStart/Stop scripts warn and skip instead of blocking stale repos.
-- Edge cases: linked worktrees inherit primary-root trust; malformed contract markers abort instead of swallowing user content; concurrent event/counter writes are lock-protected; stale handoff resume packets were refreshed before strict workflow verification.
-- Regression risks: Slice 5 downstream-chain/performance items remain deferred and should not be treated as merged behavior.
+- Functional behavior: untrusted opt-in repos skip repo-local hooks until trusted; review/audit prompts mentioning bugs route to `/check` without TDD/CrossReview false positives; missing advisory SessionStart/Stop scripts warn and skip instead of blocking stale repos; downstream post-edit sync failures now warn without blocking.
+- Edge cases: linked worktrees inherit primary-root trust; malformed contract markers abort instead of swallowing user content; concurrent event/counter writes are lock-protected; stale handoff resume packets were refreshed before strict workflow verification; stale architecture pending rows are deduped and archived requests reset local contract pointers.
+- Regression risks: host-hook timeout metadata must be reinstalled into user-level settings to affect already-installed hosts; no remaining plan item is deferred in `tasks/todo.md`.
 
 ## Rollback Point
 

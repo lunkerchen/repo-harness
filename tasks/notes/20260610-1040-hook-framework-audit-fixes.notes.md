@@ -4,7 +4,7 @@
 > **Plan**: plans/plan-20260610-1040-hook-framework-audit-fixes.md
 > **Contract**: tasks/contracts/20260610-1040-hook-framework-audit-fixes.contract.md
 > **Review**: tasks/reviews/20260610-1040-hook-framework-audit-fixes.review.md
-> **Last Updated**: 2026-06-10 10:40
+> **Last Updated**: 2026-06-10 13:25
 > **Lifecycle**: notes
 
 ## Design Decisions
@@ -80,7 +80,40 @@ fallback property via hook-input.sh).
   `.ai/harness/handoff/resume.md` was older than `current.md`; refreshed with
   `bash scripts/codex-handoff-resume.sh --cwd . --reason check-refresh` and reran
   strict workflow successfully.
-- Slice 5 remains intentionally deferred and is tracked in `tasks/todo.md`;
-  this merge batch should not claim generated hook timeouts, `sync-brain-docs.sh`
-  realpath containment, resolver stderr separation, or measured performance
-  optimization as completed.
+- At the 12:41 merge-batch closeout, Slice 5 was intentionally deferred and
+  tracked in `tasks/todo.md`; that historical state is superseded by the Slice 5
+  closeout below.
+
+## Slice 5 closeout (2026-06-10)
+
+- Post-edit downstream chain stays advisory but no longer silent: architecture drift,
+  context contract sync, capability context request, and brain-doc sync failures now
+  emit `[SyncChain] WARN` with the failing stage and exit status.
+- `architecture-drift.sh` now separates resolver stderr from JSON, validates that
+  capability resolver output starts as an object before parsing, and prunes stale
+  pending rows for the same capability before writing a new pending request.
+- `archive-architecture-request.sh` clears matching pending request pointers in
+  root `AGENTS.md` and `CLAUDE.md` when a request is archived.
+- Generated host settings now include `timeout: 30` for managed Claude/Codex hook
+  entries in both installer code and legacy templates.
+- `sync-brain-docs.sh` validates source realpaths stay inside the repo and target
+  realpaths/parents stay inside the configured brain root, preventing repo or brain
+  symlink escapes.
+- Post-edit brain sync now does a manifest fast path before launching the Node helper:
+  if `.ai/harness/brain-manifest.json` is absent or the changed path is not present
+  in the manifest, the hook returns without starting `sync-brain-docs.sh`.
+
+## Slice 5 verification notes (2026-06-10)
+
+- Focused suite passed: `bun test tests/cli/install.test.ts tests/cli/status.test.ts tests/helper-scripts.test.ts tests/hook-runtime.test.ts tests/hook-contracts.test.ts`
+  -> 192 pass, 0 fail.
+- Full suite passed: `bun test` -> 607 pass, 6 skip, 0 fail.
+- Final required checks passed after compressing `docs/reference-configs/hook-operations.md`
+  and `assets/reference-configs/hook-operations.md` to 80 lines for the brain
+  stub budget and refreshing `.ai/harness/handoff/resume.md`.
+- Timing observations after Slice 5: `prompt-guard.sh` review prompt fixture was
+  `real 0.43` in three runs; `post-edit-guard.sh` docs/reference-configs
+  manifest-miss fixture was `real 0.18` in three runs and emitted only the
+  architecture no-drift line, confirming the brain-sync helper was skipped.
+- The earlier 12:41 deferred state is historical; Slice 5 is now complete and
+  removed from `tasks/todo.md`.

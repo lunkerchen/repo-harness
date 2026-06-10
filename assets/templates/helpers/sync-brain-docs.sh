@@ -97,7 +97,7 @@ const path = require("path");
 const os = require("os");
 
 const [, , manifestArg, allArg, checkArg, dryRunArg, requireVaultArg, changedJson] = process.argv;
-const repoRoot = process.cwd();
+const repoRoot = fs.realpathSync(process.cwd());
 const manifestPath = path.resolve(repoRoot, manifestArg || ".ai/harness/brain-manifest.json");
 const modeAll = allArg === "1";
 const modeCheck = checkArg === "1";
@@ -130,11 +130,37 @@ function normalizeSlashes(value) {
   return String(value || "").replaceAll(path.sep, "/");
 }
 
+function isInside(root, candidate) {
+  const rel = path.relative(root, candidate);
+  return rel === "" || (!!rel && !rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+function realpathOrNull(filePath) {
+  try {
+    return fs.realpathSync(filePath);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function firstExistingParent(filePath) {
+  let cursor = path.resolve(filePath);
+  const missingParts = [];
+  while (!fs.existsSync(cursor)) {
+    const parent = path.dirname(cursor);
+    if (parent === cursor) return null;
+    missingParts.unshift(path.basename(cursor));
+    cursor = parent;
+  }
+  return { parent: cursor, rest: missingParts.join(path.sep) };
+}
+
 function normalizeRepoPathInput(value) {
   if (!value) return "";
   const raw = String(value);
   const absolute = path.isAbsolute(raw) ? raw : path.resolve(repoRoot, raw);
-  const rel = path.relative(repoRoot, absolute);
+  const real = realpathOrNull(absolute);
+  const rel = path.relative(repoRoot, real || absolute);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
     return "";
   }
@@ -175,11 +201,49 @@ function logicalToLocal(logicalPath, id) {
   }
   const local = path.resolve(brainRoot, rel);
   const root = path.resolve(brainRoot);
-  if (local !== root && !local.startsWith(`${root}${path.sep}`)) {
+  if (!isInside(root, local)) {
     issue(`Entry ${id} brain_path escapes brain root: ${value}`);
     return null;
   }
   return local;
+}
+
+function validateSourceInsideRepo(sourceFile, sourcePath, id) {
+  if (!isInside(repoRoot, sourceFile)) {
+    issue(`Entry ${id} source file escapes repo: ${sourcePath}`);
+    return false;
+  }
+  const real = realpathOrNull(sourceFile);
+  if (real && !isInside(repoRoot, real)) {
+    issue(`Entry ${id} source file symlink escapes repo: ${sourcePath}`);
+    return false;
+  }
+  return true;
+}
+
+function validateTargetInsideBrainRoot(targetPath, brainPath, id) {
+  const brainRootReal = realpathOrNull(brainRoot);
+  if (!brainRootReal) return true;
+
+  const targetReal = realpathOrNull(targetPath);
+  if (targetReal && !isInside(brainRootReal, targetReal)) {
+    issue(`Entry ${id} brain file symlink escapes brain root: ${brainPath}`);
+    return false;
+  }
+
+  const parentInfo = firstExistingParent(targetPath);
+  if (parentInfo) {
+    const parentReal = realpathOrNull(parentInfo.parent);
+    const effectiveTarget = parentReal
+      ? path.resolve(parentReal, parentInfo.rest)
+      : path.resolve(targetPath);
+    if (!isInside(brainRootReal, effectiveTarget)) {
+      issue(`Entry ${id} brain path escapes brain root through symlink: ${brainPath}`);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function syncConfig(entry) {
@@ -217,7 +281,9 @@ for (const entry of entries) {
   }
   const targetPath = logicalToLocal(brainPath, config.id);
   if (!sourcePath || !targetPath) continue;
-  eligible.push({ id: config.id, sourcePath, sourceFile: path.resolve(repoRoot, sourcePath), brainPath, targetPath });
+  const sourceFile = path.resolve(repoRoot, sourcePath);
+  if (!validateSourceInsideRepo(sourceFile, sourcePath, config.id)) continue;
+  eligible.push({ id: config.id, sourcePath, sourceFile, brainPath, targetPath });
 }
 
 const selected = eligible.filter((entry) => {
@@ -243,6 +309,10 @@ for (const entry of selected) {
 
   if (!fs.existsSync(brainRoot)) {
     skipped += 1;
+    continue;
+  }
+
+  if (!validateTargetInsideBrainRoot(entry.targetPath, entry.brainPath, entry.id)) {
     continue;
   }
 

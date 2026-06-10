@@ -9,6 +9,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "fs";
 import { tmpdir } from "os";
@@ -193,6 +194,24 @@ describe("Workflow helper scripts", () => {
           "",
         ].join("\n")
       );
+      writeFileSync(
+        join(cwd, "AGENTS.md"),
+        [
+          "# Root",
+          "",
+          "- Pending architecture request: `docs/architecture/requests/20260522-apps-web-account.md`",
+          "",
+        ].join("\n")
+      );
+      writeFileSync(
+        join(cwd, "CLAUDE.md"),
+        [
+          "# Root",
+          "",
+          "- Pending architecture request: `docs/architecture/requests/20260522-apps-web-account.md`",
+          "",
+        ].join("\n")
+      );
 
       const res = run("bash", [
         "scripts/archive-architecture-request.sh",
@@ -223,6 +242,49 @@ describe("Workflow helper scripts", () => {
 
       const index = readFileSync(join(cwd, "docs/architecture/index.md"), "utf-8");
       expect(index).not.toContain("requests/20260522-apps-web-account.md");
+      expect(readFileSync(join(cwd, "AGENTS.md"), "utf-8")).toContain("- Pending architecture request: `(none)`");
+      expect(readFileSync(join(cwd, "CLAUDE.md"), "utf-8")).toContain("- Pending architecture request: `(none)`");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("architecture-drift should replace stale pending index lines for the same capability", () => {
+    const cwd = tmpWorkspace("helper-architecture-pending-dedupe");
+    try {
+      copyHelpers(cwd);
+      mkdirSync(join(cwd, ".ai/context"), { recursive: true });
+      mkdirSync(join(cwd, "apps/web/src/routes"), { recursive: true });
+      writeFileSync(join(cwd, ".ai/context/capabilities.json"), JSON.stringify({
+        version: 1,
+        capabilities: [
+          {
+            id: "apps-web",
+            domain: "apps-web",
+            name: "web",
+            prefixes: ["apps/web"],
+            contract_files: {
+              agents: "apps/web/AGENTS.md",
+              claude: "apps/web/CLAUDE.md",
+            },
+            architecture_module: "docs/architecture/modules/apps-web/web.md",
+            workstream_dir: "tasks/workstreams/apps-web/web",
+            lsp_profile: "typescript-lsp",
+            verification_hints: ["web checks"],
+          },
+        ],
+      }, null, 2) + "\n");
+
+      const first = run("bash", ["scripts/architecture-drift.sh", "record", "--file", "apps/web/src/routes/first.tsx"], cwd);
+      expect(first.status).toBe(0);
+      const second = run("bash", ["scripts/architecture-drift.sh", "record", "--file", "apps/web/src/routes/second.tsx"], cwd);
+      expect(second.status).toBe(0);
+
+      const index = readFileSync(join(cwd, "docs/architecture/index.md"), "utf-8");
+      const pendingLines = index.split("\n").filter((line) => line.includes("requests/") && line.includes("[medium]"));
+      expect(pendingLines).toHaveLength(1);
+      expect(pendingLines[0]).toContain("apps/web/src/routes/second.tsx");
+      expect(pendingLines[0]).not.toContain("first.tsx");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -571,6 +633,64 @@ describe("Workflow helper scripts", () => {
       expect(readFileSync(brainFile, "utf-8")).toContain("Updated knowledge.");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("sync-brain-docs should reject repo and brain symlink escapes", () => {
+    const cwd = tmpWorkspace("helper-sync-brain-docs-symlink");
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), "helper-sync-brain-docs-outside-")));
+    try {
+      copyHelpers(cwd);
+      const brainRoot = join(cwd, "brain");
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      mkdirSync(join(cwd, ".ai/harness"), { recursive: true });
+      mkdirSync(join(brainRoot, "demo/references"), { recursive: true });
+      mkdirSync(outside, { recursive: true });
+      writeFileSync(join(outside, "source.md"), "# Outside\n");
+      symlinkSync(join(outside, "source.md"), join(cwd, "docs/valuable.md"));
+      writeFileSync(
+        join(cwd, ".ai/harness/brain-manifest.json"),
+        JSON.stringify(
+          {
+            version: 1,
+            project: "demo",
+            mode: "repo-contract-external-knowledge",
+            default_brain_path: "brain/demo/*",
+            entries: [
+              {
+                id: "valuable",
+                role: "repo-authored",
+                repo_path: "docs/valuable.md",
+                brain_path: "brain/demo/references/valuable.md",
+                sync: { direction: "repo-to-brain" },
+              },
+            ],
+          },
+          null,
+          2
+        ) + "\n"
+      );
+
+      const sourceRes = run("bash", ["scripts/sync-brain-docs.sh", "--all"], cwd, {
+        REPO_HARNESS_BRAIN_ROOT: brainRoot,
+      });
+      expect(sourceRes.status).toBe(1);
+      expect(sourceRes.stdout).toContain("source file symlink escapes repo");
+
+      rmSync(join(cwd, "docs/valuable.md"));
+      writeFileSync(join(cwd, "docs/valuable.md"), "# Valuable\n");
+      writeFileSync(join(outside, "target.md"), "# Old outside target\n");
+      symlinkSync(join(outside, "target.md"), join(brainRoot, "demo/references/valuable.md"));
+
+      const targetRes = run("bash", ["scripts/sync-brain-docs.sh", "--all"], cwd, {
+        REPO_HARNESS_BRAIN_ROOT: brainRoot,
+      });
+      expect(targetRes.status).toBe(1);
+      expect(targetRes.stdout).toContain("brain file symlink escapes brain root");
+      expect(readFileSync(join(outside, "target.md"), "utf-8")).toContain("Old outside target");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 

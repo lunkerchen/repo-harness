@@ -61,14 +61,16 @@ describe('install command (Phase 1B)', () => {
       const data = JSON.parse(
         fs.readFileSync(path.join(home, '.codex/hooks.json'), 'utf-8'),
       );
-      for (const entries of Object.values(data.hooks) as { hooks: { command: string }[] }[][]) {
+      for (const entries of Object.values(data.hooks) as { hooks: { command: string; timeout?: number }[] }[][]) {
         for (const entry of entries) {
-          const cmd = entry.hooks[0].command;
+          const hook = entry.hooks[0];
+          const cmd = hook.command;
           expect(cmd).toContain('command -v repo-harness-hook');
           expect(cmd).toContain('exec repo-harness-hook ');
           expect(cmd).toContain('command -v repo-harness');
           expect(cmd).toContain('HOOK_HOST=codex');
           expect(cmd).toContain('exec repo-harness hook ');
+          expect(hook.timeout).toBe(30);
         }
       }
     });
@@ -119,9 +121,10 @@ describe('install command (Phase 1B)', () => {
       );
       const total = Object.values(data.hooks as Record<string, unknown[]>).flat().length;
       expect(total).toBe(7);
-      for (const entries of Object.values(data.hooks) as { hooks: { command: string }[] }[][]) {
+      for (const entries of Object.values(data.hooks) as { hooks: { command: string; timeout?: number }[] }[][]) {
         for (const entry of entries) {
           expect(entry.hooks[0].command).toContain('HOOK_HOST=claude');
+          expect(entry.hooks[0].timeout).toBe(30);
         }
       }
     });

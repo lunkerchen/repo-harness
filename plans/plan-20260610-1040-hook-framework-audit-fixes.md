@@ -195,13 +195,13 @@ legacy 适配器退役后无任何事件接线、无内部调用（已验证；c
 - [x] Slice 2: prompt-guard intent precision — TDD rule negative guards + PROMPT_INTENT_TEXT + word boundaries (line 1517), WazaRoute review-before-tooling precedence with health-verb requirement (lines 742-745), CrossReview follows TDD gate; tests/prompt-guard-intent.test.ts with this session's prompt as regression case; sync assets/hooks copies
 - [x] Slice 3: workflow_with_lock mkdir-lock helper wrapping events append / counter RMW / marker writes; session-start rotation for both events.jsonl files; fix hook-input.sh:118 dead WARN; run-hook.sh mktemp fallback; stronger session ID; tests/workflow-state-lock.test.ts
 - [x] Slice 4: audit verdict table for 8 dead hooks, delete absorbed ones (assets/ + .ai/ + contract migration lists + inspect-project-state.ts reference), rewire valuable ones (security-sentinel aggregation per hook-operations.md)
-- [ ] Slice 5: [SyncChain] WARN observability in post-edit-guard; stale pending pointer lifecycle (drift dedup + archive reset); resolver stderr separation; timeout in generated host settings; realpath containment in sync-brain-docs.sh; measured prompt-guard/brain-sync perf optimization. Deferred to `tasks/todo.md` after the verified merge batch.
+- [x] Slice 5: [SyncChain] WARN observability in post-edit-guard; stale pending pointer lifecycle (drift dedup + archive reset); resolver stderr separation; timeout in generated host settings; realpath containment in sync-brain-docs.sh; measured prompt-guard/brain-sync perf optimization.
 
 ## Annotations
 <!-- [NOTE]: prefixed inline. Claude processes all and revises. -->
 
 ## Closeout
 
-- Verified merge batch: Slice 1 through Slice 4 plus adjacent workflow hardening for archive preservation, handoff freshness parsing, installer trust smoke, doctor route-script drift checks, and advisory missing-script runtime behavior.
-- Deferred: Slice 5 downstream-chain/performance hardening remains intentionally out of this merge batch and is tracked in `tasks/todo.md`.
-- Verification: `bun test`; root required checks; `git diff --check`; temp-`HOME` `scripts/repo-harness.sh install --target both` smoke.
+- Verified merge batch: Slice 1 through Slice 5 plus adjacent workflow hardening for archive preservation, handoff freshness parsing, installer trust smoke, doctor route-script drift checks, and advisory missing-script runtime behavior.
+- Slice 5 closeout: post-edit downstream failures now emit `[SyncChain] WARN` without blocking; architecture pending pointers dedupe and reset on archive; resolver stderr is separated from JSON; generated host hook entries carry `timeout: 30`; `sync-brain-docs.sh` rejects repo/brain symlink escapes; manifest-miss brain sync is skipped from the hot post-edit path.
+- Verification: focused affected suite `bun test tests/cli/install.test.ts tests/cli/status.test.ts tests/helper-scripts.test.ts tests/hook-runtime.test.ts tests/hook-contracts.test.ts` -> 192 pass; full `bun test` -> 607 pass, 6 skip, 0 fail; root required checks; `git diff --check`; temp-`HOME` `scripts/repo-harness.sh install --target both` smoke.

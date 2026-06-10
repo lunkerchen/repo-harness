@@ -125,38 +125,38 @@ build_hooks_json() {
 {
   "SessionStart": [
     { "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} session-start-context.sh" },
-        { "type": "command", "command": "bash ${SHIM_PATH} security-sentinel.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} session-start-context.sh", "timeout": 30 },
+        { "type": "command", "command": "bash ${SHIM_PATH} security-sentinel.sh", "timeout": 30 }
     ]}
   ],
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} worktree-guard.sh" },
-        { "type": "command", "command": "bash ${SHIM_PATH} pre-edit-guard.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} worktree-guard.sh", "timeout": 30 },
+        { "type": "command", "command": "bash ${SHIM_PATH} pre-edit-guard.sh", "timeout": 30 }
     ]}
   ],
   "PostToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} post-edit-guard.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} post-edit-guard.sh", "timeout": 30 }
     ]},
     { "matcher": "Bash", "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} post-bash.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} post-bash.sh", "timeout": 30 }
     ]},
     { "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} trace-event.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} trace-event.sh", "timeout": 30 }
     ]},
     { "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} context-pressure-hook.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} context-pressure-hook.sh", "timeout": 30 }
     ]}
   ],
   "UserPromptSubmit": [
     { "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} prompt-guard.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} prompt-guard.sh", "timeout": 30 }
     ]}
   ],
   "Stop": [
     { "hooks": [
-        { "type": "command", "command": "bash ${SHIM_PATH} stop-orchestrator.sh" }
+        { "type": "command", "command": "bash ${SHIM_PATH} stop-orchestrator.sh", "timeout": 30 }
     ]}
   ]
 }

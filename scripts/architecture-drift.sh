@@ -110,6 +110,13 @@ try {
   printf '%s' "$parsed"
 }
 
+json_starts_with_object() {
+  local json_input="$1"
+  local first
+  first="$(printf '%s' "$json_input" | sed -n 's/^[[:space:]]*//; /^$/d; s/^\(.\).*$/\1/p; q')"
+  [[ "$first" == "{" ]]
+}
+
 repo_relative_path() {
   local value="$1"
 
@@ -181,6 +188,36 @@ match_functional_block() {
   printf '%s' "$best"
 }
 
+prune_superseded_pending_lines() {
+  local index_file="$1"
+  local target_capability="$2"
+  local target_path="$3"
+  local tmp line request_short request_path existing_capability existing_path keep
+
+  [[ -f "$index_file" ]] || return 0
+  tmp="$(mktemp)" || return 0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    keep=1
+    request_short="$(printf '%s\n' "$line" | sed -n 's/.*requests\/\([^)]*\.md\).*/\1/p')"
+    if [[ -n "$request_short" ]]; then
+      request_path="docs/architecture/requests/${request_short}"
+      if [[ -f "$request_path" ]]; then
+        existing_capability="$(awk -F'`' '/^\> \*\*Capability ID\*\*:/ { print $2; exit }' "$request_path" | xargs)"
+        existing_path="$(awk -F'`' '/^\> \*\*File\*\*:/ { print $2; exit }' "$request_path" | xargs)"
+        if [[ -n "$target_capability" && "$target_capability" != "root" && "$existing_capability" == "$target_capability" ]]; then
+          keep=0
+        elif [[ -n "$target_path" && "$existing_path" == "$target_path" ]]; then
+          keep=0
+        fi
+      fi
+    fi
+    [[ "$keep" -eq 1 ]] && printf '%s\n' "$line" >> "$tmp"
+  done < "$index_file"
+
+  mv "$tmp" "$index_file"
+}
+
 classify_change() {
   local rel_path="$1"
   local base
@@ -249,10 +286,19 @@ fi
 
 capability_match=""
 if [[ -f "scripts/capability-resolver.ts" ]] && command -v bun >/dev/null 2>&1; then
-  if ! capability_match="$(bun scripts/capability-resolver.ts match --path "$rel_path" --format json 2>&1)"; then
-    echo "$capability_match" >&2
+  resolver_stderr="$(mktemp)"
+  if ! capability_match="$(bun scripts/capability-resolver.ts match --path "$rel_path" --format json 2>"$resolver_stderr")"; then
+    [[ -n "$capability_match" ]] && echo "$capability_match" >&2
+    cat "$resolver_stderr" >&2
+    rm -f "$resolver_stderr"
     exit 1
   fi
+  if ! json_starts_with_object "$capability_match"; then
+    cat "$resolver_stderr" >&2
+    echo "[ArchitectureDrift] WARN: capability resolver returned non-JSON; using root fallback for $rel_path" >&2
+    capability_match=""
+  fi
+  rm -f "$resolver_stderr"
 fi
 
 functional_block="root"
@@ -405,6 +451,7 @@ ${request_event_json}
 EOF_REQUEST
 
 pending_line="- [ ] ${iso_timestamp} [${severity}] \`${rel_path}\` -> [${request_slug}](requests/${request_slug}.md)"
+prune_superseded_pending_lines "$index_file" "$capability_id" "$rel_path"
 if ! grep -Fq "$request_file" "$index_file" 2>/dev/null && ! grep -Fq "requests/${request_slug}.md" "$index_file" 2>/dev/null; then
   printf '%s\n' "$pending_line" >> "$index_file"
 fi

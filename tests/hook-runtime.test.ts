@@ -581,6 +581,29 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("post-edit-guard: reports sync-chain warnings without blocking when drift helpers fail", () => {
+    const cwd = tmpWorkspace("post-edit-sync-chain-warning");
+    try {
+      installHooks(cwd);
+      mkdirSync(join(cwd, "scripts"), { recursive: true });
+      writeFileSync(
+        join(cwd, "scripts/architecture-drift.sh"),
+        "#!/bin/bash\necho drift blew up >&2\nexit 7\n"
+      );
+      expect(run("chmod", ["+x", "scripts/architecture-drift.sh"], cwd).status).toBe(0);
+
+      const res = runHook("post-edit-guard.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "apps/web/src/main.tsx" } }),
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("drift blew up");
+      expect(res.stdout).toContain("[SyncChain] WARN: architecture-drift failed for apps/web/src/main.tsx (exit 7)");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("post-edit-guard: records architecture drift and syncs local context contract blocks", () => {
     const cwd = tmpWorkspace("architecture-drift-hook");
     try {

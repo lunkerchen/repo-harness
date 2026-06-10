@@ -70,6 +70,33 @@ canonical_status() {
   esac
 }
 
+clear_contract_pending_request() {
+  local rel_request="$1"
+  local short_request="${rel_request#docs/architecture/}"
+  local file tmp
+
+  find . \
+    \( -path './.git' -o -path './node_modules' -o -path './_ref' -o -path './_ops' \) -prune -o \
+    \( -name 'AGENTS.md' -o -name 'CLAUDE.md' \) -type f -print 2>/dev/null |
+    while IFS= read -r file; do
+      if ! grep -Fq "Pending architecture request: \`${rel_request}\`" "$file" &&
+         ! grep -Fq "Pending architecture request: \`${short_request}\`" "$file"; then
+        continue
+      fi
+      tmp="$(mktemp)" || continue
+      awk -v rel="$rel_request" -v short="$short_request" '
+        index($0, "Pending architecture request: `" rel "`") > 0 ||
+        index($0, "Pending architecture request: `" short "`") > 0 {
+          print "- Pending architecture request: `(none)`"
+          next
+        }
+        { print }
+      ' "$file" > "$tmp"
+      mv "$tmp" "$file"
+      echo "[ArchitectureArchive] Cleared pending architecture request in ${file#./}"
+    done
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --request)
@@ -207,6 +234,8 @@ if [[ -f "$index_file" ]]; then
   ' "$index_file" > "$index_tmp"
   mv "$index_tmp" "$index_file"
 fi
+
+clear_contract_pending_request "$rel_request"
 
 echo "[ArchitectureArchive] Archived ${rel_request} -> ${archive_file}"
 echo "[ArchitectureArchive] status=${resolved_status}"

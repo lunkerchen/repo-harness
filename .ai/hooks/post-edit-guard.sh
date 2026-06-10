@@ -30,31 +30,70 @@ run_continuous_contract_verification() {
 }
 
 run_architecture_drift_sync() {
-  local drift_output
+  local drift_output status
 
   [[ -x "scripts/architecture-drift.sh" ]] || return 0
 
-  drift_output="$(bash "scripts/architecture-drift.sh" record --file "$FILE_PATH" 2>&1 || true)"
+  if drift_output="$(bash "scripts/architecture-drift.sh" record --file "$FILE_PATH" 2>&1)"; then
+    :
+  else
+    status=$?
+    [[ -n "$drift_output" ]] && printf '%s\n' "$drift_output"
+    echo "[SyncChain] WARN: architecture-drift failed for $FILE_PATH (exit $status)"
+    return 0
+  fi
   [[ -n "$drift_output" ]] && printf '%s\n' "$drift_output"
 
   if printf '%s\n' "$drift_output" | grep -q '^\[ArchitectureDrift\] Request:'; then
     if [[ -x "scripts/context-contract-sync.sh" ]]; then
-      bash "scripts/context-contract-sync.sh" sync-latest || true
+      if bash "scripts/context-contract-sync.sh" sync-latest; then
+        :
+      else
+        status=$?
+        echo "[SyncChain] WARN: context-contract-sync failed after $FILE_PATH (exit $status)"
+      fi
     fi
     if [[ -n "${REPO_HARNESS_CLI:-}" && -f "$REPO_HARNESS_CLI" ]] && command -v bun >/dev/null 2>&1; then
-      bun "$REPO_HARNESS_CLI" capability-context request --from-latest-architecture-event || true
+      if bun "$REPO_HARNESS_CLI" capability-context request --from-latest-architecture-event; then
+        :
+      else
+        status=$?
+        echo "[SyncChain] WARN: capability-context request failed after $FILE_PATH (exit $status)"
+      fi
     elif command -v repo-harness >/dev/null 2>&1; then
-      repo-harness capability-context request --from-latest-architecture-event || true
+      if repo-harness capability-context request --from-latest-architecture-event; then
+        :
+      else
+        status=$?
+        echo "[SyncChain] WARN: capability-context request failed after $FILE_PATH (exit $status)"
+      fi
     elif command -v bun >/dev/null 2>&1 && [[ -f "src/cli/index.ts" ]]; then
-      bun src/cli/index.ts capability-context request --from-latest-architecture-event || true
+      if bun src/cli/index.ts capability-context request --from-latest-architecture-event; then
+        :
+      else
+        status=$?
+        echo "[SyncChain] WARN: capability-context request failed after $FILE_PATH (exit $status)"
+      fi
     fi
   fi
 }
 
 run_brain_doc_sync() {
   [[ -x "scripts/sync-brain-docs.sh" ]] || return 0
+  [[ -f ".ai/harness/brain-manifest.json" ]] || return 0
 
-  bash "scripts/sync-brain-docs.sh" --changed "$FILE_PATH" || true
+  # Fast-path: most edits are not repo-to-brain sources. Avoid starting the JS
+  # manifest reader unless the changed repo path appears in the manifest.
+  if ! grep -Fq "\"$FILE_PATH\"" ".ai/harness/brain-manifest.json"; then
+    return 0
+  fi
+
+  if bash "scripts/sync-brain-docs.sh" --changed "$FILE_PATH"; then
+    :
+  else
+    local status=$?
+    echo "[SyncChain] WARN: brain-doc-sync failed for $FILE_PATH (exit $status)"
+  fi
 }
 
 FILE_PATH="$(hook_get_file_path "${1:-}")"

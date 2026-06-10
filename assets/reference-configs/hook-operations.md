@@ -11,36 +11,30 @@ Start with the shortest truth path:
 3. The route registry selects the ordered `.ai/hooks/*` scripts for that event and route.
 4. `.ai/hooks/*` is the shared implementation layer and the default place to edit.
 
-The installed CLI carries the route registry; migration copies `.ai/hooks/*` into
-each opted-in repo. Missing advisory scripts warn and skip, but required guard
-routes still fail closed. Refresh stale repos with `repo-harness update --repo <root>`.
+The installed CLI carries the route registry; migration copies `.ai/hooks/*` into each opted-in repo. Missing advisory scripts warn and skip, but required guard routes still fail closed. Refresh stale repos with `repo-harness update --repo <root>`.
+Generated host adapter commands carry a 30 second timeout; long-running work belongs in explicit CLI commands, not hook foreground execution.
 
-`UserPromptSubmit.default` dispatches to `.ai/hooks/prompt-guard.sh`, which parses
-host prompt JSON, reads workflow files, performs capture side effects, runs
-quality gates, and calls `repo-harness-hook prompt-guard-decide` for the TypeScript
-intent/state decision table before rendering host-safe output.
+`UserPromptSubmit.default` dispatches to `.ai/hooks/prompt-guard.sh`, which parses host prompt JSON, reads workflow files, performs capture side effects, runs quality gates, and calls `repo-harness-hook prompt-guard-decide` for the TypeScript intent/state decision table before rendering host-safe output.
 
 If you are asking "which hook file should I edit?", default to `.ai/hooks/`.
-After installing or refreshing `~/.codex/hooks.json`, open Codex Settings and
-mark the user-level hook config as trusted; otherwise Codex will not execute it.
-Repo-local `.claude/settings.json` and `.codex/hooks.json` hook adapters are
-legacy project-level config and should be retired during migration.
+After installing or refreshing `~/.codex/hooks.json`, open Codex Settings and mark the user-level hook config as trusted; otherwise Codex will not execute it.
+Repo-local `.claude/settings.json` and `.codex/hooks.json` hook adapters are legacy project-level config and should be retired during migration.
 
-`Stop.default` routes through `stop-orchestrator.sh`. On Codex, dispatcher
-stdout stays quiet for ordinary successful hooks, but valid Stop decision JSON
-is forwarded so Codex can honor a one-shot planning completeness block; success
-stderr such as handoff refresh noise remains suppressed.
+`Stop.default` routes through `stop-orchestrator.sh`. On Codex, dispatcher stdout stays quiet for ordinary successful hooks, but valid Stop decision JSON is forwarded so Codex can honor a one-shot planning completeness block; success stderr such as handoff refresh noise remains suppressed.
 
-`SessionStart.default` runs `session-start-context.sh` and `security-sentinel.sh`
-under one adapter entry and aggregates their context into one JSON payload. The
-security sentinel is changed-only and advisory; stale repo-local copies emit one
-drift reminder instead of blocking the host session.
+`SessionStart.default` runs `session-start-context.sh` and `security-sentinel.sh` under one adapter entry and aggregates their context into one JSON payload. The security sentinel is changed-only and advisory; stale repo-local copies emit one drift reminder instead of blocking the host session.
 
 Use this command for an explicit read-only audit:
 
 ```bash
 repo-harness security scan --json
 ```
+
+`PostToolUse.edit` runs a downstream sync chain after local edit reminders: architecture drift record, context contract sync, capability-context queueing, repo-to-brain mirror sync, and active contract verification. These stages remain advisory. A failed downstream stage must emit one `[SyncChain] WARN: ...` line and let the edit hook exit 0 so local editing is not blocked by maintenance drift.
+
+`scripts/sync-brain-docs.sh --changed <path>` is hot-path optimized: the PostEdit hook starts it only when the changed repo path appears in the brain manifest. The script still owns authoritative JSON parsing and containment checks. Source files that resolve outside the repo, or brain targets that resolve outside the configured brain root through symlinks, are rejected.
+
+Architecture drift requests use the current capability match as the pending pointer owner. Recording a newer request removes stale pending index lines for the same capability/path. Archiving a request removes it from the index and clears any local `AGENTS.md`/`CLAUDE.md` contract block that still points at that request.
 
 ## Hook Failure Playbook
 
@@ -83,6 +77,4 @@ Every hook change should state whether it affects `self-host`, `generated`, or
 
 ## Verification Checklist
 
-Run after hook or workflow contract changes: `bun test`,
-`bash scripts/check-task-sync.sh`, `bash scripts/check-task-workflow.sh --strict`,
-and `bash scripts/migrate-project-template.sh --repo . --dry-run`.
+Run after hook or workflow contract changes: `bun test`, `bash scripts/check-task-sync.sh`, `bash scripts/check-task-workflow.sh --strict`, and `bash scripts/migrate-project-template.sh --repo . --dry-run`.
