@@ -34,8 +34,16 @@ retirement landed on `main`.
   - `bun scripts/inspect-project-state.ts --repo . --format text`: pass
   - `bash scripts/migrate-project-template.sh --repo . --dry-run`: pass
   - `npm pack --dry-run --json`: pass
+- npm publish passed with a temporary npmrc verified as `ancienttwo` and a
+  temporary `NPM_CONFIG_CACHE`; registry readback reports `latest = 0.3.0`,
+  tarball `repo-harness-0.3.0.tgz`, shasum
+  `b9ff765efa7063652a717a610ccb3afcd0a8811b`, and gitHead
+  `13e2ded87d168f53904bbe47ea2ce51b2cb33727`.
+- Clean-room `npx -y --registry https://registry.npmjs.org/
+  repo-harness@0.3.0 --version` returned `0.3.0`; `init --help` displayed the
+  expected command help.
 
 ## Follow-up In This Slice
 
-- Publish `repo-harness@0.3.0`, run registry readback and clean-room `npx`
-  smoke, then update the release filing to `Published`.
+- Commit the published release filing, tag `v0.3.0`, push `main` and the tag,
+  then create the GitHub release.

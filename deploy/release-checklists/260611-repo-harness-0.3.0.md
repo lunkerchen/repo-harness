@@ -1,7 +1,7 @@
 # Release Filing: repo-harness 0.3.0
 
 Date: 2026-06-11
-Status: Prepared
+Status: Published
 
 ## Scope
 
@@ -44,10 +44,29 @@ Status: Prepared
   - `bun scripts/inspect-project-state.ts --repo . --format text`: pass
   - `bash scripts/migrate-project-template.sh --repo . --dry-run`: pass
   - `npm pack --dry-run --json`: pass
+- `npm publish --registry https://registry.npmjs.org/ --access public` used a
+  temporary npmrc verified as `ancienttwo`, a temporary `NPM_CONFIG_CACHE`, reran
+  the full `prepublishOnly` gate successfully, and published
+  `repo-harness@0.3.0`.
+- The publish notice reported `repo-harness-0.3.0.tgz`, 276 files, package size
+  1.9 MB, unpacked size 3.5 MB, and shasum
+  `b9ff765efa7063652a717a610ccb3afcd0a8811b`.
 
 ## Publish Status
 
-- npm: pending.
-- Registry readback: pending.
-- Clean-room npx smoke: pending.
-- GitHub release: pending.
+- npm: published to the official registry.
+- Registry readback:
+  - `npm view repo-harness@0.3.0 version --registry https://registry.npmjs.org/`
+    returned `0.3.0`.
+  - `dist.tarball` is
+    `https://registry.npmjs.org/repo-harness/-/repo-harness-0.3.0.tgz`.
+  - `dist.shasum` is `b9ff765efa7063652a717a610ccb3afcd0a8811b`.
+  - `gitHead` is `13e2ded87d168f53904bbe47ea2ce51b2cb33727`.
+  - `latest` is `0.3.0`.
+- Clean-room npx smoke passed from an empty temp directory with a temporary npm
+  cache:
+  - `npx -y --registry https://registry.npmjs.org/ repo-harness@0.3.0 --version`
+    returned `0.3.0`.
+  - `npx -y --registry https://registry.npmjs.org/ repo-harness@0.3.0 init --help`
+    displayed the expected `repo-harness init` command help.
+- GitHub release: https://github.com/Ancienttwo/repo-harness/releases/tag/v0.3.0
