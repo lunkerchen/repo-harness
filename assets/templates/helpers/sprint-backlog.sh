@@ -10,14 +10,21 @@ Usage:
   scripts/sprint-backlog.sh init --slug <slug> [--title <title>]
   scripts/sprint-backlog.sh status
   scripts/sprint-backlog.sh next
-  scripts/sprint-backlog.sh complete-task --task <index|task> [--plan <plan-file>]
+  scripts/sprint-backlog.sh start-task [--task <index|task>] [--execute] [--force] [--sprint <file>]
+  scripts/sprint-backlog.sh complete-task --task <index|task> [--plan <plan-file>] [--sprint <file>]
 
 Program-level sprint backlog helper. A Sprint is the program layer
 (PRD + ordered backlog); each backlog task executes as one task-contract
 slice through the existing plan -> contract -> worktree flow.
 tasks/todo.md stays the deferred-goal ledger.
 
-Exit codes: 0 success; 1 error; 2 usage error; 3 no pending backlog task (next).
+start-task captures a plan for the next (or named) pending backlog row via
+capture-plan.sh --source repo-harness-sprint and fills the row's Plan cell.
+--sprint overrides the active-sprint marker (still confined to the sprints
+dir), which finish back-fill uses inside worktrees where the runtime marker
+is absent.
+
+Exit codes: 0 success; 1 error; 2 usage error; 3 no pending backlog task (next/start-task).
 USAGE_EOF
 }
 
@@ -57,13 +64,14 @@ extract_status() {
   awk '/\*\*Status\*\*:/ {sub(/^.*\*\*Status\*\*: */, ""); gsub(/\r/, ""); print; exit}' "$file" | trim
 }
 
-active_sprint_file() {
-  local sprint_file
-  [[ -f "$marker_file" ]] || return 1
-  sprint_file="$(trim < "$marker_file" 2>/dev/null)"
-  [[ -n "$sprint_file" && -f "$sprint_file" ]] || return 1
-  # Containment: the marker is repo-controlled, but complete-task rewrites the
-  # file it points at, so never follow it outside the sprints dir.
+# Explicit sprint override (--sprint) for callers running where the runtime
+# marker does not exist, e.g. finish back-fill inside a contract worktree.
+sprint_override=""
+
+sprint_file_under_sprints_dir() {
+  local sprint_file="$1"
+  local sprints_real sprint_dir_real
+
   case "$sprint_file" in
     "$sprints_dir"/*) ;;
     *) return 1 ;;
@@ -71,16 +79,77 @@ active_sprint_file() {
   case "$sprint_file" in
     *..*) return 1 ;;
   esac
+  [[ -f "$sprint_file" ]] || return 1
+  [[ ! -L "$sprint_file" ]] || return 1
+
+  sprints_real="$(cd -P "$sprints_dir" 2>/dev/null && pwd)" || return 1
+  sprint_dir_real="$(cd -P "$(dirname "$sprint_file")" 2>/dev/null && pwd)" || return 1
+  case "$sprint_dir_real" in
+    "$sprints_real"|"$sprints_real"/*) ;;
+    *) return 1 ;;
+  esac
+}
+
+active_sprint_file() {
+  local sprint_file
+  if [[ -n "$sprint_override" ]]; then
+    sprint_file="$sprint_override"
+  else
+    [[ -f "$marker_file" ]] || return 1
+    sprint_file="$(trim < "$marker_file" 2>/dev/null)"
+  fi
+  [[ -n "$sprint_file" ]] || return 1
+  # Containment: the marker is repo-controlled, but complete-task rewrites the
+  # file it points at, so never follow it outside the sprints dir.
+  sprint_file_under_sprints_dir "$sprint_file" || return 1
   printf '%s' "$sprint_file"
 }
 
 require_active_sprint() {
   local sprint_file
   if ! sprint_file="$(active_sprint_file)"; then
-    echo "sprint-backlog: no active sprint (marker: $marker_file)" >&2
+    if [[ -n "$sprint_override" ]]; then
+      echo "sprint-backlog: --sprint does not resolve to a sprint file under ${sprints_dir}: $sprint_override" >&2
+    else
+      echo "sprint-backlog: no active sprint (marker: $marker_file)" >&2
+    fi
     exit 1
   fi
   printf '%s' "$sprint_file"
+}
+
+# Serialize read-modify-write mutations: two concurrent complete-task or
+# start-task calls would otherwise both render from the same snapshot and the
+# second mv would drop the first writer's update.
+BACKLOG_LOCK_DIR=""
+
+release_backlog_lock() {
+  if [[ -n "$BACKLOG_LOCK_DIR" ]]; then
+    rmdir "$BACKLOG_LOCK_DIR" 2>/dev/null || true
+    BACKLOG_LOCK_DIR=""
+  fi
+}
+
+acquire_backlog_lock() {
+  local attempts=0
+  BACKLOG_LOCK_DIR="$(dirname "$marker_file")/.backlog-lock"
+  mkdir -p "$(dirname "$BACKLOG_LOCK_DIR")"
+  until mkdir "$BACKLOG_LOCK_DIR" 2>/dev/null; do
+    # Reclaim only when the stale dir actually goes away; a non-empty lock dir
+    # must fall through to the timeout instead of hot-looping.
+    if [[ -n "$(find "$BACKLOG_LOCK_DIR" -maxdepth 0 -mmin +1 2>/dev/null)" ]] \
+      && rmdir "$BACKLOG_LOCK_DIR" 2>/dev/null; then
+      echo "sprint-backlog: reclaiming stale backlog lock: $BACKLOG_LOCK_DIR" >&2
+      continue
+    fi
+    attempts=$((attempts + 1))
+    if [[ "$attempts" -ge 100 ]]; then
+      echo "sprint-backlog: timed out acquiring backlog lock: $BACKLOG_LOCK_DIR" >&2
+      exit 1
+    fi
+    sleep 0.1
+  done
+  trap release_backlog_lock EXIT INT TERM
 }
 
 # Backlog rows live between '## Backlog' and the next '## ' heading:
@@ -336,6 +405,11 @@ cmd_complete_task() {
         plan_file="$2"
         shift 2
         ;;
+      --sprint)
+        [[ -n "${2:-}" ]] || { echo "sprint-backlog: --sprint requires a value" >&2; exit 2; }
+        sprint_override="$2"
+        shift 2
+        ;;
       *)
         echo "sprint-backlog: unknown complete-task argument: $1" >&2
         usage >&2
@@ -348,6 +422,7 @@ cmd_complete_task() {
 
   local sprint_file target_row target_index target_status target_task target_plan plan_cell match_count
   sprint_file="$(require_active_sprint)"
+  acquire_backlog_lock
 
   # task_ref travels via ENVIRON (awk -v reprocesses backslash escapes).
   match_count="$(backlog_rows "$sprint_file" | TASK_REF="$task_ref" awk -F '\t' '$1 == ENVIRON["TASK_REF"] || $3 == ENVIRON["TASK_REF"] { count++ } END { print count + 0 }')"
@@ -407,9 +482,10 @@ cmd_complete_task() {
       }
       print
     }
+    END { exit rewritten ? 0 : 1 }
   ' "$sprint_file" > "$tmp_file"; then
     rm -f "$tmp_file"
-    echo "sprint-backlog: failed to rewrite backlog row" >&2
+    echo "sprint-backlog: failed to rewrite backlog row (row not rewritten; check the table for malformed cells)" >&2
     exit 1
   fi
   mv "$tmp_file" "$sprint_file"
@@ -425,12 +501,285 @@ cmd_complete_task() {
   fi
   printf '| %s | %s | %s | done |\n' "$timestamp" "$target_task" "${plan_cell:-(none)}" >> "$sprint_file"
 
+  clear_in_flight "$target_task"
+
   local done total
   read -r done total <<<"$(backlog_counts "$sprint_file")"
   echo "Completed backlog task '$target_task' (row $target_index) in $sprint_file"
   echo "Backlog progress: ${done}/${total}"
   if [[ "$done" -eq "$total" ]]; then
     echo "All backlog tasks complete. Set the sprint Status to Done after review."
+  fi
+}
+
+# In-flight markers live under the gitignored runtime dir so duplicate
+# start-task calls are refused without writing tracked files in the primary
+# tree (contract rows must stay merge-pure until finish back-fills them).
+in_flight_dir() {
+  printf '%s/in-flight' "$(dirname "$marker_file")"
+}
+
+in_flight_marker_for() {
+  printf '%s/%s' "$(in_flight_dir)" "$(normalize_slug "$1")"
+}
+
+task_in_flight() {
+  [[ -f "$(in_flight_marker_for "$1")" ]]
+}
+
+record_in_flight() {
+  mkdir -p "$(in_flight_dir)"
+  printf '%s' "${2:-capturing}" > "$(in_flight_marker_for "$1")"
+}
+
+clear_in_flight() {
+  rm -f "$(in_flight_marker_for "$1")" 2>/dev/null || true
+}
+
+# Drop markers whose backlog row is gone or already complete (finish back-fill
+# runs in the worktree and cannot clean the primary tree's markers).
+prune_in_flight_markers() {
+  local file="$1"
+  local marker task_slug keep _idx status task _rest
+  [[ -d "$(in_flight_dir)" ]] || return 0
+  for marker in "$(in_flight_dir)"/*; do
+    [[ -e "$marker" ]] || continue
+    task_slug="$(basename "$marker")"
+    keep=0
+    while IFS=$'\t' read -r _idx status task _rest; do
+      if [[ "$(normalize_slug "$task")" == "$task_slug" && "$status" == "[ ]" ]]; then
+        keep=1
+        break
+      fi
+    done < <(backlog_rows "$file")
+    [[ "$keep" -eq 1 ]] || rm -f "$marker"
+  done
+}
+
+# Fill only the Plan cell of one backlog row (status untouched); used by
+# start-task so the backlog shows in-flight work.
+set_row_plan_cell() {
+  local sprint_file="$1"
+  local target_index="$2"
+  local target_task="$3"
+  local plan_cell="$4"
+  local timestamp tmp_file
+  timestamp="$(date '+%Y-%m-%d %H:%M')"
+  tmp_file="$(mktemp)"
+  if ! PLAN_CELL="$plan_cell" TARGET_TASK="$target_task" awk -F '|' -v target="$target_index" -v ts="$timestamp" '
+    BEGIN { in_section = 0; rewritten = 0 }
+    /^> \*\*Updated\*\*:/ {
+      print "> **Updated**: " ts
+      next
+    }
+    /^## Backlog[[:space:]]*$/ { in_section = 1; print; next }
+    in_section && /^## / { in_section = 0 }
+    {
+      if (in_section && !rewritten && $0 ~ /^\|[[:space:]]*[0-9]+[[:space:]]*\|/) {
+        idx = $2; status = $3; task = $4; mode = $5; acceptance = $6
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", idx)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", status)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", task)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", mode)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", acceptance)
+        if (idx == target && task == ENVIRON["TARGET_TASK"]) {
+          printf "| %s | %s | %s | %s | %s | %s |\n", idx, status, task, mode, acceptance, ENVIRON["PLAN_CELL"]
+          rewritten = 1
+          next
+        }
+      }
+      print
+    }
+    END { exit rewritten ? 0 : 1 }
+  ' "$sprint_file" > "$tmp_file"; then
+    rm -f "$tmp_file"
+    echo "sprint-backlog: failed to update backlog plan cell (row not rewritten; check the table for malformed cells)" >&2
+    exit 1
+  fi
+  mv "$tmp_file" "$sprint_file"
+}
+
+cmd_start_task() {
+  local task_ref=""
+  local execute=0
+  local force=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --task)
+        [[ -n "${2:-}" ]] || { echo "sprint-backlog: --task requires a value" >&2; exit 2; }
+        task_ref="$2"
+        shift 2
+        ;;
+      --execute)
+        execute=1
+        shift
+        ;;
+      --force)
+        force=1
+        shift
+        ;;
+      --sprint)
+        [[ -n "${2:-}" ]] || { echo "sprint-backlog: --sprint requires a value" >&2; exit 2; }
+        sprint_override="$2"
+        shift 2
+        ;;
+      *)
+        echo "sprint-backlog: unknown start-task argument: $1" >&2
+        usage >&2
+        exit 2
+        ;;
+    esac
+  done
+
+  local sprint_file sprint_status
+  sprint_file="$(require_active_sprint)"
+  sprint_status="$(extract_status "$sprint_file")"
+  case "$sprint_status" in
+    Approved|Executing)
+      ;;
+    *)
+      echo "sprint-backlog: sprint status is ${sprint_status:-unknown}; approve the sprint before starting tasks" >&2
+      exit 1
+      ;;
+  esac
+
+  [[ -f "scripts/capture-plan.sh" ]] || { echo "sprint-backlog: scripts/capture-plan.sh not found" >&2; exit 1; }
+
+  acquire_backlog_lock
+  prune_in_flight_markers "$sprint_file"
+
+  local target_row match_count candidate_task
+  if [[ -n "$task_ref" ]]; then
+    match_count="$(backlog_rows "$sprint_file" | TASK_REF="$task_ref" awk -F '\t' '$1 == ENVIRON["TASK_REF"] || $3 == ENVIRON["TASK_REF"] { count++ } END { print count + 0 }')"
+    if [[ "$match_count" -eq 0 ]]; then
+      echo "sprint-backlog: no backlog row matches task '$task_ref' in $sprint_file" >&2
+      exit 1
+    fi
+    if [[ "$match_count" -gt 1 ]]; then
+      echo "sprint-backlog: task reference '$task_ref' is ambiguous (${match_count} backlog rows match); fix duplicate indices or task names first" >&2
+      exit 1
+    fi
+    target_row="$(backlog_rows "$sprint_file" | TASK_REF="$task_ref" awk -F '\t' '$1 == ENVIRON["TASK_REF"] || $3 == ENVIRON["TASK_REF"] { print; exit }')"
+  else
+    # Auto-select skips rows that are already in flight so repeated runs walk
+    # the queue instead of duplicating an active task.
+    target_row=""
+    while IFS= read -r candidate_row; do
+      [[ -n "$candidate_row" ]] || continue
+      candidate_task="$(printf '%s' "$candidate_row" | cut -f3)"
+      if ! task_in_flight "$candidate_task"; then
+        target_row="$candidate_row"
+        break
+      fi
+    done < <(backlog_rows "$sprint_file" | awk -F '\t' '$2 == "[ ]"')
+    if [[ -z "$target_row" ]]; then
+      if [[ -n "$(next_pending_row "$sprint_file")" ]]; then
+        echo "sprint-backlog: every pending backlog task is already in flight; finish one or rerun with --task <ref> --force" >&2
+      fi
+      echo "next_task: (none)"
+      exit 3
+    fi
+  fi
+
+  local target_index target_status target_task target_mode target_acceptance
+  target_index="$(printf '%s' "$target_row" | cut -f1)"
+  target_status="$(printf '%s' "$target_row" | cut -f2)"
+  target_task="$(printf '%s' "$target_row" | cut -f3)"
+  target_mode="$(printf '%s' "$target_row" | cut -f4)"
+  target_acceptance="$(printf '%s' "$target_row" | cut -f5)"
+
+  if [[ "$target_status" != "[ ]" ]]; then
+    echo "sprint-backlog: backlog task '$target_task' (row $target_index) is already complete" >&2
+    exit 1
+  fi
+
+  if task_in_flight "$target_task" && [[ "$force" -ne 1 ]]; then
+    echo "sprint-backlog: backlog task '$target_task' is already in flight (recorded: $(cat "$(in_flight_marker_for "$target_task")" 2>/dev/null || printf 'capturing')); rerun with --force to restart it" >&2
+    exit 1
+  fi
+  record_in_flight "$target_task" "capturing"
+
+  # Do not hold the backlog lock across capture-plan: with --execute it can
+  # run git worktree setup for minutes and the stale-reclaim would hand the
+  # lock to a second writer.
+  release_backlog_lock
+
+  local body_file capture_output plan_path
+  body_file="$(mktemp)"
+  cat > "$body_file" <<BODY_EOF
+# Sprint Task: ${target_task}
+
+## Context
+
+- Sprint: \`${sprint_file}\`
+- Backlog row: ${target_index}
+- Mode: ${target_mode}
+- Read the sprint PRD and Architecture Notes before implementation.
+
+## Goal
+
+Deliver backlog task \`${target_task}\` so that the acceptance line holds: ${target_acceptance}
+
+## Task Breakdown
+
+- [ ] Implement backlog task \`${target_task}\` per the sprint PRD and Architecture Notes
+- [ ] Verify acceptance: ${target_acceptance}
+BODY_EOF
+
+  local -a capture_args
+  capture_args=(
+    --slug "$target_task"
+    --title "Sprint task: ${target_task}"
+    --status Approved
+    --source repo-harness-sprint
+    --orchestration-kind sprint-task
+    --source-ref "sprint:${sprint_file}#${target_task}"
+    --body-file "$body_file"
+  )
+  if [[ "$execute" -eq 1 ]]; then
+    capture_args+=(--execute)
+  fi
+
+  # Inline-mode rows execute in the primary tree: suppress the automatic
+  # contract worktree for them.
+  if [[ "$target_mode" == "inline" ]]; then
+    capture_output="$(REPO_HARNESS_DISABLE_CONTRACT_WORKTREE=1 bash scripts/capture-plan.sh "${capture_args[@]}" 2>&1)" || {
+      printf '%s\n' "$capture_output" >&2
+      rm -f "$body_file"
+      clear_in_flight "$target_task"
+      echo "sprint-backlog: capture-plan failed for task '$target_task'" >&2
+      exit 1
+    }
+  else
+    capture_output="$(bash scripts/capture-plan.sh "${capture_args[@]}" 2>&1)" || {
+      printf '%s\n' "$capture_output" >&2
+      rm -f "$body_file"
+      clear_in_flight "$target_task"
+      echo "sprint-backlog: capture-plan failed for task '$target_task'" >&2
+      exit 1
+    }
+  fi
+  rm -f "$body_file"
+  printf '%s\n' "$capture_output"
+
+  plan_path="$(printf '%s\n' "$capture_output" | sed -nE 's/^Captured plan: (.+)$/\1/p' | head -1)"
+  if [[ -z "$plan_path" ]]; then
+    echo "sprint-backlog: warning: could not resolve captured plan path; backlog Plan cell unchanged" >&2
+    return 0
+  fi
+  record_in_flight "$target_task" "$plan_path"
+
+  if [[ "$target_mode" == "inline" ]]; then
+    acquire_backlog_lock
+    set_row_plan_cell "$sprint_file" "$target_index" "$target_task" "\`${plan_path}\`"
+    echo "Backlog row ${target_index} ('${target_task}') now references ${plan_path}"
+  else
+    # Contract mode: the plan moves into a worktree branched from HEAD, so
+    # writing the Plan cell here would dirty the primary tree and block the
+    # eventual --ff-only merge back. The finish back-fill writes the row
+    # (status + plan) atomically with the merged slice instead.
+    echo "Backlog row ${target_index} ('${target_task}') stays (pending); contract-worktree finish back-fills the Plan cell after merge."
   fi
 }
 
@@ -448,6 +797,9 @@ case "$command" in
     ;;
   next)
     cmd_next "$@"
+    ;;
+  start-task)
+    cmd_start_task "$@"
     ;;
   complete-task)
     cmd_complete_task "$@"

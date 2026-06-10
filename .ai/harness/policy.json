@@ -168,9 +168,10 @@
     "sources": [
       "codex-plan-mode",
       "waza-think",
-      "repo-harness-plan"
+      "repo-harness-plan",
+      "repo-harness-sprint"
     ],
-    "rule": "Codex Plan mode and Waza think planning should capture decision-complete plans into plans/plan-*.md; implementation approval then projects the active approved plan through scripts/plan-to-todo.sh"
+    "rule": "Codex Plan mode and Waza think planning should capture decision-complete plans into plans/plan-*.md; implementation approval then projects the active approved plan through scripts/plan-to-todo.sh; sprint backlog tasks capture through sprint-backlog.sh start-task with --source repo-harness-sprint"
   },
   "planning": {
     "pending_orchestration_file": ".ai/harness/planning/pending.json",

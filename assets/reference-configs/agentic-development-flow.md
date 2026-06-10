@@ -36,6 +36,7 @@ migrating, repairing, or verifying this repo-local harness:
 | Check deploy and ops config | `repo-harness-deploy` | Read-only deploy/_ops readiness check without publishing |
 | Fix broken current harness behavior | `repo-harness-repair` | Task sync, hook routing, handoff, context, policy, or helper drift |
 | Verify readiness | `repo-harness-check` | Workflow gates, task sync, inspector, migration dry-run, and readiness yellow flags |
+| Plan and run a program-level sprint | `repo-harness-sprint` | PRD + ordered backlog in `tasks/sprints/`; each task runs through plan -> contract -> worktree |
 
 `hooks-init`, `docs-init`, and `create-project-dirs` are not public commands.
 They are implementation steps behind `init`, `scaffold`, `migrate`, and

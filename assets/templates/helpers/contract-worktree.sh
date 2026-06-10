@@ -492,6 +492,7 @@ finish_worktree() {
   check_scope_against_contract "$contract_file"
   archive_finished_workflow "$active_plan"
   clean_local_runtime_markers
+  backfill_sprint_backlog "$active_plan" || true
 
   if ! git diff --quiet || ! git diff --cached --quiet || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
     git add -A
@@ -517,6 +518,51 @@ finish_worktree() {
 
   git -C "$target_worktree" merge --ff-only "$current_branch"
   echo "[ContractWorktree] Merged $current_branch into $target_branch at $target_worktree"
+}
+
+# Warn-only sprint backlog back-fill: plans captured via sprint-backlog
+# start-task carry "> **Source Ref**: sprint:<file>#<task>". After the
+# workflow archives, flip that backlog row so the update merges with the
+# slice. Any failure warns and never blocks finish.
+backfill_sprint_backlog() {
+  local plan_file="$1"
+  local archived_plan source_ref sprint_path task_ref
+
+  [[ -f "scripts/sprint-backlog.sh" ]] || return 0
+
+  archived_plan="plans/archive/$(basename "$plan_file")"
+  if [[ ! -f "$archived_plan" ]]; then
+    # Archive may have renamed on collision (-vN suffix); fall back to the
+    # newest archived file sharing the stem, then to the original path.
+    archived_plan="$(find plans/archive -maxdepth 1 -type f -name "$(basename "$plan_file" .md)*.md" 2>/dev/null | sort | tail -1)"
+  fi
+  [[ -n "$archived_plan" && -f "$archived_plan" ]] || archived_plan="$plan_file"
+  if [[ ! -f "$archived_plan" ]]; then
+    echo "[ContractWorktree] Warning: cannot resolve archived plan for sprint back-fill: $plan_file" >&2
+    return 0
+  fi
+
+  source_ref="$(awk '/^> \*\*Source Ref\*\*:/ {sub(/^> \*\*Source Ref\*\*:[[:space:]]*/, ""); gsub(/\r/, ""); print; exit}' "$archived_plan" 2>/dev/null | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  case "$source_ref" in
+    sprint:*#*)
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  # Split on the FIRST '#': the sprint path is slug-generated and cannot
+  # contain '#', while the task name is free text and may.
+  sprint_path="${source_ref#sprint:}"
+  task_ref="${sprint_path#*#}"
+  sprint_path="${sprint_path%%#*}"
+
+  if bash scripts/sprint-backlog.sh complete-task --sprint "$sprint_path" --task "$task_ref" --plan "$archived_plan"; then
+    echo "[ContractWorktree] Sprint backlog updated: $sprint_path ($task_ref)"
+  else
+    echo "[ContractWorktree] Warning: sprint backlog back-fill failed for $sprint_path ($task_ref); update the row manually." >&2
+  fi
+  return 0
 }
 
 cleanup_worktree() {

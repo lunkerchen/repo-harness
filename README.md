@@ -414,6 +414,7 @@ Source-owned command facades live in `assets/skill-commands/`. They keep host
 skill discovery compatible while the CLI and hooks own execution:
 
 - Planning and review: `repo-harness-plan`, `repo-harness-review`, `repo-harness-autoplan`
+- Sprint program layer: `repo-harness-sprint` (PRD + ordered backlog in `tasks/sprints/`, executed task-by-task through the contract flow)
 - Repo workflow actions: `repo-harness-ship`, `repo-harness-init`, `repo-harness-migrate`, `repo-harness-upgrade`, `repo-harness-capability`, `repo-harness-architecture`, `repo-harness-handoff`, `repo-harness-deploy`, `repo-harness-repair`, `repo-harness-check`
 - Branch project creation command: `repo-harness-scaffold`
 

@@ -11,7 +11,7 @@
 - Stable product truth: `docs/spec.md`.
 - Research contract: `tasks/research.md`.
 - Deferred-goal ledger: `tasks/todo.md` (active execution stays in the plan's `## Task Breakdown`).
-- Sprint done contract: `tasks/contracts/`.
+- Task contract done gate: `tasks/contracts/` (legacy name: sprint contract).
 - Evaluator verdicts: `tasks/reviews/`.
 - Implementation notes: `tasks/notes/`.
 - Structured checks: `.ai/harness/checks/latest.json`.

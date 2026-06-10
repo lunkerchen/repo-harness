@@ -19,6 +19,7 @@ const COMMANDS = [
   "repo-harness-deploy",
   "repo-harness-repair",
   "repo-harness-check",
+  "repo-harness-sprint",
 ];
 
 function readCommand(name: string): string {

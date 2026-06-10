@@ -142,6 +142,7 @@ contract files:
 - `repo-harness-deploy`: check deploy and private operations configuration without publishing or deploying
 - `repo-harness-repair`: repair broken task sync, hook routing, handoff, context, policy, or helpers
 - `repo-harness-check`: run verification gates and report release or pre-merge readiness
+- `repo-harness-sprint`: plan a program-level sprint (PRD + ordered backlog) and drive backlog tasks through the task-contract flow
 
 Internal steps such as `hooks-init`, `docs-init`, and `create-project-dirs` are
 not public commands. They stay behind `init`, `scaffold`, `migrate`, and

@@ -104,6 +104,8 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "scripts/ensure-task-workflow.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/check-task-workflow.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/maintenance-triage.sh"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/sprint-backlog.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".claude/templates/sprint.template.md"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/context-budget.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/prepare-codex-handoff.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/codex-handoff-resume.sh"))).toBe(true);
@@ -140,6 +142,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.helpers.scripts).toContain("sync-brain-docs.sh");
       expect(workflowContract.helpers.scripts).toContain("check-deploy-sql-order.sh");
       expect(workflowContract.helpers.scripts).toContain("check-task-workflow.sh");
+      expect(workflowContract.helpers.scripts).toContain("sprint-backlog.sh");
       expect(workflowContract.helpers.scripts).toContain("contract-worktree.sh");
       expect(workflowContract.helpers.scripts).toContain("ship-worktrees.sh");
       expect(workflowContract.helpers.scripts).toContain("refresh-current-status.sh");

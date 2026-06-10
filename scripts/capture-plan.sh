@@ -14,7 +14,7 @@ usage() {
   cat <<'USAGE_EOF'
 Usage:
   scripts/capture-plan.sh --slug <slug> [--title <title>] [--status Draft|Approved]
-                          [--source <codex-plan|waza-think|repo-harness-plan>]
+                          [--source <codex-plan|waza-think|repo-harness-plan|repo-harness-sprint>]
                           [--orchestration-kind <kind>] [--source-ref <ref>]
                           [--route <route>] [--body-file <file>] [--execute]
 

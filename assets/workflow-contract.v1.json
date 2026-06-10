@@ -87,6 +87,7 @@
       "verify-contract.sh",
       "summarize-failures.sh",
       "verify-sprint.sh",
+      "sprint-backlog.sh",
       "check-task-sync.sh",
       "check-deploy-sql-order.sh",
       "check-agent-tooling.sh",
@@ -174,6 +175,7 @@
       "scripts/verify-contract.sh",
       "scripts/summarize-failures.sh",
       "scripts/verify-sprint.sh",
+      "scripts/sprint-backlog.sh",
       "scripts/check-task-sync.sh",
       "scripts/check-deploy-sql-order.sh",
       "scripts/check-agent-tooling.sh",
@@ -234,6 +236,7 @@
       ".ai/harness/architecture/events.jsonl",
       ".ai/harness/active-plan",
       ".ai/harness/active-worktree",
+      ".ai/harness/sprint/",
       ".ai/harness/worktrees/",
       ".ai/harness/runs/.gitkeep"
     ]
