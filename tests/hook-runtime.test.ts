@@ -1294,9 +1294,9 @@ describe("Hook runtime behavior", () => {
       mkdirSync(join(cwd, "docs"), { recursive: true });
       writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
 
-      const blockRes = spawnSync("bash", [join(cwd, ".ai/hooks/run-hook.sh"), "prompt-guard.sh"], {
+      const blockRes = spawnSync("bash", [join(cwd, ".ai/hooks/run-hook.sh"), "pre-edit-guard.sh"], {
         cwd,
-        input: JSON.stringify({ prompt: "开始执行" }),
+        input: JSON.stringify({ tool_input: { file_path: "src/app.ts" } }),
         encoding: "utf-8",
         env: { ...process.env, HOOK_HOST: "codex", HOOK_REPO_ROOT: cwd },
       });
@@ -1324,7 +1324,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("prompt-guard: falls back when copied hooks cannot reach the TypeScript decision engine", () => {
+  test("prompt-guard: degrades to advisory when copied hooks cannot reach the TypeScript decision engine", () => {
     const cwd = tmpWorkspace("prompt-guard-shell-fallback");
     try {
       installHooks(cwd);
@@ -1343,11 +1343,25 @@ describe("Hook runtime behavior", () => {
         },
       });
 
+      // Without bun/CLI the prompt layer cannot classify; it must degrade to
+      // a one-shot advisory instead of guessing. The edit layer still blocks.
       expect(res.status).toBe(0);
-      expect(res.stdout).toContain("[PlanCaptureGate]");
-      expect(res.stdout).toContain("capture-plan.sh");
+      expect(res.stdout).toContain("degraded to advisory");
       expect(res.stdout).not.toContain("[PromptGuard] Decision engine unavailable or failed.");
       expect(res.stderr).toBe("");
+
+      const editRes = spawnSync("bash", [join(cwd, ".ai/hooks/pre-edit-guard.sh")], {
+        cwd,
+        input: JSON.stringify({ tool_input: { file_path: "src/app.ts" } }),
+        encoding: "utf-8",
+        env: {
+          HOME: process.env.HOME ?? "",
+          HOOK_REPO_ROOT: cwd,
+          PATH: "/bin:/usr/bin:/usr/sbin",
+        },
+      });
+      expect(editRes.status).toBe(2);
+      expect(editRes.stderr).toContain("[PlanStatusGuard]");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -1500,7 +1514,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("prompt-guard: blocks implement intent when plan status is Draft", () => {
+  test("prompt-guard: advises (not blocks) implement intent when plan status is Draft", () => {
     const cwd = tmpWorkspace("prompt-guard-status");
     try {
       initGitRepo(cwd);
@@ -1522,9 +1536,9 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ user_message: "implement it all now" }),
       });
 
-      expect(res.status).toBe(2);
+      expect(res.status).toBe(0);
       expect(res.stdout).toContain("[PlanStatusGuard]");
-      expect(res.stdout).toContain('"guard":"PlanStatusGuard"');
+      expect(res.stdout).not.toContain('"guard":"PlanStatusGuard"');
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -1565,7 +1579,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("prompt-guard: blocks implement intent when approved plan lacks evidence contract", () => {
+  test("prompt-guard: advises (not blocks) implement intent when approved plan lacks evidence contract", () => {
     const cwd = tmpWorkspace("prompt-guard-evidence-contract");
     try {
       initGitRepo(cwd);
@@ -1587,9 +1601,9 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ user_message: "implement it all now" }),
       });
 
-      expect(res.status).toBe(2);
+      expect(res.status).toBe(0);
       expect(res.stdout).toContain("[EvidenceContractGuard]");
-      expect(res.stdout).toContain('"guard":"EvidenceContractGuard"');
+      expect(res.stdout).not.toContain('"guard":"EvidenceContractGuard"');
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -2266,7 +2280,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("prompt-guard: blocks implement intent when no active plan exists", () => {
+  test("prompt-guard: advises (not blocks) implement intent when no active plan exists", () => {
     const cwd = tmpWorkspace("prompt-guard-missing-plan");
     try {
       initGitRepo(cwd);
@@ -2278,10 +2292,11 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ user_message: "开始实现" }),
       });
 
-      expect(res.status).toBe(2);
+      expect(res.status).toBe(0);
       expect(res.stdout).toContain("No active plan found in plans/");
       expect(res.stdout).toContain("capture-plan.sh");
       expect(res.stdout).toContain("ensure-task-workflow.sh");
+      expect(res.stdout).not.toContain('"guard":"PlanStatusGuard"');
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -2344,7 +2359,7 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ user_message: "开始实现" }),
       });
 
-      expect(res.status).toBe(2);
+      expect(res.status).toBe(0);
       expect(res.stdout).toContain("[PlanStatusGuard]");
       expect(res.stdout).not.toContain("[PlanCaptureGate] Implementation requested while a pending plan");
     } finally {
@@ -2369,7 +2384,7 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ user_message: "go ahead with the bug fix" }),
       });
 
-      expect(res.status).toBe(2);
+      expect(res.status).toBe(0);
       expect(res.stdout).toContain("[PlanStatusGuard]");
       expect(res.stdout).not.toContain("[PlanCaptureGate] Implementation requested while a pending plan");
     } finally {
@@ -2403,7 +2418,7 @@ describe("Hook runtime behavior", () => {
       const executeRes = runHook("prompt-guard.sh", cwd, {
         stdin: JSON.stringify({ user_message: "开始执行" }),
       });
-      expect(executeRes.status).toBe(2);
+      expect(executeRes.status).toBe(0);
       expect(executeRes.stdout).toContain("[PlanStatusGuard]");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
@@ -2595,8 +2610,8 @@ describe("Hook runtime behavior", () => {
         env: { HOOK_HOST: "codex" },
       });
 
-      expect(explicitExecution.status).toBe(2);
-      expect(explicitExecution.stdout).toContain("[PlanStatusGuard] No active plan found");
+      expect(explicitExecution.status).toBe(0);
+      expect(explicitExecution.stdout).toContain("[PlanStatusGuard] Advisory: No active plan found");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -2627,8 +2642,8 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ user_message: "开始实现" }),
       });
 
-      expect(explicitRes.status).toBe(2);
-      expect(explicitRes.stdout).toContain("[PlanStatusGuard] No active plan found");
+      expect(explicitRes.status).toBe(0);
+      expect(explicitRes.stdout).toContain("[PlanStatusGuard] Advisory: No active plan found");
 
       expect(run("git", ["worktree", "add", worktreePath, "-b", "codex/demo"], cwd).status).toBe(0);
       mkdirSync(join(worktreePath, "plans"), { recursive: true });
@@ -2691,8 +2706,8 @@ describe("Hook runtime behavior", () => {
         env: { HOOK_HOST: "codex" },
       });
 
-      expect(explicitRes.status).toBe(2);
-      expect(explicitRes.stdout).toContain("[PlanStatusGuard] No active plan found");
+      expect(explicitRes.status).toBe(0);
+      expect(explicitRes.stdout).toContain("[PlanStatusGuard] Advisory: No active plan found");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -2744,8 +2759,8 @@ describe("Hook runtime behavior", () => {
         env: { HOOK_HOST: "codex" },
       });
 
-      expect(explicitRes.status).toBe(2);
-      expect(explicitRes.stdout).toContain("[PlanStatusGuard] No active plan found");
+      expect(explicitRes.status).toBe(0);
+      expect(explicitRes.stdout).toContain("[PlanStatusGuard] Advisory: No active plan found");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -2885,7 +2900,7 @@ describe("Hook runtime behavior", () => {
         stdin: JSON.stringify({ user_message: "go ahead with the bug fix" }),
       });
 
-      expect(res.status).toBe(2);
+      expect(res.status).toBe(0);
       expect(res.stdout).toContain("[PlanStatusGuard]");
       expect(res.stdout).not.toContain("[PlanCaptureGate]");
     } finally {
@@ -3261,12 +3276,14 @@ describe("Hook runtime behavior", () => {
 
       const assetRes = runHook("pre-edit-guard.sh", cwd, {
         stdin: JSON.stringify({ tool_input: { file_path: "interfaces/types.ts" } }),
+        env: { REPO_HARNESS_EDIT_PLAN_GATE: "off" },
       });
       expect(assetRes.status).toBe(0);
       expect(assetRes.stdout).toContain("[AssetLayer]");
 
       const tddRes = runHook("pre-edit-guard.sh", cwd, {
         stdin: JSON.stringify({ tool_input: { file_path: "src/widget.ts" } }),
+        env: { REPO_HARNESS_EDIT_PLAN_GATE: "off" },
       });
       expect(tddRes.status).toBe(0);
       expect(tddRes.stdout).toContain("[TDD Guard]");
@@ -3308,6 +3325,55 @@ describe("Hook runtime behavior", () => {
       });
       expect(exampleRes.status).toBe(0);
       expect(exampleRes.stdout).toContain("[DeployAsset]");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("pre-edit-guard: edit plan gate blocks implementation edits by plan state", () => {
+    const cwd = tmpWorkspace("pre-edit-plan-gate");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      mkdirSync(join(cwd, "plans"), { recursive: true });
+      writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
+
+      // No active plan: implementation paths block, workflow surfaces pass.
+      const noPlanRes = runHook("pre-edit-guard.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "src/app.ts" } }),
+      });
+      expect(noPlanRes.status).toBe(2);
+      expect(noPlanRes.stderr).toContain("[PlanStatusGuard]");
+
+      const workflowRes = runHook("pre-edit-guard.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "tasks/todo.md" } }),
+      });
+      expect(workflowRes.status).toBe(0);
+
+      // Advice mode warns without blocking.
+      const adviceRes = runHook("pre-edit-guard.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "src/app.ts" } }),
+        env: { REPO_HARNESS_EDIT_PLAN_GATE: "advice" },
+      });
+      expect(adviceRes.status).toBe(0);
+      expect(adviceRes.stdout).toContain("[PlanStatusGuard] Advisory");
+
+      // Draft plan still blocks; Approved plan passes.
+      const planPath = "plans/plan-20260610-1000-gate.md";
+      writeFileSync(join(cwd, planPath), "# Plan: gate\n\n> **Status**: Draft\n");
+      writeActivePlan(cwd, planPath);
+      const draftRes = runHook("pre-edit-guard.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "src/app.ts" } }),
+      });
+      expect(draftRes.status).toBe(2);
+      expect(draftRes.stderr).toContain("[PlanStatusGuard]");
+
+      writeFileSync(join(cwd, planPath), "# Plan: gate\n\n> **Status**: Approved\n");
+      const approvedRes = runHook("pre-edit-guard.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "src/app.ts" } }),
+      });
+      expect(approvedRes.status).toBe(0);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

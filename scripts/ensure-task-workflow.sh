@@ -713,6 +713,11 @@ ARCHITECTURE_INDEX_EOF
     "pending_orchestration_file": ".ai/harness/planning/pending.json",
     "source_of_truth": "transient host planning bridge only; plans/ and .ai/harness/active-plan remain authoritative"
   },
+  "guards": {
+    "edit_plan_gate": "enforce",
+    "edit_plan_gate_modes": ["enforce", "advice", "off"],
+    "rule": "pre-edit-guard blocks implementation edits (non-workflow paths) unless an active plan is Approved/Executing; prompt-layer plan gates are advisory routing only"
+  },
   "sidecar_research": {
     "default": true,
     "output_file": "tasks/research.md",

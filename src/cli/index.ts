@@ -18,7 +18,7 @@ import { buildBrainCommand } from './commands/brain';
 import { buildCapabilityContextCommand } from './commands/capability-context';
 import { formatSecurityScan, runSecurityScan } from './commands/security';
 import { runGlobalRuntimeSetup } from './commands/global-runtime';
-import { runPromptGuardDecisionFromEnv } from './commands/prompt-guard-decision';
+import { runPromptGuardDecideCli } from './commands/prompt-guard-decision';
 import type { Location } from './installer/types';
 import type { HookEvent, RouteId } from './hook/route-registry';
 
@@ -255,7 +255,7 @@ export function buildProgram(): Command {
     .command('prompt-guard-decide', { hidden: true })
     .description('Internal prompt-guard intent/state decision engine')
     .action(() => {
-      console.log(runPromptGuardDecisionFromEnv());
+      console.log(runPromptGuardDecideCli());
       process.exit(0);
     });
 

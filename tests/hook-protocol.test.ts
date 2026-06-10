@@ -220,8 +220,16 @@ describe("Claude Code hook protocol compliance", () => {
       );
       writeActivePlan(cwd, "plans/plan-20260528-1300-demo.md");
 
-      const res = runHook("prompt-guard.sh", cwd, {
+      // Prompt layer is advisory for plan status; the edit-layer plan gate is
+      // the blocking enforcement point.
+      const promptRes = runHook("prompt-guard.sh", cwd, {
         stdin: JSON.stringify({ user_message: "implement it all now" }),
+      });
+      expect(promptRes.status).toBe(0);
+      expect(promptRes.stdout).toContain("[PlanStatusGuard]");
+
+      const res = runHook("pre-edit-guard.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "src/app.ts" } }),
       });
       expect(res.status).toBe(2);
       expect(res.stderr).toContain("[PlanStatusGuard]");

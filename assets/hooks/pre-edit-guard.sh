@@ -67,6 +67,86 @@ if is_repo_scoped_path "$FILE_PATH" && [[ -n "$active_contract" && -f "$active_c
   fi
 fi
 
+# Workflow surfaces (plans, tasks, docs, harness state, markdown) stay
+# editable without an active plan; everything else is an implementation edit.
+is_workflow_surface_path() {
+  case "$1" in
+    plans/*|tasks/*|docs/*|deploy/*|.ai/*|.claude/*|.codex/*|.github/*) return 0 ;;
+    *.md|*.markdown) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+edit_plan_gate_mode() {
+  local mode="${REPO_HARNESS_EDIT_PLAN_GATE:-}"
+  if [[ -z "$mode" ]]; then
+    mode="$(workflow_policy_get '.guards.edit_plan_gate' 'enforce')"
+  fi
+  printf '%s' "$mode"
+}
+
+# Edit-layer plan gate: the deterministic enforcement point for "no
+# implementation edits without an approved plan". The prompt layer only
+# advises (natural-language intent guessing is unreliable); this gate keys
+# off path + plan state. Modes: enforce (default) | advice | off, via
+# REPO_HARNESS_EDIT_PLAN_GATE or policy .guards.edit_plan_gate.
+run_edit_plan_gate() {
+  local mode gate_plan gate_status
+  mode="$(edit_plan_gate_mode)"
+  [[ "$mode" == "off" ]] && return 0
+  is_repo_scoped_path "$FILE_PATH" || return 0
+  is_workflow_surface_path "$FILE_PATH" && return 0
+
+  if [[ ! -f "docs/spec.md" ]]; then
+    echo "[SpecGuard] Implementation edit without docs/spec.md: $FILE_PATH"
+    if [[ "$mode" == "advice" ]]; then
+      echo "[SpecGuard] Advisory: run bash scripts/new-spec.sh and capture stable product intent."
+    else
+      hook_structured_error \
+        "SpecGuard" \
+        "Implementation edit to $FILE_PATH without docs/spec.md." \
+        "Run bash scripts/new-spec.sh and capture stable product intent before implementing." \
+        "missing_artifact"
+      exit 2
+    fi
+  fi
+
+  gate_plan="$(get_active_plan || true)"
+  if [[ -z "$gate_plan" || ! -f "$gate_plan" ]]; then
+    echo "[PlanStatusGuard] No active plan covers implementation edit: $FILE_PATH"
+    if [[ "$mode" == "advice" ]]; then
+      echo "[PlanStatusGuard] Advisory: capture the approved plan with bash scripts/capture-plan.sh --slug <slug> --title <title> --status Approved --execute"
+    else
+      hook_structured_error \
+        "PlanStatusGuard" \
+        "Implementation edit to $FILE_PATH without an active plan." \
+        "Capture the approved planning output with bash scripts/capture-plan.sh --slug <slug> --title <title> --status Approved --execute, or set policy .guards.edit_plan_gate to advice/off for this repo." \
+        "missing_artifact"
+      exit 2
+    fi
+    return 0
+  fi
+
+  gate_status="$(get_plan_status "$gate_plan")"
+  case "$gate_status" in
+    Draft|Annotating)
+      echo "[PlanStatusGuard] Plan status is '$gate_status' in $gate_plan; implementation edit: $FILE_PATH"
+      if [[ "$mode" == "advice" ]]; then
+        echo "[PlanStatusGuard] Advisory: complete the annotation cycle and move the plan to Approved before implementation."
+      else
+        hook_structured_error \
+          "PlanStatusGuard" \
+          "Implementation edit to $FILE_PATH while plan status is $gate_status in $gate_plan." \
+          "Complete the annotation cycle and move the plan to Approved before implementation." \
+          "state_violation"
+        exit 2
+      fi
+      ;;
+  esac
+}
+
+run_edit_plan_gate
+
 if [[ "$FILE_PATH" =~ ^plans/plan-.*\.md$ ]] && [[ -f "$FILE_PATH" || -n "$WRITE_PAYLOAD" ]]; then
   current_status=""
   if [[ -f "$FILE_PATH" ]]; then

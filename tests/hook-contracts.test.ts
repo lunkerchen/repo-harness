@@ -73,7 +73,7 @@ describe("Hook contracts", () => {
     expect(script).not.toContain("/compact");
   });
 
-  test("prompt-guard should cover Chinese bug/feature keywords and route hints without emoji", () => {
+  test("prompt-guard shell layer keeps route hints, gates, and rendering without emoji", () => {
     const script = read("assets/hooks/prompt-guard.sh");
     expect(script).toContain("emit_waza_route_hint");
     expect(script).toContain("[WazaRoute]");
@@ -86,11 +86,6 @@ describe("Hook contracts", () => {
     expect(script).toContain("hook will not plan or create assets");
     expect(script).not.toContain("Waza /hunt");
     expect(script).not.toContain("Waza /learn");
-    expect(script).toContain("修复");
-    expect(script).toContain("修bug");
-    expect(script).toContain("新功能");
-    expect(script).toContain("实现");
-    expect(script).toContain("执行");
     expect(script).toContain("ResearchGuard");
     expect(script).toContain("AnnotationGuard");
     expect(script).toContain("PlanStatusGuard");
@@ -99,7 +94,6 @@ describe("Hook contracts", () => {
     expect(script).toContain("ContractGuard");
     expect(script).toContain("ResearchGate");
     expect(script).toContain("done");
-    expect(script).toContain("完成");
     expect(script).toContain("scripts/verify-contract.sh");
     expect(script).toContain("HarnessMaintenance");
     expect(script).toContain("has_changes_glob");
@@ -113,6 +107,23 @@ describe("Hook contracts", () => {
     expect(script).not.toContain("📋");
     expect(script).not.toContain("🧠");
     expect(script).not.toContain("📎");
+    // The shell layer no longer owns intent regexes or a fallback decision
+    // table; classification lives in the TypeScript engine.
+    expect(script).not.toContain("is_implement_intent");
+    expect(script).not.toContain("prompt_guard_decide_fallback");
+  });
+
+  test("prompt intent classifier owns Chinese bug/feature keywords with Unicode semantics", () => {
+    const intents = read("src/cli/hook/prompt-intents.ts");
+    expect(intents).toContain("修复");
+    expect(intents).toContain("修bug");
+    expect(intents).toContain("新功能");
+    expect(intents).toContain("实现");
+    expect(intents).toContain("执行");
+    expect(intents).toContain("收工");
+    expect(intents).toContain("完成");
+    expect(intents).toContain("下一刀");
+    expect(intents).toContain("\\p{P}");
   });
 
   test("session-start should gate the Codex-host cross-review availability note", () => {
