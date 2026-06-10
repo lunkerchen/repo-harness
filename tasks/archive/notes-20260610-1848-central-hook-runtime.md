@@ -1,3 +1,9 @@
+> **Archived**: 2026-06-10 18:48
+> **Related Plan**: plans/archive/plan-20260610-1822-central-hook-runtime.md
+> **Outcome**: Completed
+> **Lifecycle**: notes
+> **Parent Run ID**: run-20260610-1848
+
 # Implementation Notes: central-hook-runtime
 
 > **Status**: Active

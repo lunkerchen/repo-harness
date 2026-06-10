@@ -1,27 +1,27 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-07T02:58:13+0800 -->
+<!-- updated_at: 2026-06-10T18:48:35+0800 -->
 <!-- stale_after: 24h -->
 
-> **Status**: Idle
-> **Updated At**: 2026-06-07T02:58:13+0800
-> **Source Branch**: main
-> **Source Commit**: 8a441a6
+> **Status**: ManualClearedWithActiveWork
+> **Updated At**: 2026-06-10T18:48:35+0800
+> **Source Branch**: codex/central-hook-runtime
+> **Source Commit**: 7035e90
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: merge-closeout
+> **Reason**: archive-workflow
 > **Derived From**: active-plan, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
 
 ## Current Focus
 
-- Status: Idle
+- Status: ManualClearedWithActiveWork
 - Active Plan: (none)
 - Plan Status: (none)
-- Next Task: (none)
-- Clear Note: (none)
+- Next Task: inspect active worktree marker(s)
+- Clear Note: Manual clear requested, but active work markers still exist. Idle was not written.
 
 ## Mainline Snapshot Reading
 
@@ -31,24 +31,30 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Active Work
 
-- (none)
+- /Users/chris/Projects/agentic-dev-wt-hook-runtime-drift-policy: plans/plan-20260610-1113-hook-runtime-drift-policy.md
+- /Users/chris/Projects/agentic-dev-wt-hook-runtime-drift-policy: active-worktree owner -> /Users/chris/Projects/agentic-dev-wt-hook-runtime-drift-policy
 ## Workstreams
 
 - `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`: status=completed, current_slice=todo-01, source_plan=(none)
 ## Handoff
 
-- Exact Next Step: Clean up merged contract worktree codex/webapp-start-workers-scaffold. Command: bash scripts/contract-worktree.sh cleanup --slug webapp-start-workers-scaffold --target main
+- Exact Next Step: Slice 1: bash 链 central-first（hook-shim.sh + run-hook.sh 双份 + repo-harness.sh bundle install/status + shim 解析测试）
 
 ## Checks
 
-- status=pass, source=post-bash, exit_code=0, file=.ai/harness/checks/latest.json
+- status=pass, source=verify-sprint, exit_code=0, file=.ai/harness/checks/latest.json
 
 ## Git Status
 
-- Summary: clean
+- Summary: 6 changed/untracked path(s)
 
 ```
-(none)
+ D plans/plan-20260610-1822-central-hook-runtime.md
+ D tasks/notes/20260610-1822-central-hook-runtime.notes.md
+ M tasks/todo.md
+?? plans/archive/plan-20260610-1822-central-hook-runtime.md
+?? tasks/archive/notes-20260610-1848-central-hook-runtime.md
+?? tasks/archive/todo-20260610-1848-central-hook-runtime.md
 ```
 
 ## Source Artifacts

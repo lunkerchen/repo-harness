@@ -1,6 +1,6 @@
 # Plan: Central hook runtime resolution
 
-> **Status**: Executing
+> **Status**: Archived
 > **Created**: 20260610-1822
 > **Slug**: central-hook-runtime
 > **Planning Source**: repo-harness-plan
