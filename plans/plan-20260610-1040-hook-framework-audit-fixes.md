@@ -194,7 +194,7 @@ legacy 适配器退役后无任何事件接线、无内部调用（已验证；c
 - [x] Slice 1: trust allowlist (hook-shim.sh + repo-harness.sh trust/untrust/trust-list, auto-trust on install/migrate) + marker balance hardening (context-contract-sync.sh awk + architecture-event.ts) + tests/hook-shim-trust.test.ts + tests/contract-block-rewrite.test.ts
 - [x] Slice 2: prompt-guard intent precision — TDD rule negative guards + PROMPT_INTENT_TEXT + word boundaries (line 1517), WazaRoute review-before-tooling precedence with health-verb requirement (lines 742-745), CrossReview follows TDD gate; tests/prompt-guard-intent.test.ts with this session's prompt as regression case; sync assets/hooks copies
 - [x] Slice 3: workflow_with_lock mkdir-lock helper wrapping events append / counter RMW / marker writes; session-start rotation for both events.jsonl files; fix hook-input.sh:118 dead WARN; run-hook.sh mktemp fallback; stronger session ID; tests/workflow-state-lock.test.ts
-- [ ] Slice 4: audit verdict table for 8 dead hooks, delete absorbed ones (assets/ + .ai/ + contract migration lists + inspect-project-state.ts reference), rewire valuable ones (security-sentinel aggregation per hook-operations.md)
+- [x] Slice 4: audit verdict table for 8 dead hooks, delete absorbed ones (assets/ + .ai/ + contract migration lists + inspect-project-state.ts reference), rewire valuable ones (security-sentinel aggregation per hook-operations.md)
 - [ ] Slice 5: [SyncChain] WARN observability in post-edit-guard; stale pending pointer lifecycle (drift dedup + archive reset); resolver stderr separation; timeout in generated host settings; realpath containment in sync-brain-docs.sh; measured prompt-guard/brain-sync perf optimization; doc updates in hook-operations.md
 
 ## Annotations

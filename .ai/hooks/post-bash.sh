@@ -210,3 +210,9 @@ if [[ "$target_checks_file" != "$checks_file" ]]; then
 else
   echo "[ChecksFile] Updated ${checks_file}."
 fi
+
+# Aggregated advisory (route-registry keeps one PostToolUse bash entry; the
+# dispatcher-level aggregation lives here). Only speaks on release commands.
+if [[ -x "$SCRIPT_DIR/changelog-guard.sh" ]]; then
+  TOOL_COMMAND="$COMMAND_TEXT" bash "$SCRIPT_DIR/changelog-guard.sh" </dev/null || true
+fi

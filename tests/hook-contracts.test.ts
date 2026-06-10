@@ -39,17 +39,6 @@ describe("Hook contracts", () => {
     expect(script).toContain(".ai/harness/failures/latest.jsonl");
   });
 
-  test("pre-code-change should protect interfaces/tests/spec truth and slice contracts", () => {
-    const script = read("assets/hooks/pre-code-change.sh");
-    expect(script).toContain("(interfaces|tests)");
-    expect(script).toContain("docs/spec");
-    expect(script).toContain("specs/");
-    expect(script).toContain("tasks/contracts");
-    expect(script).toContain(".spec");
-    expect(script).toContain("[ExternalReference]");
-    expect(script).toContain("[OpsPrivate]");
-    expect(script).toContain("[DeployAsset]");
-  });
 
   test("pre-edit guard should combine asset-layer and test reminders", () => {
     const script = read("assets/hooks/pre-edit-guard.sh");
@@ -202,13 +191,6 @@ describe("Hook contracts", () => {
     expect(workstream).toContain("context-contract-sync.sh");
   });
 
-  test("tdd-guard should use extension-based BDD/TDD heuristic", () => {
-    const script = read("assets/hooks/tdd-guard-hook.sh");
-    expect(script).toContain("\\.(tsx|jsx)$");
-    expect(script).not.toContain("packages/scoring");
-    expect(script).not.toContain("packages/wallet");
-    expect(script).toContain("is_pure_barrel_file");
-  });
 
   test("anti-simplification should parse file path via shared hook input", () => {
     const script = read("assets/hooks/anti-simplification.sh");

@@ -253,7 +253,7 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, "scripts/skill-factory-create.sh"))).toBe(false);
       expect(existsSync(join(repo, "scripts/skill-factory-check.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/run-hook.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/hooks/finalize-handoff.sh"))).toBe(true);
+      expect(existsSync(join(repo, ".ai/hooks/post-edit-guard.sh"))).toBe(true);
       expect(existsSync(join(repo, ".ai/hooks/session-start-context.sh"))).toBe(true);
       expect(existsSync(join(repo, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/lib/memory-state.sh"))).toBe(false);

@@ -109,6 +109,12 @@ if [[ "$BASENAME" =~ ^wrangler.*\.toml$ ]]; then
   echo "  Check: docs/guides/cf-deployment.md bindings/routes may need updating"
 fi
 
+# Aggregated advisory (route-registry keeps one PostToolUse edit entry; the
+# dispatcher-level aggregation lives here).
+if [[ -x "$SCRIPT_DIR/anti-simplification.sh" ]]; then
+  bash "$SCRIPT_DIR/anti-simplification.sh" "$FILE_PATH" </dev/null || true
+fi
+
 run_architecture_drift_sync
 
 run_brain_doc_sync

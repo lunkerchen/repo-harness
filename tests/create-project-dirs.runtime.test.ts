@@ -112,7 +112,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/hooks/run-hook.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".codex/hooks.json"))).toBe(false);
       expect(existsSync(join(cwd, ".claude/settings.json"))).toBe(false);
-      expect(existsSync(join(cwd, ".ai/hooks/finalize-handoff.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/hooks/post-edit-guard.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/session-start-context.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
       expect(existsSync(join(cwd, ".ai/hooks/lib/memory-state.sh"))).toBe(false);
@@ -131,7 +131,7 @@ describe("create-project-dirs runtime smoke", () => {
 
       expect(existsSync(join(cwd, ".ai/hooks/trace-event.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/session-start-context.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/hooks/finalize-handoff.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/hooks/post-edit-guard.sh"))).toBe(true);
 
       expect(existsSync(join(cwd, "docs/PROGRESS.md"))).toBe(false);
       const workflowContract = JSON.parse(readFileSync(join(cwd, ".ai/harness/workflow-contract.json"), "utf-8"));

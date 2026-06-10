@@ -64,7 +64,6 @@ describe('route registry (Phase 1B Z design)', () => {
       'trace-event.sh',
       'context-pressure-hook.sh',
       'prompt-guard.sh',
-      'finalize-handoff.sh',
       'stop-orchestrator.sh',
     ]);
     for (const r of ROUTES) {

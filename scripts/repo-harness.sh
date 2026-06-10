@@ -124,7 +124,10 @@ build_hooks_json() {
   cat <<EOF
 {
   "SessionStart": [
-    { "hooks": [{ "type": "command", "command": "bash ${SHIM_PATH} session-start-context.sh" }] }
+    { "hooks": [
+        { "type": "command", "command": "bash ${SHIM_PATH} session-start-context.sh" },
+        { "type": "command", "command": "bash ${SHIM_PATH} security-sentinel.sh" }
+    ]}
   ],
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
