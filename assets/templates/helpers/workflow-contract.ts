@@ -115,11 +115,8 @@ export function resolveAgenticDevRoot(_repoRoot = REPO_ROOT): string {
     const candidates = [
       join(home, "Projects", "repo-harness"),
       join(home, ".codex", "skills", "repo-harness"),
-      join(home, ".codex", "skills", "repo-harness-skill"),
       join(home, ".claude", "skills", "repo-harness"),
-      join(home, ".claude", "skills", "repo-harness-skill"),
       join(home, ".agents", "skills", "repo-harness"),
-      join(home, ".agents", "skills", "repo-harness-skill"),
     ];
 
     for (const candidate of candidates) {
@@ -133,10 +130,6 @@ export function resolveAgenticDevRoot(_repoRoot = REPO_ROOT): string {
 }
 
 export function resolveAgenticDevSkillRoot(repoRoot = REPO_ROOT): string {
-  return resolveAgenticDevRoot(repoRoot);
-}
-
-export function resolveProjectInitializerRoot(repoRoot = REPO_ROOT): string {
   return resolveAgenticDevRoot(repoRoot);
 }
 

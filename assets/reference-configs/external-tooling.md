@@ -290,8 +290,8 @@ For this repo, use:
 brain/repo-harness/*
 ```
 
-Legacy repo-harness-skill and project-initializer paths should remain as
-redirects/indexes during the compatibility window, not as active sync targets.
+The legacy repo-harness-skill and project-initializer paths are retired and
+removed by installed-copy sync; do not use them as sync targets.
 
 Keep runtime contracts, hooks, scripts, checks, evidence, and migration state in
 the repo. The default brain stores reusable explanations, runbooks, decisions,

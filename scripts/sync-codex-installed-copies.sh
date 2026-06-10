@@ -100,35 +100,6 @@ remove_managed_dest() {
   fi
 }
 
-create_legacy_alias() {
-  local dest="$1"
-  local item
-  local base
-
-  remove_managed_dest "$dest"
-  mkdir -p "$dest/assets"
-
-  while IFS= read -r item; do
-    base="$(basename "$item")"
-    case "$base" in
-      .git|SKILL.md|node_modules|.DS_Store|_ops|_ref|assets)
-        continue
-        ;;
-    esac
-    ln -s "$item" "$dest/$base"
-  done < <(find "$SOURCE_ROOT" -mindepth 1 -maxdepth 1)
-
-  while IFS= read -r item; do
-    base="$(basename "$item")"
-    case "$base" in
-      skill-commands)
-        continue
-        ;;
-    esac
-    ln -s "$item" "$dest/assets/$base"
-  done < <(find "$SOURCE_ROOT/assets" -mindepth 1 -maxdepth 1)
-}
-
 remove_retired_aliases() {
   local root="$1"
   if [[ -z "$root" ]]; then
@@ -137,7 +108,7 @@ remove_retired_aliases() {
 
   local retired_name
   local retired_dest
-  for retired_name in project-initializer; do
+  for retired_name in project-initializer repo-harness-skill; do
     retired_dest="$root/$retired_name"
     if [[ -e "$retired_dest" || -L "$retired_dest" ]]; then
       remove_managed_dest "$retired_dest"
@@ -152,14 +123,10 @@ sync_claude_alias_links() {
   fi
 
   mkdir -p "$CLAUDE_SKILLS_ROOT"
-  local alias_name
-  local alias_dest
-  for alias_name in repo-harness repo-harness-skill; do
-    alias_dest="$CLAUDE_SKILLS_ROOT/$alias_name"
-    remove_managed_dest "$alias_dest"
-    ln -s "$SOURCE_ROOT" "$alias_dest"
-    echo "[sync-installed] Claude skill alias: $alias_dest -> $SOURCE_ROOT"
-  done
+  local alias_dest="$CLAUDE_SKILLS_ROOT/repo-harness"
+  remove_managed_dest "$alias_dest"
+  ln -s "$SOURCE_ROOT" "$alias_dest"
+  echo "[sync-installed] Claude skill alias: $alias_dest -> $SOURCE_ROOT"
 }
 
 sync_claude_alias_copies() {
@@ -168,13 +135,9 @@ sync_claude_alias_copies() {
   fi
 
   mkdir -p "$CLAUDE_SKILLS_ROOT"
-  local alias_name
-  local alias_dest
-  for alias_name in repo-harness repo-harness-skill; do
-    alias_dest="$CLAUDE_SKILLS_ROOT/$alias_name"
-    sync_copy "$alias_dest"
-    echo "[sync-installed] Claude skill copy: $alias_dest"
-  done
+  local alias_dest="$CLAUDE_SKILLS_ROOT/repo-harness"
+  sync_copy "$alias_dest"
+  echo "[sync-installed] Claude skill copy: $alias_dest"
 }
 
 canonical_dest="$CODEX_SKILLS_ROOT/repo-harness"
@@ -183,12 +146,6 @@ if [[ "$LINK_INSTALLED_COPIES" == "1" ]]; then
   remove_managed_dest "$canonical_dest"
   ln -s "$SOURCE_ROOT" "$canonical_dest"
   echo "[sync-installed] canonical skill link: $canonical_dest -> $SOURCE_ROOT"
-
-  for legacy_name in repo-harness-skill; do
-    legacy_dest="$CODEX_SKILLS_ROOT/$legacy_name"
-    create_legacy_alias "$legacy_dest"
-    echo "[sync-installed] legacy runtime alias: $legacy_dest -> $SOURCE_ROOT"
-  done
 
   remove_retired_aliases "$CODEX_SKILLS_ROOT"
   sync_claude_alias_links
@@ -199,19 +156,6 @@ fi
 
 sync_copy "$canonical_dest"
 echo "[sync-installed] canonical skill copy: $canonical_dest"
-
-for legacy_name in repo-harness-skill; do
-  legacy_dest="$CODEX_SKILLS_ROOT/$legacy_name"
-  sync_copy "$legacy_dest"
-
-  # Legacy dirs are runtime fallback bundles, not discoverable Codex skills.
-  # Keep scripts/assets for old resolver paths, but remove every skill facade.
-  # -H handles existing legacy symlinks.
-  find -H "$legacy_dest" -name SKILL.md -type f -delete
-  rm -rf "$legacy_dest/assets/skill-commands"
-
-  echo "[sync-installed] legacy runtime fallback bundle: $legacy_dest"
-done
 
 remove_retired_aliases "$CODEX_SKILLS_ROOT"
 sync_claude_alias_copies

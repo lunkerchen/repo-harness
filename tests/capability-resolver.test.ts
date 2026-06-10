@@ -139,24 +139,36 @@ describe("capability resolver", () => {
     }
   });
 
-  test("REPO_HARNESS_CONTEXT_BLOCKS is preferred over the legacy env fallback", () => {
+  test("REPO_HARNESS_CONTEXT_BLOCKS is honored and the retired legacy env is ignored", () => {
     const cwd = tmpWorkspace("capability-env-blocks");
     try {
       mkdirSync(join(cwd, "apps/current"), { recursive: true });
       mkdirSync(join(cwd, "apps/legacy"), { recursive: true });
 
+      const env = {
+        REPO_HARNESS_CONTEXT_BLOCKS: "apps/current",
+        PROJECT_INITIALIZER_CONTEXT_BLOCKS: "apps/legacy",
+      };
+
       const res = runResolver(
         cwd,
         ["match", "--path", "apps/current/page.tsx", "--format", "json"],
-        {
-          REPO_HARNESS_CONTEXT_BLOCKS: "apps/current",
-          PROJECT_INITIALIZER_CONTEXT_BLOCKS: "apps/legacy",
-        }
+        env
       );
       expect(res.status).toBe(0);
       const match = JSON.parse(res.stdout);
       expect(match.capability_id).toBe("apps-current");
       expect(match.matched_prefix).toBe("apps/current");
+
+      const legacyRes = runResolver(
+        cwd,
+        ["match", "--path", "apps/legacy/page.tsx", "--format", "json"],
+        env
+      );
+      expect(legacyRes.status).toBe(0);
+      const legacyMatch = JSON.parse(legacyRes.stdout);
+      expect(legacyMatch.matched).toBe(false);
+      expect(legacyMatch.matched_prefix).toBe("root");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

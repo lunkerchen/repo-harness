@@ -3,8 +3,9 @@
   "templateVersion": "5.2.3",
   "skillName": "repo-harness",
   "contractId": "tasks-first-harness-v1",
-  "legacyAliases": [
-    "repo-harness-skill"
+  "retiredAliases": [
+    "repo-harness-skill",
+    "project-initializer"
   ],
   "compatibility": {
     "minClaudeCodeVersion": "1.0.0",
@@ -111,9 +112,6 @@
   "generatedProjectStamp": {
     "format": "repo-harness@{version}+template@{templateVersion}",
     "displayName": "repo-harness",
-    "legacyAliases": [
-      "repo-harness-skill"
-    ],
     "location": ".claude/.skill-version"
   }
 }

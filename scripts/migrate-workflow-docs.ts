@@ -196,6 +196,10 @@ export function migrate(repo: string, mode: Mode): MigrationSummary {
   }
   writeCanonicalResearch(tasksResearch, mode);
 
+  // NOTE: The "<!-- project-initializer: legacy-docs-import ... -->" markers below are
+  // historical data markers, not an active compatibility surface. They are written into
+  // migrated repos and used by appendIfMissing as the idempotency key, so renaming them
+  // would re-import already-migrated legacy docs. Keep the marker string stable.
   if (existsSync(planDoc)) {
     const content = readFileSync(planDoc, "utf-8");
     const archiveBlock = [

@@ -6,8 +6,8 @@
 
 Repo-local agentic development harness CLI and skill runtime for Claude/Codex
 workflows. The npm package and primary command are now `repo-harness`.
-`repo-harness-skill` remains a compatibility alias, while `project-initializer`
-install paths are retired and removed by installed-copy sync.
+The legacy `repo-harness-skill` and `project-initializer` install paths are
+retired and removed by installed-copy sync.
 Repository: `https://github.com/Ancienttwo/repo-harness`
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [Español](README.es.md)
@@ -207,16 +207,14 @@ bun src/cli/index.ts update
 Local path model:
 
 - Source repo: `~/Projects/repo-harness`
-- Claude skill aliases: `~/.claude/skills/repo-harness`, `~/.claude/skills/repo-harness-skill`
+- Claude skill alias: `~/.claude/skills/repo-harness`
 - Codex discoverable skill alias: `~/.codex/skills/repo-harness`
-- Codex compatibility fallback alias: `~/.codex/skills/repo-harness-skill`
 
 The `~/Projects/repo-harness` repo is the only editable source of truth. Local
 Claude/Codex paths are symlink-backed runtime entrypoints. Only
 `~/.codex/skills/repo-harness` should expose `SKILL.md` and
-`assets/skill-commands/`; compatibility directories exist only so renamed
-repos can still resolve upstream assets without duplicate command discovery.
-The retired `project-initializer` directories under `~/.codex/skills` and
+`assets/skill-commands/`. The retired `repo-harness-skill` and
+`project-initializer` directories under `~/.codex/skills` and
 `~/.claude/skills` are deleted by `scripts/sync-codex-installed-copies.sh`.
 
 ### Minimum prerequisites
@@ -441,11 +439,9 @@ passes. These commands call existing repo-local helpers and keep their scope
 narrow instead of refreshing the full harness.
 
 Codex installed-copy rule: only `~/.codex/skills/repo-harness` exposes the root
-skill and `repo-harness-*` command facades. The compatibility directory
-`~/.codex/skills/repo-harness-skill` is a runtime fallback bundle only; it must
-not contain `SKILL.md` files or `assets/skill-commands/`. The retired
-`~/.codex/skills/project-initializer` and `~/.claude/skills/project-initializer`
-directories are removed during sync.
+skill and `repo-harness-*` command facades. The retired `repo-harness-skill`
+and `project-initializer` directories under `~/.codex/skills` and
+`~/.claude/skills` are removed during sync.
 
 After cloning or moving this source repo, rebuild the local runtime aliases with:
 

@@ -32,8 +32,7 @@ function section(doc: string, heading: string): string {
 }
 
 function isAllowedRuntimeReference(file: string, line: string): boolean {
-  if (/Claude skill aliases/.test(line)) return true;
-  if (/project-initializer/.test(line)) return true;
+  if (/Claude skill alias/.test(line)) return true;
   if (file === "docs/reference-configs/external-tooling.md" && /~\/\.claude\/skills\/gstack/.test(line)) {
     return true;
   }

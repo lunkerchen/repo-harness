@@ -175,13 +175,13 @@ bun src/cli/index.ts init
 ローカルパスのモデル：
 
 - ソースリポジトリ：`~/Projects/repo-harness`
-- Claude skill aliases：`~/.claude/skills/repo-harness`、`~/.claude/skills/repo-harness-skill`
+- Claude skill alias：`~/.claude/skills/repo-harness`
 - Codex discoverable skill alias：`~/.codex/skills/repo-harness`
-- Codex compatibility fallback alias：`~/.codex/skills/repo-harness-skill`
 
 `~/Projects/repo-harness` が唯一の編集可能な source of truth です。ローカルの Claude/Codex パスは
-symlink に裏打ちされた runtime entrypoint です。退役した `project-initializer` runtime ディレクトリは
-`scripts/sync-codex-installed-copies.sh` によって整理されます。
+symlink に裏打ちされた runtime entrypoint です。退役した `repo-harness-skill` と
+`project-initializer` の runtime ディレクトリは
+`scripts/sync-codex-installed-copies.sh` によって削除されます。
 
 ### 最小の前提条件
 

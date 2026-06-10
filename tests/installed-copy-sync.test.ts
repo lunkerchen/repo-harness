@@ -21,6 +21,10 @@ describe("Codex installed copy sync", () => {
       mkdirSync(claudeSkills, { recursive: true });
       mkdirSync(legacyAliasTarget, { recursive: true });
       symlinkSync(legacyAliasTarget, join(codexSkills, "project-initializer"), "dir");
+      mkdirSync(join(codexSkills, "repo-harness-skill"), { recursive: true });
+      writeFileSync(join(codexSkills, "repo-harness-skill", "README.md"), "stale retired copy\n");
+      mkdirSync(join(claudeSkills, "repo-harness-skill"), { recursive: true });
+      writeFileSync(join(claudeSkills, "repo-harness-skill", "README.md"), "stale retired copy\n");
 
       writeFileSync(join(source, "SKILL.md"), "---\nname: repo-harness\n---\n");
       writeFileSync(join(source, "assets", "skill-commands", "repo-harness-plan", "SKILL.md"), "---\nname: repo-harness-plan\n---\n");
@@ -52,19 +56,11 @@ describe("Codex installed copy sync", () => {
       expect(existsSync(join(codexSkills, "repo-harness", ".claude", ".trace.jsonl"))).toBe(false);
       expect(existsSync(join(codexSkills, "repo-harness", ".codex", "hooks.json"))).toBe(false);
 
-      for (const legacyName of ["repo-harness-skill"]) {
-        expect(existsSync(join(codexSkills, legacyName, "assets", "skill-version.json"))).toBe(true);
-        expect(existsSync(join(codexSkills, legacyName, "SKILL.md"))).toBe(false);
-        expect(existsSync(join(codexSkills, legacyName, "assets", "skill-commands"))).toBe(false);
-        expect(existsSync(join(codexSkills, legacyName, ".ai", "harness", "checks", "latest.json"))).toBe(false);
-        expect(existsSync(join(codexSkills, legacyName, ".claude", ".trace.jsonl"))).toBe(false);
-        expect(existsSync(join(codexSkills, legacyName, ".codex", "hooks.json"))).toBe(false);
-        expect(existsSync(join(claudeSkills, legacyName, "SKILL.md"))).toBe(true);
-        expect(existsSync(join(claudeSkills, legacyName, "assets", "skill-commands", "repo-harness-plan", "SKILL.md"))).toBe(true);
+      for (const retiredName of ["repo-harness-skill", "project-initializer"]) {
+        expect(existsSync(join(codexSkills, retiredName))).toBe(false);
+        expect(existsSync(join(claudeSkills, retiredName))).toBe(false);
       }
-
-      expect(existsSync(join(codexSkills, "project-initializer"))).toBe(false);
-      expect(existsSync(join(claudeSkills, "project-initializer"))).toBe(false);
+      expect(result.stdout).toContain("retired alias removed");
       expect(existsSync(join(claudeSkills, "repo-harness", "SKILL.md"))).toBe(true);
       expect(existsSync(join(claudeSkills, "repo-harness", ".ai", "harness", "checks", "latest.json"))).toBe(false);
       expect(existsSync(join(claudeSkills, "repo-harness", ".claude", ".trace.jsonl"))).toBe(false);
@@ -86,6 +82,8 @@ describe("Codex installed copy sync", () => {
       mkdirSync(join(source, "assets", "skill-commands", "repo-harness-plan"), { recursive: true });
       mkdirSync(codexSkills, { recursive: true });
       mkdirSync(claudeSkills, { recursive: true });
+      symlinkSync(source, join(codexSkills, "repo-harness-skill"), "dir");
+      symlinkSync(source, join(claudeSkills, "repo-harness-skill"), "dir");
 
       writeFileSync(join(source, "SKILL.md"), "---\nname: repo-harness\n---\n");
       writeFileSync(join(source, "assets", "skill-commands", "repo-harness-plan", "SKILL.md"), "---\nname: repo-harness-plan\n---\n");
@@ -108,16 +106,14 @@ describe("Codex installed copy sync", () => {
       expect(lstatSync(join(codexSkills, "repo-harness")).isSymbolicLink()).toBe(true);
       expect(lstatSync(join(claudeSkills, "repo-harness")).isSymbolicLink()).toBe(true);
 
-      for (const legacyName of ["repo-harness-skill"]) {
-        expect(existsSync(join(codexSkills, legacyName, "README.md"))).toBe(true);
-        expect(existsSync(join(codexSkills, legacyName, "assets", "skill-version.json"))).toBe(true);
-        expect(existsSync(join(codexSkills, legacyName, "SKILL.md"))).toBe(false);
-        expect(existsSync(join(codexSkills, legacyName, "assets", "skill-commands"))).toBe(false);
-        expect(lstatSync(join(claudeSkills, legacyName)).isSymbolicLink()).toBe(true);
-        expect(existsSync(join(claudeSkills, legacyName, "SKILL.md"))).toBe(true);
+      for (const retiredName of ["repo-harness-skill", "project-initializer"]) {
+        expect(existsSync(join(codexSkills, retiredName))).toBe(false);
+        expect(existsSync(join(claudeSkills, retiredName))).toBe(false);
       }
-      expect(existsSync(join(codexSkills, "project-initializer"))).toBe(false);
-      expect(existsSync(join(claudeSkills, "project-initializer"))).toBe(false);
+      // The pre-existing repo-harness-skill symlinks must be removed, not refreshed.
+      expect(() => lstatSync(join(codexSkills, "repo-harness-skill"))).toThrow();
+      expect(() => lstatSync(join(claudeSkills, "repo-harness-skill"))).toThrow();
+      expect(existsSync(join(source, "SKILL.md"))).toBe(true);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

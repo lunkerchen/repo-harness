@@ -46,7 +46,7 @@ describe("Factor Factory", () => {
   });
 
   test("factor lifecycle commands create, promote, reject, and check registry state", () => {
-    const cwd = bootstrapRepo("factor-flow", { PROJECT_INITIALIZER_PLAN_TYPE: "G" });
+    const cwd = bootstrapRepo("factor-flow", { REPO_HARNESS_PLAN_TYPE: "G" });
 
     try {
       const newRes = spawnSync("bash", [join(cwd, "scripts/factor-lab-new.sh"), "--name", "Mean Reversion"], {

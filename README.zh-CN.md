@@ -180,12 +180,12 @@ bun src/cli/index.ts update
 本地路径模型：
 
 - 源码仓库：`~/Projects/repo-harness`
-- Claude skill aliases：`~/.claude/skills/repo-harness`、`~/.claude/skills/repo-harness-skill`
+- Claude skill alias：`~/.claude/skills/repo-harness`
 - Codex discoverable skill alias：`~/.codex/skills/repo-harness`
-- Codex compatibility fallback alias：`~/.codex/skills/repo-harness-skill`
 
 `~/Projects/repo-harness` 是唯一可编辑 source of truth。本地 Claude/Codex 路径是
-symlink-backed runtime entrypoints。退休的 `project-initializer` runtime 目录会被
+symlink-backed runtime entrypoints。退休的 `repo-harness-skill` 与
+`project-initializer` runtime 目录会被
 `scripts/sync-codex-installed-copies.sh` 清理。
 
 ### 最小前置条件

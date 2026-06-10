@@ -1,7 +1,7 @@
 ---
 name: repo-harness
 description: routes repo-harness requests through the CLI and hook automation plugin for init, update, scaffold, migrate, audit, repair, and ship workflows
-when_to_use: "repo-harness, repo-harness-skill compatibility, initialize repo-local agentic development harness, scaffold new project with repo-harness, migrate repo-local agentic development harness, audit repo-local agentic development harness, repair repo-local agentic development harness"
+when_to_use: "repo-harness, initialize repo-local agentic development harness, scaffold new project with repo-harness, migrate repo-local agentic development harness, audit repo-local agentic development harness, repair repo-local agentic development harness"
 ---
 
 # repo-harness
@@ -15,16 +15,14 @@ Compatibility boundary:
 - internal engine: CLI plus hook-backed tasks-first harness
 - contract ID: tasks-first-harness-v1
 - canonical skill, CLI, and package name: `repo-harness`
-- compatibility trigger/runtime fallback: `repo-harness-skill`
-- retired legacy alias: `project-initializer`
+- retired legacy aliases: `repo-harness-skill`, `project-initializer`
 - new-project creation surface: `repo-harness-scaffold` (secondary generator)
 
-`repo-harness-skill` may still route old prompts and runtime fallback lookups.
-It must not expose duplicate Codex command facades. `project-initializer` is a
-cleanup and migration input only: do not create, sync, or search
-`~/.codex/skills/project-initializer` or `~/.claude/skills/project-initializer`
-as active upstream roots. Historical `project-initializer` markers in generated
-files may remain only as legacy evidence.
+`repo-harness-skill` and `project-initializer` are retired: do not create,
+sync, or search their directories under `~/.codex/skills` or
+`~/.claude/skills` as active upstream roots; installed-copy sync removes any
+existing copies. Historical `project-initializer` markers in generated files
+may remain only as legacy evidence.
 
 The skill should not carry the whole workflow contract in prose. It should:
 

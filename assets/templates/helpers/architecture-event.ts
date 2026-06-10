@@ -199,7 +199,6 @@ function defaultContextMap() {
       script: "scripts/select-agent-context-blocks.sh",
       config_file: ".ai/context/agent-context-blocks.txt",
       env: "REPO_HARNESS_CONTEXT_BLOCKS",
-      legacy_env: "PROJECT_INITIALIZER_CONTEXT_BLOCKS",
       rule: "compatibility selector; capability registry is the source of truth",
     },
     root_context_files: ["CLAUDE.md", "AGENTS.md"],

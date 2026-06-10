@@ -1063,7 +1063,7 @@ describe("Hook runtime behavior", () => {
         join(cwd, ".ai/harness/handoff/resume.md"),
         [
           "# Codex Resume Packet",
-          "<!-- generated-by: project-initializer codex-handoff-resume v1 -->",
+          "<!-- generated-by: repo-harness codex-handoff-resume v1 -->",
           "",
           "> **Reason**: context-red-zone",
           "",
@@ -1081,6 +1081,36 @@ describe("Hook runtime behavior", () => {
       utimesSync(join(cwd, ".ai/harness/handoff/current.md"), newTime, newTime);
 
       const res = runHook("session-start-context.sh", cwd);
+      expect(res.status).toBe(0);
+      expect(res.stdout.trim()).toBe("");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("session-start-context ignores resume packets with the retired project-initializer marker", () => {
+    const cwd = tmpWorkspace("session-start-retired-marker");
+    try {
+      installHooks(cwd);
+      mkdirSync(join(cwd, ".ai/harness/handoff"), { recursive: true });
+      mkdirSync(join(cwd, ".ai/harness/context-budget"), { recursive: true });
+
+      writeFileSync(
+        join(cwd, ".ai/harness/handoff/resume.md"),
+        [
+          "# Codex Resume Packet",
+          "<!-- generated-by: project-initializer codex-handoff-resume v1 -->",
+          "",
+          "> **Reason**: context-red-zone",
+          "",
+          "## Resume Prompt",
+          "",
+          "Retired-marker resume packet that must not be injected.",
+        ].join("\n")
+      );
+      writeFileSync(join(cwd, ".ai/harness/context-budget/latest.json"), JSON.stringify({ zone: "red" }) + "\n");
+
+      const res = runHook("session-start-context.sh", cwd, { env: { HOOK_HOST: "codex" } });
       expect(res.status).toBe(0);
       expect(res.stdout.trim()).toBe("");
     } finally {

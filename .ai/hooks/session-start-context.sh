@@ -17,10 +17,7 @@ resume_file="$(workflow_resume_packet_file)"
 
 resume_available() {
   [[ -f "$resume_file" ]] || return 1
-  {
-    grep -Fq "<!-- generated-by: repo-harness codex-handoff-resume v1 -->" "$resume_file" ||
-      grep -Fq "<!-- generated-by: project-initializer codex-handoff-resume v1 -->" "$resume_file"
-  } || return 1
+  grep -Fq "<!-- generated-by: repo-harness codex-handoff-resume v1 -->" "$resume_file" || return 1
   grep -Fq "## Resume Prompt" "$resume_file"
 }
 

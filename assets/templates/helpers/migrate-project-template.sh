@@ -23,11 +23,8 @@ resolve_agentic_dev_root() {
     local roots=(
       "$HOME/Projects/repo-harness"
       "$HOME/.codex/skills/repo-harness"
-      "$HOME/.codex/skills/repo-harness-skill"
       "$HOME/.claude/skills/repo-harness"
-      "$HOME/.claude/skills/repo-harness-skill"
       "$HOME/.agents/skills/repo-harness"
-      "$HOME/.agents/skills/repo-harness-skill"
     )
 
     local root

@@ -8,9 +8,10 @@
 
 Install, update, generate, and migrate repo-local agentic workflow contracts for
 Claude and Codex through the `repo-harness` CLI and hook automation layer. The
-skill entrypoint, formerly `repo-harness-skill`, remains a compatibility router;
-workflow authority lives in repo-local artifacts, scripts, hooks, and the
-versioned contract this repository self-hosts for downstream repos.
+skill entrypoint is `repo-harness`; the former `repo-harness-skill` name is
+retired and removed by installed-copy sync. Workflow authority lives in
+repo-local artifacts, scripts, hooks, and the versioned contract this
+repository self-hosts for downstream repos.
 
 ## Success Criteria
 

@@ -539,6 +539,6 @@ main() {
     echo ""
 }
 
-if [[ "$(pi_env_value "REPO_HARNESS_SOURCE_ONLY" "PROJECT_INITIALIZER_SOURCE_ONLY" "0")" != "1" ]]; then
+if [[ "$(pi_env_value "REPO_HARNESS_SOURCE_ONLY" "0")" != "1" ]]; then
     main
 fi

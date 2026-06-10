@@ -208,14 +208,13 @@ bun src/cli/index.ts init
 Modèle de chemins locaux :
 
 - Dépôt source : `~/Projects/repo-harness`
-- Claude skill aliases : `~/.claude/skills/repo-harness`, `~/.claude/skills/repo-harness-skill`
+- Claude skill alias : `~/.claude/skills/repo-harness`
 - Codex discoverable skill alias : `~/.codex/skills/repo-harness`
-- Codex compatibility fallback alias : `~/.codex/skills/repo-harness-skill`
 
 `~/Projects/repo-harness` est l'unique source of truth éditable. Les chemins
 Claude/Codex locaux sont des runtime entrypoints adossés à des symlinks. Les
-répertoires du runtime `project-initializer` retiré sont nettoyés par
-`scripts/sync-codex-installed-copies.sh`.
+répertoires des runtimes retirés `repo-harness-skill` et `project-initializer`
+sont supprimés par `scripts/sync-codex-installed-copies.sh`.
 
 ### Prérequis minimaux
 

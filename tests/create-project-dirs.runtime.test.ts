@@ -319,7 +319,7 @@ describe("create-project-dirs runtime smoke", () => {
           "-lc",
           [
             `source '${libPath}'`,
-            "PROJECT_INITIALIZER_PLAN_TYPE=K",
+            "REPO_HARNESS_PLAN_TYPE=K",
             'pi_ensure_harness_state_surface "$PWD" apply',
           ].join("\n"),
         ],
@@ -375,7 +375,7 @@ describe("create-project-dirs runtime smoke", () => {
           "-lc",
           [
             `source '${libPath}'`,
-            "PROJECT_INITIALIZER_PLAN_TYPE=K",
+            "REPO_HARNESS_PLAN_TYPE=K",
             'pi_ensure_harness_state_surface "$PWD" apply',
           ].join("\n"),
         ],
@@ -411,7 +411,7 @@ describe("create-project-dirs runtime smoke", () => {
           "-lc",
           [
             `source '${libPath}'`,
-            "PROJECT_INITIALIZER_PLAN_TYPE=K",
+            "REPO_HARNESS_PLAN_TYPE=K",
             'pi_ensure_harness_state_surface "$PWD" apply',
           ].join("\n"),
         ],
@@ -444,7 +444,7 @@ describe("create-project-dirs runtime smoke", () => {
           "-lc",
           [
             `source '${libPath}'`,
-            "PROJECT_INITIALIZER_PLAN_TYPE=K",
+            "REPO_HARNESS_PLAN_TYPE=K",
             'pi_ensure_harness_state_surface "$PWD" apply',
           ].join("\n"),
         ],
@@ -478,7 +478,7 @@ describe("create-project-dirs runtime smoke", () => {
           "-lc",
           [
             `source '${libPath}'`,
-            "PROJECT_INITIALIZER_PLAN_TYPE=K",
+            "REPO_HARNESS_PLAN_TYPE=K",
             'pi_ensure_harness_state_surface "$PWD" apply',
           ].join("\n"),
         ],
@@ -507,7 +507,7 @@ describe("create-project-dirs runtime smoke", () => {
         encoding: "utf-8",
         env: {
           ...process.env,
-          PROJECT_INITIALIZER_DOCUMENTATION_PROFILE: "full",
+          REPO_HARNESS_DOCUMENTATION_PROFILE: "full",
         },
       });
       expect(res.status).toBe(0);
