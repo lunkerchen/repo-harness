@@ -134,6 +134,11 @@ describe("workflow contract manifest", () => {
     expect(contract.migrations.upgrade?.actionClasses).toContain("reconfigure");
     expect(contract.migrations.upgrade?.safety.removeOnlyOwnership).toBe("known_generated");
     expect(contract.migrations.upgrade?.actions.some((action) => action.action === "remove" && action.ownership === "known_generated")).toBe(true);
+    const retiredDrift = contract.migrations.upgrade?.actions.find((action) => action.id === "legacy-architecture-drift-helper");
+    expect(retiredDrift?.action).toBe("remove");
+    expect(retiredDrift?.ownership).toBe("known_generated");
+    expect(retiredDrift?.paths).toContain("scripts/architecture-drift.sh");
+    expect(retiredDrift?.paths).toContain("assets/templates/helpers/architecture-drift.sh");
   });
 
   test("upstream skill root resolver prefers the canonical env var without retired alias surfaces", () => {

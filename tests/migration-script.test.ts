@@ -237,6 +237,8 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, "scripts/check-task-sync.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/check-deploy-sql-order.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/check-architecture-sync.sh"))).toBe(true);
+      expect(existsSync(join(repo, "scripts/architecture-queue.sh"))).toBe(true);
+      expect(existsSync(join(repo, "scripts/architecture-drift.sh"))).toBe(false);
       expect(existsSync(join(repo, "scripts/check-agent-tooling.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/check-context-files.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/check-brain-manifest.sh"))).toBe(true);
@@ -283,6 +285,10 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, "docs/reference-configs/global-working-rules.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/reference-configs/spa-day-protocol.md"))).toBe(false);
       expect(existsSync(join(repo, "docs/reference-configs/hook-operations.md"))).toBe(false);
+      const architectureIndex = readFileSync(join(repo, "docs/architecture/index.md"), "utf-8");
+      expect(architectureIndex).toContain("<!-- BEGIN ARCHITECTURE PENDING REQUESTS -->");
+      expect(architectureIndex).toContain("- (none)");
+      expect(architectureIndex).toContain("<!-- END ARCHITECTURE PENDING REQUESTS -->");
       expect(existsSync(join(repo, "docs/reference-configs/evaluator-rubric.md"))).toBe(false);
       expect(existsSync(join(repo, ".claude/skill-factory/rubric.template.json"))).toBe(false);
       expect(existsSync(join(repo, ".claude/skill-factory/registry.json"))).toBe(false);
@@ -542,10 +548,13 @@ describe("Migration script contract", () => {
       mkdirSync(join(repo, ".claude/hooks/lib"), { recursive: true });
       mkdirSync(join(repo, ".claude/skill-factory"), { recursive: true });
       mkdirSync(join(repo, "scripts"), { recursive: true });
+      mkdirSync(join(repo, "assets/templates/helpers"), { recursive: true });
       mkdirSync(join(repo, ".claude"), { recursive: true });
       writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", scripts: {} }, null, 2));
       writeFileSync(join(repo, "scripts/skill-factory-create.sh"), "#!/bin/bash\necho create\n");
       writeFileSync(join(repo, "scripts/skill-factory-check.sh"), "#!/bin/bash\necho check\n");
+      writeFileSync(join(repo, "scripts/architecture-drift.sh"), "#!/bin/bash\necho drift\n");
+      writeFileSync(join(repo, "assets/templates/helpers/architecture-drift.sh"), "#!/bin/bash\necho drift\n");
       writeFileSync(join(repo, ".ai/hooks/lib/skill-factory.sh"), "#!/bin/bash\necho legacy\n");
       writeFileSync(join(repo, ".ai/hooks/memory-intake.sh"), "#!/bin/bash\necho legacy\n");
       writeFileSync(join(repo, ".claude/hooks/run-hook.sh"), "#!/bin/bash\necho generated shim\n");
@@ -589,6 +598,8 @@ describe("Migration script contract", () => {
       expect(res.status).toBe(0);
       expect(existsSync(join(repo, "scripts/skill-factory-create.sh"))).toBe(false);
       expect(existsSync(join(repo, "scripts/skill-factory-check.sh"))).toBe(false);
+      expect(existsSync(join(repo, "scripts/architecture-drift.sh"))).toBe(false);
+      expect(existsSync(join(repo, "assets/templates/helpers/architecture-drift.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/lib/skill-factory.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/memory-intake.sh"))).toBe(false);
       expect(existsSync(join(repo, ".claude/hooks/run-hook.sh"))).toBe(false);

@@ -181,6 +181,11 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
     expect(contract.migrations.upgrade.strategyVersion).toBe(1);
     expect(contract.migrations.upgrade.safety.removeOnlyOwnership).toBe("known_generated");
+    const retiredDrift = contract.migrations.upgrade.actions.find(
+      (action: { id?: string; paths?: string[] }) => action.id === "legacy-architecture-drift-helper"
+    );
+    expect(retiredDrift?.paths).toContain("scripts/architecture-drift.sh");
+    expect(retiredDrift?.paths).toContain("assets/templates/helpers/architecture-drift.sh");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");
     expect(contract.agenticDevelopment.routing.productDiscovery).toBe("gstack:office-hours");

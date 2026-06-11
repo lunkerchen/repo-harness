@@ -99,6 +99,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "scripts/architecture-event.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/capability-config.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/architecture-queue.sh"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/architecture-drift.sh"))).toBe(false);
       expect(existsSync(join(cwd, "scripts/archive-architecture-request.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/context-contract-sync.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/workstream-sync.sh"))).toBe(true);
@@ -135,6 +136,11 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/hooks/post-tool-observer.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/session-start-context.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/post-edit-guard.sh"))).toBe(true);
+
+      const architectureIndex = readFileSync(join(cwd, "docs/architecture/index.md"), "utf-8");
+      expect(architectureIndex).toContain("<!-- BEGIN ARCHITECTURE PENDING REQUESTS -->");
+      expect(architectureIndex).toContain("- (none)");
+      expect(architectureIndex).toContain("<!-- END ARCHITECTURE PENDING REQUESTS -->");
 
       expect(existsSync(join(cwd, "docs/PROGRESS.md"))).toBe(false);
       const workflowContract = JSON.parse(readFileSync(join(cwd, ".ai/harness/workflow-contract.json"), "utf-8"));

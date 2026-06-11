@@ -437,6 +437,18 @@
           "summary": "Remove the split PostToolUse observer hooks replaced by the merged post-tool-observer.sh."
         },
         {
+          "id": "legacy-architecture-drift-helper",
+          "signal": "stale-architecture-drift-helper",
+          "action": "remove",
+          "risk": "low",
+          "ownership": "known_generated",
+          "paths": [
+            "scripts/architecture-drift.sh",
+            "assets/templates/helpers/architecture-drift.sh"
+          ],
+          "summary": "Remove the retired architecture-drift helper after architecture-queue.sh absorbs request, card, index, and gate ownership."
+        },
+        {
           "id": "custom-claude-hooks-preserve",
           "signal": "custom-claude-hooks",
           "action": "preserve",

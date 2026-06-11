@@ -1,13 +1,13 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-12T04:51:42+0800 -->
+<!-- updated_at: 2026-06-12T05:38:09+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: ManualClearedWithActiveWork
-> **Updated At**: 2026-06-12T04:51:42+0800
+> **Updated At**: 2026-06-12T05:38:09+0800
 > **Source Branch**: codex/arch-doc-loop-01-queue-engine-triage
-> **Source Commit**: 34a2abb
+> **Source Commit**: 3bb1ea6
 > **Target Branch**: main
 > **Stale After**: 24h
 > **Reason**: archive-workflow
@@ -33,7 +33,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 - /Users/chris/Projects/agentic-dev-wt-hook-runtime-drift-policy: plans/plan-20260610-1113-hook-runtime-drift-policy.md
 - /Users/chris/Projects/agentic-dev-wt-hook-runtime-drift-policy: active-worktree owner -> /Users/chris/Projects/agentic-dev-wt-hook-runtime-drift-policy
-- /Users/chris/Projects/agentic-dev-wt-loop-engine-02-routing-ab-eval: plans/plan-20260612-0435-loop-engine-03-shadow-injection.md
+- /Users/chris/Projects/agentic-dev-wt-loop-engine-02-routing-ab-eval: plans/plan-20260612-0528-loop-engine-06-heartbeat-v0.md
 - /Users/chris/Projects/agentic-dev-wt-loop-engine-02-routing-ab-eval: active-worktree owner -> /Users/chris/Projects/agentic-dev-wt-loop-engine-02-routing-ab-eval
 - /Users/chris/Projects/agentic-dev-wt-wt-continuation-for-architecture-doc-loop: plans/plan-20260612-0314-wt-continuation-for-architecture-doc-loop.md
 - /Users/chris/Projects/agentic-dev-wt-wt-continuation-for-architecture-doc-loop: active-worktree owner -> /Users/chris/Projects/agentic-dev-wt-wt-continuation-for-architecture-doc-loop
@@ -53,41 +53,24 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 32 changed/untracked path(s)
+- Summary: 15 changed/untracked path(s)
 
 ```
  M .ai/harness/workflow-contract.json
- M .ai/hooks/session-start-context.sh
- M AGENTS.md
- M CLAUDE.md
- M assets/hooks/session-start-context.sh
- M assets/reference-configs/harness-overview.md
- M assets/skill-commands/repo-harness-architecture/SKILL.md
- M assets/templates/helpers/capability-resolver.ts
- M assets/templates/helpers/check-task-workflow.sh
- M assets/templates/helpers/contract-worktree.sh
+ M assets/templates/helpers/ensure-task-workflow.sh
  M assets/workflow-contract.v1.json
- M docs/reference-configs/harness-overview.md
- M package.json
- M scripts/capability-resolver.ts
- M scripts/check-task-workflow.sh
- M scripts/contract-worktree.sh
+ M scripts/ensure-task-workflow.sh
  M scripts/lib/project-init-lib.sh
+ M tasks/todo.md
  M tests/bootstrap-files.test.ts
  M tests/create-project-dirs.runtime.test.ts
- M tests/helper-scripts.test.ts
- M tests/hook-runtime.test.ts
  M tests/migration-script.test.ts
- M tests/scaffold-parity.test.ts
  M tests/workflow-contract.test.ts
-?? assets/templates/helpers/check-architecture-sync.sh
-?? plans/archive/plan-20260612-0410-arch-doc-loop-02-freshness-gate-surfaces.md
-?? scripts/check-architecture-sync.sh
-?? tasks/archive/notes-20260612-0451-arch-doc-loop-02-freshness-gate-surfaces.md
-?? tasks/archive/todo-20260612-0451-arch-doc-loop-02-freshness-gate-surfaces.md
-?? tasks/contracts/20260612-0410-arch-doc-loop-02-freshness-gate-surfaces.contract.md
-?? tasks/reviews/20260612-0410-arch-doc-loop-02-freshness-gate-surfaces.review.md
-?? tests/architecture-sync.test.ts
+?? plans/archive/plan-20260612-0453-arch-doc-loop-03-productize-assets.md
+?? tasks/archive/notes-20260612-0538-arch-doc-loop-03-productize-assets.md
+?? tasks/archive/todo-20260612-0538-arch-doc-loop-03-productize-assets.md
+?? tasks/contracts/20260612-0453-arch-doc-loop-03-productize-assets.contract.md
+?? tasks/reviews/20260612-0453-arch-doc-loop-03-productize-assets.review.md
 ```
 
 ## Source Artifacts

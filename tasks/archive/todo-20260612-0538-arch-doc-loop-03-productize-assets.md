@@ -1,7 +1,13 @@
+> **Archived**: 2026-06-12 05:38
+> **Related Plan**: plans/archive/plan-20260612-0453-arch-doc-loop-03-productize-assets.md
+> **Outcome**: Completed
+> **Source Plan**: (none)
+> **Parent Run ID**: run-20260612-0538
+
 # Deferred Goal Ledger
 
 > **Status**: Backlog
-> **Updated**: (archive-workflow)
+> **Updated**: (initial)
 > **Scope**: Medium/long-term goals deferred from active plan execution
 
 Current plan tasks live in the active plan's `## Task Breakdown`.
