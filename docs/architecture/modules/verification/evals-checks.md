@@ -56,6 +56,17 @@ installable copies must not drift silently.
 At 10x repo size, the first failure would be full-test cost. The current split
 lets small slices run focused tests while release/pre-merge runs the full gate.
 
+## 2026-06-12 Architecture Queue Closeout
+
+- The strict workflow required-file surface now tracks
+  `scripts/architecture-queue.sh` instead of the retired
+  `scripts/architecture-drift.sh`.
+- Focused coverage for queue behavior lives in `tests/architecture-queue.test.ts`
+  and covers card merge, reindex self-heal, cutoff triage, gate modes, and
+  archive roundtrip.
+- Existing hook/runtime/contract tests continue to assert hook parity and the
+  advisory PostToolUse behavior around architecture queue failures.
+
 ## Optimization Backlog
 
 - Add capability registry validation to strict workflow checks once the new registry has one more real edit cycle.

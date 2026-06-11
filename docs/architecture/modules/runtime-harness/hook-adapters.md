@@ -37,7 +37,7 @@ After adapter configuration, Codex still requires the user to trust
 `~/.codex/hooks.json` in Codex Settings before that route executes.
 
 Post-edit route: edit/write -> `post-edit-guard.sh` -> architecture-sensitive
-paths call `architecture-drift.sh` -> capability resolver binds the changed file
+paths call `architecture-queue.sh` -> capability resolver binds the changed file
 to a capability -> pending request is written under `docs/architecture/requests`
 and an event is appended under `.ai/harness/architecture/events.jsonl`.
 
@@ -149,7 +149,7 @@ flowchart TD
     SecuritySentinel --> SecurityCtx["security scan -> .ai/harness/security/latest.json<br/>optional SessionStart reminder"]
     PreGuard --> Block["guards: _ref, _ops, deploy, scope, plan transition, test/spec-first"]
     PostGuard --> Verify["verify-contract --quiet -> .ai/harness/checks/latest.json"]
-    PostGuard --> Drift["architecture-drift.sh -> docs/architecture/requests + events.jsonl"]
+    PostGuard --> Drift["architecture-queue.sh -> docs/architecture/requests + events.jsonl"]
     Drift --> ContextSync["context-contract-sync or capability-context request"]
     PostGuard --> Handoff[".claude/.task-handoff.md + .ai/harness/handoff/current.md"]
     PostBash --> Checks["Bash result/check evidence"]
@@ -213,6 +213,20 @@ At 10x hook events, the first failure is cold-loading the full CLI on every
 hook event. The invariant is that host adapters point at the minimal
 hook-only entrypoint and then `.ai/hooks`, instead of creating separate
 per-host implementation trees or loading non-hook command modules.
+
+## 2026-06-12 Architecture Queue Closeout
+
+- Post-edit architecture drift recording now runs through
+  `scripts/architecture-queue.sh record`; `.ai/hooks/post-edit-guard.sh` and
+  `assets/hooks/post-edit-guard.sh` preserve the existing
+  `[ArchitectureDrift] Request:` stdout prefix so context sync and capability
+  context queuing remain advisory hook side effects.
+- The queue writes one pending card per capability and relies on
+  `scripts/architecture-event.ts` for card rendering and derived index
+  rewriting, removing the previous append-to-index state machine from the hook
+  hot path.
+- PostToolUse remains warning-only: hard blocking belongs to explicit checks and
+  finish gates, not to edit-time hook execution.
 
 ## Optimization Backlog
 

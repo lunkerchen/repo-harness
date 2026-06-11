@@ -29,9 +29,9 @@ describe("architecture-event helper", () => {
     expect(token.status).toBe(0);
     expect(token.stdout).toBe("apps-web-account");
 
-    const path = runArchitectureEvent(["repo-path", "--repo", ROOT, "--path", `${ROOT}/scripts/architecture-drift.sh`]);
+    const path = runArchitectureEvent(["repo-path", "--repo", ROOT, "--path", `${ROOT}/scripts/architecture-queue.sh`]);
     expect(path.status).toBe(0);
-    expect(path.stdout).toBe("scripts/architecture-drift.sh");
+    expect(path.stdout).toBe("scripts/architecture-queue.sh");
 
     const scope = runArchitectureEvent(["derive-scope", "--block", "apps/web/src/routes/account"]);
     expect(scope.status).toBe(0);

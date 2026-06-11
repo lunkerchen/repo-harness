@@ -171,14 +171,17 @@ if [[ -z "$resolved_status" ]]; then
 fi
 
 artifact_lines=()
-for artifact in "${artifacts[@]}"; do
-  rel_artifact="$(repo_relative_path "$artifact" || true)"
-  if [[ -z "$rel_artifact" ]]; then
-    echo "archive-architecture-request: unsafe artifact path: $artifact" >&2
-    exit 2
-  fi
-  artifact_lines+=("- \`${rel_artifact}\`")
-done
+if [[ "${#artifacts[@]}" -gt 0 ]]; then
+  for artifact in "${artifacts[@]-}"; do
+    [[ -n "$artifact" ]] || continue
+    rel_artifact="$(repo_relative_path "$artifact" || true)"
+    if [[ -z "$rel_artifact" ]]; then
+      echo "archive-architecture-request: unsafe artifact path: $artifact" >&2
+      exit 2
+    fi
+    artifact_lines+=("- \`${rel_artifact}\`")
+  done
+fi
 
 archive_year="$(date '+%Y')"
 archive_dir="docs/architecture/requests/archive/${archive_year}"

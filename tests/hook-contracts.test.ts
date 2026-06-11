@@ -166,7 +166,7 @@ describe("Hook contracts", () => {
     expect(script).toContain("[DocDrift]");
     expect(script).toContain("[DeployAsset]");
     expect(script).toContain("[TaskHandoff]");
-    expect(script).toContain("architecture-drift.sh");
+    expect(script).toContain("architecture-queue.sh");
     expect(script).toContain("context-contract-sync.sh");
     expect(script).toContain("sync-brain-docs.sh");
     expect(read("assets/templates/helpers/archive-architecture-request.sh")).toContain("[ArchitectureArchive]");
@@ -178,7 +178,7 @@ describe("Hook contracts", () => {
 
   test("architecture drift helpers should keep detection and context sync separated", () => {
     const eventHelper = read("assets/templates/helpers/architecture-event.ts");
-    const drift = read("assets/templates/helpers/architecture-drift.sh");
+    const drift = read("assets/templates/helpers/architecture-queue.sh");
     const sync = read("assets/templates/helpers/context-contract-sync.sh");
     const workstream = read("assets/templates/helpers/workstream-sync.sh");
 
@@ -188,7 +188,7 @@ describe("Hook contracts", () => {
     expect(drift).toContain("docs/architecture/requests");
     expect(drift).toContain("architecture-event.ts");
     expect(drift).toContain(".ai/harness/architecture/events.jsonl");
-    expect(drift).toContain("workstream-sync.sh");
+    expect(eventHelper).toContain("workstream-sync.sh");
     expect(drift).not.toContain("BEGIN ARCHITECTURE CONTRACT");
     expect(sync).toContain("architecture-event.ts");
     expect(sync).toContain("BEGIN ARCHITECTURE CONTRACT");
@@ -197,8 +197,8 @@ describe("Hook contracts", () => {
     expect(sync).toContain("Semantic diagram source");
     expect(sync).toContain("Latest human diagram");
     expect(sync).toContain("docs/architecture/diagrams");
-    expect(drift).toContain("Mermaid fenced block");
-    expect(drift).toContain("Markdown semantic source");
+    expect(eventHelper).toContain("Mermaid fenced block");
+    expect(eventHelper).toContain("Markdown semantic source");
     expect(workstream).toContain("tasks/workstreams");
     expect(workstream).toContain("context-contract-sync.sh");
   });

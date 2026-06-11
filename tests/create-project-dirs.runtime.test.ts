@@ -97,7 +97,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "scripts/capability-resolver.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/architecture-event.ts"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/capability-config.ts"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/architecture-drift.sh"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/architecture-queue.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/archive-architecture-request.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/context-contract-sync.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/workstream-sync.sh"))).toBe(true);
@@ -151,7 +151,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.helpers.scripts).toContain("capability-resolver.ts");
       expect(workflowContract.helpers.scripts).toContain("architecture-event.ts");
       expect(workflowContract.helpers.scripts).toContain("capability-config.ts");
-      expect(workflowContract.helpers.scripts).toContain("architecture-drift.sh");
+      expect(workflowContract.helpers.scripts).toContain("architecture-queue.sh");
       expect(workflowContract.helpers.scripts).toContain("archive-architecture-request.sh");
       expect(workflowContract.helpers.scripts).toContain("context-contract-sync.sh");
       expect(workflowContract.helpers.scripts).toContain("workstream-sync.sh");

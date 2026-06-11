@@ -65,7 +65,7 @@ describe("workflow contract manifest", () => {
     expect(contract.helpers.scripts).toContain("capability-resolver.ts");
     expect(contract.helpers.scripts).toContain("architecture-event.ts");
     expect(contract.helpers.scripts).toContain("capability-config.ts");
-    expect(contract.helpers.scripts).toContain("architecture-drift.sh");
+    expect(contract.helpers.scripts).toContain("architecture-queue.sh");
     expect(contract.helpers.scripts).toContain("archive-architecture-request.sh");
     expect(contract.helpers.scripts).toContain("context-contract-sync.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");

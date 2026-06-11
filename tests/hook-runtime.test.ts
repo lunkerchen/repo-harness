@@ -155,10 +155,10 @@ function initGitRepo(cwd: string) {
 
 function installArchitectureHelpers(cwd: string) {
   mkdirSync(join(cwd, "scripts"), { recursive: true });
-  for (const fileName of ["architecture-drift.sh", "archive-architecture-request.sh", "context-contract-sync.sh", "workstream-sync.sh", "select-agent-context-blocks.sh", "capability-resolver.ts", "architecture-event.ts"]) {
+  for (const fileName of ["architecture-queue.sh", "archive-architecture-request.sh", "context-contract-sync.sh", "workstream-sync.sh", "select-agent-context-blocks.sh", "capability-resolver.ts", "architecture-event.ts"]) {
     copyFileSync(join(ROOT, "assets/templates/helpers", fileName), join(cwd, "scripts", fileName));
   }
-  expect(run("chmod", ["+x", "scripts/architecture-drift.sh", "scripts/archive-architecture-request.sh", "scripts/context-contract-sync.sh", "scripts/workstream-sync.sh", "scripts/select-agent-context-blocks.sh"], cwd).status).toBe(0);
+  expect(run("chmod", ["+x", "scripts/architecture-queue.sh", "scripts/archive-architecture-request.sh", "scripts/context-contract-sync.sh", "scripts/workstream-sync.sh", "scripts/select-agent-context-blocks.sh"], cwd).status).toBe(0);
 }
 
 function installPlanWorkflowHelpers(cwd: string) {
@@ -592,10 +592,10 @@ describe("Hook runtime behavior", () => {
       installHooks(cwd);
       mkdirSync(join(cwd, "scripts"), { recursive: true });
       writeFileSync(
-        join(cwd, "scripts/architecture-drift.sh"),
+        join(cwd, "scripts/architecture-queue.sh"),
         "#!/bin/bash\necho drift blew up >&2\nexit 7\n"
       );
-      expect(run("chmod", ["+x", "scripts/architecture-drift.sh"], cwd).status).toBe(0);
+      expect(run("chmod", ["+x", "scripts/architecture-queue.sh"], cwd).status).toBe(0);
 
       const res = runHook("post-edit-guard.sh", cwd, {
         stdin: JSON.stringify({ tool_input: { file_path: "apps/web/src/main.tsx" } }),
@@ -603,7 +603,7 @@ describe("Hook runtime behavior", () => {
 
       expect(res.status).toBe(0);
       expect(res.stdout).toContain("drift blew up");
-      expect(res.stdout).toContain("[SyncChain] WARN: architecture-drift failed for apps/web/src/main.tsx (exit 7)");
+      expect(res.stdout).toContain("[SyncChain] WARN: architecture-queue failed for apps/web/src/main.tsx (exit 7)");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -878,7 +878,7 @@ describe("Hook runtime behavior", () => {
       installArchitectureHelpers(cwd);
       mkdirSync(join(cwd, ".ai/harness"), { recursive: true });
 
-      const res = run("bash", ["scripts/architecture-drift.sh", "record", "--file", ".ai/hooks/pre-edit-guard.sh"], cwd);
+      const res = run("bash", ["scripts/architecture-queue.sh", "record", "--file", ".ai/hooks/pre-edit-guard.sh"], cwd);
 
       expect(res.status).toBe(0);
       expect(res.stdout).toContain("severity=high");

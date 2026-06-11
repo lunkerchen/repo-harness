@@ -11,6 +11,12 @@
 - Where to apply next time:
 
 ## Entries
+- Date: 2026-06-12
+- Triggered by correction: a freshly captured Approved program-level plan (architecture-doc-truth-loop) grabbed `.ai/harness/active-plan` in the shared primary tree; a concurrent session's verification-blocker cleanup saw "Approved active plan without task contract", projected it to todo, and archived plan+todo within minutes
+- Mistake pattern: letting a program-layer artifact (sprint-shaped plan that never gets its own contract) occupy the active-plan slot, which the harness reserves for contract-backed execution plans; concurrent sessions then legitimately reconcile it away
+- Prevention rule: capture program-level plans with `capture-plan.sh --no-active` (sprint stays the program authority; only slice plans captured via `sprint-backlog.sh start-task` take the marker), and treat any Approved plan holding the marker without a contract as a state error, not a parking position
+- Where to apply next time: any program/umbrella plan capture, multi-session days with open contract worktrees, and the arch-doc-loop sprint slices themselves
+
 - Date: 2026-06-10
 - Triggered by correction: hook tests flaked at bun's 5s default per-test timeout during parallel sessions; the prior workaround was rerunning with `--timeout 20000`
 - Mistake pattern: blaming prompt-guard.sh source size for slow startup without profiling; measured bash parse is ~12ms and the TS engine spawn ~35ms, while the real cost is hundreds of small fork/execs per invocation (~0.25s warm, >2s under load) multiplied by 4-6 hook invocations per test

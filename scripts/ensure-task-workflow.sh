@@ -559,7 +559,7 @@ CAPABILITIES_EOF
 
 ## Architecture Drift Flow
 
-- `scripts/architecture-drift.sh` records architecture-sensitive edits as requests.
+- `scripts/architecture-queue.sh` records architecture-sensitive edits as requests.
 - `scripts/archive-architecture-request.sh` archives handled requests after an agent records the resolution status and linked artifacts.
 - `scripts/context-contract-sync.sh` keeps only the controlled architecture block in functional-block `AGENTS.md` and `CLAUDE.md` files aligned.
 - `scripts/workstream-sync.sh` keeps durable multi-session progress under `tasks/workstreams/<domain>/<capability>/` and projects only pointers into local contracts.
@@ -639,9 +639,15 @@ ARCHITECTURE_INDEX_EOF
     "diagram_skill": "mermaid",
     "diagram_skill_source": "~/.codex/skills/mermaid",
     "vendoring_policy": "do-not-vendor-diagram-skill-assets",
+    "freshness_gate": "advisory",
+    "gate_min_severity": "medium",
+    "pending_card_scope": "capability",
+    "pending_block_begin": "<!-- BEGIN ARCHITECTURE PENDING REQUESTS -->",
+    "pending_block_end": "<!-- END ARCHITECTURE PENDING REQUESTS -->",
+    "queue_script": "scripts/architecture-queue.sh",
     "contract_block_begin": "<!-- BEGIN ARCHITECTURE CONTRACT -->",
     "contract_block_end": "<!-- END ARCHITECTURE CONTRACT -->",
-    "rule": "hooks record drift and sync controlled local context blocks; agents author semantic snapshots and diagrams"
+    "rule": "hooks record architecture queue cards and sync controlled local context blocks; agents author semantic snapshots and diagrams"
   },
   "workstreams": {
     "dir": "tasks/workstreams",

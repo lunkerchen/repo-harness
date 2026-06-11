@@ -29,22 +29,22 @@ run_continuous_contract_verification() {
   fi
 }
 
-run_architecture_drift_sync() {
-  local drift_output status
+run_architecture_queue_sync() {
+  local queue_output status
 
-  [[ -x "scripts/architecture-drift.sh" ]] || return 0
+  [[ -x "scripts/architecture-queue.sh" ]] || return 0
 
-  if drift_output="$(bash "scripts/architecture-drift.sh" record --file "$FILE_PATH" 2>&1)"; then
+  if queue_output="$(bash "scripts/architecture-queue.sh" record --file "$FILE_PATH" 2>&1)"; then
     :
   else
     status=$?
-    [[ -n "$drift_output" ]] && printf '%s\n' "$drift_output"
-    echo "[SyncChain] WARN: architecture-drift failed for $FILE_PATH (exit $status)"
+    [[ -n "$queue_output" ]] && printf '%s\n' "$queue_output"
+    echo "[SyncChain] WARN: architecture-queue failed for $FILE_PATH (exit $status)"
     return 0
   fi
-  [[ -n "$drift_output" ]] && printf '%s\n' "$drift_output"
+  [[ -n "$queue_output" ]] && printf '%s\n' "$queue_output"
 
-  if printf '%s\n' "$drift_output" | grep -q '^\[ArchitectureDrift\] Request:'; then
+  if printf '%s\n' "$queue_output" | grep -q '^\[ArchitectureDrift\] Request:'; then
     if [[ -x "scripts/context-contract-sync.sh" ]]; then
       if bash "scripts/context-contract-sync.sh" sync-latest; then
         :
@@ -154,7 +154,7 @@ if [[ -x "$SCRIPT_DIR/anti-simplification.sh" ]]; then
   bash "$SCRIPT_DIR/anti-simplification.sh" "$FILE_PATH" </dev/null || true
 fi
 
-run_architecture_drift_sync
+run_architecture_queue_sync
 
 run_brain_doc_sync
 

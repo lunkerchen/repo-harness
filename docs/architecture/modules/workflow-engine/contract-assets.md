@@ -58,6 +58,20 @@ self-migration dry-run.
 - File-prefix capability requests such as `.ai/harness/policy.json` still belong to `workflow-engine-contract-assets`; local capability context is projected to `assets/AGENTS.md` and `assets/CLAUDE.md`.
 - No new architecture snapshot or human diagram is required because the module boundary, entrypoints, and dependency direction are unchanged.
 
+## 2026-06-12 Architecture Queue Contract Closeout
+
+- The self-host workflow contract helper inventory now names
+  `architecture-queue.sh` as the architecture request helper; the retired
+  `architecture-drift.sh` is removed from the source and installable helper
+  templates.
+- `.ai/harness/policy.json` and generated policy templates expose
+  `architecture.freshness_gate`, `gate_min_severity`, pending block markers, and
+  `queue_script` so slice 2 can promote the gate from advisory to strict without
+  changing the queue data model.
+- The contract invariant remains byte parity between
+  `assets/workflow-contract.v1.json` and `.ai/harness/workflow-contract.json`;
+  helper installation stays flat under `scripts/`.
+
 ## Workstream Ledger
 
 - `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`

@@ -60,7 +60,7 @@ Project
 
 ## Architecture Drift Flow
 
-- `scripts/architecture-drift.sh` records architecture-sensitive edits as requests.
+- `scripts/architecture-queue.sh` records architecture-sensitive edits as requests.
 - `scripts/capability-resolver.ts` resolves changed paths to capabilities with longest-prefix matching.
 - `scripts/archive-architecture-request.sh` archives handled requests after an agent records the resolution status and linked artifacts.
 - `scripts/context-contract-sync.sh` keeps only the controlled architecture block in capability `AGENTS.md` and `CLAUDE.md` files aligned.
@@ -79,38 +79,14 @@ Project
 
 ## Pending Requests
 
+
+<!-- BEGIN ARCHITECTURE PENDING REQUESTS -->
 - (none)
+<!-- END ARCHITECTURE PENDING REQUESTS -->
+
+
 
 ## Review Backlog
 
 - Treat user-level `~/.codex/hooks.json` and `~/.claude/settings.json` as host adapters. Keep hook implementation under `.ai/hooks/`, and treat repo-local `.claude/settings.json` / `.codex/hooks.json` hook adapters as retired legacy config.
 - Consider adding `bun scripts/capability-resolver.ts validate --format text` to the strict workflow gate after the architecture registry has been used through one more real slice.
-- [ ] 2026-05-28T15:47:40+0800 [high] `.ai/hooks/hook-input.sh` -> [20260528-154740-ai-hooks-ai-hooks-hook-input-sh](requests/20260528-154740-ai-hooks-ai-hooks-hook-input-sh.md)
-- [ ] 2026-05-28T15:48:16+0800 [high] `assets/hooks/hook-input.sh` -> [20260528-154816-assets-hooks-assets-hooks-hook-input-sh](requests/20260528-154816-assets-hooks-assets-hooks-hook-input-sh.md)
-- [ ] 2026-05-28T16:18:51+0800 [high] `.ai/harness/workflow-contract.json` -> [20260528-161851-ai-harness-workflow-contract-json-ai-harness-workflow-contract-json](requests/20260528-161851-ai-harness-workflow-contract-json-ai-harness-workflow-contract-json.md)
-- [ ] 2026-05-28T16:18:53+0800 [high] `scripts/check-task-workflow.sh` -> [20260528-161853-scripts-check-task-workflow-sh-scripts-check-task-workflow-sh](requests/20260528-161853-scripts-check-task-workflow-sh-scripts-check-task-workflow-sh.md)
-- [ ] 2026-05-28T16:19:11+0800 [high] `assets/workflow-contract.v1.json` -> [20260528-161911-assets-workflow-contract-v1-json-assets-workflow-contract-v1-json](requests/20260528-161911-assets-workflow-contract-v1-json-assets-workflow-contract-v1-json.md)
-- [ ] 2026-05-28T22:24:16+0800 [high] `.ai/hooks/hook-input.sh` -> [20260528-222416-ai-hooks-ai-hooks-hook-input-sh](requests/20260528-222416-ai-hooks-ai-hooks-hook-input-sh.md)
-- [ ] 2026-05-28T22:24:16+0800 [high] `.ai/hooks/hook-input.sh` -> [20260528-222416-ai-hooks-ai-hooks-hook-input-sh](requests/20260528-222416-ai-hooks-ai-hooks-hook-input-sh.md)
-- [ ] 2026-05-28T22:24:44+0800 [high] `.ai/hooks/pre-edit-guard.sh` -> [20260528-222444-ai-hooks-ai-hooks-pre-edit-guard-sh](requests/20260528-222444-ai-hooks-ai-hooks-pre-edit-guard-sh.md)
-- [ ] 2026-05-28T22:24:57+0800 [high] `.ai/hooks/pre-edit-guard.sh` -> [20260528-222457-ai-hooks-ai-hooks-pre-edit-guard-sh](requests/20260528-222457-ai-hooks-ai-hooks-pre-edit-guard-sh.md)
-- [ ] 2026-05-28T22:26:48+0800 [high] `.ai/hooks/pre-edit-guard.sh` -> [20260528-222648-ai-hooks-ai-hooks-pre-edit-guard-sh](requests/20260528-222648-ai-hooks-ai-hooks-pre-edit-guard-sh.md)
-- [ ] 2026-05-28T22:26:48+0800 [high] `.ai/hooks/pre-edit-guard.sh` -> [20260528-222648-ai-hooks-ai-hooks-pre-edit-guard-sh](requests/20260528-222648-ai-hooks-ai-hooks-pre-edit-guard-sh.md)
-- [ ] 2026-05-28T22:27:05+0800 [high] `.ai/hooks/worktree-guard.sh` -> [20260528-222705-ai-hooks-ai-hooks-worktree-guard-sh](requests/20260528-222705-ai-hooks-ai-hooks-worktree-guard-sh.md)
-- [ ] 2026-05-28T22:27:26+0800 [high] `.ai/hooks/prompt-guard.sh` -> [20260528-222726-ai-hooks-ai-hooks-prompt-guard-sh](requests/20260528-222726-ai-hooks-ai-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-28T22:27:27+0800 [high] `.ai/hooks/prompt-guard.sh` -> [20260528-222727-ai-hooks-ai-hooks-prompt-guard-sh](requests/20260528-222727-ai-hooks-ai-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-28T22:47:36+0800 [high] `.ai/hooks/hook-input.sh` -> [20260528-224736-ai-hooks-ai-hooks-hook-input-sh](requests/20260528-224736-ai-hooks-ai-hooks-hook-input-sh.md)
-- [ ] 2026-05-28T23:32:59+0800 [high] `.ai/hooks/prompt-guard.sh` -> [20260528-233259-ai-hooks-ai-hooks-prompt-guard-sh](requests/20260528-233259-ai-hooks-ai-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-28T23:33:35+0800 [high] `assets/hooks/prompt-guard.sh` -> [20260528-233335-assets-hooks-assets-hooks-prompt-guard-sh](requests/20260528-233335-assets-hooks-assets-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-28T23:34:56+0800 [high] `.ai/hooks/prompt-guard.sh` -> [20260528-233456-ai-hooks-ai-hooks-prompt-guard-sh](requests/20260528-233456-ai-hooks-ai-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-28T23:34:57+0800 [high] `assets/hooks/prompt-guard.sh` -> [20260528-233457-assets-hooks-assets-hooks-prompt-guard-sh](requests/20260528-233457-assets-hooks-assets-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-28T23:36:37+0800 [high] `.ai/hooks/prompt-guard.sh` -> [20260528-233637-ai-hooks-ai-hooks-prompt-guard-sh](requests/20260528-233637-ai-hooks-ai-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-28T23:36:38+0800 [high] `assets/hooks/prompt-guard.sh` -> [20260528-233638-assets-hooks-assets-hooks-prompt-guard-sh](requests/20260528-233638-assets-hooks-assets-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-29T00:03:22+0800 [medium] `package.json` -> [20260529-000322-root-package-json](requests/20260529-000322-root-package-json.md)
-- [ ] 2026-05-29T00:42:38+0800 [high] `.ai/hooks/lib/workflow-state.sh` -> [20260529-004238-ai-hooks-ai-hooks-lib-workflow-state-sh](requests/20260529-004238-ai-hooks-ai-hooks-lib-workflow-state-sh.md)
-- [ ] 2026-05-29T09:42:36+0800 [high] `.ai/hooks/prompt-guard.sh` -> [20260529-094236-ai-hooks-ai-hooks-prompt-guard-sh](requests/20260529-094236-ai-hooks-ai-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-29T09:43:23+0800 [high] `assets/hooks/prompt-guard.sh` -> [20260529-094323-assets-hooks-assets-hooks-prompt-guard-sh](requests/20260529-094323-assets-hooks-assets-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-29T09:43:31+0800 [high] `.ai/hooks/prompt-guard.sh` -> [20260529-094331-ai-hooks-ai-hooks-prompt-guard-sh](requests/20260529-094331-ai-hooks-ai-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-29T09:43:39+0800 [high] `assets/hooks/prompt-guard.sh` -> [20260529-094339-assets-hooks-assets-hooks-prompt-guard-sh](requests/20260529-094339-assets-hooks-assets-hooks-prompt-guard-sh.md)
-- [ ] 2026-05-29T09:44:30+0800 [high] `assets/hooks/session-start-context.sh` -> [20260529-094430-assets-hooks-assets-hooks-session-start-context-sh](requests/20260529-094430-assets-hooks-assets-hooks-session-start-context-sh.md)
-- [ ] 2026-05-29T09:44:46+0800 [high] `.ai/hooks/session-start-context.sh` -> [20260529-094446-ai-hooks-ai-hooks-session-start-context-sh](requests/20260529-094446-ai-hooks-ai-hooks-session-start-context-sh.md)

@@ -107,7 +107,7 @@ describe("Migration script contract", () => {
     expect(workflowContract).toContain("capability-resolver.ts");
     expect(workflowContract).toContain("architecture-event.ts");
     expect(workflowContract).toContain("capability-config.ts");
-    expect(workflowContract).toContain("architecture-drift.sh");
+    expect(workflowContract).toContain("architecture-queue.sh");
     expect(workflowContract).toContain("archive-architecture-request.sh");
     expect(workflowContract).toContain("context-contract-sync.sh");
     expect(workflowContract).toContain("workstream-sync.sh");

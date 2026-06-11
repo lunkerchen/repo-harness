@@ -275,9 +275,9 @@ describe("Workflow helper scripts", () => {
         ],
       }, null, 2) + "\n");
 
-      const first = run("bash", ["scripts/architecture-drift.sh", "record", "--file", "apps/web/src/routes/first.tsx"], cwd);
+      const first = run("bash", ["scripts/architecture-queue.sh", "record", "--file", "apps/web/src/routes/first.tsx"], cwd);
       expect(first.status).toBe(0);
-      const second = run("bash", ["scripts/architecture-drift.sh", "record", "--file", "apps/web/src/routes/second.tsx"], cwd);
+      const second = run("bash", ["scripts/architecture-queue.sh", "record", "--file", "apps/web/src/routes/second.tsx"], cwd);
       expect(second.status).toBe(0);
 
       const index = readFileSync(join(cwd, "docs/architecture/index.md"), "utf-8");

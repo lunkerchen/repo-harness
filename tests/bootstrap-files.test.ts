@@ -105,7 +105,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("capture-plan.sh");
     expect(contract.helpers.scripts).toContain("refresh-current-status.sh");
     expect(contract.helpers.scripts).toContain("context-budget.ts");
-    expect(contract.helpers.scripts).toContain("architecture-drift.sh");
+    expect(contract.helpers.scripts).toContain("architecture-queue.sh");
     expect(contract.helpers.scripts).toContain("archive-architecture-request.sh");
     expect(contract.helpers.scripts).toContain("context-contract-sync.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");

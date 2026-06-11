@@ -79,7 +79,7 @@ bash scripts/migrate-project-template.sh --repo . --dry-run
 - Latest snapshot: `(none yet)`
 - Semantic diagram source: `docs/architecture/modules/runtime-harness/hook-adapters.md`
 - Latest human diagram: `(none yet)`
-- Pending architecture request: `docs/architecture/requests/20260529-094446-ai-hooks-ai-hooks-session-start-context-sh.md`
+- Pending architecture request: `(none)`
 
 ## Active Workstreams
 
