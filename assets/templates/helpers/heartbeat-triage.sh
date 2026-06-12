@@ -99,6 +99,40 @@ json_escape() {
   printf '%s' "$value"
 }
 
+policy_get() {
+  local jq_path="$1"
+  local default_value="$2"
+
+  if [[ -f ".ai/harness/policy.json" ]] && command -v jq >/dev/null 2>&1; then
+    local value
+    value="$(jq -r "$jq_path // empty" ".ai/harness/policy.json" 2>/dev/null || true)"
+    if [[ -n "$value" ]]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  fi
+
+  printf '%s' "$default_value"
+}
+
+helper_runtime_dir="$(policy_get '.harness.helper_runtime_dir' '.ai/harness/scripts')"
+
+helper_path() {
+  local helper_name="$1"
+
+  if [[ -f "$helper_runtime_dir/$helper_name" ]]; then
+    printf '%s/%s' "$helper_runtime_dir" "$helper_name"
+    return 0
+  fi
+
+  if [[ -f "scripts/$helper_name" ]]; then
+    printf '%s/%s' "scripts" "$helper_name"
+    return 0
+  fi
+
+  printf '%s/%s' "$helper_runtime_dir" "$helper_name"
+}
+
 repo_relative() {
   local path="$1"
   case "$path" in
@@ -136,13 +170,16 @@ add_entry() {
 
 run_workflow_check() {
   local output status summary
-  if [[ ! -f "scripts/check-task-workflow.sh" ]]; then
-    add_entry "workflow-check" "warning" "scripts/check-task-workflow.sh is missing" ""
+  local check_script
+  check_script="$(helper_path "check-task-workflow.sh")"
+
+  if [[ ! -f "$check_script" ]]; then
+    add_entry "workflow-check" "warning" "$check_script is missing" ""
     return 0
   fi
 
   set +e
-  output="$(bash scripts/check-task-workflow.sh --strict 2>&1)"
+  output="$(bash "$check_script" --strict 2>&1)"
   status=$?
   set -e
 
@@ -161,6 +198,9 @@ extract_next_pending_from_sprint() {
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
       return s
     }
+    /^## Backlog[[:space:]]*$/ { in_section = 1; next }
+    in_section && /^## / { exit }
+    !in_section { next }
     /^\|[[:space:]]*[0-9]+[[:space:]]*\|/ {
       idx = trim($2)
       status = trim($3)
@@ -178,7 +218,9 @@ extract_next_pending_from_sprint() {
 
 find_executing_sprint() {
   local file status
-  [[ -d "plans/prds" ]] || return 1
+  local sprints_dir
+  sprints_dir="$(policy_get '.sprints.dir' 'plans/sprints')"
+  [[ -d "$sprints_dir" ]] || return 1
   while IFS= read -r file; do
     status="$(awk '/\*\*Status\*\*:/ { sub(/^.*\*\*Status\*\*: */, ""); gsub(/\r/, ""); print; exit }' "$file" | xargs)"
     case "$status" in
@@ -187,16 +229,18 @@ find_executing_sprint() {
         return 0
         ;;
     esac
-  done < <(find plans/prds -maxdepth 1 -name '*.prd.md' -type f | sort -r)
+  done < <(find "$sprints_dir" -maxdepth 1 -name '*.sprint.md' -type f | sort -r)
   return 1
 }
 
 run_sprint_next() {
   local output status summary sprint_file task
+  local sprint_helper
+  sprint_helper="$(helper_path "sprint-backlog.sh")"
 
-  if [[ -f ".ai/harness/sprint/active-sprint" && -f "scripts/sprint-backlog.sh" ]]; then
+  if [[ -f ".ai/harness/sprint/active-sprint" && -f "$sprint_helper" ]]; then
     set +e
-    output="$(bash scripts/sprint-backlog.sh next 2>&1)"
+    output="$(bash "$sprint_helper" next 2>&1)"
     status=$?
     set -e
     if [[ "$status" -eq 0 ]]; then

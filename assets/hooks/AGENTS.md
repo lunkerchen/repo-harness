@@ -37,3 +37,39 @@ Owns the runtime-harness-hook-adapters capability boundary declared in .ai/conte
 - `bun test tests/hook-runtime.test.ts tests/hook-contracts.test.ts tests/workflow-contract.test.ts`
 - `bash scripts/check-task-workflow.sh --strict`
 <!-- END CAPABILITY CONTEXT -->
+
+<!-- BEGIN ARCHITECTURE CONTRACT -->
+## Architecture Contract
+
+- Functional block: `.ai/hooks`
+- Capability ID: `runtime-harness-hook-adapters`
+- Matched prefix: `.ai/hooks`
+- Architecture domain: `runtime-harness`
+- Architecture capability: `hook-adapters`
+- Architecture module: `docs/architecture/modules/runtime-harness/hook-adapters.md`
+- Last architecture event: 2026-06-13T00:04:13+0800
+- Last changed path: `.ai/hooks/post-tool-observer.sh`
+- Severity: high
+- Change type: workflow-surface
+- Module responsibility: Keep this block aligned with the local boundary described by surrounding human-owned context.
+- Entrypoints: `.ai/hooks`
+- Allowed dependencies: Follow root `AGENTS.md` / `CLAUDE.md` and this local contract.
+- Forbidden dependencies: Do not cross sibling app/service/package boundaries without an architecture snapshot or explicit plan.
+- Runtime path: `.ai/hooks`
+- LSP/tooling profile: `typescript-lsp`
+- Verification: Use root required checks plus local commands recorded in this capability contract.
+- Latest snapshot: `(none yet)`
+- Semantic diagram source: `docs/architecture/modules/runtime-harness/hook-adapters.md`
+- Latest human diagram: `(none yet)`
+- Pending architecture request: `(none)`
+
+## Active Workstreams
+
+- (none yet)
+
+## Current Session Projection
+
+- Durable progress lives under `tasks/workstreams/runtime-harness/hook-adapters`.
+- `tasks/current.md` is the tracked derived status snapshot; it is not a live lock or task source.
+- `tasks/todos.md` is the deferred-goal ledger; current execution slices stay in the active plan's `## Task Breakdown`.
+<!-- END ARCHITECTURE CONTRACT -->

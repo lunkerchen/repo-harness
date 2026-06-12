@@ -22,7 +22,7 @@ configuration check for the repo-local harness.
    - `_ops/` is ignored
    - real env files, secrets, provider state, artifacts, logs, and scratch files stay under `_ops/`
 5. Run:
-   - `bash scripts/check-deploy-sql-order.sh`
+   - `bash .ai/harness/scripts/check-deploy-sql-order.sh`
 6. Report readiness gaps as concrete missing or misplaced files, not as an app deployment attempt.
 
 ## Failure Modes

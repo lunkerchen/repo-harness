@@ -80,7 +80,13 @@ const CODEGRAPH_PACKAGE = "@colbymchenry/codegraph";
 const CODEGRAPH_GLOBAL_INSTALL_COMMAND = `npm install -g ${CODEGRAPH_PACKAGE} && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" repo-harness tools configure codegraph --target codex --location global`;
 const CODEGRAPH_MCP_CONFIGURE_COMMAND = "repo-harness tools configure codegraph --target <codex|claude|both> --location global";
 const CODEGRAPH_LOCAL_INSTALL_COMMAND = "bun install";
-const CODEGRAPH_ENSURE_COMMAND = "bash scripts/ensure-codegraph.sh";
+const CODEGRAPH_ENSURE_COMMAND = [
+  ".ai/harness/scripts/ensure-codegraph.sh",
+  "scripts/ensure-codegraph.sh",
+].find((relPath) => fs.existsSync(path.join(REPO_ROOT, relPath)));
+const CODEGRAPH_ENSURE_BASH_COMMAND = CODEGRAPH_ENSURE_COMMAND
+  ? `bash ${CODEGRAPH_ENSURE_COMMAND}`
+  : null;
 const WAZA_STAGING_ROOT = path.join(HOME, ".agents");
 const WAZA_STAGING_DIR = path.join(WAZA_STAGING_ROOT, "skills");
 const WAZA_STAGING_RULES_DIR = path.join(WAZA_STAGING_ROOT, "rules");
@@ -1227,11 +1233,11 @@ function detectCodeGraph() {
       command: "codegraph status .",
     },
     install_command: packageDeclared ? CODEGRAPH_LOCAL_INSTALL_COMMAND : CODEGRAPH_GLOBAL_INSTALL_COMMAND,
-    ensure_command: packageDeclared ? CODEGRAPH_ENSURE_COMMAND : null,
+    ensure_command: packageDeclared ? CODEGRAPH_ENSURE_BASH_COMMAND : null,
     mcp_install_command: CODEGRAPH_MCP_CONFIGURE_COMMAND,
-    init_command: packageDeclared ? "bash scripts/ensure-codegraph.sh --init" : "codegraph init -i .",
-    sync_command: packageDeclared ? "bash scripts/ensure-codegraph.sh --sync" : "codegraph sync .",
-    upgrade_command: packageDeclared ? "bun update @colbymchenry/codegraph && bash scripts/ensure-codegraph.sh --sync" : `npm install -g ${CODEGRAPH_PACKAGE}@latest && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph sync .`,
+    init_command: packageDeclared && CODEGRAPH_ENSURE_BASH_COMMAND ? `${CODEGRAPH_ENSURE_BASH_COMMAND} --init` : "codegraph init -i .",
+    sync_command: packageDeclared && CODEGRAPH_ENSURE_BASH_COMMAND ? `${CODEGRAPH_ENSURE_BASH_COMMAND} --sync` : "codegraph sync .",
+    upgrade_command: packageDeclared && CODEGRAPH_ENSURE_BASH_COMMAND ? `bun update @colbymchenry/codegraph && ${CODEGRAPH_ENSURE_BASH_COMMAND} --sync` : `npm install -g ${CODEGRAPH_PACKAGE}@latest && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph sync .`,
     uninstall_command: "codegraph uninstall --target codex --location global --yes",
     readiness: {
       required_for: "codex-agent-code-navigation",

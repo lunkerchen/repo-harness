@@ -1,26 +1,26 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-12T21:18:54+0800 -->
+<!-- updated_at: 2026-06-13T00:46:43+0800 -->
 <!-- stale_after: 24h -->
 
-> **Status**: Active
-> **Updated At**: 2026-06-12T21:18:54+0800
+> **Status**: Idle
+> **Updated At**: 2026-06-13T00:46:43+0800
 > **Source Branch**: main
-> **Source Commit**: bb6022d
+> **Source Commit**: cc859b5
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: 0.4.1-release-bump
+> **Reason**: runtime-isolation-closeout
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
 
 ## Current Focus
 
-- Status: Active
+- Status: Idle
 - Active Plan: (none)
 - Plan Status: (none)
-- Next Task: inspect active worktree marker(s)
+- Next Task: (none)
 - Clear Note: (none)
 
 ## Mainline Snapshot Reading
@@ -31,11 +31,10 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Active Work
 
-- /Users/chris/Projects/agentic-dev-wt-local-repo-hook-user-level: plans/plan-20260612-2021-local-repo-hook-user-level.md
-- /Users/chris/Projects/agentic-dev-wt-local-repo-hook-user-level: active-worktree owner -> /Users/chris/Projects/agentic-dev-wt-local-repo-hook-user-level
+- (none)
 ## Active Sprint
 
-- Sprint: `plans/prds/20260612-0236-loop-engine.prd.md`
+- Sprint: `plans/sprints/20260612-0236-loop-engine.sprint.md`
 - Sprint Status: Done
 - Backlog: 8/8
 - Next Sprint Task: (none)
@@ -44,7 +43,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 - `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`: status=completed, current_slice=todo-01, source_plan=(none)
 ## Handoff
 
-- Exact Next Step: Clean up merged contract worktree codex/local-repo-hook-user-level. Command: bash scripts/contract-worktree.sh cleanup --slug local-repo-hook-user-level --target main
+- Exact Next Step: Clean up merged contract worktree codex/prd-sprint-skills. Command: bash scripts/contract-worktree.sh cleanup --slug prd-sprint-skills --target main
 
 ## Checks
 
@@ -52,22 +51,49 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 13 changed/untracked path(s)
+- Summary: 92 changed/untracked path(s)
 
 ```
+ M .ai/context/context-map.json
  M .ai/harness/policy.json
- M .claude/.skill-version
- M README.es.md
- M README.fr.md
- M README.ja.md
+ M .ai/harness/workflow-contract.json
+ M .ai/hooks/AGENTS.md
+ M .ai/hooks/CLAUDE.md
+ M .ai/hooks/session-start-context.sh
+ M .claude/templates/contract.template.md
+ M .claude/templates/plan.template.md
+ M .claude/templates/sprint.template.md
+ M AGENTS.md
+ M CLAUDE.md
  M README.md
- M README.zh-CN.md
- M assets/skill-version.json
- M deploy/release-checklists/260612-repo-harness-0.4.1.md
- M docs/CHANGELOG.md
- M package.json
- M src/cli/commands/status.ts
- M tests/bootstrap-files.test.ts
+ M SKILL.md
+ M assets/hooks/AGENTS.md
+ M assets/hooks/CLAUDE.md
+ M assets/hooks/session-start-context.sh
+ M assets/partials-agents/02-operating-mode.partial.md
+ M assets/partials-agents/03-orchestration.partial.md
+ M assets/partials-agents/04-task-protocol.partial.md
+ M assets/partials-agents/06-quality-safety.partial.md
+ M assets/partials/04-project-structure.partial.md
+ M assets/partials/05-workflow.partial.md
+ M assets/partials/08-orchestration.partial.md
+ M assets/reference-configs/agentic-development-flow.md
+ M assets/reference-configs/document-generation.md
+ M assets/reference-configs/external-tooling.md
+ M assets/reference-configs/harness-overview.md
+ M assets/reference-configs/heartbeat-triage.md
+ M assets/reference-configs/hook-operations.md
+ M assets/reference-configs/sprint-contracts.md
+ M assets/skill-commands/manifest.json
+ M assets/skill-commands/repo-harness-architecture/SKILL.md
+ M assets/skill-commands/repo-harness-check/SKILL.md
+ M assets/skill-commands/repo-harness-deploy/SKILL.md
+ M assets/skill-commands/repo-harness-handoff/SKILL.md
+ M assets/skill-commands/repo-harness-init/SKILL.md
+ M assets/skill-commands/repo-harness-plan/SKILL.md
+ M assets/skill-commands/repo-harness-ship/SKILL.md
+ M assets/skill-commands/repo-harness-sprint/SKILL.md
+ M assets/templates/contract.template.md
 ```
 
 ## Source Artifacts
@@ -75,7 +101,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 - Plans: `plans/plan-*.md`
 - Active marker: `.ai/harness/active-plan`
 - Active worktree marker: `.ai/harness/active-worktree`
-- Sprints: `plans/prds/*.prd.md`
+- Sprints: `plans/sprints/*.sprint.md`
 - Active sprint marker: `.ai/harness/sprint/active-sprint`
 - Workstreams: `tasks/workstreams/**/*.md`
 - Handoff: `.ai/harness/handoff/current.md`

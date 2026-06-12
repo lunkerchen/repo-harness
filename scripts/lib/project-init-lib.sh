@@ -166,7 +166,7 @@ Complete this inventory before implementation. If any line is unknown, keep the 
 - Run snapshots: `.ai/harness/runs/`
 - Scope authority: `tasks/contracts/{{ARTIFACT_STEM}}.contract.md` `allowed_paths`
 - Concurrency rule: `.ai/harness/active-plan` selects the active plan for this worktree when present; `.ai/harness/active-worktree` records the owning worktree; `.claude/.active-plan` is a legacy fallback during transition. If another worktree already owns active work, open or switch to the matching worktree instead of serializing unrelated plans.
-- Execution isolation: approved contract-level work projects through `scripts/plan-to-todo.sh --plan {{PLAN_FILE}}` and may start `scripts/contract-worktree.sh start --plan {{PLAN_FILE}}`.
+- Execution isolation: approved contract-level work projects through `.ai/harness/scripts/plan-to-todo.sh --plan {{PLAN_FILE}}` and may start `.ai/harness/scripts/contract-worktree.sh start --plan {{PLAN_FILE}}`.
 
 ## Approach
 ### Strategy
@@ -191,7 +191,7 @@ Complete this inventory before implementation. If any line is unknown, keep the 
 - Review file: `tasks/reviews/{{ARTIFACT_STEM}}.review.md`
 - Implementation notes file: `tasks/notes/{{ARTIFACT_STEM}}.notes.md`
 - Template: `.claude/templates/contract.template.md`
-- Verification command: `bash scripts/verify-contract.sh --contract tasks/contracts/{{ARTIFACT_STEM}}.contract.md --strict`
+- Verification command: `bash .ai/harness/scripts/verify-contract.sh --contract tasks/contracts/{{ARTIFACT_STEM}}.contract.md --strict`
 - Active plan rule: `.ai/harness/active-plan` is authoritative for this worktree when present; `.ai/harness/active-worktree` records the owning worktree; `.claude/.active-plan` is a legacy fallback during transition. Do not infer active execution from the latest non-archived plan.
 
 ## Handoff
@@ -243,7 +243,7 @@ Describe the exact outcome this task must deliver.
 - Checks file: `.ai/harness/checks/latest.json`
 - Run snapshots: `.ai/harness/runs/`
 - Scope gate: edit only paths listed under `allowed_paths`; update this contract before widening scope.
-- Completion gate: `scripts/verify-sprint.sh` must see this contract pass, the review recommend pass, and `## External Acceptance Advice` pass or record a manual override.
+- Completion gate: `.ai/harness/scripts/verify-sprint.sh` must see this contract pass, the review recommend pass, and `## External Acceptance Advice` pass or record a manual override.
 
 ## Allowed Paths
 
@@ -857,6 +857,59 @@ for (const action of actions) {
   esac
 }
 
+pi_workflow_contract_upgrade_action_entries() {
+  local contract_file="$1"
+  local action_filter="${2:-remove}"
+  local ownership_filter="${3:-known_generated}"
+  local runtime
+
+  if [[ ! -f "$contract_file" ]]; then
+    return 1
+  fi
+
+  runtime="$(pi_resolve_json_runtime || true)"
+  if [[ -z "$runtime" ]]; then
+    echo "[warn] no runtime available to read workflow contract: $contract_file" >&2
+    return 1
+  fi
+
+  case "$runtime" in
+    python3)
+      "$runtime" - "$contract_file" "$action_filter" "$ownership_filter" <<'PY_EOF'
+import json
+import sys
+
+path, action_filter, ownership_filter = sys.argv[1], sys.argv[2], sys.argv[3]
+contract = json.load(open(path, "r", encoding="utf-8"))
+for action in contract.get("migrations", {}).get("upgrade", {}).get("actions", []):
+    if action.get("action") != action_filter:
+        continue
+    if ownership_filter and action.get("ownership") != ownership_filter:
+        continue
+    cleanup_mode = action.get("cleanupMode", "always")
+    for rel_path in action.get("paths", []):
+        print(f"{cleanup_mode}\t{rel_path}")
+PY_EOF
+      ;;
+    *)
+      "$runtime" -e '
+const fs = require("fs");
+const [, filePath, actionFilter, ownershipFilter] = process.argv;
+const contract = JSON.parse(fs.readFileSync(filePath, "utf8"));
+const actions = contract.migrations?.upgrade?.actions ?? [];
+for (const action of actions) {
+  if (action.action !== actionFilter) continue;
+  if (ownershipFilter && action.ownership !== ownershipFilter) continue;
+  const cleanupMode = action.cleanupMode ?? "always";
+  for (const relPath of action.paths ?? []) {
+    console.log(`${cleanupMode}\t${relPath}`);
+  }
+}
+' "$contract_file" "$action_filter" "$ownership_filter"
+      ;;
+  esac
+}
+
 pi_install_workflow_contract() {
   local target_dir="$1"
   local contract_asset="$2"
@@ -933,7 +986,7 @@ pi_install_helpers() {
   local helpers_dir="$2"
   local mode="${3:-apply}"
   local helper_names="${4:-new-spec.sh new-sprint.sh new-plan.sh capture-plan.sh plan-to-todo.sh contract-run.ts contract-worktree.sh ship-worktrees.sh archive-workflow.sh refresh-current-status.sh prepare-handoff.sh verify-contract.sh summarize-failures.sh verify-sprint.sh sprint-backlog.sh check-task-sync.sh check-deploy-sql-order.sh check-architecture-sync.sh check-agent-tooling.sh check-context-files.sh check-brain-manifest.sh sync-brain-docs.sh check-skill-version.ts select-agent-context-blocks.sh ensure-task-workflow.sh check-task-workflow.sh maintenance-triage.sh heartbeat-triage.sh switch-plan.sh workflow-contract.ts inspect-project-state.ts migrate-workflow-docs.ts migrate-project-template.sh capability-resolver.ts architecture-event.ts capability-config.ts architecture-queue.sh archive-architecture-request.sh context-contract-sync.sh workstream-sync.sh prepare-codex-handoff.sh codex-handoff-resume.sh}"
-  local scripts_dir="$target_dir/scripts"
+  local scripts_dir="$target_dir/.ai/harness/scripts"
   local helper_name
 
   if [[ "$mode" != "apply" ]]; then
@@ -960,6 +1013,7 @@ pi_install_helpers() {
           fi
         fi
         cp "$helpers_dir/$helper_name" "$scripts_dir/$helper_name"
+        pi_normalize_installed_helper "$scripts_dir/$helper_name"
       fi
     done
     pi_ensure_executable_if_apply "$mode" "$scripts_dir"/new-spec.sh "$scripts_dir"/new-sprint.sh "$scripts_dir"/new-plan.sh "$scripts_dir"/capture-plan.sh "$scripts_dir"/plan-to-todo.sh "$scripts_dir"/contract-worktree.sh "$scripts_dir"/ship-worktrees.sh "$scripts_dir"/archive-workflow.sh "$scripts_dir"/refresh-current-status.sh "$scripts_dir"/archive-architecture-request.sh "$scripts_dir"/prepare-handoff.sh "$scripts_dir"/prepare-codex-handoff.sh "$scripts_dir"/codex-handoff-resume.sh "$scripts_dir"/verify-contract.sh "$scripts_dir"/summarize-failures.sh "$scripts_dir"/verify-sprint.sh "$scripts_dir"/sprint-backlog.sh "$scripts_dir"/check-task-sync.sh "$scripts_dir"/check-deploy-sql-order.sh "$scripts_dir"/check-architecture-sync.sh "$scripts_dir"/check-agent-tooling.sh "$scripts_dir"/check-context-files.sh "$scripts_dir"/check-brain-manifest.sh "$scripts_dir"/sync-brain-docs.sh "$scripts_dir"/select-agent-context-blocks.sh "$scripts_dir"/architecture-queue.sh "$scripts_dir"/context-contract-sync.sh "$scripts_dir"/workstream-sync.sh "$scripts_dir"/ensure-task-workflow.sh "$scripts_dir"/check-task-workflow.sh "$scripts_dir"/maintenance-triage.sh "$scripts_dir"/heartbeat-triage.sh "$scripts_dir"/switch-plan.sh "$scripts_dir"/migrate-project-template.sh
@@ -975,6 +1029,31 @@ exit 1
 EOF_STUB
   done
 pi_ensure_executable_if_apply "$mode" "$scripts_dir"/*.sh
+}
+
+pi_normalize_installed_helper() {
+  local helper_file="$1"
+  [[ -f "$helper_file" ]] || return 0
+
+  if [[ "$helper_file" == *.sh ]]; then
+    perl -0pi -e '
+      s#([A-Z_][A-Z0-9_]*)="\$\(cd "\$SCRIPT_DIR/\.\." && pwd\)"#${1}="\$(cd "\$SCRIPT_DIR/../../.." && pwd)"#g;
+      s#if ([A-Z_][A-Z0-9_]*)="\$\(git -C "\$SCRIPT_DIR/\.\." rev-parse --show-toplevel 2>/dev/null\)"; then#if ${1}="\$(git -C "\$SCRIPT_DIR/../../.." rev-parse --show-toplevel 2>/dev/null)"; then#g;
+      s#cd "\$SCRIPT_DIR/\.\."#if [[ "\$SCRIPT_DIR" == */.ai/harness/scripts ]]; then\n  cd "\$SCRIPT_DIR/../../.."\nelse\n  cd "\$SCRIPT_DIR/.."\nfi#g;
+      s#git -C "\$SCRIPT_DIR/\.\."#git -C "\$SCRIPT_DIR/../../.."#g;
+      s#\./scripts/#.ai/harness/scripts/#g;
+      s#(\$[A-Za-z_][A-Za-z0-9_]*|\$\{[A-Za-z_][A-Za-z0-9_]*\})/scripts/#$1/.ai/harness/scripts/#g;
+      s#(?<![A-Za-z0-9_./-])scripts/#.ai/harness/scripts/#g;
+    ' "$helper_file"
+  elif [[ "$helper_file" == *.ts ]]; then
+    perl -0pi -e '
+      s#join\(SCRIPT_DIR, "\.\."\)#join(SCRIPT_DIR, "..", "..", "..")#g;
+      s#join\(__dirname, "\.\."\)#join(__dirname, "..", "..", "..")#g;
+      s#\./scripts/#.ai/harness/scripts/#g;
+      s#(\$[A-Za-z_][A-Za-z0-9_]*|\$\{[A-Za-z_][A-Za-z0-9_]*\})/scripts/#$1/.ai/harness/scripts/#g;
+      s#(?<![A-Za-z0-9_./-])scripts/#.ai/harness/scripts/#g;
+    ' "$helper_file"
+  fi
 }
 
 pi_env_value() {
@@ -1064,10 +1143,16 @@ EOF_EXTERNAL_TOOLING_DEFAULTS
 pi_resolve_external_tooling_detector() {
   local repo_dir="$1"
   local fallback_script="${2:-}"
-  local repo_detector="$repo_dir/scripts/check-agent-tooling.sh"
+  local repo_detector="$repo_dir/.ai/harness/scripts/check-agent-tooling.sh"
+  local legacy_repo_detector="$repo_dir/scripts/check-agent-tooling.sh"
 
   if [[ -f "$repo_detector" ]]; then
     printf '%s' "$repo_detector"
+    return 0
+  fi
+
+  if [[ -f "$legacy_repo_detector" ]]; then
+    printf '%s' "$legacy_repo_detector"
     return 0
   fi
 
@@ -1231,8 +1316,8 @@ pi_context_block_candidates() {
 
   registry_file="$(pi_capability_registry_file "$target_dir")"
   if [[ -f "$registry_file" ]]; then
-    if command -v bun >/dev/null 2>&1 && [[ -f "$target_dir/scripts/capability-resolver.ts" ]]; then
-      (cd "$target_dir" && bun scripts/capability-resolver.ts list --format prefixes 2>/dev/null || true)
+    if command -v bun >/dev/null 2>&1 && [[ -f "$target_dir/.ai/harness/scripts/capability-resolver.ts" ]]; then
+      (cd "$target_dir" && bun .ai/harness/scripts/capability-resolver.ts list --format prefixes 2>/dev/null || true)
       return 0
     fi
 
@@ -1514,12 +1599,12 @@ pi_write_harness_policy() {
     "notes_dir": "tasks/notes"
   },
   "sprints": {
-    "dir": "plans/prds",
+    "dir": "plans/sprints",
     "active_marker_file": ".ai/harness/sprint/active-sprint",
     "template_file": ".claude/templates/sprint.template.md",
-    "helper_script": "scripts/sprint-backlog.sh",
+    "helper_script": ".ai/harness/scripts/sprint-backlog.sh",
     "statuses": ["Draft", "Approved", "Executing", "Done", "Archived"],
-    "rule": "Sprint is the program layer: PRD plus ordered backlog decompose product intent into task-contract slices; each backlog task executes through the existing plan -> contract -> worktree flow; tasks/todos.md stays the deferred-goal ledger"
+    "rule": "PRDs live in plans/prds as the upper planning layer. Sprints live in plans/sprints as long-task execution backlogs; each sprint row is expanded with Waza \$think into a detailed plans/plan-*.md before the plan -> contract -> worktree flow; tasks/todos.md stays the deferred-goal ledger"
   },
   "reference_material": {
     "dir": "_ref",
@@ -1538,11 +1623,11 @@ pi_write_harness_policy() {
     "profile": "$(pi_context_profile)",
     "map_file": ".ai/context/context-map.json",
     "capability_registry_file": ".ai/context/capabilities.json",
-    "capability_resolver": "scripts/capability-resolver.ts",
-    "capability_config": "scripts/capability-config.ts",
+    "capability_resolver": ".ai/harness/scripts/capability-resolver.ts",
+    "capability_config": ".ai/harness/scripts/capability-config.ts",
     "capability_match_rule": "longest-prefix; same-length ambiguity fails",
     "functional_block_selector": {
-      "script": "scripts/select-agent-context-blocks.sh",
+      "script": ".ai/harness/scripts/select-agent-context-blocks.sh",
       "config_file": ".ai/context/agent-context-blocks.txt",
       "env": "REPO_HARNESS_CONTEXT_BLOCKS",
       "rule": "compatibility selector; capability registry is the source of truth"
@@ -1555,6 +1640,7 @@ pi_write_harness_policy() {
     "failure_log_file": ".ai/harness/failures/latest.jsonl",
     "events_file": ".ai/harness/events.jsonl",
     "architecture_events_file": ".ai/harness/architecture/events.jsonl",
+    "helper_runtime_dir": ".ai/harness/scripts",
     "runs_dir": ".ai/harness/runs"
   },
   "architecture": {
@@ -1572,7 +1658,7 @@ pi_write_harness_policy() {
     "pending_card_scope": "capability",
     "pending_block_begin": "<!-- BEGIN ARCHITECTURE PENDING REQUESTS -->",
     "pending_block_end": "<!-- END ARCHITECTURE PENDING REQUESTS -->",
-    "queue_script": "scripts/architecture-queue.sh",
+    "queue_script": ".ai/harness/scripts/architecture-queue.sh",
     "contract_block_begin": "<!-- BEGIN ARCHITECTURE CONTRACT -->",
     "contract_block_end": "<!-- END ARCHITECTURE CONTRACT -->",
     "rule": "hooks record architecture queue cards and sync controlled local context blocks; agents author semantic snapshots and diagrams"
@@ -1596,7 +1682,7 @@ pi_write_harness_policy() {
       "purpose": "raw verification records used to audit notes, reviews, and future promotion"
     },
     "assets": {
-      "sources": [".ai/harness/policy.json", ".ai/harness/workflow-contract.json", ".ai/hooks/", "scripts/", "docs/reference-configs/"],
+      "sources": [".ai/harness/policy.json", ".ai/harness/workflow-contract.json", ".ai/hooks/", ".ai/harness/scripts/", "docs/reference-configs/"],
       "promotion_rule": "only promote patterns after verified reuse across tasks or fixtures"
     },
     "memory": {
@@ -1607,8 +1693,8 @@ pi_write_harness_policy() {
       "default_brain_path": "brain/<project>/*",
       "project_path": "brain/<project>/*",
       "manifest_file": ".ai/harness/brain-manifest.json",
-      "drift_check": "scripts/check-brain-manifest.sh",
-      "sync_script": "scripts/sync-brain-docs.sh",
+      "drift_check": ".ai/harness/scripts/check-brain-manifest.sh",
+      "sync_script": ".ai/harness/scripts/sync-brain-docs.sh",
       "hook_trigger": "PostToolUse Edit|Write for manifest entries with sync.direction=repo-to-brain",
       "rule": "external knowledge stores long-lived explanations, runbooks, and patterns only; repo-local contracts, hooks, scripts, checks, and evidence remain authoritative",
       "sync_rule": "only explicitly opted-in repo-to-brain manifest entries may be written to the default brain vault; pointer-only externalized stubs remain check-only"
@@ -1620,9 +1706,9 @@ pi_write_harness_policy() {
     "auto_start_new_session": false
   },
   "plan_capture": {
-    "script": "scripts/capture-plan.sh",
+    "script": ".ai/harness/scripts/capture-plan.sh",
     "sources": ["codex-plan-mode", "waza-think", "repo-harness-plan", "repo-harness-sprint"],
-    "rule": "Codex Plan mode and Waza think planning should capture decision-complete plans into plans/plan-*.md; implementation approval then projects the active approved plan through scripts/plan-to-todo.sh; sprint backlog tasks capture through sprint-backlog.sh start-task with --source repo-harness-sprint"
+    "rule": "Codex Plan mode and Waza think planning should capture decision-complete plans into plans/plan-*.md; implementation approval then projects the active approved plan through .ai/harness/scripts/plan-to-todo.sh; sprint backlog rows are long-task waypoints and should be expanded with \$think before capture/execution"
   },
   "planning": {
     "pending_orchestration_file": ".ai/harness/planning/pending.json",
@@ -1659,9 +1745,9 @@ pi_write_harness_policy() {
     "branch_prefix": "codex/",
     "base_branch": "main",
     "worktree_dir_template": "../{{repo}}-wt-{{slug}}",
-    "start_script": "scripts/contract-worktree.sh start --plan <plan-file>",
-    "finish_script": "scripts/contract-worktree.sh finish",
-    "cleanup_script": "scripts/contract-worktree.sh cleanup --slug <slug>",
+    "start_script": ".ai/harness/scripts/contract-worktree.sh start --plan <plan-file>",
+    "finish_script": ".ai/harness/scripts/contract-worktree.sh finish",
+    "cleanup_script": ".ai/harness/scripts/contract-worktree.sh cleanup --slug <slug>",
     "conflict_signals": [
       "dirty_worktree_overlaps_task_files",
       "current_branch_not_suitable_for_task",
@@ -1714,7 +1800,7 @@ pi_write_harness_policy() {
     "hosts": $(pi_external_tooling_hosts_json),
     "mode": "agent-readiness-required",
     "detection": "init-migrate",
-    "readiness_gate": "scripts/check-agent-tooling.sh --host codex --strict-readiness",
+    "readiness_gate": ".ai/harness/scripts/check-agent-tooling.sh --host codex --strict-readiness",
     "waza": {
       "source_repo": "tw93/Waza",
       "source_url": "https://github.com/tw93/Waza.git",
@@ -1850,7 +1936,7 @@ pi_write_context_map() {
   "version": 1,
   "profile": "$(pi_context_profile)",
   "functional_block_selector": {
-    "script": "scripts/select-agent-context-blocks.sh",
+    "script": ".ai/harness/scripts/select-agent-context-blocks.sh",
     "config_file": ".ai/context/agent-context-blocks.txt",
     "env": "REPO_HARNESS_CONTEXT_BLOCKS",
     "rule": "compatibility selector; capability registry is the source of truth"
@@ -2074,10 +2160,10 @@ CURRENT_STATUS_EOF
 
 ## Architecture Drift Flow
 
-- `scripts/architecture-queue.sh` records architecture-sensitive edits as requests.
-- `scripts/archive-architecture-request.sh` archives handled requests after an agent records the resolution status and linked artifacts.
-- `scripts/context-contract-sync.sh` keeps only the controlled architecture block in functional-block `AGENTS.md` and `CLAUDE.md` files aligned.
-- `scripts/workstream-sync.sh` keeps durable multi-session progress under `tasks/workstreams/<domain>/<capability>/` and projects only pointers into local contracts.
+- `.ai/harness/scripts/architecture-queue.sh` records architecture-sensitive edits as requests.
+- `.ai/harness/scripts/archive-architecture-request.sh` archives handled requests after an agent records the resolution status and linked artifacts.
+- `.ai/harness/scripts/context-contract-sync.sh` keeps only the controlled architecture block in functional-block `AGENTS.md` and `CLAUDE.md` files aligned.
+- `.ai/harness/scripts/workstream-sync.sh` keeps durable multi-session progress under `tasks/workstreams/<domain>/<capability>/` and projects only pointers into local contracts.
 - Semantic architecture diagrams live as Mermaid fenced blocks in the relevant module or snapshot Markdown.
 - Human-readable architecture diagrams are optional `mermaid` HTML files in `docs/architecture/diagrams/` and should link back to the Markdown semantic source.
 
@@ -2251,13 +2337,13 @@ pi_ensure_task_sync() {
   "name": "$project_name",
   "private": true,
   "scripts": {
-    "check:brain-manifest": "bash scripts/check-brain-manifest.sh",
-    "check:context-files": "bash scripts/check-context-files.sh",
-    "check:deploy-sql": "bash scripts/check-deploy-sql-order.sh",
-    "check:architecture-sync": "bash scripts/check-architecture-sync.sh",
-    "check:task-sync": "bash scripts/check-task-sync.sh",
-    "check:task-workflow": "bash scripts/check-task-workflow.sh --strict",
-    "sync:brain-docs": "bash scripts/sync-brain-docs.sh --all"
+    "check:brain-manifest": "bash .ai/harness/scripts/check-brain-manifest.sh",
+    "check:context-files": "bash .ai/harness/scripts/check-context-files.sh",
+    "check:deploy-sql": "bash .ai/harness/scripts/check-deploy-sql-order.sh",
+    "check:architecture-sync": "bash .ai/harness/scripts/check-architecture-sync.sh",
+    "check:task-sync": "bash .ai/harness/scripts/check-task-sync.sh",
+    "check:task-workflow": "bash .ai/harness/scripts/check-task-workflow.sh --strict",
+    "sync:brain-docs": "bash .ai/harness/scripts/sync-brain-docs.sh --all"
   }
 }
 EOF_PACKAGE
@@ -2276,13 +2362,13 @@ const file = process.argv[1];
 const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
 pkg.private ??= true;
 pkg.scripts ??= {};
-pkg.scripts["check:brain-manifest"] = "bash scripts/check-brain-manifest.sh";
-pkg.scripts["check:context-files"] = "bash scripts/check-context-files.sh";
-pkg.scripts["check:deploy-sql"] = "bash scripts/check-deploy-sql-order.sh";
-pkg.scripts["check:architecture-sync"] = "bash scripts/check-architecture-sync.sh";
-pkg.scripts["check:task-sync"] = "bash scripts/check-task-sync.sh";
-pkg.scripts["check:task-workflow"] = "bash scripts/check-task-workflow.sh --strict";
-pkg.scripts["sync:brain-docs"] = "bash scripts/sync-brain-docs.sh --all";
+pkg.scripts["check:brain-manifest"] = "bash .ai/harness/scripts/check-brain-manifest.sh";
+pkg.scripts["check:context-files"] = "bash .ai/harness/scripts/check-context-files.sh";
+pkg.scripts["check:deploy-sql"] = "bash .ai/harness/scripts/check-deploy-sql-order.sh";
+pkg.scripts["check:architecture-sync"] = "bash .ai/harness/scripts/check-architecture-sync.sh";
+pkg.scripts["check:task-sync"] = "bash .ai/harness/scripts/check-task-sync.sh";
+pkg.scripts["check:task-workflow"] = "bash .ai/harness/scripts/check-task-workflow.sh --strict";
+pkg.scripts["sync:brain-docs"] = "bash .ai/harness/scripts/sync-brain-docs.sh --all";
 fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
 ' "$package_file"
 }
@@ -2308,7 +2394,7 @@ pi_install_factor_factory() {
   local factor_assets_dir="$2"
   local scripts_source_dir="$3"
   local mode="${4:-apply}"
-  local scripts_dir="$target_dir/scripts"
+  local scripts_dir="$target_dir/.ai/harness/scripts"
   local factors_dir="$target_dir/tasks/factors"
   local cache_dir="$target_dir/.claude/.factor-cache/candidates"
   local registry_template="$factor_assets_dir/factor-registry.template.json"
@@ -2340,6 +2426,7 @@ pi_install_factor_factory() {
   for factor_script in factor-lab-new.sh factor-lab-promote.sh factor-lab-reject.sh factor-lab-check.sh; do
     if [[ -f "$scripts_source_dir/$factor_script" ]]; then
       cp "$scripts_source_dir/$factor_script" "$scripts_dir/$factor_script"
+      pi_normalize_installed_helper "$scripts_dir/$factor_script"
     fi
   done
 

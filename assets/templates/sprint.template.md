@@ -4,15 +4,18 @@
 > **Slug**: {{SPRINT_SLUG}}
 > **Created**: {{TIMESTAMP}}
 > **Updated**: {{TIMESTAMP}}
+> **Source PRD**: (optional) `plans/prds/<prd>.prd.md`
 > **Source Spec**: `docs/spec.md`
 > **Goal Mode**: incremental
 
-Program-level sprint container. The PRD and ordered backlog decompose product
-intent into task-contract slices; each backlog task executes through the
-existing plan -> contract -> worktree -> verify flow. `tasks/todos.md` stays the
-deferred-goal ledger and never carries this backlog.
+Program-level sprint container. The Source PRD summary and ordered backlog
+decompose product intent into task-contract slices; each backlog row is a
+long-task waypoint that must be expanded with `$think` before code edits.
+`tasks/todos.md` stays the deferred-goal ledger and never carries this backlog.
 
 ## PRD
+
+Summarize or link the upper-layer PRD here. Keep the full PRD in `plans/prds/`.
 
 ### Problem
 
@@ -60,7 +63,7 @@ execution for small tasks. Every row needs a concrete acceptance line.
 
 ## Execution Log
 
-Keep this section last; `scripts/sprint-backlog.sh complete-task` appends rows here.
+Keep this section last; `.ai/harness/scripts/sprint-backlog.sh complete-task` appends rows here.
 
 | When | Task | Plan | Result |
 |------|------|------|--------|

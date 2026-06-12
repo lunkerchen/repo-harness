@@ -55,7 +55,7 @@ function installHooks(cwd: string) {
 }
 
 function writeActiveSprintFixture(cwd: string, sprintRelPath: string) {
-  mkdirSync(join(cwd, "plans/prds"), { recursive: true });
+  mkdirSync(join(cwd, "plans/sprints"), { recursive: true });
   mkdirSync(join(cwd, ".ai/harness/sprint"), { recursive: true });
   writeFileSync(
     join(cwd, sprintRelPath),
@@ -98,10 +98,10 @@ describe("sprint-backlog helper", () => {
 
       const init = run("bash", ["scripts/sprint-backlog.sh", "init", "--slug", "Auth Overhaul", "--title", "Auth Overhaul"], cwd);
       expect(init.status).toBe(0);
-      expect(init.stdout).toContain("Created draft sprint: plans/prds/");
+      expect(init.stdout).toContain("Created draft sprint: plans/sprints/");
 
       const marker = readFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "utf-8").trim();
-      expect(marker).toMatch(/^plans\/prds\/\d{8}-\d{4}-auth-overhaul\.prd\.md$/);
+      expect(marker).toMatch(/^plans\/sprints\/\d{8}-\d{4}-auth-overhaul\.sprint\.md$/);
       expect(existsSync(join(cwd, marker))).toBe(true);
 
       const sprint = readFileSync(join(cwd, marker), "utf-8");
@@ -121,7 +121,7 @@ describe("sprint-backlog helper", () => {
     const cwd = tmpWorkspace("sprint-backlog-lifecycle");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
 
       const status = run("bash", ["scripts/sprint-backlog.sh", "status"], cwd);
@@ -202,7 +202,7 @@ describe("sprint-backlog helper", () => {
     const cwd = tmpWorkspace("sprint-backlog-plan-escape");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
       // Inject a duplicate index 1 row after the real one.
       const original = readFileSync(join(cwd, sprintPath), "utf-8");
@@ -233,14 +233,14 @@ describe("sprint-backlog helper", () => {
     }
   });
 
-  test("markers pointing outside plans/prds are treated as no active sprint", () => {
+  test("markers pointing outside plans/sprints are treated as no active sprint", () => {
     const cwd = tmpWorkspace("sprint-backlog-containment");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh"]);
       mkdirSync(join(cwd, ".ai/harness/sprint"), { recursive: true });
       mkdirSync(join(cwd, "outside"), { recursive: true });
-      writeFileSync(join(cwd, "outside/victim.prd.md"), "# Sprint: Victim\n\n> **Status**: Approved\n");
-      writeFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "outside/victim.prd.md");
+      writeFileSync(join(cwd, "outside/victim.sprint.md"), "# Sprint: Victim\n\n> **Status**: Approved\n");
+      writeFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "outside/victim.sprint.md");
 
       const status = run("bash", ["scripts/sprint-backlog.sh", "status"], cwd);
       expect(status.status).toBe(0);
@@ -250,7 +250,7 @@ describe("sprint-backlog helper", () => {
       expect(next.status).toBe(1);
       expect(next.stderr).toContain("no active sprint");
 
-      expect(readFileSync(join(cwd, "outside/victim.prd.md"), "utf-8")).toContain("> **Status**: Approved");
+      expect(readFileSync(join(cwd, "outside/victim.sprint.md"), "utf-8")).toContain("> **Status**: Approved");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -273,11 +273,11 @@ describe("sprint-backlog helper", () => {
     }
   });
 
-  test("start-task captures an approved sprint-task plan; contract rows leave the Plan cell to finish back-fill", () => {
+  test("start-task captures a thin sprint-task plan seed; contract rows leave the Plan cell to finish back-fill", () => {
     const cwd = tmpWorkspace("sprint-backlog-start-task");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh", "capture-plan.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
 
       // Row 1 (task-a) is contract mode: the plan is captured but the primary
@@ -293,6 +293,8 @@ describe("sprint-backlog helper", () => {
       expect(plan).toContain("> **Status**: Approved");
       expect(plan).toContain("> **Planning Source**: repo-harness-sprint");
       expect(plan).toContain(`> **Source Ref**: sprint:${sprintPath}#task-a`);
+      expect(plan).toContain("use `$think` to expand this sprint row");
+      expect(plan).toContain("Run `$think` for backlog task `task-a`");
       expect(plan).toContain("Verify acceptance: unit tests pass");
 
       const sprintAfterContract = readFileSync(join(cwd, sprintPath), "utf-8");
@@ -315,7 +317,7 @@ describe("sprint-backlog helper", () => {
     const cwd = tmpWorkspace("sprint-backlog-in-flight");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh", "capture-plan.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
 
       const first = run("bash", ["scripts/sprint-backlog.sh", "start-task"], cwd);
@@ -349,7 +351,7 @@ describe("sprint-backlog helper", () => {
     const cwd = tmpWorkspace("sprint-backlog-lock-timeout");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
       const lockDir = join(cwd, ".ai/harness/sprint/.backlog-lock");
       mkdirSync(lockDir, { recursive: true });
@@ -369,7 +371,7 @@ describe("sprint-backlog helper", () => {
     const cwd = tmpWorkspace("sprint-backlog-start-task-gates");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh", "capture-plan.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
       writeFileSync(
         join(cwd, sprintPath),
@@ -388,7 +390,7 @@ describe("sprint-backlog helper", () => {
     const cwd = tmpWorkspace("sprint-backlog-sprint-override");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
       rmSync(join(cwd, ".ai/harness/sprint/active-sprint"));
 
@@ -404,21 +406,21 @@ describe("sprint-backlog helper", () => {
 
       const outside = run(
         "bash",
-        ["scripts/sprint-backlog.sh", "complete-task", "--sprint", "outside/x.prd.md", "--task", "task-b"],
+        ["scripts/sprint-backlog.sh", "complete-task", "--sprint", "outside/x.sprint.md", "--task", "task-b"],
         cwd
       );
       expect(outside.status).toBe(1);
-      expect(outside.stderr).toContain("does not resolve to a sprint file under plans/prds");
+      expect(outside.stderr).toContain("does not resolve to a sprint file under plans/sprints");
 
-      writeFileSync(join(cwd, "outside.prd.md"), readFileSync(join(cwd, sprintPath), "utf-8"));
-      symlinkSync("../../outside.prd.md", join(cwd, "plans/prds/link.prd.md"));
+      writeFileSync(join(cwd, "outside.sprint.md"), readFileSync(join(cwd, sprintPath), "utf-8"));
+      symlinkSync("../../outside.sprint.md", join(cwd, "plans/sprints/link.sprint.md"));
       const symlinkEscape = run(
         "bash",
-        ["scripts/sprint-backlog.sh", "complete-task", "--sprint", "plans/prds/link.prd.md", "--task", "task-b"],
+        ["scripts/sprint-backlog.sh", "complete-task", "--sprint", "plans/sprints/link.sprint.md", "--task", "task-b"],
         cwd
       );
       expect(symlinkEscape.status).toBe(1);
-      expect(symlinkEscape.stderr).toContain("does not resolve to a sprint file under plans/prds");
+      expect(symlinkEscape.stderr).toContain("does not resolve to a sprint file under plans/sprints");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -428,7 +430,7 @@ describe("sprint-backlog helper", () => {
     const cwd = tmpWorkspace("sprint-backlog-stale-lock");
     try {
       copySprintHelpers(cwd, ["sprint-backlog.sh"]);
-      const sprintPath = "plans/prds/20260610-0000-fixture-sprint.prd.md";
+      const sprintPath = "plans/sprints/20260610-0000-fixture-sprint.sprint.md";
       writeActiveSprintFixture(cwd, sprintPath);
       const lockDir = join(cwd, ".ai/harness/sprint/.backlog-lock");
       mkdirSync(lockDir, { recursive: true });
@@ -450,10 +452,10 @@ describe("check-task-workflow sprint validation", () => {
     const cwd = tmpWorkspace("sprint-check-bad");
     try {
       copySprintHelpers(cwd, ["check-task-workflow.sh"]);
-      mkdirSync(join(cwd, "plans/prds"), { recursive: true });
+      mkdirSync(join(cwd, "plans/sprints"), { recursive: true });
       mkdirSync(join(cwd, ".ai/harness/sprint"), { recursive: true });
       writeFileSync(
-        join(cwd, "plans/prds/20260610-0000-bad.prd.md"),
+        join(cwd, "plans/sprints/20260610-0000-bad.sprint.md"),
         [
           "# Sprint: Bad",
           "",
@@ -472,8 +474,8 @@ describe("check-task-workflow sprint validation", () => {
           "",
         ].join("\n")
       );
-      writeFileSync(join(cwd, "plans/prds/20260610-0001-weird.prd.md"), "# Sprint: Weird\n\n> **Status**: Cooking\n");
-      writeFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "plans/prds/missing.prd.md");
+      writeFileSync(join(cwd, "plans/sprints/20260610-0001-weird.sprint.md"), "# Sprint: Weird\n\n> **Status**: Cooking\n");
+      writeFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "plans/sprints/missing.sprint.md");
 
       const res = run("bash", ["scripts/check-task-workflow.sh", "--strict"], cwd);
       expect(res.status).toBe(1);
@@ -494,9 +496,9 @@ describe("check-task-workflow sprint validation", () => {
     const cwd = tmpWorkspace("sprint-check-quote");
     try {
       copySprintHelpers(cwd, ["check-task-workflow.sh"]);
-      mkdirSync(join(cwd, "plans/prds"), { recursive: true });
+      mkdirSync(join(cwd, "plans/sprints"), { recursive: true });
       writeFileSync(
-        join(cwd, "plans/prds/20260610-0000-quote.prd.md"),
+        join(cwd, "plans/sprints/20260610-0000-quote.sprint.md"),
         "# Sprint: Quote\n\n> **Status**: Don't ship\n"
       );
 
@@ -514,11 +516,11 @@ describe("check-task-workflow sprint validation", () => {
       copySprintHelpers(cwd, ["check-task-workflow.sh"]);
       mkdirSync(join(cwd, ".ai/harness/sprint"), { recursive: true });
       mkdirSync(join(cwd, "outside"), { recursive: true });
-      writeFileSync(join(cwd, "outside/victim.prd.md"), "# Sprint: Victim\n\n> **Status**: Draft\n");
-      writeFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "outside/victim.prd.md");
+      writeFileSync(join(cwd, "outside/victim.sprint.md"), "# Sprint: Victim\n\n> **Status**: Draft\n");
+      writeFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "outside/victim.sprint.md");
 
       const res = run("bash", ["scripts/check-task-workflow.sh"], cwd);
-      expect(res.stdout).toContain("Active sprint marker points outside plans/prds");
+      expect(res.stdout).toContain("Active sprint marker points outside plans/sprints");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -528,12 +530,12 @@ describe("check-task-workflow sprint validation", () => {
     const cwd = tmpWorkspace("sprint-check-ok");
     try {
       copySprintHelpers(cwd, ["check-task-workflow.sh"]);
-      mkdirSync(join(cwd, "plans/prds"), { recursive: true });
+      mkdirSync(join(cwd, "plans/sprints"), { recursive: true });
       writeFileSync(
-        join(cwd, "plans/prds/20260610-0000-draft.prd.md"),
+        join(cwd, "plans/sprints/20260610-0000-draft.sprint.md"),
         "# Sprint: Draft Skeleton\n\n> **Status**: Draft\n\n## PRD\n\n- ...\n"
       );
-      writeActiveSprintFixture(cwd, "plans/prds/20260610-0001-ready.prd.md");
+      writeActiveSprintFixture(cwd, "plans/sprints/20260610-0001-ready.sprint.md");
 
       const res = run("bash", ["scripts/check-task-workflow.sh"], cwd);
       expect(res.stdout).not.toContain("[workflow] Sprint ");
@@ -549,12 +551,12 @@ describe("sprint projection", () => {
     const cwd = tmpWorkspace("sprint-refresh-status");
     try {
       copySprintHelpers(cwd, ["refresh-current-status.sh"]);
-      writeActiveSprintFixture(cwd, "plans/prds/20260610-0000-fixture-sprint.prd.md");
+      writeActiveSprintFixture(cwd, "plans/sprints/20260610-0000-fixture-sprint.sprint.md");
 
       const res = run("bash", ["scripts/refresh-current-status.sh"], cwd);
       expect(res.status).toBe(0);
       expect(res.stdout).toContain("## Active Sprint");
-      expect(res.stdout).toContain("- Sprint: `plans/prds/20260610-0000-fixture-sprint.prd.md`");
+      expect(res.stdout).toContain("- Sprint: `plans/sprints/20260610-0000-fixture-sprint.sprint.md`");
       expect(res.stdout).toContain("- Sprint Status: Approved");
       expect(res.stdout).toContain("- Backlog: 0/2");
       expect(res.stdout).toContain("- Next Sprint Task: task-a");
@@ -589,7 +591,7 @@ describe("sprint projection", () => {
       expect(inert.status).toBe(0);
       expect(inert.stdout).not.toContain("Active Sprint");
 
-      writeActiveSprintFixture(cwd, "plans/prds/20260610-0000-fixture-sprint.prd.md");
+      writeActiveSprintFixture(cwd, "plans/sprints/20260610-0000-fixture-sprint.sprint.md");
       const active = spawnSync("bash", [join(cwd, ".ai/hooks/session-start-context.sh")], {
         cwd,
         input: "{}",
@@ -599,6 +601,7 @@ describe("sprint projection", () => {
       expect(active.stdout).toContain("Active Sprint");
       expect(active.stdout).toContain("backlog=0/2");
       expect(active.stdout).toContain("task-a");
+      expect(active.stdout).toContain("Use `$think` to expand the next sprint task");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

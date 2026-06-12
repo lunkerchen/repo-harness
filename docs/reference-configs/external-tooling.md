@@ -43,7 +43,7 @@ installations.
 
 ## Detect Safely
 
-Use `bash scripts/check-agent-tooling.sh` for a read-only tooling report.
+Use `bash .ai/harness/scripts/check-agent-tooling.sh` for a read-only tooling report.
 Init and migration reports run the detector without update checks by default;
 set `REPO_HARNESS_CHECK_TOOLING_UPDATES=1` when that advisory pass should
 also compare upstream versions.
@@ -141,21 +141,22 @@ does not replace `.ai/context/capabilities.json`, workflow checks, tests,
 architecture drift events, or shell-script review.
 
 This self-host repo vendors CodeGraph as a dev dependency so `bun install`
-materializes `node_modules/.bin/codegraph` and `scripts/ensure-codegraph.sh`
-can manage the local index. Generated downstream repos keep the global MCP
-installer default unless their local policy explicitly opts into vendoring.
+materializes `node_modules/.bin/codegraph`; its source-only
+`scripts/ensure-codegraph.sh` can manage the local index. Generated downstream
+repos keep the global MCP installer default and should use the `codegraph`
+command directly unless local policy explicitly opts into vendoring.
 
 Read-only check:
 
 ```bash
-bash scripts/ensure-codegraph.sh --check --json
+codegraph status .
 ```
 
 Local index mutation:
 
 ```bash
-bash scripts/ensure-codegraph.sh --init
-bash scripts/ensure-codegraph.sh --sync
+codegraph init -i .
+codegraph sync .
 ```
 
 Do not ask users to copy MCP TOML or Claude JSON by hand. The user-facing path
@@ -315,9 +316,9 @@ After that, PostEdit hooks sync only that source file. Manual sync and drift
 checks are also available:
 
 ```bash
-bash scripts/check-brain-manifest.sh
-bash scripts/sync-brain-docs.sh --all
-bash scripts/sync-brain-docs.sh --check
+bash .ai/harness/scripts/check-brain-manifest.sh
+bash .ai/harness/scripts/sync-brain-docs.sh --all
+bash .ai/harness/scripts/sync-brain-docs.sh --check
 ```
 
 ## Why gbrain MCP Stays Off by Default

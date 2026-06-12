@@ -389,16 +389,31 @@ check_handoff_resume_pair() {
 
 check_required_file() {
   local path="$1"
-  if [[ ! -f "$path" ]]; then
-    report_issue "Missing required file: $path"
+  if [[ -f "$path" ]]; then
+    return 0
   fi
+
+  if [[ "$path" == .ai/harness/scripts/* ]]; then
+    local helper_name="${path##*/}"
+    if [[ -f "assets/templates/helpers/$helper_name" && -f "scripts/$helper_name" ]]; then
+      return 0
+    fi
+  fi
+
+  report_issue "Missing required file: $path"
 }
 
 check_required_dir() {
   local path="$1"
-  if [[ ! -d "$path" ]]; then
-    report_issue "Missing required directory: $path"
+  if [[ -d "$path" ]]; then
+    return 0
   fi
+
+  if [[ "$path" == ".ai/harness/scripts" && -d "assets/templates/helpers" && -d "scripts" ]]; then
+    return 0
+  fi
+
+  report_issue "Missing required directory: $path"
 }
 
 policy_get() {
@@ -426,10 +441,11 @@ reviews_dir="$(policy_get '.tasks.reviews_dir' 'tasks/reviews')"
 notes_dir="$(policy_get '.tasks.notes_dir' 'tasks/notes')"
 workstreams_dir="$(policy_get '.tasks.workstreams_dir' 'tasks/workstreams')"
 runs_dir="$(policy_get '.harness.runs_dir' '.ai/harness/runs')"
+helper_runtime_dir="$(policy_get '.harness.helper_runtime_dir' '.ai/harness/scripts')"
 context_map_file="$(policy_get '.context.map_file' '.ai/context/context-map.json')"
 handoff_file="$(policy_get '.harness.handoff_file' '.ai/harness/handoff/current.md')"
 resume_file="$(policy_get '.handoff_resume.resume_packet_file' '.ai/harness/handoff/resume.md')"
-sprints_dir="$(policy_get '.sprints.dir' 'plans/prds')"
+sprints_dir="$(policy_get '.sprints.dir' 'plans/sprints')"
 sprint_marker_file="$(policy_get '.sprints.active_marker_file' '.ai/harness/sprint/active-sprint')"
 legacy_sprints_dir="tasks/sprints"
 upgrade_strategy_version=""
@@ -439,6 +455,8 @@ fi
 
 check_required_dir "plans"
 check_required_dir "plans/archive"
+check_required_dir "plans/prds"
+check_required_dir "$sprints_dir"
 check_required_dir "tasks"
 check_required_dir "tasks/archive"
 check_required_dir "$contracts_dir"
@@ -448,7 +466,12 @@ check_required_dir "$workstreams_dir"
 check_required_dir ".claude/templates"
 check_required_dir ".ai/context"
 check_required_dir ".ai/harness"
+check_required_dir "$helper_runtime_dir"
 check_required_dir "$runs_dir"
+
+helper_file() {
+  printf '%s/%s' "$helper_runtime_dir" "$1"
+}
 
 check_required_file "docs/spec.md"
 check_required_file ".claude/templates/spec.template.md"
@@ -457,32 +480,32 @@ check_required_file ".claude/templates/research.template.md"
 check_required_file ".claude/templates/contract.template.md"
 check_required_file ".claude/templates/review.template.md"
 check_required_file ".claude/templates/implementation-notes.template.md"
-check_required_file "scripts/new-spec.sh"
-check_required_file "scripts/new-sprint.sh"
-check_required_file "scripts/new-plan.sh"
-check_required_file "scripts/plan-to-todo.sh"
-check_required_file "scripts/contract-worktree.sh"
-check_required_file "scripts/ship-worktrees.sh"
-check_required_file "scripts/archive-workflow.sh"
-check_required_file "scripts/refresh-current-status.sh"
-check_required_file "scripts/prepare-handoff.sh"
-check_required_file "scripts/verify-contract.sh"
-check_required_file "scripts/verify-sprint.sh"
-check_required_file "scripts/check-task-sync.sh"
-check_required_file "scripts/check-deploy-sql-order.sh"
-check_required_file "scripts/check-architecture-sync.sh"
-check_required_file "scripts/check-context-files.sh"
-check_required_file "scripts/check-brain-manifest.sh"
-check_required_file "scripts/select-agent-context-blocks.sh"
-check_required_file "scripts/capability-config.ts"
-check_required_file "scripts/architecture-event.ts"
-check_required_file "scripts/architecture-queue.sh"
-check_required_file "scripts/archive-architecture-request.sh"
-check_required_file "scripts/context-contract-sync.sh"
-check_required_file "scripts/workstream-sync.sh"
-check_required_file "scripts/ensure-task-workflow.sh"
-check_required_file "scripts/check-task-workflow.sh"
-check_required_file "scripts/maintenance-triage.sh"
+check_required_file "$(helper_file "new-spec.sh")"
+check_required_file "$(helper_file "new-sprint.sh")"
+check_required_file "$(helper_file "new-plan.sh")"
+check_required_file "$(helper_file "plan-to-todo.sh")"
+check_required_file "$(helper_file "contract-worktree.sh")"
+check_required_file "$(helper_file "ship-worktrees.sh")"
+check_required_file "$(helper_file "archive-workflow.sh")"
+check_required_file "$(helper_file "refresh-current-status.sh")"
+check_required_file "$(helper_file "prepare-handoff.sh")"
+check_required_file "$(helper_file "verify-contract.sh")"
+check_required_file "$(helper_file "verify-sprint.sh")"
+check_required_file "$(helper_file "check-task-sync.sh")"
+check_required_file "$(helper_file "check-deploy-sql-order.sh")"
+check_required_file "$(helper_file "check-architecture-sync.sh")"
+check_required_file "$(helper_file "check-context-files.sh")"
+check_required_file "$(helper_file "check-brain-manifest.sh")"
+check_required_file "$(helper_file "select-agent-context-blocks.sh")"
+check_required_file "$(helper_file "capability-config.ts")"
+check_required_file "$(helper_file "architecture-event.ts")"
+check_required_file "$(helper_file "architecture-queue.sh")"
+check_required_file "$(helper_file "archive-architecture-request.sh")"
+check_required_file "$(helper_file "context-contract-sync.sh")"
+check_required_file "$(helper_file "workstream-sync.sh")"
+check_required_file "$(helper_file "ensure-task-workflow.sh")"
+check_required_file "$(helper_file "check-task-workflow.sh")"
+check_required_file "$(helper_file "maintenance-triage.sh")"
 check_required_file "$todo_file"
 check_required_file "$current_status_file"
 check_required_file "$lessons_file"
@@ -576,11 +599,21 @@ if [[ -d "$sprints_dir" ]]; then
         report_issue "Sprint $sprint_file is not execution-ready: ${sprint_error//$'\n'/; }"
       fi
     fi
-  done < <(find "$sprints_dir" -maxdepth 1 -type f -name '*.prd.md' 2>/dev/null | sort)
+  done < <(find "$sprints_dir" -maxdepth 1 -type f -name '*.sprint.md' 2>/dev/null | sort)
 fi
 
 if [[ "$sprints_dir" != "$legacy_sprints_dir" && -d "$legacy_sprints_dir" ]]; then
-  report_issue "Legacy sprint PRD directory detected; migrate ${legacy_sprints_dir}/*.sprint.md into ${sprints_dir}/*.prd.md."
+  report_issue "Legacy sprint directory detected; migrate ${legacy_sprints_dir}/*.sprint.md into ${sprints_dir}/*.sprint.md."
+fi
+
+if [[ -d "plans/prds" ]]; then
+  while IFS= read -r prd_sprint_file; do
+    [[ -n "$prd_sprint_file" ]] || continue
+    report_issue "Sprint backlog file is in the PRD catalog; migrate ${prd_sprint_file} into ${sprints_dir}/."
+  done < <(
+    find plans/prds -maxdepth 1 -type f -name '*.prd.md' -print0 2>/dev/null \
+      | xargs -0 grep -El '^(# Sprint:|## Backlog[[:space:]]*$)' 2>/dev/null || true
+  )
 fi
 
 if [[ -f "$sprint_marker_file" ]]; then

@@ -15,6 +15,24 @@ workflow_rotate_events_file ".ai/harness/architecture/events.jsonl" 2>/dev/null 
 
 resume_file="$(workflow_resume_packet_file)"
 
+helper_script_path() {
+  local helper_name="$1"
+  local helper_dir
+
+  helper_dir="$(workflow_policy_get '.harness.helper_runtime_dir' '.ai/harness/scripts')"
+  if [[ -f "$helper_dir/$helper_name" ]]; then
+    printf '%s/%s' "$helper_dir" "$helper_name"
+    return 0
+  fi
+
+  if [[ -f "scripts/$helper_name" ]]; then
+    printf '%s/%s' "scripts" "$helper_name"
+    return 0
+  fi
+
+  printf '%s/%s' "$helper_dir" "$helper_name"
+}
+
 resume_available() {
   [[ -f "$resume_file" ]] || return 1
   grep -Fq "<!-- generated-by: repo-harness codex-handoff-resume v1 -->" "$resume_file" || return 1
@@ -138,8 +156,10 @@ architecture_queue_pending() {
   local pending_count="0"
   local oldest_epoch="" oldest_days="unknown"
   local now_epoch request detected detected_date detected_epoch
+  local queue_script
 
   [[ -d "$requests_dir" ]] || return 1
+  queue_script="$(helper_script_path "architecture-queue.sh")"
 
   now_epoch="$(date '+%s' 2>/dev/null || true)"
   while IFS= read -r request; do
@@ -168,13 +188,13 @@ architecture_queue_pending() {
 ${pending_count} capabilities have pending architecture drift (oldest ${oldest_days}). Run:
 
 \`\`\`bash
-bash scripts/architecture-queue.sh status
+bash ${queue_script} status
 \`\`\`
 EOF_CONTEXT
 }
 
 pending_plan_capture_context() {
-  local active_plan summary draft_path prompt_slug kind source_ref capture_source source_arg
+  local active_plan summary draft_path prompt_slug kind source_ref capture_source source_arg capture_script
 
   workflow_pending_orchestration_is_fresh || return 1
   active_plan="$(get_active_plan || true)"
@@ -190,6 +210,7 @@ pending_plan_capture_context() {
   if [[ -n "$source_ref" ]]; then
     source_arg=" --source-ref <source-ref>"
   fi
+  capture_script="$(helper_script_path "capture-plan.sh")"
 
   cat <<EOF_CONTEXT
 # Pending Plan Capture
@@ -203,13 +224,13 @@ A host/thread planning discussion is pending capture and no active repo plan is 
 Capture the decision-complete plan body:
 
 \`\`\`bash
-printf '%s\n' '<decision-complete plan body>' | bash scripts/capture-plan.sh --slug ${prompt_slug:-<slug>} --title <title> --status Draft --source ${capture_source} --orchestration-kind ${capture_source} --route planning${source_arg}
+printf '%s\n' '<decision-complete plan body>' | bash ${capture_script} --slug ${prompt_slug:-<slug>} --title <title> --status Draft --source ${capture_source} --orchestration-kind ${capture_source} --route planning${source_arg}
 \`\`\`
 
 If the user has already approved implementation:
 
 \`\`\`bash
-printf '%s\n' '<approved plan body>' | bash scripts/capture-plan.sh --slug ${prompt_slug:-<slug>} --title <title> --status Approved --source ${capture_source} --orchestration-kind ${capture_source} --route planning --execute${source_arg}
+printf '%s\n' '<approved plan body>' | bash ${capture_script} --slug ${prompt_slug:-<slug>} --title <title> --status Approved --source ${capture_source} --orchestration-kind ${capture_source} --route planning --execute${source_arg}
 \`\`\`
 EOF_CONTEXT
 }
@@ -276,6 +297,7 @@ EOF_CONTEXT
 active_sprint_context() {
   local marker=".ai/harness/sprint/active-sprint"
   local sprint_file status progress next_task
+  local sprint_script capture_script
 
   if [[ -f ".ai/harness/policy.json" ]] && command -v jq >/dev/null 2>&1; then
     marker="$(jq -r '.sprints.active_marker_file // empty' .ai/harness/policy.json 2>/dev/null || true)"
@@ -311,13 +333,16 @@ active_sprint_context() {
     }
     END { if (!found) print "(none)" }
   ' "$sprint_file")"
+  sprint_script="$(helper_script_path "sprint-backlog.sh")"
+  capture_script="$(helper_script_path "capture-plan.sh")"
 
   cat <<EOF_CONTEXT
 # Active Sprint
 
 - Sprint: \`${sprint_file}\` status=${status:-unknown} backlog=${progress}
 - Next sprint task: ${next_task}
-- Rule: run backlog tasks through the existing plan -> contract -> worktree flow (\`scripts/sprint-backlog.sh next\`); \`tasks/todos.md\` stays the deferred-goal ledger.
+- Rule: a Sprint is a long-task container. Use \`\$think\` to expand the next sprint task into a detailed \`plans/plan-*.md\`, then run the existing plan -> contract -> worktree flow. \`tasks/todos.md\` stays the deferred-goal ledger.
+- Entrypoint: inspect with \`${sprint_script} next\`; after \`\$think\` produces an approved plan, capture it with \`${capture_script} --source waza-think --source-ref sprint:${sprint_file}#${next_task}\`.
 EOF_CONTEXT
 }
 

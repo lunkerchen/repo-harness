@@ -19,7 +19,7 @@ deferred-goal ledger and never carries this backlog.
 loop-engine-01"这个历史意图。当前执行入口是 dedicated linked worktree
 `/Users/chris/Projects/agentic-dev-wt-arch-doc-loop-01-queue-engine-triage`
 上的 slice 1;active-sprint 标记仍可指向 loop-engine(one-active-sprint
-不变量),本 sprint 经 `scripts/sprint-backlog.sh start-task --sprint plans/prds/20260612-0256-architecture-doc-loop.prd.md`
+不变量),本 sprint 经 `scripts/sprint-backlog.sh start-task --sprint plans/sprints/20260612-0256-architecture-doc-loop.sprint.md`
 显式覆盖操作。不得从 primary dirty tree 启动或完成本 sprint。
 
 ## PRD

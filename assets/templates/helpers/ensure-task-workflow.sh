@@ -427,7 +427,7 @@ CURRENT_STATUS_EOF
 }
 
 ensure_auxiliary_files() {
-  mkdir -p plans plans/archive plans/prds tasks/archive tasks/contracts tasks/reviews tasks/notes tasks/workstreams docs/architecture/domains docs/architecture/modules docs/architecture/requests docs/architecture/snapshots docs/architecture/diagrams scripts .ai/context .ai/harness/checks .ai/harness/handoff .ai/harness/failures .ai/harness/security .ai/harness/planning .ai/harness/architecture .ai/harness/worktrees .ai/harness/runs
+  mkdir -p plans plans/archive plans/prds plans/sprints tasks/archive tasks/contracts tasks/reviews tasks/notes tasks/workstreams docs/architecture/domains docs/architecture/modules docs/architecture/requests docs/architecture/snapshots docs/architecture/diagrams scripts .ai/context .ai/harness/checks .ai/harness/handoff .ai/harness/failures .ai/harness/security .ai/harness/planning .ai/harness/architecture .ai/harness/worktrees .ai/harness/runs
 
   if [[ ! -f "docs/spec.md" ]]; then
     cat > docs/spec.md <<'SPEC_EOF'

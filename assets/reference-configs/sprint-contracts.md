@@ -4,17 +4,19 @@ Sprint contracts are the repo-local agreement between planner, generator, and ev
 
 ## Two-Layer Glossary
 
-The word "sprint" historically named a single execution slice in this harness. With the program layer added, the vocabulary is exactly two layers:
+The word "sprint" historically named a single execution slice in this harness. The current vocabulary is exactly three layers:
 
 | Term | Layer | Artifact | Owner |
 |------|-------|----------|-------|
-| **Sprint** | Program level | `plans/prds/<stamp>-<slug>.prd.md` (PRD + Architecture Notes + ordered Backlog + Execution Log) | PM + architect planning |
+| **PRD** | Product planning | `plans/prds/<stamp>-<slug>.prd.md` | PM + architect planning |
+| **Sprint** | Program execution backlog | `plans/sprints/<stamp>-<slug>.sprint.md` (Source PRD + Architecture Notes + ordered Backlog + Execution Log) | PM + architect planning |
 | **Task Contract** | Execution slice | `tasks/contracts/<plan-stem>.contract.md` plus its review/notes trio | One plan, one worktree |
 
-- A Sprint decomposes `docs/spec.md` intent into an ordered backlog; each backlog task executes as one task-contract slice through the existing plan -> contract -> worktree -> verify flow.
+- A PRD decomposes `docs/spec.md` intent into product and architecture direction.
+- A Sprint decomposes a PRD or `docs/spec.md` into an ordered backlog; each backlog task executes as one task-contract slice through the existing plan -> contract -> worktree -> verify flow.
 - `tasks/todos.md` stays the deferred-goal ledger; it never carries the sprint backlog or any active checklist.
-- Legacy naming: "Sprint Contract" / "Sprint Review" headings and the `verify-sprint.sh` / `new-sprint.sh` filenames predate the program layer and refer to the execution slice. The filenames are kept for downstream compatibility; read them as task-contract verification.
-- Sprint lifecycle: `Draft -> Approved -> Executing -> Done -> Archived`, tracked in the sprint file's `> **Status**:` line. Where the sprint layer is installed, `scripts/sprint-backlog.sh` (init/status/next/complete-task) operates the backlog and `.ai/harness/sprint/active-sprint` (runtime state, not committed) marks the single active sprint; harness installs predating the sprint layer do not ship the helper, so check for the script before invoking it. `check-task-workflow.sh` rejects Approved/Executing sprints whose PRD is placeholder-only or whose backlog rows lack a concrete acceptance line.
+- Legacy naming: "Sprint Contract" / "Sprint Review" headings and the `verify-sprint.sh` filename predate the program layer and refer to the execution slice. `new-sprint.sh` is now a compatibility facade for `sprint-backlog.sh init` and writes `plans/sprints/*.sprint.md`.
+- Sprint lifecycle: `Draft -> Approved -> Executing -> Done -> Archived`, tracked in the sprint file's `> **Status**:` line. Where the sprint layer is installed, `.ai/harness/scripts/sprint-backlog.sh` (init/status/next/complete-task) operates the backlog and `.ai/harness/sprint/active-sprint` (runtime state, not committed) marks the single active sprint; harness installs predating the sprint layer do not ship the helper, so check for the script before invoking it. `check-task-workflow.sh` rejects Approved/Executing sprints whose PRD/source section is placeholder-only or whose backlog rows lack a concrete acceptance line.
 
 ## Inventory First
 
@@ -40,7 +42,7 @@ New contracts include a `## Delegation Contract` YAML block between allowed path
 - `permission_scope`: the execution permission model. The default `mode: inherit_allowed_paths` means worker edits are limited by the contract `allowed_paths`; `writable_paths: []` means no narrower override; `network: inherited` means no new network permission is granted by the contract itself.
 - `roles`: named responsibilities for `parent`, `worker`, and `verifier`. The default parent narrates and gates, worker implements the contract, and verifier reviews only against the contract exit criteria.
 
-Existing contracts without this block remain valid. `scripts/verify-contract.sh` continues to evaluate only the `exit_criteria` YAML block, so adding delegation metadata must not make old or new contracts fail verification.
+Existing contracts without this block remain valid. `.ai/harness/scripts/verify-contract.sh` continues to evaluate only the `exit_criteria` YAML block, so adding delegation metadata must not make old or new contracts fail verification.
 
 ## Status Rules
 
@@ -58,6 +60,6 @@ Existing contracts without this block remain valid. `scripts/verify-contract.sh`
 
 ## Worktree Lifecycle
 
-- When `.ai/harness/policy.json` has `worktree_strategy.auto_for_contract_tasks: true`, `scripts/plan-to-todo.sh --plan <approved-plan>` starts a linked `codex/<slug>` worktree instead of mutating the primary tree.
+- When `.ai/harness/policy.json` has `worktree_strategy.auto_for_contract_tasks: true`, `.ai/harness/scripts/plan-to-todo.sh --plan <approved-plan>` starts a linked `codex/<slug>` worktree instead of mutating the primary tree.
 - Execute the sprint in that linked worktree. The primary worktree remains a merge target and must stay clean before merge-back.
-- After implementation, run Waza `/check` so the review file recommends pass, record passing `## External Acceptance Advice` from the peer reviewer or a concrete manual override, then run `scripts/contract-worktree.sh finish`. The finish command gates on external acceptance before `verify-sprint.sh`, commits the branch, and fast-forwards the target branch only when the target worktree is clean.
+- After implementation, run Waza `/check` so the review file recommends pass, record passing `## External Acceptance Advice` from the peer reviewer or a concrete manual override, then run `.ai/harness/scripts/contract-worktree.sh finish`. The finish command gates on external acceptance before `verify-sprint.sh`, commits the branch, and fast-forwards the target branch only when the target worktree is clean.

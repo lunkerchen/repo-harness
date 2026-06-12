@@ -94,16 +94,16 @@ describe("workflow contract manifest", () => {
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/brain-manifest.json");
     expect(contract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
     expect(contract.artifacts.requiredFiles).toContain(".ai/context/capability-source-map.json");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/capability-resolver.ts");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/architecture-event.ts");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/capability-config.ts");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-worktree.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-run.ts");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/ship-worktrees.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/heartbeat-triage.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/capture-plan.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/refresh-current-status.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/sync-brain-docs.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/capability-resolver.ts");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/architecture-event.ts");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/capability-config.ts");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/contract-worktree.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/contract-run.ts");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/ship-worktrees.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/heartbeat-triage.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/capture-plan.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/refresh-current-status.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/sync-brain-docs.sh");
     expect(contract.artifacts.requiredFiles).toContain("tasks/current.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
@@ -144,8 +144,13 @@ describe("workflow contract manifest", () => {
     const retiredDrift = contract.migrations.upgrade?.actions.find((action) => action.id === "legacy-architecture-drift-helper");
     expect(retiredDrift?.action).toBe("remove");
     expect(retiredDrift?.ownership).toBe("known_generated");
-    expect(retiredDrift?.paths).toContain("scripts/architecture-drift.sh");
     expect(retiredDrift?.paths).toContain("assets/templates/helpers/architecture-drift.sh");
+    const legacyRootHelpers = contract.migrations.upgrade?.actions.find((action) => action.id === "legacy-root-helper-runtime");
+    expect(legacyRootHelpers?.action).toBe("remove");
+    expect(legacyRootHelpers?.ownership).toBe("known_generated");
+    expect(legacyRootHelpers?.cleanupMode).toBe("generated_helper");
+    expect(legacyRootHelpers?.paths).toContain("scripts/architecture-drift.sh");
+    expect(legacyRootHelpers?.paths).toContain("scripts/check-task-workflow.sh");
   });
 
   test("upstream skill root resolver prefers the canonical env var without retired alias surfaces", () => {

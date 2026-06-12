@@ -7,16 +7,17 @@
 ### 2. Annotation Cycle
 - Iterate plan updates directly in `plans/plan-*.md` via inline notes.
 - Treat `.ai/harness/active-plan` as authoritative for this worktree when present; `.ai/harness/active-worktree` records the owning worktree; `.claude/.active-plan` is a legacy fallback during transition.
-- Switch between concurrent plans with `bash scripts/switch-plan.sh --plan <plan-file>`.
+- Switch between concurrent plans with `bash .ai/harness/scripts/switch-plan.sh --plan <plan-file>`.
 - Fill the plan/contract workflow inventory before implementation.
 - Do not implement while plan status is `Draft` or `Annotating`.
 
 ### 3. Plan Node Default
 - Enter plan mode for non-trivial tasks.
-- If no stable product truth exists, run `bash scripts/new-spec.sh`.
-- When Codex Plan mode or Waza `/think` reaches a decision-complete plan, capture it with `bash scripts/capture-plan.sh --slug <slug> --title <title>` and the plan text on stdin.
-- If no captured active plan exists, run `bash scripts/new-sprint.sh --slug <slug> --title <title>`.
-- When the user approves implementation, run `bash scripts/plan-to-todo.sh --plan <active-plan>` or capture the approved plan with `--status Approved --execute`; this creates contract/review/notes scaffolding and leaves plan tasks in `## Task Breakdown`.
+- If no stable product truth exists, run `bash .ai/harness/scripts/new-spec.sh`.
+- When Codex Plan mode or Waza `/think` reaches a decision-complete plan, capture it with `bash .ai/harness/scripts/capture-plan.sh --slug <slug> --title <title>` and the plan text on stdin.
+- If no captured active execution plan exists, run `bash .ai/harness/scripts/new-plan.sh --slug <slug> --title <title>` or capture a finished planning note with `bash .ai/harness/scripts/capture-plan.sh`.
+- If the user asks for a Sprint backlog, run `bash .ai/harness/scripts/new-sprint.sh --slug <slug> --title <title>`; it writes `plans/sprints/*.sprint.md`, not `plans/plan-*.md`.
+- When the user approves implementation, run `bash .ai/harness/scripts/plan-to-todo.sh --plan <active-plan>` or capture the approved plan with `--status Approved --execute`; this creates contract/review/notes scaffolding and leaves plan tasks in `## Task Breakdown`.
 - Re-plan when execution drifts.
 
 ### 4. Research Delegation Strategy
@@ -36,7 +37,7 @@
 - Define per-sprint contract files in `tasks/contracts/`.
 - Verify contract exit criteria before claiming completion.
 - Require Waza `/check` to produce the matching evaluator review before any done/completed response.
-- Use `scripts/verify-contract.sh --contract tasks/contracts/{plan-stem}.contract.md --strict`.
+- Use `.ai/harness/scripts/verify-contract.sh --contract tasks/contracts/{plan-stem}.contract.md --strict`.
 
 ### 7. Balanced Elegance
 - Redesign hacky non-trivial fixes before shipping.

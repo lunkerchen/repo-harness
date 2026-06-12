@@ -156,15 +156,15 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("capability-resolver.ts");
     expect(contract.helpers.scripts).toContain("architecture-event.ts");
     expect(contract.helpers.scripts).toContain("capability-config.ts");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-worktree.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-run.ts");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/ship-worktrees.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/heartbeat-triage.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/capture-plan.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/refresh-current-status.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/sync-brain-docs.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/contract-worktree.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/contract-run.ts");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/ship-worktrees.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/heartbeat-triage.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/capture-plan.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/refresh-current-status.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/sync-brain-docs.sh");
     expect(contract.artifacts.requiredFiles).toContain("tasks/current.md");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/capability-config.ts");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/capability-config.ts");
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/workflow-contract.json");
     expect(contract.artifacts.requiredFiles).not.toContain(".codex/hooks.json");
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/brain-manifest.json");
@@ -191,8 +191,13 @@ describe("Bootstrap Script Contracts", () => {
     const retiredDrift = contract.migrations.upgrade.actions.find(
       (action: { id?: string; paths?: string[] }) => action.id === "legacy-architecture-drift-helper"
     );
-    expect(retiredDrift?.paths).toContain("scripts/architecture-drift.sh");
     expect(retiredDrift?.paths).toContain("assets/templates/helpers/architecture-drift.sh");
+    const legacyRootHelpers = contract.migrations.upgrade.actions.find(
+      (action: { id?: string; cleanupMode?: string; paths?: string[] }) => action.id === "legacy-root-helper-runtime"
+    );
+    expect(legacyRootHelpers?.cleanupMode).toBe("generated_helper");
+    expect(legacyRootHelpers?.paths).toContain("scripts/architecture-drift.sh");
+    expect(legacyRootHelpers?.paths).toContain("scripts/check-task-workflow.sh");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");
     expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/triage");
@@ -257,9 +262,9 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("contract-run.ts");
     expect(contract.helpers.scripts).toContain("heartbeat-triage.sh");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/capture-plan.sh");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-run.ts");
-    expect(contract.artifacts.requiredFiles).toContain("scripts/heartbeat-triage.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/capture-plan.sh");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/contract-run.ts");
+    expect(contract.artifacts.requiredFiles).toContain(".ai/harness/scripts/heartbeat-triage.sh");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");

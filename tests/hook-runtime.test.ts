@@ -1290,7 +1290,7 @@ describe("Hook runtime behavior", () => {
       expect(res.stdout).toContain("SessionStart");
       expect(res.stdout).toContain("Architecture Queue");
       expect(res.stdout).toContain("1 capabilities have pending architecture drift");
-      expect(res.stdout).toContain("bash scripts/architecture-queue.sh status");
+      expect(res.stdout).toContain("bash .ai/harness/scripts/architecture-queue.sh status");
       expect(res.stdout).not.toContain("[CrossReview]");
 
       const codexRes = runHook("session-start-context.sh", cwd, { env: { HOOK_HOST: "codex" } });

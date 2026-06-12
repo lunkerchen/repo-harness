@@ -16,7 +16,7 @@ Use this command for an existing repository that needs the repo-local agentic wo
 4. If the repo is legacy, route to `repo-harness-migrate`.
 5. Otherwise run the safe path through `repo-harness update` or `bash scripts/migrate-project-template.sh --repo <repo> --apply`.
 6. Bootstrap the expected host runtime dependencies in the same pass: Waza (`think`, `hunt`, `check`, `health`) and the bundled cross-review skills when source copies are available.
-7. Verify with `bash scripts/check-task-workflow.sh --strict` inside the target repo when the helper exists.
+7. Verify with `bash .ai/harness/scripts/check-task-workflow.sh --strict` inside the target repo when the helper exists.
 
 ## Failure Modes
 

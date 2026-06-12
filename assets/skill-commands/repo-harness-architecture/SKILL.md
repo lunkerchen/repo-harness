@@ -26,7 +26,7 @@ architecture documentation, drift-request, or diagram pass.
 7. Verify with:
    - `bash scripts/check-architecture-sync.sh`
    - `bun scripts/capability-resolver.ts validate --repo <repo> --format text`
-   - `bash scripts/check-task-workflow.sh --strict` when repo workflow surfaces changed
+   - `bash .ai/harness/scripts/check-task-workflow.sh --strict` when repo workflow surfaces changed
 
 ## Failure Modes
 

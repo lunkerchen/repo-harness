@@ -106,8 +106,8 @@
       "name": "repo-harness-sprint",
       "class": "sprint-orchestration",
       "mutatesRepoByDefault": true,
-      "engine": "sprint-backlog helper plus capture-plan and contract worktree flow",
-      "summary": "Plans a program-level sprint (PRD plus ordered backlog) and drives backlog tasks through the existing task-contract flow."
+      "engine": "sprint-backlog helper plus $think expansion, capture-plan, and contract worktree flow",
+      "summary": "Plans a long-task sprint backlog from an upper-layer PRD and expands each row with $think before the task-contract flow."
     }
   ],
   "nonPublicInternalSteps": [

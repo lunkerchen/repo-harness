@@ -79,7 +79,7 @@ All notable changes to this skill are documented here.
 
 ### Added
 
-- Added the sprint program layer: `tasks/sprints/`, sprint templates,
+- Added the sprint program layer: `plans/sprints/`, sprint templates,
   `scripts/sprint-backlog.sh`, the `repo-harness-sprint` command facade, active
   sprint markers, current-status projection, session-start projection, workflow
   validation, and generated-repo parity copies.

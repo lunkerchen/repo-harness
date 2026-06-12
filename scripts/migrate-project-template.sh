@@ -190,6 +190,108 @@ remove_path_if_exists() {
   fi
 }
 
+repo_relative_path() {
+  local repo="$1"
+  local path="$2"
+
+  if [[ "$path" == "$repo/"* ]]; then
+    printf '%s' "${path#"$repo/"}"
+  else
+    printf '%s' "$path"
+  fi
+}
+
+file_matches_any_source() {
+  local file_path="$1"
+  shift
+  local source_path
+
+  [[ -f "$file_path" ]] || return 1
+  for source_path in "$@"; do
+    [[ -f "$source_path" ]] || continue
+    if cmp -s "$file_path" "$source_path"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+file_has_repo_harness_marker() {
+  local file_path="$1"
+
+  [[ -f "$file_path" ]] || return 1
+
+  grep -Eiq \
+    '(repo-harness|project-initializer|claude-runtime-temp|Task Contract|Sprint Review|Deferred Goal Ledger|Workflow Contract|ContractWorktree|SprintBacklog|ArchitectureSync|ArchitectureDrift|BrainSync|CurrentStatus|\.ai/harness|\.claude/templates|tasks/contracts|tasks/reviews)' \
+    "$file_path"
+}
+
+is_self_host_source_repo() {
+  local repo="$1"
+  local repo_real
+  local source_real
+
+  repo_real="$(cd "$repo" 2>/dev/null && pwd -P || printf '%s' "$repo")"
+  source_real="$(cd "$SKILL_ROOT" 2>/dev/null && pwd -P || printf '%s' "$SKILL_ROOT")"
+
+  [[ "$repo_real" == "$source_real" ]]
+}
+
+is_generated_root_helper() {
+  local repo="$1"
+  local rel_path="$2"
+  local path="$repo/$rel_path"
+  local helper_name="${rel_path##*/}"
+
+  [[ "$rel_path" == scripts/* && -f "$path" ]] || return 1
+
+  if file_matches_any_source "$path" "$HELPER_ASSETS_DIR/$helper_name" "$SCRIPT_DIR/$helper_name"; then
+    return 0
+  fi
+
+  case "$helper_name" in
+    skill-factory-create.sh|skill-factory-check.sh|architecture-drift.sh)
+      file_has_repo_harness_marker "$path"
+      return $?
+      ;;
+  esac
+
+  file_has_repo_harness_marker "$path"
+}
+
+remove_generated_helper_if_owned() {
+  local repo="$1"
+  local rel_path="$2"
+  local path="$repo/$rel_path"
+  local display_path
+
+  display_path="$(repo_relative_path "$repo" "$path")"
+
+  if is_self_host_source_repo "$repo"; then
+    if [[ "$MODE" != "apply" ]]; then
+      echo "[dry-run] preserve self-host source helper \"$path\""
+    else
+      log "Preserved self-host source helper: $display_path"
+    fi
+    return 0
+  fi
+
+  if [[ "$MODE" != "apply" ]]; then
+    echo "[dry-run] remove generated helper \"$path\" if repo-harness ownership is identifiable"
+    return 0
+  fi
+
+  [[ -e "$path" ]] || return 0
+
+  if is_generated_root_helper "$repo" "$rel_path"; then
+    rm -f "$path"
+    log "Removed generated legacy root helper: $display_path"
+  else
+    log "Preserved possible app-owned script: $display_path (not identifiable as repo-harness generated helper)"
+  fi
+}
+
 prune_removed_hook_commands() {
   local settings_file="$1"
 
@@ -236,12 +338,20 @@ NODE_EOF
 
 cleanup_removed_workflow_assets() {
   local repo="$1"
+  local cleanup_mode
   local rel_path
 
-  while IFS= read -r rel_path; do
+  while IFS=$'\t' read -r cleanup_mode rel_path; do
     [[ -z "$rel_path" ]] && continue
-    remove_path_if_exists "$repo/$rel_path"
-  done < <(pi_workflow_contract_upgrade_action_paths "$WORKFLOW_CONTRACT_ASSET" "remove" "known_generated")
+    case "$cleanup_mode" in
+      generated_helper)
+        remove_generated_helper_if_owned "$repo" "$rel_path"
+        ;;
+      *)
+        remove_path_if_exists "$repo/$rel_path"
+        ;;
+    esac
+  done < <(pi_workflow_contract_upgrade_action_entries "$WORKFLOW_CONTRACT_ASSET" "remove" "known_generated")
 }
 
 ensure_runtime_gitignore_block() {
@@ -346,48 +456,63 @@ migrate_legacy_sprint_prds() {
   local repo="$1"
   local legacy_dir="$repo/tasks/sprints"
   local prd_dir="$repo/plans/prds"
+  local sprint_dir="$repo/plans/sprints"
   local marker_file="$repo/.ai/harness/sprint/active-sprint"
   local src
   local stem
-  local dest
-  local dest_rel
   local legacy_rel
-  local counter
   local marker_value
 
-  [[ -d "$legacy_dir" ]] || return 0
-
   if [[ "$MODE" != "apply" ]]; then
-    echo "[dry-run] migrate legacy PRD sprint files from tasks/sprints/*.sprint.md to plans/prds/*.prd.md"
+    echo "[dry-run] migrate legacy sprint files from tasks/sprints/*.sprint.md and sprint-shaped plans/prds/*.prd.md into plans/sprints/*.sprint.md"
     return 0
   fi
 
-  mkdir -p "$prd_dir"
+  mkdir -p "$prd_dir" "$sprint_dir"
   shopt -s nullglob
-  for src in "$legacy_dir"/*.sprint.md; do
-    stem="$(basename "$src" .sprint.md)"
-    dest="$prd_dir/${stem}.prd.md"
-    counter=2
-    while [[ -e "$dest" ]]; do
-      dest="$prd_dir/${stem}-v${counter}.prd.md"
-      counter=$((counter + 1))
+
+  move_sprint_file() {
+    local src_file="$1"
+    local old_rel="$2"
+    local stem_name="$3"
+    local dest_file
+    local dest_rel_file
+    local n
+
+    dest_file="$sprint_dir/${stem_name}.sprint.md"
+    n=2
+    while [[ -e "$dest_file" ]]; do
+      dest_file="$sprint_dir/${stem_name}-v${n}.sprint.md"
+      n=$((n + 1))
     done
 
-    mv "$src" "$dest"
+    mv "$src_file" "$dest_file"
 
-    legacy_rel="tasks/sprints/${stem}.sprint.md"
-    dest_rel="plans/prds/$(basename "$dest")"
+    dest_rel_file="plans/sprints/$(basename "$dest_file")"
     if [[ -f "$marker_file" ]]; then
       marker_value="$(tr -d '\r\n' < "$marker_file")"
-      if [[ "$marker_value" == "$legacy_rel" || "$marker_value" == "$src" ]]; then
-        printf '%s\n' "$dest_rel" > "$marker_file"
+      if [[ "$marker_value" == "$old_rel" || "$marker_value" == "$src_file" ]]; then
+        printf '%s\n' "$dest_rel_file" > "$marker_file"
       fi
+    fi
+  }
+
+  for src in "$legacy_dir"/*.sprint.md; do
+    stem="$(basename "$src" .sprint.md)"
+    legacy_rel="tasks/sprints/${stem}.sprint.md"
+    move_sprint_file "$src" "$legacy_rel" "$stem"
+  done
+
+  for src in "$prd_dir"/*.prd.md; do
+    if grep -Eq '^(# Sprint:|## Backlog[[:space:]]*$)' "$src"; then
+      stem="$(basename "$src" .prd.md)"
+      legacy_rel="plans/prds/${stem}.prd.md"
+      move_sprint_file "$src" "$legacy_rel" "$stem"
     fi
   done
   shopt -u nullglob
 
   rmdir "$legacy_dir" 2>/dev/null || true
-  rmdir "$repo/tasks" 2>/dev/null || true
 }
 
 create_task_files_if_missing() {
@@ -413,6 +538,7 @@ create_task_files_if_missing() {
     "$repo/plans" \
     "$repo/plans/archive" \
     "$repo/plans/prds" \
+    "$repo/plans/sprints" \
     "$repo/tasks" \
     "$repo/tasks/archive" \
     "$repo/tasks/contracts" \
@@ -807,6 +933,7 @@ migrate_workflow() {
 
   run_or_echo "mkdir -p \"$repo/plans/archive\""
   run_or_echo "mkdir -p \"$repo/plans/prds\""
+  run_or_echo "mkdir -p \"$repo/plans/sprints\""
   run_or_echo "mkdir -p \"$repo/tasks/archive\""
   run_or_echo "mkdir -p \"$repo/tasks/contracts\""
   run_or_echo "mkdir -p \"$repo/tasks/reviews\""
@@ -854,7 +981,7 @@ migrate_workflow() {
 
 verify_migration_contract() {
   local repo="$1"
-  local check_script="$repo/scripts/check-task-workflow.sh"
+  local check_script="$repo/.ai/harness/scripts/check-task-workflow.sh"
 
   if [[ "$MODE" != "apply" ]]; then
     echo "[dry-run] verify migrated workflow with bash \"$check_script\" --strict"
@@ -866,7 +993,7 @@ verify_migration_contract() {
     return 1
   fi
 
-  (cd "$repo" && bash "scripts/check-task-workflow.sh" --strict)
+  (cd "$repo" && bash ".ai/harness/scripts/check-task-workflow.sh" --strict)
 }
 
 print_report() {

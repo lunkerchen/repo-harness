@@ -31,6 +31,6 @@ Create these only when the agent has concrete repo evidence or the user asks:
 - Let capability `CLAUDE.md` and `AGENTS.md` carry local contract projections; root docs stay concise.
 - Keep complete workstream TODOs in `tasks/workstreams/<domain>/<capability>/`; contract blocks should link to them instead of becoming task logs.
 - Hooks may create `docs/architecture/requests/*.md`; agents own semantic snapshots, embedded Mermaid, and optional `mermaid` HTML output.
-- Archive handled architecture requests with `scripts/archive-architecture-request.sh`; keep `docs/architecture/requests/` pending-only and preserve handled requests under `docs/architecture/requests/archive/YYYY/`.
+- Archive handled architecture requests with `.ai/harness/scripts/archive-architecture-request.sh`; keep `docs/architecture/requests/` pending-only and preserve handled requests under `docs/architecture/requests/archive/YYYY/`.
 - When both Mermaid and HTML exist, keep the Mermaid in Markdown as the semantic source and make the HTML link back to that Markdown source.
 - Treat `mermaid` as an external installed skill dependency at `~/.codex/skills/mermaid`; do not copy or inline its assets into generated repos.

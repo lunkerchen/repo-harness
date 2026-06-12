@@ -29,7 +29,7 @@ Complete this inventory before implementation. If any line is unknown, keep the 
 - Run snapshots: `.ai/harness/runs/`
 - Scope authority: `tasks/contracts/{{ARTIFACT_STEM}}.contract.md` `allowed_paths`
 - Concurrency rule: `.ai/harness/active-plan` selects the active plan for this worktree when present; `.ai/harness/active-worktree` records the owning worktree; `.claude/.active-plan` is a legacy fallback during transition. If another worktree already owns active work, open or switch to the matching worktree instead of serializing unrelated plans.
-- Execution isolation: approved contract-level work projects through `scripts/plan-to-todo.sh --plan {{PLAN_FILE}}` and may start `scripts/contract-worktree.sh start --plan {{PLAN_FILE}}`.
+- Execution isolation: approved contract-level work projects through `.ai/harness/scripts/plan-to-todo.sh --plan {{PLAN_FILE}}` and may start `.ai/harness/scripts/contract-worktree.sh start --plan {{PLAN_FILE}}`.
 
 ## Approach
 ### Strategy
@@ -54,7 +54,7 @@ Complete this inventory before implementation. If any line is unknown, keep the 
 - Review file: `tasks/reviews/{{ARTIFACT_STEM}}.review.md`
 - Implementation notes file: `tasks/notes/{{ARTIFACT_STEM}}.notes.md`
 - Template: `.claude/templates/contract.template.md`
-- Verification command: `bash scripts/verify-contract.sh --contract tasks/contracts/{{ARTIFACT_STEM}}.contract.md --strict`
+- Verification command: `bash .ai/harness/scripts/verify-contract.sh --contract tasks/contracts/{{ARTIFACT_STEM}}.contract.md --strict`
 - Active plan rule: `.ai/harness/active-plan` is authoritative for this worktree when present; `.ai/harness/active-worktree` records the owning worktree; `.claude/.active-plan` is a legacy fallback during transition. Do not infer active execution from the latest non-archived plan.
 
 ## Handoff

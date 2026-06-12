@@ -5,7 +5,7 @@
 # Creates the three-layer project structure:
 #   IMMUTABLE LAYER (资产层): specs, contracts, tests
 #   MUTABLE LAYER (厕纸层): src
-#   SUPPORTING (支撑层): docs, scripts, deploy, _ops, artifacts, tasks, plans
+#   SUPPORTING (支撑层): docs, deploy, _ops, artifacts, tasks, plans
 
 set -euo pipefail
 
@@ -75,7 +75,6 @@ if pi_should_generate_full_docs; then
   mkdir -p docs/guides
   mkdir -p docs/archives
 fi
-mkdir -p scripts
 mkdir -p .ai/hooks
 mkdir -p .ai/context
 mkdir -p .ai/harness/checks
@@ -251,38 +250,6 @@ REF_AGENTIC_FLOW_EOF
 Use this file for external tool routing, install commands, update commands, and gbrain MCP guidance.
 REF_EXTERNAL_TOOLING_EOF
 fi
-
-cat > scripts/regenerate.sh << 'REGENERATE_EOF'
-#!/bin/bash
-# Regenerate a module: delete implementation, keep spec/contract/tests
-# Usage: ./scripts/regenerate.sh <module-name>
-
-MODULE=$1
-
-if [ -z "$MODULE" ]; then
-  echo "Usage: ./scripts/regenerate.sh <module-name>"
-  echo "Example: ./scripts/regenerate.sh auth"
-  exit 1
-fi
-
-if [ ! -d "src/modules/$MODULE" ]; then
-  echo "Module src/modules/$MODULE not found"
-  exit 1
-fi
-
-echo "Deleting implementation: src/modules/$MODULE"
-rm -rf "src/modules/$MODULE"
-mkdir -p "src/modules/$MODULE"
-
-echo "Module $MODULE cleared. Ready for rewrite."
-echo ""
-echo "Preserved assets:"
-echo "  - docs/spec.md"
-echo "  - interfaces/modules/$MODULE.interface.ts"
-echo "  - tests/unit/$MODULE/"
-echo "  - tests/integration/$MODULE/"
-REGENERATE_EOF
-chmod +x scripts/regenerate.sh
 
 touch deploy/env/.gitkeep
 touch deploy/scripts/.gitkeep

@@ -55,8 +55,10 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "docs/architecture/snapshots/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, "docs/architecture/diagrams/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, "docs/api"))).toBe(false);
-      expect(existsSync(join(cwd, "scripts/verify-contract.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/verify-contract.sh"))).toBe(true);
       expect(existsSync(join(cwd, "docs/spec.md"))).toBe(true);
+      expect(existsSync(join(cwd, "plans/prds"))).toBe(true);
+      expect(existsSync(join(cwd, "plans/sprints"))).toBe(true);
       expect(existsSync(join(cwd, "tasks/reviews"))).toBe(true);
       expect(existsSync(join(cwd, "tasks/workstreams/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, "CLAUDE.md"))).toBe(true);
@@ -87,38 +89,38 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/harness/runs/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/worktrees/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/triage/.gitkeep"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/new-spec.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/new-sprint.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/prepare-handoff.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/summarize-failures.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/verify-sprint.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/check-agent-tooling.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/check-task-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/check-deploy-sql-order.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/check-architecture-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/check-brain-manifest.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/sync-brain-docs.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/check-context-files.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/select-agent-context-blocks.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/capability-resolver.ts"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/architecture-event.ts"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/capability-config.ts"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/architecture-queue.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/architecture-drift.sh"))).toBe(false);
-      expect(existsSync(join(cwd, "scripts/archive-architecture-request.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/context-contract-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/workstream-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/ensure-task-workflow.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/check-task-workflow.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/maintenance-triage.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/heartbeat-triage.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/sprint-backlog.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/new-spec.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/new-sprint.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/prepare-handoff.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/summarize-failures.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/verify-sprint.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-agent-tooling.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-task-sync.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-deploy-sql-order.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-architecture-sync.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-brain-manifest.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/sync-brain-docs.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-context-files.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/select-agent-context-blocks.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/capability-resolver.ts"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/architecture-event.ts"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/capability-config.ts"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/architecture-queue.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/architecture-drift.sh"))).toBe(false);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/archive-architecture-request.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/context-contract-sync.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/workstream-sync.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/ensure-task-workflow.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/maintenance-triage.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/heartbeat-triage.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/sprint-backlog.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/templates/sprint.template.md"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/context-budget.ts"))).toBe(false);
-      expect(existsSync(join(cwd, "scripts/prepare-codex-handoff.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/codex-handoff-resume.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/skill-factory-create.sh"))).toBe(false);
-      expect(existsSync(join(cwd, "scripts/skill-factory-check.sh"))).toBe(false);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/context-budget.ts"))).toBe(false);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/prepare-codex-handoff.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/codex-handoff-resume.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/skill-factory-create.sh"))).toBe(false);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/skill-factory-check.sh"))).toBe(false);
       expect(existsSync(join(cwd, ".ai/hooks/README.md"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/lib/workflow-state.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/lib/session-state.sh"))).toBe(true);
@@ -186,10 +188,12 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.runtimeFiles).not.toContain(".ai/harness/workstreams/events.jsonl");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("tasks/current.md");
-      expect(workflowContract.artifacts.requiredFiles).toContain("scripts/refresh-current-status.sh");
+      expect(workflowContract.artifacts.requiredDirectories).toContain("plans/prds");
+      expect(workflowContract.artifacts.requiredDirectories).toContain("plans/sprints");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".ai/harness/scripts/refresh-current-status.sh");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
-      expect(workflowContract.artifacts.requiredFiles).toContain("scripts/capability-resolver.ts");
-      expect(workflowContract.artifacts.requiredFiles).toContain("scripts/architecture-event.ts");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".ai/harness/scripts/capability-resolver.ts");
+      expect(workflowContract.artifacts.requiredFiles).toContain(".ai/harness/scripts/architecture-event.ts");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
@@ -211,7 +215,7 @@ describe("create-project-dirs runtime smoke", () => {
       const contextMap = JSON.parse(readFileSync(join(cwd, ".ai/context/context-map.json"), "utf-8"));
       expect(contextMap.root_context_files).not.toContain("docs/researches/");
       expect(contextMap.root_context_files).toContain(".ai/context/capabilities.json");
-      expect(contextMap.functional_block_selector.script).toBe("scripts/select-agent-context-blocks.sh");
+      expect(contextMap.functional_block_selector.script).toBe(".ai/harness/scripts/select-agent-context-blocks.sh");
       expect(contextMap.lsp_profiles.default).toBe("typescript-lsp");
       expect(contextMap.discoverable_contexts.map((entry: { path: string }) => entry.path)).not.toContain("apps/*/AGENTS.md");
       expect(contextMap.discoverable_contexts.map((entry: { path: string }) => entry.path)).toContain("tasks/workstreams/**/*.md");
@@ -224,7 +228,7 @@ describe("create-project-dirs runtime smoke", () => {
       });
       expect(policy.external_tooling.hosts).toEqual(["claude-code", "codex"]);
       expect(policy.external_tooling.mode).toBe("agent-readiness-required");
-      expect(policy.external_tooling.readiness_gate).toBe("scripts/check-agent-tooling.sh --host codex --strict-readiness");
+      expect(policy.external_tooling.readiness_gate).toBe(".ai/harness/scripts/check-agent-tooling.sh --host codex --strict-readiness");
       expect(policy.external_tooling.waza.primary_host).toBe("codex");
       expect(policy.external_tooling.waza.managed_skills).toEqual(["think", "hunt", "check", "health"]);
       expect(policy.external_tooling.waza.codex_primary_path).toBe("~/.codex/skills");
@@ -257,8 +261,8 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.information_lifecycle.notes.dir).toBe("tasks/notes");
       expect(policy.information_lifecycle.evidence.snapshots_dir).toBe(".ai/harness/runs");
       expect(policy.information_lifecycle.external_knowledge.manifest_file).toBe(".ai/harness/brain-manifest.json");
-      expect(policy.information_lifecycle.external_knowledge.drift_check).toBe("scripts/check-brain-manifest.sh");
-      expect(policy.information_lifecycle.external_knowledge.sync_script).toBe("scripts/sync-brain-docs.sh");
+      expect(policy.information_lifecycle.external_knowledge.drift_check).toBe(".ai/harness/scripts/check-brain-manifest.sh");
+      expect(policy.information_lifecycle.external_knowledge.sync_script).toBe(".ai/harness/scripts/sync-brain-docs.sh");
       expect(policy.agentic_development.routing).toEqual({
         product_discovery: "gstack:office-hours",
         complex_engineering_plan: "gstack:plan-eng-review",
@@ -272,10 +276,10 @@ describe("create-project-dirs runtime smoke", () => {
         "P2_DATA_FLOW_TRACE",
         "P3_DESIGN_DECISION",
       ]);
-      expect(policy.context.functional_block_selector.script).toBe("scripts/select-agent-context-blocks.sh");
+      expect(policy.context.functional_block_selector.script).toBe(".ai/harness/scripts/select-agent-context-blocks.sh");
       expect(policy.context.capability_registry_file).toBe(".ai/context/capabilities.json");
-      expect(policy.context.capability_resolver).toBe("scripts/capability-resolver.ts");
-      expect(policy.context.capability_config).toBe("scripts/capability-config.ts");
+      expect(policy.context.capability_resolver).toBe(".ai/harness/scripts/capability-resolver.ts");
+      expect(policy.context.capability_config).toBe(".ai/harness/scripts/capability-config.ts");
       expect(policy.documentation.profile).toBe("minimal-agentic");
       expect(policy.documentation.required).toContain("docs/architecture/index.md");
       expect(policy.architecture.diagram_skill).toBe("mermaid");
@@ -289,9 +293,9 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.lsp_profiles.selection).toBe("functional-block-first");
       expect(policy.worktree_strategy.auto_on_conflict).toBe(true);
       expect(policy.worktree_strategy.auto_for_contract_tasks).toBe(true);
-      expect(policy.worktree_strategy.start_script).toBe("scripts/contract-worktree.sh start --plan <plan-file>");
-      expect(policy.worktree_strategy.finish_script).toBe("scripts/contract-worktree.sh finish");
-      expect(policy.worktree_strategy.cleanup_script).toBe("scripts/contract-worktree.sh cleanup --slug <slug>");
+      expect(policy.worktree_strategy.start_script).toBe(".ai/harness/scripts/contract-worktree.sh start --plan <plan-file>");
+      expect(policy.worktree_strategy.finish_script).toBe(".ai/harness/scripts/contract-worktree.sh finish");
+      expect(policy.worktree_strategy.cleanup_script).toBe(".ai/harness/scripts/contract-worktree.sh cleanup --slug <slug>");
       expect(policy.worktree_strategy.validation_route).toBe("waza:check");
       expect(policy.context_budget).toBeUndefined();
       expect(policy.handoff_resume.auto_start_new_session).toBe(false);
@@ -312,14 +316,14 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.upgrade.cleanup.remove_only_ownership).toBe("known_generated");
 
       const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf-8"));
-      expect(pkg.scripts["check:context-files"]).toBe("bash scripts/check-context-files.sh");
-      expect(pkg.scripts["check:deploy-sql"]).toBe("bash scripts/check-deploy-sql-order.sh");
-      expect(pkg.scripts["check:architecture-sync"]).toBe("bash scripts/check-architecture-sync.sh");
-      expect(pkg.scripts["check:task-sync"]).toBe("bash scripts/check-task-sync.sh");
-      expect(pkg.scripts["check:task-workflow"]).toBe("bash scripts/check-task-workflow.sh --strict");
-      expect(pkg.scripts["sync:brain-docs"]).toBe("bash scripts/sync-brain-docs.sh --all");
-      expect(existsSync(join(cwd, "scripts/contract-worktree.sh"))).toBe(true);
-      expect(existsSync(join(cwd, "scripts/ship-worktrees.sh"))).toBe(true);
+      expect(pkg.scripts["check:context-files"]).toBe("bash .ai/harness/scripts/check-context-files.sh");
+      expect(pkg.scripts["check:deploy-sql"]).toBe("bash .ai/harness/scripts/check-deploy-sql-order.sh");
+      expect(pkg.scripts["check:architecture-sync"]).toBe("bash .ai/harness/scripts/check-architecture-sync.sh");
+      expect(pkg.scripts["check:task-sync"]).toBe("bash .ai/harness/scripts/check-task-sync.sh");
+      expect(pkg.scripts["check:task-workflow"]).toBe("bash .ai/harness/scripts/check-task-workflow.sh --strict");
+      expect(pkg.scripts["sync:brain-docs"]).toBe("bash .ai/harness/scripts/sync-brain-docs.sh --all");
+      expect(existsSync(join(cwd, ".ai/harness/scripts/contract-worktree.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/ship-worktrees.sh"))).toBe(true);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -363,7 +367,7 @@ describe("create-project-dirs runtime smoke", () => {
       const contextMap = JSON.parse(readFileSync(join(cwd, ".ai/context/context-map.json"), "utf-8"));
       const capabilities = JSON.parse(readFileSync(join(cwd, ".ai/context/capabilities.json"), "utf-8"));
       expect(capabilities.capabilities.map((entry: { id: string }) => entry.id)).toContain("apps-web");
-      expect(contextMap.functional_block_selector.script).toBe("scripts/select-agent-context-blocks.sh");
+      expect(contextMap.functional_block_selector.script).toBe(".ai/harness/scripts/select-agent-context-blocks.sh");
       const webClaudeEntry = contextMap.discoverable_contexts.find((entry: { path: string }) => entry.path === "apps/web/CLAUDE.md");
       expect(webClaudeEntry.lsp_profile).toBe("typescript-lsp");
       expect(webClaudeEntry.doc_scope).toBe("capability-contract");

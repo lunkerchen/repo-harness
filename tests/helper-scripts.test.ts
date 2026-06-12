@@ -46,13 +46,16 @@ function commitAll(cwd: string, message: string) {
 
 function copyHelpers(cwd: string) {
   const scriptsDir = join(cwd, "scripts");
+  const harnessScriptsDir = join(cwd, ".ai", "harness", "scripts");
   mkdirSync(scriptsDir, { recursive: true });
+  mkdirSync(harnessScriptsDir, { recursive: true });
   mkdirSync(join(cwd, ".ai", "harness"), { recursive: true });
   mkdirSync(join(cwd, ".ai", "harness", "triage"), { recursive: true });
   mkdirSync(join(cwd, "docs", "architecture"), { recursive: true });
 
   for (const file of readdirSync(HELPER_DIR).filter((name) => name.endsWith(".sh") || name.endsWith(".ts"))) {
     copyFileSync(join(HELPER_DIR, file), join(scriptsDir, file));
+    copyFileSync(join(HELPER_DIR, file), join(harnessScriptsDir, file));
   }
   copyFileSync(join(ROOT, "assets/workflow-contract.v1.json"), join(cwd, ".ai/harness/workflow-contract.json"));
   writeFileSync(join(cwd, ".ai", "harness", "triage", ".gitkeep"), "");
@@ -73,6 +76,7 @@ function copyHelpers(cwd: string) {
   }
 
   expect(run("bash", ["-lc", "chmod +x scripts/*.sh"], cwd).status).toBe(0);
+  expect(run("bash", ["-lc", "chmod +x .ai/harness/scripts/*.sh"], cwd).status).toBe(0);
 }
 
 function installHooks(cwd: string) {
@@ -721,7 +725,7 @@ describe("Workflow helper scripts", () => {
     }
   });
 
-  test("new-sprint should create a Draft plan only", () => {
+  test("new-sprint should create a Draft sprint backlog only", () => {
     const cwd = tmpWorkspace("helper-new-sprint");
     try {
       mkdirSync(join(cwd, "plans"), { recursive: true });
@@ -742,13 +746,15 @@ describe("Workflow helper scripts", () => {
 
       const res = run("bash", ["scripts/new-sprint.sh", "--slug", "draft-only", "--title", "Draft Only"], cwd);
       expect(res.status).toBe(0);
-      expect(res.stdout).toContain("Created draft plan:");
-      expect(res.stdout).toContain("Approve the plan before generating sprint artifacts");
+      expect(res.stdout).toContain("Created draft sprint:");
+      expect(res.stdout).toContain("plans/sprints/");
 
-      const plans = readdirSync(join(cwd, "plans")).filter((name) => /^plan-\d{8}-\d{4}-draft-only\.md$/.test(name));
-      expect(plans.length).toBe(1);
-      const plan = readFileSync(join(cwd, "plans", plans[0]), "utf-8");
-      expect(plan).toContain("> **Status**: Draft");
+      const sprints = readdirSync(join(cwd, "plans/sprints")).filter((name) => /^\d{8}-\d{4}-draft-only\.sprint\.md$/.test(name));
+      expect(sprints.length).toBe(1);
+      const sprint = readFileSync(join(cwd, "plans/sprints", sprints[0]), "utf-8");
+      expect(sprint).toContain("# Sprint: Draft Only");
+      expect(sprint).toContain("> **Status**: Draft");
+      expect(readFileSync(join(cwd, ".ai/harness/sprint/active-sprint"), "utf-8")).toContain("plans/sprints/");
       expect(existsSync(join(cwd, "tasks/contracts/draft-only.contract.md"))).toBe(false);
       expect(existsSync(join(cwd, "tasks/reviews/draft-only.review.md"))).toBe(false);
       const todo = readFileSync(join(cwd, "tasks/todos.md"), "utf-8");

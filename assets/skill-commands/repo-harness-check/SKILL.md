@@ -11,15 +11,15 @@ Use this command when the user asks whether the harness, migration, or release s
 ## Protocol
 
 1. Confirm the repo path and report dirty-worktree boundaries.
-2. Run the repo-local required checks that exist:
+2. Run the repo-local required checks that exist. In installed repos, helpers live under `.ai/harness/scripts/`; this self-host source repo may use root `scripts/` for the same commands.
    - `bun test`
-   - `bash scripts/check-deploy-sql-order.sh`
-   - `bash scripts/check-task-sync.sh`
-   - `bash scripts/check-task-workflow.sh --strict`
-   - `bun scripts/inspect-project-state.ts --repo . --format text`
-   - `bash scripts/migrate-project-template.sh --repo . --dry-run`
+   - `bash .ai/harness/scripts/check-deploy-sql-order.sh`
+   - `bash .ai/harness/scripts/check-task-sync.sh`
+   - `bash .ai/harness/scripts/check-task-workflow.sh --strict`
+   - `bun .ai/harness/scripts/inspect-project-state.ts --repo . --format text`
+   - `bash .ai/harness/scripts/migrate-project-template.sh --repo . --dry-run`
 3. Run advisory readiness when available:
-   - `bash scripts/check-agent-tooling.sh --host both --json`
+   - `bash .ai/harness/scripts/check-agent-tooling.sh --host both --json`
 4. Treat missing CodeGraph or missing Codex `health`/`check`/`mermaid` as hard failures.
 5. Treat Waza staging drift and gbrain warnings as yellow readiness flags; report the fix or acceptance reason without failing the repo gate.
 6. Report skill eval authority when release/readiness evidence depends on skill

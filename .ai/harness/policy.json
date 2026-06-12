@@ -20,10 +20,10 @@
     "notes_dir": "tasks/notes"
   },
   "sprints": {
-    "dir": "plans/prds",
+    "dir": "plans/sprints",
     "active_marker_file": ".ai/harness/sprint/active-sprint",
     "template_file": ".claude/templates/sprint.template.md",
-    "helper_script": "scripts/sprint-backlog.sh",
+    "helper_script": ".ai/harness/scripts/sprint-backlog.sh",
     "statuses": [
       "Draft",
       "Approved",
@@ -31,7 +31,7 @@
       "Done",
       "Archived"
     ],
-    "rule": "Sprint is the program layer: PRD plus ordered backlog decompose product intent into task-contract slices; each backlog task executes through the existing plan -> contract -> worktree flow; tasks/todos.md stays the deferred-goal ledger"
+    "rule": "PRDs live in plans/prds as the upper planning layer. Sprints live in plans/sprints as long-task execution backlogs; each sprint row is expanded with Waza $think into a detailed plans/plan-*.md before the plan -> contract -> worktree flow; tasks/todos.md stays the deferred-goal ledger"
   },
   "reference_material": {
     "dir": "_ref",
@@ -61,11 +61,11 @@
     "profile": "stable-root-progressive-subdir",
     "map_file": ".ai/context/context-map.json",
     "capability_registry_file": ".ai/context/capabilities.json",
-    "capability_resolver": "scripts/capability-resolver.ts",
-    "capability_config": "scripts/capability-config.ts",
+    "capability_resolver": ".ai/harness/scripts/capability-resolver.ts",
+    "capability_config": ".ai/harness/scripts/capability-config.ts",
     "capability_match_rule": "longest-prefix; same-length ambiguity fails",
     "functional_block_selector": {
-      "script": "scripts/select-agent-context-blocks.sh",
+      "script": ".ai/harness/scripts/select-agent-context-blocks.sh",
       "config_file": ".ai/context/agent-context-blocks.txt",
       "env": "REPO_HARNESS_CONTEXT_BLOCKS",
       "rule": "compatibility selector; capability registry is the source of truth"
@@ -78,6 +78,7 @@
     "failure_log_file": ".ai/harness/failures/latest.jsonl",
     "events_file": ".ai/harness/events.jsonl",
     "architecture_events_file": ".ai/harness/architecture/events.jsonl",
+    "helper_runtime_dir": ".ai/harness/scripts",
     "runs_dir": ".ai/harness/runs"
   },
   "architecture": {
@@ -95,7 +96,7 @@
     "pending_card_scope": "capability",
     "pending_block_begin": "<!-- BEGIN ARCHITECTURE PENDING REQUESTS -->",
     "pending_block_end": "<!-- END ARCHITECTURE PENDING REQUESTS -->",
-    "queue_script": "scripts/architecture-queue.sh",
+    "queue_script": ".ai/harness/scripts/architecture-queue.sh",
     "contract_block_begin": "<!-- BEGIN ARCHITECTURE CONTRACT -->",
     "contract_block_end": "<!-- END ARCHITECTURE CONTRACT -->",
     "rule": "hooks record architecture queue cards and sync controlled local context blocks; agents author semantic snapshots and diagrams"
@@ -123,7 +124,7 @@
         ".ai/harness/policy.json",
         ".ai/harness/workflow-contract.json",
         ".ai/hooks/",
-        "scripts/",
+        ".ai/harness/scripts/",
         "docs/reference-configs/"
       ],
       "promotion_rule": "only promote patterns after verified reuse across tasks or fixtures"
@@ -140,8 +141,8 @@
       "default_brain_path": "brain/<project>/*",
       "project_path": "brain/repo-harness/*",
       "manifest_file": ".ai/harness/brain-manifest.json",
-      "drift_check": "scripts/check-brain-manifest.sh",
-      "sync_script": "scripts/sync-brain-docs.sh",
+      "drift_check": ".ai/harness/scripts/check-brain-manifest.sh",
+      "sync_script": ".ai/harness/scripts/sync-brain-docs.sh",
       "hook_trigger": "PostToolUse Edit|Write for manifest entries with sync.direction=repo-to-brain",
       "rule": "external knowledge stores long-lived explanations, runbooks, and patterns only; repo-local contracts, hooks, scripts, checks, and evidence remain authoritative",
       "sync_rule": "only explicitly opted-in repo-to-brain manifest entries may be written to the default brain vault; pointer-only externalized stubs remain check-only"
@@ -153,14 +154,14 @@
     "auto_start_new_session": false
   },
   "plan_capture": {
-    "script": "scripts/capture-plan.sh",
+    "script": ".ai/harness/scripts/capture-plan.sh",
     "sources": [
       "codex-plan-mode",
       "waza-think",
       "repo-harness-plan",
       "repo-harness-sprint"
     ],
-    "rule": "Codex Plan mode and Waza think planning should capture decision-complete plans into plans/plan-*.md; implementation approval then projects the active approved plan through scripts/plan-to-todo.sh; sprint backlog tasks capture through sprint-backlog.sh start-task with --source repo-harness-sprint"
+    "rule": "Codex Plan mode and Waza think planning should capture decision-complete plans into plans/plan-*.md; implementation approval then projects the active approved plan through .ai/harness/scripts/plan-to-todo.sh; sprint backlog rows are long-task waypoints and should be expanded with $think before capture/execution"
   },
   "planning": {
     "pending_orchestration_file": ".ai/harness/planning/pending.json",
@@ -223,9 +224,9 @@
     "branch_prefix": "codex/",
     "base_branch": "main",
     "worktree_dir_template": "../{{repo}}-wt-{{slug}}",
-    "start_script": "scripts/contract-worktree.sh start --plan <plan-file>",
-    "finish_script": "scripts/contract-worktree.sh finish",
-    "cleanup_script": "scripts/contract-worktree.sh cleanup --slug <slug>",
+    "start_script": ".ai/harness/scripts/contract-worktree.sh start --plan <plan-file>",
+    "finish_script": ".ai/harness/scripts/contract-worktree.sh finish",
+    "cleanup_script": ".ai/harness/scripts/contract-worktree.sh cleanup --slug <slug>",
     "conflict_signals": [
       "dirty_worktree_overlaps_task_files",
       "current_branch_not_suitable_for_task",
@@ -285,7 +286,7 @@
     ],
     "mode": "agent-readiness-required",
     "detection": "init-migrate",
-    "readiness_gate": "scripts/check-agent-tooling.sh --host codex --strict-readiness",
+    "readiness_gate": ".ai/harness/scripts/check-agent-tooling.sh --host codex --strict-readiness",
     "waza": {
       "source_repo": "tw93/Waza",
       "source_url": "https://github.com/tw93/Waza.git",
@@ -337,10 +338,9 @@
       "readiness": "required-for-codex-agent-code-navigation",
       "hook_policy": "do-not-block-hooks",
       "install_command": "bun install",
-      "project_init_command": "bash scripts/ensure-codegraph.sh --init",
-      "sync_command": "bash scripts/ensure-codegraph.sh --sync",
+      "project_init_command": "codegraph init -i .",
+      "sync_command": "codegraph sync .",
       "vendoring_policy": "self-host-dev-dependency; downstream-generated-default-remains-do-not-add-package-dependency",
-      "ensure_command": "bash scripts/ensure-codegraph.sh",
       "mcp_install_command": "npm install -g @colbymchenry/codegraph && mkdir -p ~/.local/bin && ln -sfn \"$(npm config get prefix)/bin/codegraph\" ~/.local/bin/codegraph && PATH=\"$HOME/.local/bin:$PATH\" codegraph install --target codex --location global --yes"
     }
   },

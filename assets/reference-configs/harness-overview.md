@@ -25,7 +25,7 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 13. `.ai/context/context-map.json` indexes stable root context and discoverable capability context derived from the registry.
 14. `documentation` inside `.ai/harness/policy.json` keeps generated docs minimal and moves optional docs to agent-created, evidence-backed output.
 15. `lsp_profiles` inside policy and context-map files select tooling hints per capability.
-16. `worktree_strategy` inside policy tells agents when to isolate contract-level work in `codex/<slug>` worktrees, start execution through `scripts/contract-worktree.sh start --plan <plan>`, and finish with Waza `/check` plus `scripts/contract-worktree.sh finish`.
+16. `worktree_strategy` inside policy tells agents when to isolate contract-level work in `codex/<slug>` worktrees, start execution through `.ai/harness/scripts/contract-worktree.sh start --plan <plan>`, and finish with Waza `/check` plus `.ai/harness/scripts/contract-worktree.sh finish`.
 17. `.ai/harness/handoff/current.md` preserves resumable state across sessions.
 18. `.ai/harness/events.jsonl` and `.ai/harness/runs/*.json` retain lightweight execution traces.
 
@@ -36,13 +36,14 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 - Implementation should prefer `docs/spec.md`, an approved plan, and an active sprint contract.
 - Claiming completion should include contract verification evidence, a run snapshot, implementation notes, and a passing Waza `/check` review artifact.
 - Stopping a session should refresh `.ai/harness/handoff/current.md` for easier resume; while pending planning orchestration is open, Stop may block once to force a plan completeness self-review before execution.
-- Refresh `tasks/current.md` with `scripts/refresh-current-status.sh --write --reason <reason>` only at explicit lifecycle boundaries or as a deliberate maintainer action; ordinary hooks should not dirty tracked files.
+- Refresh `tasks/current.md` with `.ai/harness/scripts/refresh-current-status.sh --write --reason <reason>` only at explicit lifecycle boundaries or as a deliberate maintainer action; ordinary hooks should not dirty tracked files.
 - In non-target worktrees, read the target branch snapshot with `git show <target>:tasks/current.md` and verify stale or surprising state against the source artifacts before acting.
 - Use `docs/reference-configs/agentic-development-flow.md` for skill routing and `docs/reference-configs/external-tooling.md` for install/update commands.
 - Use `docs/reference-configs/global-working-rules.md` as the user-level Claude/Codex rule template; keep repo-local workflow contracts in repo files.
-- Externalized reference docs are indexed by `.ai/harness/brain-manifest.json` and checked by `scripts/check-brain-manifest.sh`. Valuable repo docs can opt into default-brain mirroring with `sync.direction=repo-to-brain`; `post-edit-guard.sh` then calls `scripts/sync-brain-docs.sh --changed <path>` for that specific file.
+- Externalized reference docs are indexed by `.ai/harness/brain-manifest.json` and checked by `.ai/harness/scripts/check-brain-manifest.sh`. Valuable repo docs can opt into default-brain mirroring with `sync.direction=repo-to-brain`; `post-edit-guard.sh` then calls `.ai/harness/scripts/sync-brain-docs.sh --changed <path>` for that specific file.
 - Contract-level execution should run in an isolated `codex/<task-slug>` worktree. Merge back only after the contract is fulfilled, `tasks/reviews/<plan-stem>.review.md` recommends pass, and the target worktree is clean.
 - Architecture-sensitive work also runs `scripts/check-architecture-sync.sh`: the check keeps the request index derived from `docs/architecture/requests/` and, when policy is strict, blocks finish if the current diff touches a capability with a pending architecture request at or above `architecture.gate_min_severity`.
+- Migration cleans legacy root `scripts/<repo-harness-helper>` files only when content is identifiable as generated repo-harness runtime; ambiguous app-owned root scripts are reported and preserved.
 
 ## Documentation Profile
 
@@ -65,8 +66,8 @@ This repo uses a shared long-running harness. The durable workflow lives in repo
 
 - Do not infer agent context boundaries from physical layout globs such as `apps/*`, `packages/*`, or `services/*`.
 - Declare capabilities in `.ai/context/capabilities.json`; each capability owns prefixes, paired contract files, an architecture module, a workstream directory, and local verification hints.
-- Add selected capabilities with `repo-harness-capability` or `bun scripts/capability-config.ts add --prefix <path>` when the harness already exists and a full init/migrate/upgrade pass would be too broad.
-- Resolve edited paths through `scripts/capability-resolver.ts match --path <path>`; longest prefix wins and equal-length ambiguity fails.
+- Add selected capabilities with `repo-harness-capability` or `bun .ai/harness/scripts/capability-config.ts add --prefix <path>` when the harness already exists and a full init/migrate/upgrade pass would be too broad.
+- Resolve edited paths through `.ai/harness/scripts/capability-resolver.ts match --path <path>`; longest prefix wins and equal-length ambiguity fails.
 - Treat `.ai/context/agent-context-blocks.txt`, `REPO_HARNESS_CONTEXT_BLOCKS`, and existing nested `CLAUDE.md`/`AGENTS.md` files as migration inputs or compatibility fallbacks only.
 - Selected capabilities receive paired `CLAUDE.md` and `AGENTS.md` files so Claude Code and Codex share the same local contract.
 - Use `repo-harness capability-context status|request|sync` to keep paired local context files aligned with the registry. The command writes only the controlled `CAPABILITY CONTEXT` block and preserves hand-authored content plus the separate architecture contract block.

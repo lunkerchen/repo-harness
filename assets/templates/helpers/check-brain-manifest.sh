@@ -107,6 +107,17 @@ function normalizeRel(filePath) {
   return path.relative(repoRoot, path.resolve(repoRoot, filePath)).replaceAll(path.sep, "/");
 }
 
+function fileExistsWithSelfHostFallback(relPath) {
+  if (!relPath) return false;
+  if (fs.existsSync(path.resolve(repoRoot, relPath))) return true;
+  if (relPath.startsWith(".ai/harness/scripts/")) {
+    const helperName = path.basename(relPath);
+    return fs.existsSync(path.resolve(repoRoot, "scripts", helperName)) &&
+      fs.existsSync(path.resolve(repoRoot, "assets", "templates", "helpers", helperName));
+  }
+  return false;
+}
+
 function hasDuplicate(values) {
   return values.some((value, index) => value && values.indexOf(value) !== index);
 }
@@ -132,7 +143,7 @@ const policySyncScript = externalKnowledge.sync_script;
 if (policyManifest && policyManifest !== manifestRel) {
   issue(`Policy external_knowledge.manifest_file points to ${policyManifest}, expected ${manifestRel}`);
 }
-if (policySyncScript && !fs.existsSync(path.resolve(repoRoot, policySyncScript))) {
+if (policySyncScript && !fileExistsWithSelfHostFallback(policySyncScript)) {
   issue(`Policy external_knowledge.sync_script is missing: ${policySyncScript}`);
 }
 

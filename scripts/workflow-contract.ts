@@ -54,6 +54,7 @@ export type WorkflowContract = {
     };
   };
   helpers: {
+    dir?: string;
     scripts: string[];
   };
   artifacts: {
@@ -92,6 +93,7 @@ export type WorkflowContract = {
         ownership: "known_generated" | "managed_config" | "user_authored" | "user_local";
         paths: string[];
         targetPaths?: string[];
+        cleanupMode?: "always" | "generated_helper";
         summary: string;
       }>;
     };
@@ -155,6 +157,10 @@ export function resolveWorkflowContractForRepo(repoRoot: string): string {
 
 export function getHelperScripts(contract: WorkflowContract): string[] {
   return [...contract.helpers.scripts];
+}
+
+export function getHelperRuntimeDir(contract: WorkflowContract): string {
+  return contract.helpers.dir ?? "scripts";
 }
 
 export function getRequiredDirectories(contract: WorkflowContract): string[] {

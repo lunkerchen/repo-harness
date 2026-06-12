@@ -7,6 +7,9 @@ cd "$SCRIPT_DIR/.."
 usage() {
   cat <<'USAGE_EOF'
 Usage: scripts/new-sprint.sh --slug <slug> [--title <title>]
+
+Creates a program-level sprint backlog under plans/sprints/.
+Use scripts/new-plan.sh or scripts/capture-plan.sh for execution plans under plans/.
 USAGE_EOF
 }
 
@@ -37,10 +40,4 @@ done
 [[ -n "$slug" ]] || { echo "--slug is required" >&2; usage; exit 1; }
 [[ -n "$title" ]] || title="$slug"
 
-bash scripts/new-plan.sh --slug "$slug" --title "$title"
-latest_plan="$(find plans -maxdepth 1 -type f -name "plan-*-$(printf '%s' "$slug" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g').md" | sort | tail -1)"
-
-[[ -n "$latest_plan" ]] || { echo "Unable to resolve created plan" >&2; exit 1; }
-
-echo "Created draft plan: ${latest_plan}"
-echo "Approve the plan before generating sprint artifacts with: bash scripts/plan-to-todo.sh --plan ${latest_plan}"
+exec bash scripts/sprint-backlog.sh init --slug "$slug" --title "$title"

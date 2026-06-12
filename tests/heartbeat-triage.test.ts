@@ -16,11 +16,11 @@ const ROOT = join(import.meta.dir, "..");
 
 function makeRepo(prefix = "heartbeat-triage-"): string {
   const repo = mkdtempSync(join(tmpdir(), prefix));
-  mkdirSync(join(repo, "scripts"), { recursive: true });
+  mkdirSync(join(repo, ".ai/harness/scripts"), { recursive: true });
   mkdirSync(join(repo, ".ai/harness/sprint"), { recursive: true });
   mkdirSync(join(repo, ".ai/harness/runs"), { recursive: true });
   mkdirSync(join(repo, "docs/architecture/requests"), { recursive: true });
-  mkdirSync(join(repo, "plans/prds"), { recursive: true });
+  mkdirSync(join(repo, "plans/sprints"), { recursive: true });
   return repo;
 }
 
@@ -31,7 +31,7 @@ function writeExecutable(repo: string, relPath: string, body: string) {
 }
 
 function writeSprint(repo: string) {
-  const sprintPath = "plans/prds/demo.prd.md";
+  const sprintPath = "plans/sprints/demo.sprint.md";
   writeFileSync(
     join(repo, sprintPath),
     [
@@ -54,7 +54,7 @@ function writeSprint(repo: string) {
 function writeWorkflowHelpers(repo: string, workflowExit = 0) {
   writeExecutable(
     repo,
-    "scripts/check-task-workflow.sh",
+    ".ai/harness/scripts/check-task-workflow.sh",
     [
       "#!/bin/bash",
       workflowExit === 0 ? "echo '[workflow] OK'" : "echo '[workflow] failed' >&2",
@@ -64,7 +64,7 @@ function writeWorkflowHelpers(repo: string, workflowExit = 0) {
   );
   writeExecutable(
     repo,
-    "scripts/sprint-backlog.sh",
+    ".ai/harness/scripts/sprint-backlog.sh",
     [
       "#!/bin/bash",
       "set -euo pipefail",

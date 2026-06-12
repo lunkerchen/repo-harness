@@ -13,13 +13,15 @@ Usage:
   scripts/sprint-backlog.sh start-task [--task <index|task>] [--execute] [--force] [--sprint <file>]
   scripts/sprint-backlog.sh complete-task --task <index|task> [--plan <plan-file>] [--sprint <file>]
 
-Program-level sprint backlog helper. A Sprint is the program layer
-(PRD + ordered backlog); each backlog task executes as one task-contract
-slice through the existing plan -> contract -> worktree flow.
+Program-level sprint backlog helper. PRDs live in plans/prds/ as the upper
+planning layer; sprints live in plans/sprints/ as ordered execution backlogs.
+Each backlog task executes as one task-contract slice through the existing
+plan -> contract -> worktree flow.
 tasks/todos.md stays the deferred-goal ledger.
 
-start-task captures a plan for the next (or named) pending backlog row via
-capture-plan.sh --source repo-harness-sprint and fills the row's Plan cell.
+start-task reserves the next (or named) pending backlog row and can capture a
+thin plan seed. The coding agent must still use `$think` to expand the row into
+a decision-complete plan before code edits.
 --sprint overrides the active-sprint marker (still confined to the sprints
 dir), which finish back-fill uses inside worktrees where the runtime marker
 is absent.
@@ -46,7 +48,7 @@ policy_get() {
   printf '%s' "$default_value"
 }
 
-sprints_dir="$(policy_get '.sprints.dir' 'plans/prds')"
+sprints_dir="$(policy_get '.sprints.dir' 'plans/sprints')"
 marker_file="$(policy_get '.sprints.active_marker_file' '.ai/harness/sprint/active-sprint')"
 template_file="$(policy_get '.sprints.template_file' '.claude/templates/sprint.template.md')"
 
@@ -199,15 +201,18 @@ render_sprint_file() {
 > **Slug**: {{SPRINT_SLUG}}
 > **Created**: {{TIMESTAMP}}
 > **Updated**: {{TIMESTAMP}}
+> **Source PRD**: (optional) `plans/prds/<prd>.prd.md`
 > **Source Spec**: `docs/spec.md`
 > **Goal Mode**: incremental
 
-Program-level sprint container. The PRD and ordered backlog decompose product
-intent into task-contract slices; each backlog task executes through the
-existing plan -> contract -> worktree -> verify flow. `tasks/todos.md` stays the
-deferred-goal ledger and never carries this backlog.
+Program-level sprint container. The Source PRD summary and ordered backlog
+decompose product intent into task-contract slices; each backlog row is a
+long-task waypoint that must be expanded with `$think` before code edits.
+`tasks/todos.md` stays the deferred-goal ledger and never carries this backlog.
 
 ## PRD
+
+Summarize or link the upper-layer PRD here. Keep the full PRD in `plans/prds/`.
 
 ### Problem
 
@@ -342,10 +347,10 @@ cmd_init() {
   local timestamp file_stamp sprint_file counter
   timestamp="$(date '+%Y-%m-%d %H:%M')"
   file_stamp="$(date +%Y%m%d-%H%M)"
-  sprint_file="${sprints_dir}/${file_stamp}-${slug}.prd.md"
+  sprint_file="${sprints_dir}/${file_stamp}-${slug}.sprint.md"
   counter=2
   while [[ -e "$sprint_file" ]]; do
-    sprint_file="${sprints_dir}/${file_stamp}-${slug}-v${counter}.prd.md"
+    sprint_file="${sprints_dir}/${file_stamp}-${slug}-v${counter}.sprint.md"
     counter=$((counter + 1))
   done
 
@@ -715,15 +720,21 @@ cmd_start_task() {
 - Sprint: \`${sprint_file}\`
 - Backlog row: ${target_index}
 - Mode: ${target_mode}
-- Read the sprint PRD and Architecture Notes before implementation.
+- Read the sprint Source PRD and Architecture Notes before implementation.
+- The sprint row is a long-task waypoint, not a detailed implementation plan.
 
 ## Goal
 
 Deliver backlog task \`${target_task}\` so that the acceptance line holds: ${target_acceptance}
 
+## Planning Expansion
+
+Before editing code, use \`\$think\` to expand this sprint row into a decision-complete implementation plan. The \`\$think\` pass should read the sprint file, preserve the acceptance line, name concrete files or commands, and produce the detailed \`plans/plan-*.md\` body that drives contract execution.
+
 ## Task Breakdown
 
-- [ ] Implement backlog task \`${target_task}\` per the sprint PRD and Architecture Notes
+- [ ] Run \`\$think\` for backlog task \`${target_task}\` using sprint \`${sprint_file}\` and acceptance: ${target_acceptance}
+- [ ] Capture the approved \`\$think\` output with \`scripts/capture-plan.sh --source waza-think --source-ref sprint:${sprint_file}#${target_task}\`
 - [ ] Verify acceptance: ${target_acceptance}
 BODY_EOF
 

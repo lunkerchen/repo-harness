@@ -189,7 +189,7 @@ export function inspectRepo(repo: string): InspectionResult {
     requiredDecisions.push("Migrate legacy tasks/todo.md into tasks/todos.md");
   }
   if (driftSignals.includes("legacy-task-sprint-prds")) {
-    requiredDecisions.push("Move legacy tasks/sprints/*.sprint.md into plans/prds/*.prd.md");
+    requiredDecisions.push("Move legacy tasks/sprints/*.sprint.md into plans/sprints/*.sprint.md");
   }
   if (driftSignals.includes("legacy-docs-progress")) {
     requiredDecisions.push("Archive legacy docs/PROGRESS.md into research report or changelog surfaces");
