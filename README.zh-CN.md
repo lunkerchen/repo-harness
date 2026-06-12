@@ -23,20 +23,19 @@ repo-local workflow 的自托管样例。
   做渐进式上下文加载：一份小而稳定的 root context（约 12KB），加上只在改到对应文件时才加载的
   capability 块。agent 读一份 1KB 的 capability 合约或查索引，而不是花上千 token 重新摸清结构。
 
-## 0.4.1 新特性
+## 0.4.2 新特性
 
-- **Session-scoped CodeGraph 提醒。** Hook stdin 里的 `session_id` 现在会驱动
-  一次性 CodeGraph route hint，避免 stale 本地 session 文件跨 Claude/Codex
-  会话误抑制或重复提醒。
-- **Central-first hook safety。** Generated 和 migrated repos 默认继续使用
-  user-level hook runtime；只有 `.ai/harness/policy.json` 明确设置
-  `"hook_source": "repo"` 时，才保留 repo-local top-level hook scripts。
-- **Workflow 文档迁移。** Active workflow docs 统一使用 `tasks/todos.md`
-  记录 deferred goals，使用 `docs/researches/*.md` 保存 durable research；
-  legacy `tasks/todo.md` 和 `tasks/research.md` 只作为 migration inputs。
-- **Release-gate 稳定性。** Runtime ignore rules 覆盖
-  `tasks/.current.md.tmp.*` 和 `.claude/.plan-state/` 这类 transient state，
-  默认 Bun test timeout 也和 release gate budget 对齐。
+- **PRD-to-Sprint planning hierarchy。** `repo-harness-prd` 负责
+  `plans/prds/` 下的上层产品需求，`repo-harness-sprint` 负责把 PRD 或明确
+  slice 推成 `plans/sprints/*.sprint.md` 下的有序执行 backlog。
+- **Generated helper runtime isolation。** 下游安装把真实 helper 实现放到
+  `.ai/harness/scripts/`，root `scripts/*` 只保留 compatibility wrappers；
+  自托管源码仓库继续以 root `scripts/` 作为 source runtime。
+- **Subagent return-channel guard。** Managed hook routes 增加 return-channel
+  guard，要求 delegated runs 回到 parent session 汇报，避免绕过 file-backed
+  contract。
+- **Release path alignment。** PRD/Sprint eval fixtures、workflow checks 和
+  command guidance 现在都指向同一个 installed helper runtime。
 
 ## 产品做什么
 
@@ -192,10 +191,10 @@ npx -y repo-harness update
 repo-local verification surfaces。
 
 npm package 和 generated workflow stamp 现在共用 `0.4.x` release line。
-`repo-harness@0.4.1` 继续把首次全局引导（`repo-harness init`）
+`repo-harness@0.4.2` 继续把首次全局引导（`repo-harness init`）
 和 repo-local 刷新（`repo-harness update`）拆开，并在 `0.4.0` loop-engine
-surfaces 之上强化 session-scoped hook state、central-first hook execution、
-workflow-document migration 和 release-gate stability。
+surfaces 之上加入 PRD-to-Sprint planning hierarchy、isolated generated-project
+helper runtime、subagent return-channel guard 和 release-path alignment。
 这些能力叠加在改名后的 CLI、user-level hook adapter bootstrap、AI-native scaffold overlays、
 typed prompt-guard decision engine、plan-stem task artifact 命名、`REPO_HARNESS_*`
 runtime aliases、Waza runtime skill sync，以及 maintainer 发布 npm 前使用的 release gate 之上。
@@ -334,8 +333,8 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
 
 ## 当前 Release
 
-- npm package：`repo-harness@0.4.1`
-- Generated workflow stamp：`repo-harness@0.4.1+template@0.4.1`
+- npm package：`repo-harness@0.4.2`
+- Generated workflow stamp：`repo-harness@0.4.2+template@0.4.2`
 - GitHub repository：`Ancienttwo/repo-harness`
 - Release history：[`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 

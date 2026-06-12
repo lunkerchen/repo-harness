@@ -1,6 +1,6 @@
 {
-  "version": "0.4.1",
-  "templateVersion": "0.4.1",
+  "version": "0.4.2",
+  "templateVersion": "0.4.2",
   "skillName": "repo-harness",
   "contractId": "tasks-first-harness-v1",
   "retiredAliases": [
@@ -115,6 +115,10 @@
     {
       "version": "0.4.1",
       "description": "Adds runtime safety fixes for session-scoped CodeGraph routing, central-first hook execution, and the tasks/todos workflow-document migration"
+    },
+    {
+      "version": "0.4.2",
+      "description": "Adds the PRD-to-Sprint planning hierarchy, isolates generated-project helper runtime under .ai/harness/scripts, and installs the subagent return-channel guard"
     }
   ],
   "generatedProjectStamp": {

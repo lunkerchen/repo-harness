@@ -4,10 +4,15 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-13
+
 ### Added
 
 - Added the `repo-harness-prd` command facade, PRD template, and PRD eval
   fixtures for generating upper-layer PRDs under `plans/prds/`.
+- Added a subagent return-channel guard to the managed Claude/Codex hook routes
+  so delegated runs are nudged back through the parent session instead of
+  leaking completion claims through the wrong channel.
 
 ### Changed
 
@@ -18,6 +23,14 @@ All notable changes to this skill are documented here.
   while keeping `scripts/*` as compatibility command wrappers.
 - Updated skill eval 24 and added evals for PRD generation and PRD-to-Sprint
   backlog creation so the public command surface covers the new hierarchy.
+- Aligned the `repo-harness-prd` command guidance with the installed
+  `.ai/harness/scripts/check-task-workflow.sh` runtime path.
+
+### Release Notes
+
+- Prepared the `repo-harness@0.4.2` package line for publish; npm publish,
+  registry readback, and GitHub release creation remain explicit release
+  actions.
 
 ## [0.4.1] - 2026-06-12
 
