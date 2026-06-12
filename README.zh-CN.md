@@ -366,6 +366,14 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
 里的 P1/P2/P3 due-diligence 方法，以及 Geju 实践对 planning、trace 和
 decision rationale 的要求，来自他的贡献与启发。
 
+感谢 [TW93](https://x.com/HiTw93) 创作 Waza；`think`、`hunt`、`check`
+和 `health` 这些核心 skill 构成了 `repo-harness` 的日常 planning、bug hunt
+和 verification 节奏。
+
+感谢 [Garry Tan](https://x.com/garrytan) 创作 gstack 和 gbrain；它们影响了
+product discovery、plan/design review、release 文档、knowledge sync 和
+handoff retrieval 的工作流设计。
+
 ## Action Command Skills
 
 公共 command facades 在 `assets/skill-commands/`；它们保留 host skill discovery

@@ -433,23 +433,20 @@ Most common guards:
   - durable capability progress -> `tasks/workstreams/`
   - release history -> `docs/CHANGELOG.md`
 
-## Acknowledgements and Tooling Dependencies
+## Acknowledgements and Workflow Influences
 
 `repo-harness` is built around a small set of external skills and repos that
 proved useful while this project was being designed, debugged, and released.
 They are acknowledged here because they shaped the workflow contract, but they
-are not all bundled product dependencies.
+are not ordinary bundled product dependencies.
 
 | Tool or repo | Used for | Dependency shape |
 | --- | --- | --- |
 | [Hylarucoder](https://x.com/hylarucoder) / Geju | P1/P2/P3 due-diligence method and Geju practice that shaped the planning, tracing, and decision-rationale discipline in this workflow | Methodology contribution and acknowledgement; not a bundled dependency |
-| gstack skills, including `document-release`, `office-hours`, `plan-eng-review`, and `plan-design-review` | Product discovery, plan review, design review, and post-ship documentation hygiene | External operator workflow; advisory by default |
-| Waza core skills `think`, `hunt`, `check`, and `health` | Daily planning, bug hunts, verification, health checks, and Codex-first skill sync | Installed through the skills CLI into host skill roots |
+| Waza by [TW93](https://x.com/HiTw93), including `think`, `hunt`, `check`, and `health` | Daily planning, bug hunts, verification, health checks, and Codex-first skill sync | Installed through the skills CLI into host skill roots |
+| gstack skills and `gbrain` by [Garry Tan](https://x.com/garrytan) | Product discovery, plan review, design review, post-ship documentation hygiene, knowledge sync, handoff retrieval, and long-form repo memory | External operator workflow plus optional external CLI/index; advisory by default |
 | `mermaid` | Human-readable architecture and system-flow diagrams when Mermaid is not enough | Runtime-referenced skill, not vendored into generated repos |
-| `gbrain` | Knowledge sync, handoff retrieval, and long-form repo memory | Optional external CLI and index |
 | CodeGraph (`@colbymchenry/codegraph`) | Symbol-aware navigation, impact tracing, and readiness checks for this self-host repo | Dev dependency in this repo; generated repos stay global-MCP-first unless policy opts in |
-| Bun | Source checkout execution, tests, template assembly, and release checks | Required local runtime for maintainers |
-| `commander` | `repo-harness` CLI command parsing | Runtime npm dependency |
 
 ## Action Command Skills
 

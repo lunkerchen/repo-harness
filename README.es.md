@@ -376,6 +376,14 @@ metodológica. El método P1/P2/P3 due-diligence de `repo-harness`, y la prácti
 Geju que disciplina el planning, el trace y el decision rationale, vienen de su
 contribución e influencia.
 
+Gracias a [TW93](https://x.com/HiTw93), autor de Waza. Los skills centrales
+`think`, `hunt`, `check` y `health` dan forma al ritmo diario de planning, bug
+hunt y verification de `repo-harness`.
+
+Gracias a [Garry Tan](https://x.com/garrytan), autor de gstack y gbrain. Ambos
+influyeron en el workflow de product discovery, plan/design review, release
+documentation, knowledge sync y handoff retrieval.
+
 ## Action Command Skills
 
 Los command facades públicos están en `assets/skill-commands/`; preservan la
