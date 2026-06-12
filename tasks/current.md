@@ -1,13 +1,13 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-12T12:38:42+0800 -->
+<!-- updated_at: 2026-06-12T13:11:58+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: ManualClearedWithActiveWork
-> **Updated At**: 2026-06-12T12:38:42+0800
-> **Source Branch**: codex/loop-engine-04-contract-kappa-fields-clean
-> **Source Commit**: a0fc84c
+> **Updated At**: 2026-06-12T13:11:58+0800
+> **Source Branch**: codex/loop-engine-05-contract-run-pilot-clean
+> **Source Commit**: 29082b9
 > **Target Branch**: main
 > **Stale After**: 24h
 > **Reason**: archive-workflow
@@ -51,25 +51,24 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 16 changed/untracked path(s)
+- Summary: 15 changed/untracked path(s)
 
 ```
- M .claude/templates/contract.template.md
- M assets/reference-configs/sprint-contracts.md
- M assets/templates/contract.template.md
- M assets/templates/helpers/ensure-task-workflow.sh
- M assets/templates/helpers/plan-to-todo.sh
- M docs/reference-configs/sprint-contracts.md
- M scripts/ensure-task-workflow.sh
+ M .ai/harness/workflow-contract.json
+ M assets/workflow-contract.v1.json
  M scripts/lib/project-init-lib.sh
- M scripts/plan-to-todo.sh
- M tests/helper-scripts.test.ts
+ M tests/bootstrap-files.test.ts
+ M tests/migration-script.test.ts
  M tests/scaffold-parity.test.ts
-?? plans/archive/plan-20260612-1224-loop-engine-04-contract-kappa-fields.md
-?? tasks/archive/notes-20260612-1238-loop-engine-04-contract-kappa-fields.md
-?? tasks/archive/todo-20260612-1238-loop-engine-04-contract-kappa-fields.md
-?? tasks/contracts/20260612-1224-loop-engine-04-contract-kappa-fields.contract.md
-?? tasks/reviews/20260612-1224-loop-engine-04-contract-kappa-fields.review.md
+ M tests/workflow-contract.test.ts
+?? assets/templates/helpers/contract-run.ts
+?? plans/archive/plan-20260612-1239-loop-engine-05-contract-run-pilot.md
+?? scripts/contract-run.ts
+?? tasks/archive/notes-20260612-1311-loop-engine-05-contract-run-pilot.md
+?? tasks/archive/todo-20260612-1311-loop-engine-05-contract-run-pilot.md
+?? tasks/contracts/20260612-1239-loop-engine-05-contract-run-pilot.contract.md
+?? tasks/reviews/20260612-1239-loop-engine-05-contract-run-pilot.review.md
+?? tests/contract-run.test.ts
 ```
 
 ## Source Artifacts

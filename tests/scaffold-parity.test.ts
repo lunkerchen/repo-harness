@@ -119,6 +119,7 @@ describe("create-project-dirs scaffold parity", () => {
         "./scripts/codex-handoff-resume.sh",
         "./scripts/context-budget.ts",
         "./scripts/context-contract-sync.sh",
+        "./scripts/contract-run.ts",
         "./scripts/contract-worktree.sh",
         "./scripts/ensure-task-workflow.sh",
         "./scripts/inspect-project-state.ts",
