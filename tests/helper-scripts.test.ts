@@ -2734,6 +2734,7 @@ describe("Workflow helper scripts", () => {
           .status
       ).toBe(0);
       for (const dir of [
+        ".ai/harness/triage",
         "deploy",
         "deploy/env",
         "deploy/scripts",

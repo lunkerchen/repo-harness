@@ -1,3 +1,9 @@
+> **Archived**: 2026-06-12 13:48
+> **Related Plan**: plans/archive/plan-20260612-1312-loop-engine-06-heartbeat-v0.md
+> **Outcome**: Completed
+> **Lifecycle**: notes
+> **Parent Run ID**: run-20260612-1348
+
 # Implementation Notes: loop-engine-06-heartbeat-v0
 
 > **Status**: Complete

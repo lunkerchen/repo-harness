@@ -1,7 +1,7 @@
 # Deferred Goal Ledger
 
 > **Status**: Backlog
-> **Updated**: 2026-06-12 13:12
+> **Updated**: (archive-workflow)
 > **Scope**: Medium/long-term goals deferred from active plan execution
 
 Current plan tasks live in the active plan's `## Task Breakdown`.

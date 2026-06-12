@@ -1,6 +1,6 @@
 # Plan: Sprint task: loop-engine-06-heartbeat-v0
 
-> **Status**: Executing
+> **Status**: Archived
 > **Created**: 20260612-1312
 > **Slug**: loop-engine-06-heartbeat-v0
 > **Planning Source**: repo-harness-sprint
