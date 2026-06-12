@@ -79,6 +79,36 @@ plan_completeness_record_signature() {
 EOF_STATE
 }
 
+plan_completeness_shell_quote() {
+  printf '%q' "$1"
+}
+
+plan_completeness_capture_guidance() {
+  local kind prompt_slug source_ref title source_arg
+
+  kind="$(workflow_pending_orchestration_field kind 2>/dev/null || true)"
+  prompt_slug="$(workflow_pending_orchestration_field prompt_slug 2>/dev/null || true)"
+  source_ref="$(workflow_pending_orchestration_field source_ref 2>/dev/null || true)"
+
+  kind="${kind:-host-plan}"
+  prompt_slug="${prompt_slug:-planning}"
+  title="${source_ref:-$prompt_slug}"
+  source_arg=""
+  if [[ -n "$source_ref" ]]; then
+    source_arg=" --source-ref $(plan_completeness_shell_quote "$source_ref")"
+  fi
+
+  cat <<EOF_GUIDANCE
+If the planning answer is decision-complete, capture the final plan body before stopping:
+  printf '%s\n' '<decision-complete plan body>' | bash scripts/capture-plan.sh --slug $(plan_completeness_shell_quote "$prompt_slug") --title $(plan_completeness_shell_quote "$title") --status Draft --source $(plan_completeness_shell_quote "$kind") --orchestration-kind $(plan_completeness_shell_quote "$kind") --route planning${source_arg}
+
+If the user already approved implementation, use:
+  printf '%s\n' '<approved plan body>' | bash scripts/capture-plan.sh --slug $(plan_completeness_shell_quote "$prompt_slug") --title $(plan_completeness_shell_quote "$title") --status Approved --source $(plan_completeness_shell_quote "$kind") --orchestration-kind $(plan_completeness_shell_quote "$kind") --route planning --execute${source_arg}
+
+If the plan is not decision-complete, revise once for: goal/success criteria, scope/non-scope, constraints, P1/P2/P3, fragile assumption, rejected alternative, public API/config/file-interface changes, external dependency/API key requirements, tests, rollback/failure handling, phase independence, and no placeholders. Do not implement until capture succeeds.
+EOF_GUIDANCE
+}
+
 assistant_message_looks_like_plan() {
   local message="$1"
   local length
@@ -133,8 +163,9 @@ if should_run_plan_completeness_gate "$stop_hook_active" "$last_assistant_messag
   if [[ "$(plan_completeness_last_signature 2>/dev/null || true)" != "$signature" ]]; then
     plan_completeness_record_signature "$signature"
     summary="$(workflow_pending_orchestration_summary)"
+    guidance="$(plan_completeness_capture_guidance)"
     emit_stop_block_json "[PlanCompletenessGate] A first planning answer was produced while pending orchestration is still open: ${summary}
 
-Before stopping, run one self-review pass on the plan. Do not implement. Check for missing goal/success criteria, scope/non-scope, constraints, P1 component map, P2 traced path, P3 decision rationale, fragile assumption, rejected alternative, public API/config/file-interface changes, external dependency/API key requirements, tests, rollback/failure handling, phase independence, and no placeholders. If the plan is already complete, say so explicitly and keep the revision concise. Then stop and wait for user approval."
+${guidance}"
   fi
 fi

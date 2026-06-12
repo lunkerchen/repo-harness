@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 import { spawnSync } from "child_process";
 
 // Every test here spawns bash hook scripts (each forking git/jq/bun
@@ -24,6 +24,7 @@ setDefaultTimeout(20000);
 
 const ROOT = join(import.meta.dir, "..");
 const ASSETS_HOOKS_DIR = join(ROOT, "assets/hooks");
+const TEST_NODE_PATH = resolveTestNodePath();
 const THINK_SKILL_BODY = [
   "---",
   "name: think",
@@ -120,6 +121,20 @@ function run(cmd: string, args: string[], cwd: string) {
   return spawnSync(cmd, args, { cwd, encoding: "utf-8" });
 }
 
+function resolveTestNodePath(): string | undefined {
+  const candidates = [join(ROOT, "node_modules")];
+  const commonDir = spawnSync(
+    "git",
+    ["-C", ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+    { encoding: "utf-8" }
+  );
+  if (commonDir.status === 0) {
+    candidates.push(join(dirname(commonDir.stdout.trim()), "node_modules"));
+  }
+
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
 function runHook(
   script: string,
   cwd: string,
@@ -138,6 +153,7 @@ function runHook(
       ...process.env,
       REPO_HARNESS_CLI: join(ROOT, "src/cli/index.ts"),
       REPO_HARNESS_HOOK_CLI: join(ROOT, "src/cli/hook-entry.ts"),
+      ...(TEST_NODE_PATH ? { NODE_PATH: TEST_NODE_PATH } : {}),
       ...(options?.env ?? {}),
     },
   });
@@ -2034,9 +2050,19 @@ describe("Hook runtime behavior", () => {
       const decision = JSON.parse(first.stdout);
       expect(decision.decision).toBe("block");
       expect(decision.reason).toContain("[PlanCompletenessGate]");
-      expect(decision.reason).toContain("Do not implement");
+      expect(decision.reason).toContain("capture the final plan body");
+      expect(decision.reason).toContain("scripts/capture-plan.sh");
+      expect(decision.reason).toContain("--slug plan-completeness");
+      expect(decision.reason).toContain("--status Draft");
+      expect(decision.reason).toContain("--status Approved");
+      expect(decision.reason).toContain("--execute");
+      expect(decision.reason).toContain("--source waza-think");
+      expect(decision.reason).toContain("--orchestration-kind waza-think");
+      expect(decision.reason).toContain("--source-ref thread://plan-completeness");
+      expect(decision.reason).toContain("Do not implement until capture succeeds");
       expect(decision.reason).toContain("external dependency/API key requirements");
       expect(decision.reason).toContain("phase independence");
+      expect(decision.reason).not.toContain("Before stopping, run one self-review pass");
       expect(existsSync(join(cwd, ".ai/harness/handoff/current.md"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/planning/plan-completeness.json"))).toBe(true);
 
@@ -2100,6 +2126,9 @@ describe("Hook runtime behavior", () => {
       const decision = JSON.parse(codex.stdout);
       expect(decision.decision).toBe("block");
       expect(decision.reason).toContain("[PlanCompletenessGate]");
+      expect(decision.reason).toContain("--slug plan-completeness");
+      expect(decision.reason).toContain("--source waza-think");
+      expect(decision.reason).toContain("Do not implement until capture succeeds");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
