@@ -110,7 +110,47 @@ pass strict workflow without pre-existing ignored handoff runtime files.
   `plans/plan-20260613-0314-think-scan-init-hook.md` is an empty Draft
   skeleton superseded by the committed `0328` plan; archive or delete before
   filing the release commit.
+  - Resolved during publish: a concurrent session captured it as a tracked
+    Draft plan with notes in `d6ce29c` (`docs(plans): capture init-hook scan
+    draft`), keeping it out of the active execution path.
 
 ## Publish Follow-through
 
-- Pending explicit publish/tag/release action after the release gate passes.
+- Release prep commit: `e79bc7e` (`chore(release): prepare repo-harness
+  0.4.3`), pushed as `b878082..e79bc7e` on `main`.
+- npm publish (maintainer-approved, token from local `_ops/env/`):
+  - `npm publish --access public --registry https://registry.npmjs.org/`
+  - Result: published `repo-harness@0.4.3` with the `latest` dist-tag after
+    the `prepublishOnly` release gate passed in-publish; `npm notice total
+    files: 270`.
+- Registry readback after publish:
+  - `npm view repo-harness@0.4.3 version dist-tags dist.tarball gitHead
+    dist.shasum --json`
+  - Returned `version=0.4.3`, `latest=0.4.3`,
+    `gitHead=d6ce29c23ea798b540d0eab2643d2946b240b49f`, and
+    `dist.shasum=944083df550aa6a0090f8e6cabaa2c331a82bbc3`.
+  - gitHead note: concurrent commit `d6ce29c` (plans/tasks docs only) landed
+    between the prep commit and the publish snapshot; `git diff
+    e79bc7e..d6ce29c --name-only` touches no packaged path, so the published
+    tarball content is identical to the verified `e79bc7e` tree. The tag
+    targets `d6ce29c` to keep tag, registry `gitHead`, and published tree
+    aligned.
+
+## Publish Artifacts
+
+- npm package: `repo-harness@0.4.3`
+- npm tarball: `https://registry.npmjs.org/repo-harness/-/repo-harness-0.4.3.tgz`
+- npm shasum: `944083df550aa6a0090f8e6cabaa2c331a82bbc3`
+- Git tag: `v0.4.3` (annotated, at `d6ce29c`)
+- GitHub release:
+  `https://github.com/Ancienttwo/repo-harness/releases/tag/v0.4.3`
+  (non-draft, non-prerelease, published 2026-06-12T21:32:06Z)
+
+## Publish Status
+
+- npm: published and read back as latest.
+- GitHub release: published, non-draft, non-prerelease.
+- Hold reason: none.
+- Post-release action (security): the npm token used for this publish was
+  exposed to the local agent session transcript during release execution;
+  revoke/rotate it on npmjs.com and refresh `_ops/env/npm.env`.
