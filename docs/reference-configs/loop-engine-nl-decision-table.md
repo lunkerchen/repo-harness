@@ -54,6 +54,47 @@ explicitly switches the hook path.
   existing plan.
 - `general_execution`: any other implementation intent.
 
+## Controlled Output Vocabulary
+
+When this table is used for the `route-nl-vs-ts` eval, the output JSON must use
+these exact string values. Do not invent shorter synonyms such as
+`enter_done_gate`, `capture_pending_plan`, or `scaffold_contract`.
+
+Allowed `intent` values:
+
+- `done`
+- `planning_start`
+- `planning_discussion`
+- `review_release`
+- `passive_worktree_status`
+- `passive_completion_report`
+- `passive_next_slice_report`
+- `none`
+- `embedded_approved_plan`
+- `bug_fix_execution`
+- `plan_execution_projection`
+- `general_execution`
+
+Allowed `action` values:
+
+- `allow`
+- `spec_block`
+- `stale_active_plan_advice`
+- `plan_capture_pending_advice`
+- `worktree_execution_advice`
+- `plan_capture_missing_active_advice`
+- `plan_status_no_active_block`
+- `plan_capture_draft_advice`
+- `plan_status_not_approved_block`
+- `evidence_contract_block`
+- `plan_execution_scaffold_advice`
+- `contract_missing_block`
+- `done_missing_active_plan`
+- `done_contract_path_missing`
+- `done_missing_contract`
+- `done_evidence_contract_block`
+- `done_gate`
+
 ## Decision Rules
 
 1. If intent is `done`, run the completion gate:

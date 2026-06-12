@@ -103,6 +103,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain(".ai/harness/policy.json");
     expect(content).toContain(".ai/context/context-map.json");
     expect(contract.helpers.scripts).toContain("maintenance-triage.sh");
+    expect(contract.helpers.scripts).toContain("heartbeat-triage.sh");
     expect(contract.helpers.scripts).toContain("capture-plan.sh");
     expect(contract.helpers.scripts).toContain("refresh-current-status.sh");
     expect(contract.helpers.scripts).toContain("context-budget.ts");
@@ -111,6 +112,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("context-contract-sync.sh");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");
     expect(contract.helpers.scripts).toContain("contract-worktree.sh");
+    expect(contract.helpers.scripts).toContain("contract-run.ts");
     expect(contract.helpers.scripts).toContain("ship-worktrees.sh");
     expect(contract.externalTooling.codexAutomationProfile.requiredSkills).toEqual(["health", "check", "mermaid"]);
     expect(contract.externalTooling.codexAutomationProfile.vendoringPolicy).toBe("do-not-vendor-skill-body");
@@ -139,6 +141,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain("pi_install_reference_configs");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
+    expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/heartbeat-triage.md");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
     expect(content).toContain("install_workflow_contract");
     expect(content).toContain('pi_install_hook_adapters "$PWD" "$ASSETS_HOOKS_DIR" "apply"');
@@ -153,7 +156,9 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("architecture-event.ts");
     expect(contract.helpers.scripts).toContain("capability-config.ts");
     expect(contract.artifacts.requiredFiles).toContain("scripts/contract-worktree.sh");
+    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-run.ts");
     expect(contract.artifacts.requiredFiles).toContain("scripts/ship-worktrees.sh");
+    expect(contract.artifacts.requiredFiles).toContain("scripts/heartbeat-triage.sh");
     expect(contract.artifacts.requiredFiles).toContain("scripts/capture-plan.sh");
     expect(contract.artifacts.requiredFiles).toContain("scripts/refresh-current-status.sh");
     expect(contract.artifacts.requiredFiles).toContain("scripts/sync-brain-docs.sh");
@@ -174,6 +179,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/planning/");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/active-plan");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/active-worktree");
+    expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/triage/inbox.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
     expect(contract.artifacts.runtimeFiles).toContain(".ai/harness/architecture/events.jsonl");
@@ -188,6 +194,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(retiredDrift?.paths).toContain("assets/templates/helpers/architecture-drift.sh");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");
+    expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/triage");
     expect(contract.agenticDevelopment.routing.productDiscovery).toBe("gstack:office-hours");
     expect(sharedLib).not.toContain(".skill-factory-state.json");
     expect(sharedLib).not.toContain(".memory-context.json");
@@ -231,6 +238,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain(".ai/harness/policy.json");
     expect(content).toContain(".ai/context/context-map.json");
     expect(contract.helpers.scripts).toContain("maintenance-triage.sh");
+    expect(contract.helpers.scripts).toContain("heartbeat-triage.sh");
     expect(contract.helpers.scripts).toContain("capture-plan.sh");
     expect(contract.helpers.scripts).toContain("refresh-current-status.sh");
     expect(contract.helpers.scripts).toContain("context-budget.ts");
@@ -245,12 +253,17 @@ describe("Bootstrap Script Contracts", () => {
     expect(contract.helpers.scripts).toContain("capability-config.ts");
     expect(contract.helpers.scripts).toContain("workstream-sync.sh");
     expect(contract.helpers.scripts).toContain("contract-worktree.sh");
+    expect(contract.helpers.scripts).toContain("contract-run.ts");
+    expect(contract.helpers.scripts).toContain("heartbeat-triage.sh");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/agentic-development-flow.md");
     expect(contract.artifacts.requiredFiles).toContain("scripts/capture-plan.sh");
+    expect(contract.artifacts.requiredFiles).toContain("scripts/contract-run.ts");
+    expect(contract.artifacts.requiredFiles).toContain("scripts/heartbeat-triage.sh");
     expect(contract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/notes");
     expect(contract.artifacts.requiredDirectories).toContain("tasks/workstreams");
     expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
+    expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/triage");
     expect(contract.artifacts.requiredDirectories).toContain(".ai/harness/planning");
     expect(contract.agenticDevelopment.routing.postImplementationReview).toBe("waza:check");
     expect(contract.externalTooling.codexAutomationProfile.routes.architectureDiagram).toBe("mermaid");
@@ -264,6 +277,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(content).toContain("pi_install_reference_configs");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
     expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
+    expect(contract.artifacts.requiredFiles).toContain("docs/reference-configs/heartbeat-triage.md");
     expect(content).toContain('pi_install_hook_adapters "$PWD" "$ASSETS_HOOKS_DIR" "apply"');
     expect(content).toContain("pi_print_codex_hook_trust_notice");
     expect(sharedLib).toContain("pi_retire_project_hook_adapter");

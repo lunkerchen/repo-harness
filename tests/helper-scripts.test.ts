@@ -48,12 +48,14 @@ function copyHelpers(cwd: string) {
   const scriptsDir = join(cwd, "scripts");
   mkdirSync(scriptsDir, { recursive: true });
   mkdirSync(join(cwd, ".ai", "harness"), { recursive: true });
+  mkdirSync(join(cwd, ".ai", "harness", "triage"), { recursive: true });
   mkdirSync(join(cwd, "docs", "architecture"), { recursive: true });
 
   for (const file of readdirSync(HELPER_DIR).filter((name) => name.endsWith(".sh") || name.endsWith(".ts"))) {
     copyFileSync(join(HELPER_DIR, file), join(scriptsDir, file));
   }
   copyFileSync(join(ROOT, "assets/workflow-contract.v1.json"), join(cwd, ".ai/harness/workflow-contract.json"));
+  writeFileSync(join(cwd, ".ai", "harness", "triage", ".gitkeep"), "");
   if (!existsSync(join(cwd, "docs/architecture/index.md"))) {
     writeFileSync(
       join(cwd, "docs/architecture/index.md"),
@@ -798,8 +800,13 @@ describe("Workflow helper scripts", () => {
       expect(todo).toContain("Revisit Trigger");
       expect(todo).not.toContain("- [ ] Step one");
       expect(existsSync(join(cwd, "tasks/contracts/20260304-1400-demo.contract.md"))).toBe(true);
-      expect(readFileSync(join(cwd, "tasks/contracts/20260304-1400-demo.contract.md"), "utf-8")).toContain("## Workflow Inventory");
-      expect(readFileSync(join(cwd, "tasks/contracts/20260304-1400-demo.contract.md"), "utf-8")).toContain("Scope gate: edit only paths listed under `allowed_paths`");
+      const contract = readFileSync(join(cwd, "tasks/contracts/20260304-1400-demo.contract.md"), "utf-8");
+      expect(contract).toContain("## Workflow Inventory");
+      expect(contract).toContain("Scope gate: edit only paths listed under `allowed_paths`");
+      expect(contract).toContain("## Delegation Contract");
+      expect(contract).toContain("budget:");
+      expect(contract).toContain("permission_scope:");
+      expect(contract).toContain("roles:");
       expect(existsSync(join(cwd, "tasks/notes/20260304-1400-demo.notes.md"))).toBe(true);
       expect(readFileSync(join(cwd, "tasks/notes/20260304-1400-demo.notes.md"), "utf-8")).toContain("## Design Decisions");
       expect(readFileSync(join(cwd, "tasks/reviews/20260304-1400-demo.review.md"), "utf-8")).toContain("tasks/notes/20260304-1400-demo.notes.md");
@@ -2094,6 +2101,65 @@ describe("Workflow helper scripts", () => {
     }
   });
 
+  test("verify-contract should ignore delegation metadata before exit criteria", () => {
+    const cwd = tmpWorkspace("helper-verify-contract-delegation");
+    try {
+      mkdirSync(join(cwd, "scripts"), { recursive: true });
+      mkdirSync(join(cwd, "src"), { recursive: true });
+      copyHelpers(cwd);
+
+      writeFileSync(join(cwd, "src/index.ts"), "export const value = 1;\n");
+      writeFileSync(
+        join(cwd, "task.contract.md"),
+        [
+          "# Task Contract: delegation",
+          "",
+          "> **Status**: Pending",
+          "",
+          "## Allowed Paths",
+          "",
+          "```yaml",
+          "allowed_paths:",
+          "  - src/",
+          "```",
+          "",
+          "## Delegation Contract",
+          "",
+          "```yaml",
+          "delegation:",
+          "  budget:",
+          "    tokens: 10000",
+          "    tool_calls: 20",
+          "    wall_time_minutes: 30",
+          "  permission_scope:",
+          "    mode: inherit_allowed_paths",
+          "    writable_paths: []",
+          "    network: inherited",
+          "  roles:",
+          "    parent: narrate_and_gatekeep",
+          "    worker: implement_contract",
+          "    verifier: review_exit_criteria",
+          "```",
+          "",
+          "## Exit Criteria",
+          "",
+          "```yaml",
+          "exit_criteria:",
+          "  files_exist:",
+          "    - src/index.ts",
+          "```",
+          "",
+        ].join("\n")
+      );
+
+      const res = run("bash", ["scripts/verify-contract.sh", "--contract", "task.contract.md", "--strict"], cwd);
+      expect(res.status).toBe(0);
+      expect(readFileSync(join(cwd, "task.contract.md"), "utf-8")).toContain("> **Status**: Fulfilled");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("verify-sprint should write passing structured checks for the active sprint", () => {
     const cwd = tmpWorkspace("helper-verify-sprint-pass");
     try {
@@ -2685,6 +2751,7 @@ describe("Workflow helper scripts", () => {
         "docs/reference-configs/agentic-development-flow.md",
         "docs/reference-configs/external-tooling.md",
         "docs/reference-configs/sprint-contracts.md",
+        "docs/reference-configs/heartbeat-triage.md",
         "docs/reference-configs/handoff-protocol.md",
         "docs/reference-configs/document-generation.md",
         "docs/reference-configs/global-working-rules.md",

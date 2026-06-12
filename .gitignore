@@ -53,6 +53,8 @@ bun.lockb
 .ai/harness/sprint/
 .ai/harness/worktrees/
 .ai/harness/runs/
+.ai/harness/triage/*
+!.ai/harness/triage/.gitkeep
 .codex/*
 .claude/.active-plan
 .claude/.plan-state/

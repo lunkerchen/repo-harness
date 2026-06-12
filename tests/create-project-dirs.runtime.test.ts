@@ -42,6 +42,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "docs/reference-configs/agentic-development-flow.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/external-tooling.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/sprint-contracts.md"))).toBe(true);
+      expect(existsSync(join(cwd, "docs/reference-configs/heartbeat-triage.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/document-generation.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/global-working-rules.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/brief.md"))).toBe(false);
@@ -82,6 +83,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/harness/planning"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/runs/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/worktrees/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/triage/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/new-spec.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/new-sprint.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/prepare-handoff.sh"))).toBe(true);
@@ -106,6 +108,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "scripts/ensure-task-workflow.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/check-task-workflow.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/maintenance-triage.sh"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/heartbeat-triage.sh"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/sprint-backlog.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".claude/templates/sprint.template.md"))).toBe(true);
       expect(existsSync(join(cwd, "scripts/context-budget.ts"))).toBe(true);
@@ -173,6 +176,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/architecture/events.jsonl");
       expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/active-plan");
       expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/active-worktree");
+      expect(workflowContract.artifacts.runtimeFiles).toContain(".ai/harness/triage/inbox.md");
       expect(workflowContract.artifacts.runtimeFiles).not.toContain(".ai/harness/workstreams/events.jsonl");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/architecture/index.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("tasks/current.md");
@@ -184,6 +188,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/external-tooling.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
+      expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/heartbeat-triage.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("deploy/README.md");
       expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/scripts");
       expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/sql");
@@ -191,6 +196,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/notes");
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/workstreams");
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
+      expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/triage");
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/planning");
       expect(workflowContract.artifacts.requiredDirectories).toContain("docs/architecture/domains");
       expect(workflowContract.artifacts.requiredDirectories).toContain("docs/architecture/modules");

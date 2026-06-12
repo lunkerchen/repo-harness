@@ -51,6 +51,7 @@ describe("create-project-dirs scaffold parity", () => {
         "./.ai/harness/policy.json",
         "./.ai/harness/runs/.gitkeep",
         "./.ai/harness/security/.gitkeep",
+        "./.ai/harness/triage/.gitkeep",
         "./.ai/harness/workflow-contract.json",
         "./.ai/harness/worktrees/.gitkeep",
         "./.ai/hooks/anti-simplification.sh",
@@ -98,6 +99,7 @@ describe("create-project-dirs scaffold parity", () => {
         "./docs/reference-configs/global-working-rules.md",
         "./docs/reference-configs/handoff-protocol.md",
         "./docs/reference-configs/harness-overview.md",
+        "./docs/reference-configs/heartbeat-triage.md",
         "./docs/reference-configs/sprint-contracts.md",
         "./docs/researches/README.md",
         "./docs/spec.md",
@@ -121,8 +123,10 @@ describe("create-project-dirs scaffold parity", () => {
         "./scripts/codex-handoff-resume.sh",
         "./scripts/context-budget.ts",
         "./scripts/context-contract-sync.sh",
+        "./scripts/contract-run.ts",
         "./scripts/contract-worktree.sh",
         "./scripts/ensure-task-workflow.sh",
+        "./scripts/heartbeat-triage.sh",
         "./scripts/inspect-project-state.ts",
         "./scripts/maintenance-triage.sh",
         "./scripts/migrate-project-template.sh",
@@ -177,6 +181,9 @@ describe("create-project-dirs scaffold parity", () => {
       const contractTemplate = readFileSync(join(cwd, ".claude/templates/contract.template.md"), "utf-8");
       expect(contractTemplate).toContain("## Workflow Inventory");
       expect(contractTemplate).toContain("Completion gate: `scripts/verify-sprint.sh` must see this contract pass");
+      expect(contractTemplate).toContain("## Delegation Contract");
+      expect(contractTemplate).toContain("permission_scope:");
+      expect(contractTemplate).toContain("roles:");
 
       const runtimeConsole = readFileSync(
         join(ROOT, "assets/project-structures/ai-native-runtime-console.txt"),

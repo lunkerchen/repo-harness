@@ -73,6 +73,15 @@ describe("Skill eval assets", () => {
     expect(combined).toContain(".ai/");
   });
 
+  test("eval asset covers the route NL vs TS shadow benchmark", () => {
+    const entry = evals.evals.find((candidate) => candidate.slug === "route-nl-vs-ts");
+    expect(entry).toBeDefined();
+    expect(entry?.prompt).toContain("route-nl-vs-ts");
+    expect(entry?.prompt).toContain("loop-engine-nl-decision-table.md");
+    expect(entry?.expected_output).toContain(".ai/harness/runs/");
+    expect(entry?.expectations.join("\n")).toContain("false positives");
+  });
+
   test("eval asset defines deterministic graders", () => {
     for (const entry of evals.evals) {
       expect(entry.graders).toBeDefined();

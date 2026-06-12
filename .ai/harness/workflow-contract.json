@@ -79,6 +79,7 @@
       "new-plan.sh",
       "capture-plan.sh",
       "plan-to-todo.sh",
+      "contract-run.ts",
       "contract-worktree.sh",
       "ship-worktrees.sh",
       "archive-workflow.sh",
@@ -100,6 +101,7 @@
       "ensure-task-workflow.sh",
       "check-task-workflow.sh",
       "maintenance-triage.sh",
+      "heartbeat-triage.sh",
       "switch-plan.sh",
       "workflow-contract.ts",
       "inspect-project-state.ts",
@@ -140,6 +142,7 @@
       ".ai/harness/architecture",
       ".ai/harness/worktrees",
       ".ai/harness/runs",
+      ".ai/harness/triage",
       "docs/architecture",
       "docs/architecture/domains",
       "docs/architecture/modules",
@@ -169,6 +172,7 @@
       "scripts/new-plan.sh",
       "scripts/capture-plan.sh",
       "scripts/plan-to-todo.sh",
+      "scripts/contract-run.ts",
       "scripts/contract-worktree.sh",
       "scripts/ship-worktrees.sh",
       "scripts/archive-workflow.sh",
@@ -189,6 +193,7 @@
       "scripts/ensure-task-workflow.sh",
       "scripts/check-task-workflow.sh",
       "scripts/maintenance-triage.sh",
+      "scripts/heartbeat-triage.sh",
       "scripts/switch-plan.sh",
       "scripts/workflow-contract.ts",
       "scripts/inspect-project-state.ts",
@@ -218,6 +223,7 @@
       "docs/reference-configs/agentic-development-flow.md",
       "docs/reference-configs/external-tooling.md",
       "docs/reference-configs/sprint-contracts.md",
+      "docs/reference-configs/heartbeat-triage.md",
       "docs/reference-configs/handoff-protocol.md",
       "docs/reference-configs/document-generation.md",
       "docs/reference-configs/global-working-rules.md",
@@ -241,7 +247,9 @@
       ".ai/harness/active-worktree",
       ".ai/harness/sprint/",
       ".ai/harness/worktrees/",
-      ".ai/harness/runs/.gitkeep"
+      ".ai/harness/runs/.gitkeep",
+      ".ai/harness/triage/.gitkeep",
+      ".ai/harness/triage/inbox.md"
     ]
   },
   "documents": {
