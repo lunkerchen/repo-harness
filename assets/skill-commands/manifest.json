@@ -103,6 +103,13 @@
       "summary": "Runs the repo-local harness verification gate and reports pre-merge or release readiness."
     },
     {
+      "name": "repo-harness-prd",
+      "class": "product-planning",
+      "mutatesRepoByDefault": true,
+      "engine": "prd template plus evidence rules and task-workflow checks",
+      "summary": "Generates an AI-implementation-friendly PRD from a product idea into plans/prds/."
+    },
+    {
       "name": "repo-harness-sprint",
       "class": "sprint-orchestration",
       "mutatesRepoByDefault": true,

@@ -217,6 +217,9 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, ".ai/harness/workflow-contract.json"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/brain-manifest.json"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/runs/.gitkeep"))).toBe(true);
+      expect(existsSync(join(repo, ".ai/harness/scripts/sprint-backlog.sh"))).toBe(true);
+      expect(existsSync(join(repo, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(true);
+      expect(existsSync(join(repo, ".ai/harness/scripts/capability-resolver.ts"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/worktrees/.gitkeep"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/triage/.gitkeep"))).toBe(true);
       expect(existsSync(join(repo, "plans/prds"))).toBe(true);
@@ -245,23 +248,33 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, ".ai/harness/scripts/check-architecture-sync.sh"))).toBe(true);
       expect(existsSync(join(repo, ".ai/harness/scripts/architecture-queue.sh"))).toBe(true);
       expect(existsSync(join(repo, "scripts/architecture-drift.sh"))).toBe(false);
-      expect(existsSync(join(repo, ".ai/harness/scripts/check-agent-tooling.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/check-context-files.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/check-brain-manifest.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/sync-brain-docs.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/ensure-task-workflow.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/maintenance-triage.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/heartbeat-triage.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/workflow-contract.ts"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/inspect-project-state.ts"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/migrate-workflow-docs.ts"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/check-skill-version.ts"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/migrate-project-template.sh"))).toBe(true);
+      for (const helper of [
+        "check-agent-tooling.sh",
+        "check-context-files.sh",
+        "check-brain-manifest.sh",
+        "sync-brain-docs.sh",
+        "ensure-task-workflow.sh",
+        "check-task-workflow.sh",
+        "maintenance-triage.sh",
+        "heartbeat-triage.sh",
+        "workflow-contract.ts",
+        "inspect-project-state.ts",
+        "migrate-workflow-docs.ts",
+        "check-skill-version.ts",
+        "migrate-project-template.sh",
+        "capability-config.ts",
+        "prepare-codex-handoff.sh",
+        "codex-handoff-resume.sh",
+      ]) {
+        expect(existsSync(join(repo, ".ai/harness/scripts", helper))).toBe(true);
+        expect(existsSync(join(repo, "scripts", helper))).toBe(true);
+      }
+
       expect(existsSync(join(repo, ".ai/harness/scripts/context-budget.ts"))).toBe(false);
-      expect(existsSync(join(repo, ".ai/harness/scripts/capability-config.ts"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/prepare-codex-handoff.sh"))).toBe(true);
-      expect(existsSync(join(repo, ".ai/harness/scripts/codex-handoff-resume.sh"))).toBe(true);
+      expect(existsSync(join(repo, "scripts/context-budget.ts"))).toBe(false);
+      expect(readFileSync(join(repo, "scripts/sprint-backlog.sh"), "utf-8")).toContain(
+        ".ai/harness/scripts/sprint-backlog.sh"
+      );
       expect(existsSync(join(repo, "scripts/skill-factory-create.sh"))).toBe(false);
       expect(existsSync(join(repo, "scripts/skill-factory-check.sh"))).toBe(false);
       expect(existsSync(join(repo, ".ai/hooks/README.md"))).toBe(true);
@@ -400,9 +413,14 @@ describe("Migration script contract", () => {
       expect(policy.sidecar_research.fallback_runner).toBe("main-thread trace");
       expect(policy.sidecar_research.main_thread_policy).toContain("consume conclusions");
       expect(policy.upgrade.strategy_version).toBe(1);
+      expect(policy.harness.helper_runtime_dir).toBe(".ai/harness/scripts");
+      expect(policy.harness.helper_compat_dir).toBe("scripts");
+      expect(policy.sprints.helper_script).toBe(".ai/harness/scripts/sprint-backlog.sh");
       expect(policy.upgrade.cleanup.remove_only_ownership).toBe("known_generated");
       expect(policy.upgrade.action_classes.preserve).toContain("user-authored hooks");
       const workflowContract = JSON.parse(readFileSync(join(repo, ".ai/harness/workflow-contract.json"), "utf-8"));
+      expect(workflowContract.helpers.runtimeDirectory).toBe(".ai/harness/scripts");
+      expect(workflowContract.helpers.compatibilityDirectory).toBe("scripts");
       expect(workflowContract.helpers.scripts).toContain("check-agent-tooling.sh");
       expect(workflowContract.helpers.scripts).toContain("check-brain-manifest.sh");
       expect(workflowContract.helpers.scripts).toContain("sync-brain-docs.sh");
@@ -433,6 +451,7 @@ describe("Migration script contract", () => {
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/triage");
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/planning");
+      expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/scripts");
       expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/sql");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/context/capabilities.json");
       expect(workflowContract.artifacts.requiredFiles).toContain(".ai/harness/brain-manifest.json");
@@ -707,7 +726,11 @@ describe("Migration script contract", () => {
       );
 
       expect(res.status).toBe(0);
-      expect(existsSync(join(repo, "scripts/new-plan.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".ai/harness/scripts/new-plan.sh"))).toBe(true);
+      expect(existsSync(join(repo, "scripts/new-plan.sh"))).toBe(true);
+      expect(readFileSync(join(repo, "scripts/new-plan.sh"), "utf-8")).toContain(
+        ".ai/harness/scripts/new-plan.sh"
+      );
       expect(existsSync(join(repo, "scripts/check-task-workflow.sh"))).toBe(true);
       expect(readFileSync(join(repo, "scripts/check-task-workflow.sh"), "utf-8")).toContain("app-owned workflow check");
       expect(res.stdout).toContain("Removed generated legacy root helper: scripts/new-plan.sh");
@@ -838,7 +861,10 @@ describe("Migration script contract", () => {
         join(repo, "plans/prds/remaining-work.prd.md"),
         "# Sprint: Remaining Work\n\n> **Status**: Draft\n\n## PRD\n\n- Real sprint source.\n\n## Backlog\n\n| # | Status | Task | Mode | Acceptance | Plan |\n|---|--------|------|------|------------|------|\n| 1 | [ ] | task-a | contract | Checkable acceptance | (pending) |\n"
       );
-      writeFileSync(join(repo, "plans/prds/product.prd.md"), "# PRD: Product\n\nProduct direction only.\n");
+      writeFileSync(
+        join(repo, "plans/prds/20260101-0000-product.prd.md"),
+        "# PRD: Product\n\n> **Status**: Draft\n\nProduct direction only.\n"
+      );
       writeFileSync(join(repo, ".ai/harness/sprint/active-sprint"), "plans/prds/remaining-work.prd.md\n");
       writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", scripts: {} }, null, 2));
 
@@ -851,7 +877,7 @@ describe("Migration script contract", () => {
       expect(res.status).toBe(0);
       expect(existsSync(join(repo, "plans/sprints/remaining-work.sprint.md"))).toBe(true);
       expect(existsSync(join(repo, "plans/prds/remaining-work.prd.md"))).toBe(false);
-      expect(existsSync(join(repo, "plans/prds/product.prd.md"))).toBe(true);
+      expect(existsSync(join(repo, "plans/prds/20260101-0000-product.prd.md"))).toBe(true);
       expect(readFileSync(join(repo, ".ai/harness/sprint/active-sprint"), "utf-8").trim()).toBe(
         "plans/sprints/remaining-work.sprint.md"
       );

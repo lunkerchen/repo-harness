@@ -19,6 +19,16 @@
     "reviews_dir": "tasks/reviews",
     "notes_dir": "tasks/notes"
   },
+  "prds": {
+    "dir": "plans/prds",
+    "template_file": ".claude/templates/prd.template.md",
+    "statuses": [
+      "Draft",
+      "Approved",
+      "Superseded"
+    ],
+    "rule": "PRDs live in plans/prds as the upper planning layer. They decompose docs/spec.md intent into product direction, acceptance scenarios, module behavior, data model, performance targets, and developer handoff. Sprints reference PRDs through Source PRD and decompose them into ordered execution backlogs."
+  },
   "sprints": {
     "dir": "plans/sprints",
     "active_marker_file": ".ai/harness/sprint/active-sprint",

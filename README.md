@@ -119,7 +119,8 @@ delegation without changing the file-backed authority model.
 ```mermaid
 flowchart TD
   Program["Program goal or release theme"] --> Sprint{"Sprint layer needed?"}
-  Sprint -->|yes| SprintDoc["Sprint backlog<br/>plans/sprints/*.sprint.md"]
+  Sprint -->|yes| PRD["Upper-layer PRD<br/>plans/prds/*.prd.md"]
+  PRD --> SprintDoc["Sprint backlog<br/>plans/sprints/*.sprint.md"]
   SprintDoc --> NextTask["Select next sprint task<br/>sprint-backlog.sh next"]
   Sprint -->|no| UserTask["User task or planning prompt"]
   Heartbeat["Heartbeat triage<br/>scripts/heartbeat-triage.sh<br/>.ai/harness/triage/"] --> UserTask
@@ -185,9 +186,9 @@ judgment in Claude-Fable before asking Codex to loop on execution:
    `plan-eng-review` for engineering plan review. The output should be the
    development documents that lock product intent, architecture, risks, and the
    evidence contract.
-2. Keep upper-layer PRDs under `plans/prds/`, then turn them into a sprint
-   backlog under `plans/sprints/` with detailed sub-plans for each execution
-   slice.
+2. Turn those documents into an upper-layer PRD under `plans/prds/`, then into
+   an ordered sprint backlog under `plans/sprints/` with detailed sub-plans for
+   each execution slice.
 3. In Codex, create a Goal that points at that sprint file. The harness can then
    project each sprint item through the normal plan -> contract -> worktree ->
    verification flow.
@@ -290,7 +291,7 @@ The command should end with `=== Migration Report ===` and summarize:
 - `Host hook config target: user-level ~/.claude/settings.json and ~/.codex/hooks.json` to show the adapter layer
 - `Host hook adapters are user-level:` to remind the user to install global adapters and trust `~/.codex/hooks.json`
 - `Workflow migration:` to show the repo-local harness surfaces it will create or refresh
-- `Helper scripts:` to show the operational toolchain you get after apply
+- `Helper runtime:` to show `.ai/harness/scripts/*` implementations and `scripts/*` compatibility wrappers after apply
 - `--- External Tooling ---` to show default gstack/Waza/gbrain routing plus advisory install/update hints
 
 ### Next two commands
@@ -466,7 +467,8 @@ Source-owned command facades live in `assets/skill-commands/`. They keep host
 skill discovery compatible while the CLI and hooks own execution:
 
 - Planning and review: `repo-harness-plan`, `repo-harness-review`, `repo-harness-autoplan`
-- Sprint program layer: `repo-harness-sprint` (upper-layer PRD in `plans/prds/`, ordered sprint backlog in `plans/sprints/`, each row expanded with `$think` before the contract flow)
+- Product planning layer: `repo-harness-prd` (upper-layer PRDs in `plans/prds/`, evidence-marked unknowns, sprint-consumable sections)
+- Sprint program layer: `repo-harness-sprint` (ordered sprint backlogs in `plans/sprints/`, each row expanded with `$think` before the contract flow)
 - Repo workflow actions: `repo-harness-ship`, `repo-harness-init`, `repo-harness-migrate`, `repo-harness-upgrade`, `repo-harness-capability`, `repo-harness-architecture`, `repo-harness-handoff`, `repo-harness-deploy`, `repo-harness-repair`, `repo-harness-check`
 - Branch project creation command: `repo-harness-scaffold`
 

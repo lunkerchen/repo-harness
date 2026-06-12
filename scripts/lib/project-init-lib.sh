@@ -979,6 +979,10 @@ pi_install_templates() {
   if [[ -f "$templates_dir/sprint.template.md" ]]; then
     cp "$templates_dir/sprint.template.md" "$output_dir/sprint.template.md"
   fi
+
+  if [[ -f "$templates_dir/prd.template.md" ]]; then
+    cp "$templates_dir/prd.template.md" "$output_dir/prd.template.md"
+  fi
 }
 
 pi_install_helpers() {
@@ -986,15 +990,31 @@ pi_install_helpers() {
   local helpers_dir="$2"
   local mode="${3:-apply}"
   local helper_names="${4:-new-spec.sh new-sprint.sh new-plan.sh capture-plan.sh plan-to-todo.sh contract-run.ts contract-worktree.sh ship-worktrees.sh archive-workflow.sh refresh-current-status.sh prepare-handoff.sh verify-contract.sh summarize-failures.sh verify-sprint.sh sprint-backlog.sh check-task-sync.sh check-deploy-sql-order.sh check-architecture-sync.sh check-agent-tooling.sh check-context-files.sh check-brain-manifest.sh sync-brain-docs.sh check-skill-version.ts select-agent-context-blocks.sh ensure-task-workflow.sh check-task-workflow.sh maintenance-triage.sh heartbeat-triage.sh switch-plan.sh workflow-contract.ts inspect-project-state.ts migrate-workflow-docs.ts migrate-project-template.sh capability-resolver.ts architecture-event.ts capability-config.ts architecture-queue.sh archive-architecture-request.sh context-contract-sync.sh workstream-sync.sh prepare-codex-handoff.sh codex-handoff-resume.sh}"
-  local scripts_dir="$target_dir/.ai/harness/scripts"
+  local scripts_dir="$target_dir/scripts"
+  local runtime_dir="$target_dir/.ai/harness/scripts"
   local helper_name
+  local source_repo_target=0
+
+  if [[ -d "$target_dir/assets/templates/helpers" && -d "$helpers_dir" ]]; then
+    local target_helpers_abs helpers_abs
+    target_helpers_abs="$(cd "$target_dir/assets/templates/helpers" && pwd)"
+    helpers_abs="$(cd "$helpers_dir" && pwd)"
+    if [[ "$target_helpers_abs" == "$helpers_abs" ]]; then
+      source_repo_target=1
+    fi
+  fi
 
   if [[ "$mode" != "apply" ]]; then
-    echo "[dry-run] install helpers into $scripts_dir"
+    if [[ "$source_repo_target" -eq 1 ]]; then
+      echo "[dry-run] install source helpers into $scripts_dir"
+    else
+      echo "[dry-run] install helper runtime into $runtime_dir with compatibility wrappers in $scripts_dir"
+    fi
     return 0
   fi
 
   mkdir -p "$scripts_dir"
+  mkdir -p "$runtime_dir"
 
   if [[ -d "$helpers_dir" ]]; then
     for helper_name in $helper_names; do
@@ -1012,23 +1032,97 @@ pi_install_helpers() {
             continue
           fi
         fi
-        cp "$helpers_dir/$helper_name" "$scripts_dir/$helper_name"
-        pi_normalize_installed_helper "$scripts_dir/$helper_name"
+        if [[ "$source_repo_target" -eq 1 ]]; then
+          cp "$helpers_dir/$helper_name" "$scripts_dir/$helper_name"
+        else
+          cp "$helpers_dir/$helper_name" "$runtime_dir/$helper_name"
+          pi_normalize_installed_helper "$runtime_dir/$helper_name"
+          if ! pi_preserve_existing_app_script "$scripts_dir/$helper_name" "$helpers_dir/$helper_name"; then
+            pi_write_helper_wrapper "$scripts_dir/$helper_name" "$helper_name"
+          fi
+        fi
       fi
     done
-    pi_ensure_executable_if_apply "$mode" "$scripts_dir"/new-spec.sh "$scripts_dir"/new-sprint.sh "$scripts_dir"/new-plan.sh "$scripts_dir"/capture-plan.sh "$scripts_dir"/plan-to-todo.sh "$scripts_dir"/contract-worktree.sh "$scripts_dir"/ship-worktrees.sh "$scripts_dir"/archive-workflow.sh "$scripts_dir"/refresh-current-status.sh "$scripts_dir"/archive-architecture-request.sh "$scripts_dir"/prepare-handoff.sh "$scripts_dir"/prepare-codex-handoff.sh "$scripts_dir"/codex-handoff-resume.sh "$scripts_dir"/verify-contract.sh "$scripts_dir"/summarize-failures.sh "$scripts_dir"/verify-sprint.sh "$scripts_dir"/sprint-backlog.sh "$scripts_dir"/check-task-sync.sh "$scripts_dir"/check-deploy-sql-order.sh "$scripts_dir"/check-architecture-sync.sh "$scripts_dir"/check-agent-tooling.sh "$scripts_dir"/check-context-files.sh "$scripts_dir"/check-brain-manifest.sh "$scripts_dir"/sync-brain-docs.sh "$scripts_dir"/select-agent-context-blocks.sh "$scripts_dir"/architecture-queue.sh "$scripts_dir"/context-contract-sync.sh "$scripts_dir"/workstream-sync.sh "$scripts_dir"/ensure-task-workflow.sh "$scripts_dir"/check-task-workflow.sh "$scripts_dir"/maintenance-triage.sh "$scripts_dir"/heartbeat-triage.sh "$scripts_dir"/switch-plan.sh "$scripts_dir"/migrate-project-template.sh
+    pi_ensure_executable_if_apply "$mode" "$runtime_dir"/*.sh "$runtime_dir"/*.ts "$scripts_dir"/*.sh "$scripts_dir"/*.ts
     return 0
   fi
 
   for helper_name in $helper_names; do
-    cat > "$scripts_dir/$helper_name" <<EOF_STUB
+    cat > "$runtime_dir/$helper_name" <<EOF_STUB
 #!/bin/bash
 set -euo pipefail
 echo "Missing helper template: $helper_name"
 exit 1
 EOF_STUB
+    pi_write_helper_wrapper "$scripts_dir/$helper_name" "$helper_name"
   done
-pi_ensure_executable_if_apply "$mode" "$scripts_dir"/*.sh
+  pi_ensure_executable_if_apply "$mode" "$runtime_dir"/*.sh "$scripts_dir"/*.sh "$scripts_dir"/*.ts
+}
+
+pi_preserve_existing_app_script() {
+  local output_file="$1"
+  local source_file="$2"
+
+  [[ -f "$output_file" ]] || return 1
+
+  if cmp -s "$output_file" "$source_file"; then
+    return 1
+  fi
+
+  if grep -Eiq '(repo-harness|project-initializer|claude-runtime-temp|Task Contract|Sprint Review|Deferred Goal Ledger|Workflow Contract|ContractWorktree|SprintBacklog|ArchitectureSync|ArchitectureDrift|BrainSync|CurrentStatus|\.ai/harness|\.claude/templates|tasks/contracts|tasks/reviews)' "$output_file"; then
+    return 1
+  fi
+
+  return 0
+}
+
+pi_write_helper_wrapper() {
+  local output_file="$1"
+  local helper_name="$2"
+
+  case "$helper_name" in
+    *.ts)
+      cat > "$output_file" <<EOF_WRAPPER_TS
+#!/usr/bin/env bun
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const target = join(repoRoot, ".ai", "harness", "scripts", "$helper_name");
+
+if (!existsSync(target)) {
+  console.error(\`Missing repo-harness helper runtime: \${target}\`);
+  process.exit(1);
+}
+
+const result = spawnSync(process.execPath, [...process.execArgv, target, ...process.argv.slice(2)], {
+  cwd: repoRoot,
+  env: process.env,
+  stdio: "inherit",
+});
+
+process.exit(result.status ?? 1);
+EOF_WRAPPER_TS
+      ;;
+    *)
+      cat > "$output_file" <<EOF_WRAPPER_SH
+#!/bin/bash
+set -euo pipefail
+
+REPO_ROOT="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")/.." && pwd -P)"
+TARGET="\$REPO_ROOT/.ai/harness/scripts/$helper_name"
+
+if [[ ! -f "\$TARGET" ]]; then
+  echo "Missing repo-harness helper runtime: \$TARGET" >&2
+  exit 1
+fi
+
+exec bash "\$TARGET" "\$@"
+EOF_WRAPPER_SH
+      ;;
+  esac
 }
 
 pi_normalize_installed_helper() {
@@ -1598,6 +1692,12 @@ pi_write_harness_policy() {
     "reviews_dir": "tasks/reviews",
     "notes_dir": "tasks/notes"
   },
+  "prds": {
+    "dir": "plans/prds",
+    "template_file": ".claude/templates/prd.template.md",
+    "statuses": ["Draft", "Approved", "Superseded"],
+    "rule": "PRDs live in plans/prds as the upper planning layer. They decompose docs/spec.md intent into product direction, acceptance scenarios, module behavior, data model, performance targets, and developer handoff. Sprints reference PRDs through Source PRD and decompose them into ordered execution backlogs."
+  },
   "sprints": {
     "dir": "plans/sprints",
     "active_marker_file": ".ai/harness/sprint/active-sprint",
@@ -1640,8 +1740,10 @@ pi_write_harness_policy() {
     "failure_log_file": ".ai/harness/failures/latest.jsonl",
     "events_file": ".ai/harness/events.jsonl",
     "architecture_events_file": ".ai/harness/architecture/events.jsonl",
+    "runs_dir": ".ai/harness/runs",
     "helper_runtime_dir": ".ai/harness/scripts",
-    "runs_dir": ".ai/harness/runs"
+    "helper_compat_dir": "scripts",
+    "helper_source": "isolated-installed-copy"
   },
   "architecture": {
     "index_file": "docs/architecture/index.md",
@@ -2082,6 +2184,7 @@ pi_ensure_harness_state_surface() {
     "$target_dir/.ai/context" \
     "$target_dir/.ai/harness/checks" \
     "$target_dir/.ai/harness/handoff" \
+    "$target_dir/.ai/harness/scripts" \
     "$target_dir/.ai/harness/failures" \
     "$target_dir/.ai/harness/security" \
     "$target_dir/.ai/harness/planning" \
@@ -2105,6 +2208,7 @@ pi_ensure_harness_state_surface() {
   [[ -f "$target_dir/.ai/harness/architecture/.gitkeep" ]] || : > "$target_dir/.ai/harness/architecture/.gitkeep"
   [[ -f "$target_dir/.ai/harness/failures/latest.jsonl" ]] || : > "$target_dir/.ai/harness/failures/latest.jsonl"
   [[ -f "$target_dir/.ai/harness/security/.gitkeep" ]] || : > "$target_dir/.ai/harness/security/.gitkeep"
+  [[ -f "$target_dir/.ai/harness/scripts/.gitkeep" ]] || : > "$target_dir/.ai/harness/scripts/.gitkeep"
   [[ -f "$target_dir/.ai/harness/planning/.gitkeep" ]] || : > "$target_dir/.ai/harness/planning/.gitkeep"
   [[ -f "$target_dir/.ai/harness/worktrees/.gitkeep" ]] || : > "$target_dir/.ai/harness/worktrees/.gitkeep"
   [[ -f "$target_dir/.ai/harness/runs/.gitkeep" ]] || : > "$target_dir/.ai/harness/runs/.gitkeep"

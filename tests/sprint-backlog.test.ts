@@ -616,6 +616,9 @@ describe("sprint asset parity", () => {
     expect(readFileSync(join(ROOT, ".claude/templates/sprint.template.md"), "utf-8")).toBe(
       readFileSync(join(ROOT, "assets/templates/sprint.template.md"), "utf-8")
     );
+    expect(readFileSync(join(ROOT, ".claude/templates/prd.template.md"), "utf-8")).toBe(
+      readFileSync(join(ROOT, "assets/templates/prd.template.md"), "utf-8")
+    );
     expect(readFileSync(join(ROOT, "scripts/check-task-workflow.sh"), "utf-8")).toBe(
       readFileSync(join(HELPER_DIR, "check-task-workflow.sh"), "utf-8")
     );

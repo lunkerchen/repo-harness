@@ -235,10 +235,20 @@ sprint_known_status() {
   return 1
 }
 
-sprint_prd_has_content() {
+prd_known_status() {
+  case "$1" in
+    Draft|Approved|Superseded)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+markdown_section_has_content() {
   local file="$1"
-  awk '
-    /^## PRD[[:space:]]*$/ { in_section = 1; next }
+  local section="$2"
+  awk -v section="$section" '
+    $0 ~ "^## " section "[[:space:]]*$" { in_section = 1; next }
     in_section && /^## / { exit }
     !in_section { next }
     /^#/ { next }
@@ -246,11 +256,16 @@ sprint_prd_has_content() {
       line = $0
       gsub(/^[[:space:]]*[->]*[[:space:]]*/, "", line)
       gsub(/[[:space:]]+$/, "", line)
-      if (line == "" || line == "...") next
+      if (line == "" || line == "..." || line ~ /^Replace /) next
       content = 1
     }
     END { exit content ? 0 : 1 }
   ' "$file"
+}
+
+sprint_prd_has_content() {
+  local file="$1"
+  markdown_section_has_content "$file" "PRD"
 }
 
 sprint_ready_error() {
@@ -298,6 +313,20 @@ sprint_ready_error() {
       missing=1
     fi
   fi
+
+  [[ "$missing" -eq 0 ]]
+}
+
+prd_ready_error() {
+  local file="$1"
+  local missing=0
+
+  for section in "AI Quick-Read Card" "Problem" "Acceptance Scenarios"; do
+    if ! markdown_section_has_content "$file" "$section"; then
+      echo "PRD section '$section' is missing or placeholder-only"
+      missing=1
+    fi
+  done
 
   [[ "$missing" -eq 0 ]]
 }
@@ -416,6 +445,44 @@ check_required_dir() {
   report_issue "Missing required directory: $path"
 }
 
+check_helper_runtime_files() {
+  local helper_names=()
+  local helper_name
+
+  if [[ -f "$WORKFLOW_CONTRACT_PATH" ]]; then
+    while IFS= read -r helper_name; do
+      [[ -n "$helper_name" ]] && helper_names+=("$helper_name")
+    done < <(contract_query_lines "helpers.scripts" 2>/dev/null || true)
+  fi
+
+  if [[ "${#helper_names[@]}" -eq 0 ]]; then
+    helper_names=(
+      new-spec.sh new-sprint.sh new-plan.sh capture-plan.sh plan-to-todo.sh
+      contract-run.ts contract-worktree.sh ship-worktrees.sh archive-workflow.sh
+      refresh-current-status.sh prepare-handoff.sh verify-contract.sh summarize-failures.sh
+      verify-sprint.sh sprint-backlog.sh check-task-sync.sh check-deploy-sql-order.sh
+      check-architecture-sync.sh check-agent-tooling.sh check-context-files.sh
+      check-brain-manifest.sh sync-brain-docs.sh check-skill-version.ts
+      select-agent-context-blocks.sh ensure-task-workflow.sh check-task-workflow.sh
+      maintenance-triage.sh heartbeat-triage.sh switch-plan.sh workflow-contract.ts
+      inspect-project-state.ts migrate-workflow-docs.ts migrate-project-template.sh
+      capability-resolver.ts architecture-event.ts capability-config.ts architecture-queue.sh
+      archive-architecture-request.sh context-contract-sync.sh workstream-sync.sh
+      prepare-codex-handoff.sh codex-handoff-resume.sh
+    )
+  fi
+
+  check_required_dir "$helper_compat_dir"
+  check_required_dir "$helper_runtime_dir"
+
+  for helper_name in "${helper_names[@]}"; do
+    check_required_file "$helper_compat_dir/$helper_name"
+    if [[ "$helper_runtime_dir" != "$helper_compat_dir" ]]; then
+      check_required_file "$helper_runtime_dir/$helper_name"
+    fi
+  done
+}
+
 policy_get() {
   local jq_path="$1"
   local default_value="$2"
@@ -442,6 +509,7 @@ notes_dir="$(policy_get '.tasks.notes_dir' 'tasks/notes')"
 workstreams_dir="$(policy_get '.tasks.workstreams_dir' 'tasks/workstreams')"
 runs_dir="$(policy_get '.harness.runs_dir' '.ai/harness/runs')"
 helper_runtime_dir="$(policy_get '.harness.helper_runtime_dir' '.ai/harness/scripts')"
+helper_compat_dir="$(policy_get '.harness.helper_compat_dir' 'scripts')"
 context_map_file="$(policy_get '.context.map_file' '.ai/context/context-map.json')"
 handoff_file="$(policy_get '.harness.handoff_file' '.ai/harness/handoff/current.md')"
 resume_file="$(policy_get '.handoff_resume.resume_packet_file' '.ai/harness/handoff/resume.md')"
@@ -480,32 +548,8 @@ check_required_file ".claude/templates/research.template.md"
 check_required_file ".claude/templates/contract.template.md"
 check_required_file ".claude/templates/review.template.md"
 check_required_file ".claude/templates/implementation-notes.template.md"
-check_required_file "$(helper_file "new-spec.sh")"
-check_required_file "$(helper_file "new-sprint.sh")"
-check_required_file "$(helper_file "new-plan.sh")"
-check_required_file "$(helper_file "plan-to-todo.sh")"
-check_required_file "$(helper_file "contract-worktree.sh")"
-check_required_file "$(helper_file "ship-worktrees.sh")"
-check_required_file "$(helper_file "archive-workflow.sh")"
-check_required_file "$(helper_file "refresh-current-status.sh")"
-check_required_file "$(helper_file "prepare-handoff.sh")"
-check_required_file "$(helper_file "verify-contract.sh")"
-check_required_file "$(helper_file "verify-sprint.sh")"
-check_required_file "$(helper_file "check-task-sync.sh")"
-check_required_file "$(helper_file "check-deploy-sql-order.sh")"
-check_required_file "$(helper_file "check-architecture-sync.sh")"
-check_required_file "$(helper_file "check-context-files.sh")"
-check_required_file "$(helper_file "check-brain-manifest.sh")"
-check_required_file "$(helper_file "select-agent-context-blocks.sh")"
-check_required_file "$(helper_file "capability-config.ts")"
-check_required_file "$(helper_file "architecture-event.ts")"
-check_required_file "$(helper_file "architecture-queue.sh")"
-check_required_file "$(helper_file "archive-architecture-request.sh")"
-check_required_file "$(helper_file "context-contract-sync.sh")"
-check_required_file "$(helper_file "workstream-sync.sh")"
-check_required_file "$(helper_file "ensure-task-workflow.sh")"
-check_required_file "$(helper_file "check-task-workflow.sh")"
-check_required_file "$(helper_file "maintenance-triage.sh")"
+check_required_file ".claude/templates/prd.template.md"
+check_helper_runtime_files
 check_required_file "$todo_file"
 check_required_file "$current_status_file"
 check_required_file "$lessons_file"
@@ -580,6 +624,43 @@ if [[ -f "$todo_file" ]]; then
       report_issue "${todo_file} deferred ledger is incomplete: ${ledger_error//$'\n'/; }"
     fi
   fi
+fi
+
+if [[ -d "plans/prds" ]]; then
+  while IFS= read -r prd_sprint_file; do
+    [[ -n "$prd_sprint_file" ]] || continue
+    report_issue "Sprint backlog file is in the PRD catalog; migrate ${prd_sprint_file} into ${sprints_dir}/."
+  done < <(
+    find plans/prds -maxdepth 1 -type f -name '*.prd.md' -print0 2>/dev/null \
+      | xargs -0 grep -El '^(# Sprint:|## Backlog[[:space:]]*$)' 2>/dev/null || true
+  )
+
+  while IFS= read -r prd_file; do
+    [[ -n "$prd_file" ]] || continue
+    case "$(basename "$prd_file")" in
+      [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9]-*.prd.md)
+        ;;
+      *)
+        report_issue "PRD filename must match <YYYYMMDD>-<HHMM>-<slug>.prd.md: $prd_file"
+        continue
+        ;;
+    esac
+
+    prd_status="$(extract_status "$prd_file")"
+    if [[ -z "$prd_status" ]]; then
+      report_issue "PRD is missing a '**Status**' line: $prd_file"
+      continue
+    fi
+    if ! prd_known_status "$prd_status"; then
+      report_issue "PRD has unknown status '${prd_status}': $prd_file"
+      continue
+    fi
+    if [[ "$prd_status" == "Approved" ]]; then
+      if ! prd_error="$(prd_ready_error "$prd_file")"; then
+        report_issue "PRD $prd_file is not approval-ready: ${prd_error//$'\n'/; }"
+      fi
+    fi
+  done < <(find plans/prds -maxdepth 1 -type f -name '*.prd.md' 2>/dev/null | sort)
 fi
 
 if [[ -d "$sprints_dir" ]]; then

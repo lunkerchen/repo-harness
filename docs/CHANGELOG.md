@@ -4,6 +4,21 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added the `repo-harness-prd` command facade, PRD template, and PRD eval
+  fixtures for generating upper-layer PRDs under `plans/prds/`.
+
+### Changed
+
+- Split upper-layer PRDs from Sprint backlogs: PRDs stay in `plans/prds/`,
+  Sprint backlogs move to `plans/sprints/*.sprint.md`, and `repo-harness-sprint`
+  now supports PRD-to-Sprint planning without re-deciding product intent.
+- Isolated generated-project helper implementations under `.ai/harness/scripts/`
+  while keeping `scripts/*` as compatibility command wrappers.
+- Updated skill eval 24 and added evals for PRD generation and PRD-to-Sprint
+  backlog creation so the public command surface covers the new hierarchy.
+
 ## [0.4.1] - 2026-06-12
 
 ### Fixed

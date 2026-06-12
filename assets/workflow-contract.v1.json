@@ -73,6 +73,8 @@
     }
   },
   "helpers": {
+    "runtimeDirectory": ".ai/harness/scripts",
+    "compatibilityDirectory": "scripts",
     "scripts": [
       "new-spec.sh",
       "new-sprint.sh",
@@ -139,6 +141,7 @@
       ".ai/harness/checks",
       ".ai/harness/failures",
       ".ai/harness/handoff",
+      ".ai/harness/scripts",
       ".ai/harness/security",
       ".ai/harness/planning",
       ".ai/harness/architecture",

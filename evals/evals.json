@@ -987,7 +987,7 @@
     {
       "id": 24,
       "slug": "plan-sprint-program-backlog",
-      "prompt": "This repo already has the harness installed. Use repo-harness-sprint to plan a program-level sprint for a notification feature: discuss the PRD, decompose it into an ordered backlog under plans/prds/, and explain how each backlog task will execute and be tracked.",
+      "prompt": "This repo already has the harness installed. Use repo-harness-sprint to plan a program-level sprint for a notification feature: discuss the PRD, decompose it into an ordered backlog under plans/sprints/ linking the upper-layer PRD in plans/prds/ when present, and explain how each backlog task will execute and be tracked.",
       "expected_output": "Routes to repo-harness-sprint: PM+architect PRD discussion, sprint-backlog.sh init, an ordered backlog table with concrete acceptance per row, user approval before Approved status, then per-task execution through capture-plan (--source repo-harness-sprint) into the plan -> contract -> worktree flow with warn-only finish back-fill; tasks/todos.md stays the deferred-goal ledger.",
       "files": [
         "evals/fixtures/fix-agents"
@@ -1003,7 +1003,7 @@
           },
           {
             "path": "final-response.md",
-            "pattern": "plans/prds"
+            "pattern": "plans/sprints"
           },
           {
             "path": "final-response.md",
@@ -1021,7 +1021,7 @@
       },
       "expectations": [
         "Routes the request to repo-harness-sprint instead of plain repo-harness-plan.",
-        "Keeps tasks/todos.md as the deferred-goal ledger and places the backlog in plans/prds/.",
+        "Keeps tasks/todos.md as the deferred-goal ledger and places the backlog in plans/sprints/.",
         "Requires a concrete acceptance line per backlog row before Approved status.",
         "Executes each backlog task through the existing plan -> contract -> worktree gates."
       ]
@@ -1099,6 +1099,99 @@
         "Covers historical route regressions from lessons.md and hook runtime tests.",
         "Reports compliance rate, false positives, false negatives, token delta, and go/no-go in .ai/harness/runs/.",
         "Keeps classifier cutover out of scope."
+      ]
+    },
+    {
+      "id": 26,
+      "slug": "generate-prd-from-idea",
+      "prompt": "Use repo-harness-prd to generate a PRD from this product idea: notification preferences for a small SaaS app. Keep it compact, save it under plans/prds/, and summarize only the AI Quick-Read Card in the final response.",
+      "expected_output": "Routes to repo-harness-prd, writes a compact PRD under plans/prds/ with an AI Quick-Read Card, evidence-marked unknowns, acceptance scenarios, module behavior, data model, performance targets, and a developer handoff. The final response gives the Quick-Read Card and file path only.",
+      "files": [
+        "evals/fixtures/prd-from-idea"
+      ],
+      "graders": {
+        "files_exist": [
+          "final-response.md"
+        ],
+        "files_contain": [
+          {
+            "path": "final-response.md",
+            "pattern": "repo-harness-prd"
+          },
+          {
+            "path": "final-response.md",
+            "pattern": "plans/prds/"
+          },
+          {
+            "path": "final-response.md",
+            "pattern": "AI Quick-Read Card|AI 速读卡"
+          },
+          {
+            "path": "final-response.md",
+            "pattern": "Acceptance|验收"
+          }
+        ]
+      },
+      "anti_graders": {
+        "files_not_contain": [
+          {
+            "path": "final-response.md",
+            "pattern": "Slack|Notion|Linear|Intercom"
+          }
+        ]
+      },
+      "expectations": [
+        "Routes the request to repo-harness-prd instead of repo-harness-sprint.",
+        "Writes the PRD under plans/prds/ and does not create a sprint backlog.",
+        "Keeps competitor or SaaS vendor claims out unless explicitly verified.",
+        "Includes Quick-Read Card, acceptance scenarios, and developer handoff."
+      ]
+    },
+    {
+      "id": 27,
+      "slug": "sprint-from-existing-prd",
+      "prompt": "Use repo-harness-sprint from-prd plans/prds/20260101-0000-sample-feature.prd.md to create a sprint backlog. Preserve the PRD as Source PRD, put the backlog under plans/sprints/, and do not write tasks/todos.md.",
+      "expected_output": "Routes to repo-harness-sprint from-prd, reads the sample PRD, sets Source PRD, writes or describes an ordered sprint backlog under plans/sprints/ with machine-checkable acceptance lines traceable to the PRD, and keeps tasks/todos.md as the deferred-goal ledger.",
+      "files": [
+        "evals/fixtures/prd-to-sprint"
+      ],
+      "graders": {
+        "files_exist": [
+          "final-response.md",
+          "plans/prds/20260101-0000-sample-feature.prd.md"
+        ],
+        "files_contain": [
+          {
+            "path": "final-response.md",
+            "pattern": "repo-harness-sprint"
+          },
+          {
+            "path": "final-response.md",
+            "pattern": "Source PRD|plans/prds/20260101-0000-sample-feature\\.prd\\.md"
+          },
+          {
+            "path": "final-response.md",
+            "pattern": "plans/sprints/"
+          },
+          {
+            "path": "final-response.md",
+            "pattern": "Acceptance|验收|grep|test|exists"
+          }
+        ]
+      },
+      "anti_graders": {
+        "files_not_contain": [
+          {
+            "path": "final-response.md",
+            "pattern": "tasks/todos\\.md.*backlog|write.*tasks/todos\\.md"
+          }
+        ]
+      },
+      "expectations": [
+        "Routes the request to repo-harness-sprint from-prd.",
+        "Keeps the PRD in plans/prds/ and places the backlog in plans/sprints/.",
+        "Backlog acceptance lines are machine-checkable and traceable to PRD scenarios.",
+        "Does not use tasks/todos.md as an execution backlog."
       ]
     }
   ]

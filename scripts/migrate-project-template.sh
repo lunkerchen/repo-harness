@@ -4,7 +4,7 @@
 # - User-level host adapters: ~/.claude/settings.json and ~/.codex/hooks.json
 # - Stable product truth: docs/spec.md
 # - Active-plan selector: .ai/harness/active-plan, with .claude/.active-plan legacy fallback
-# - Sprint artifacts: tasks/contracts/, tasks/reviews/, .ai/context/context-map.json
+# - Sprint artifacts: plans/sprints/, tasks/contracts/, tasks/reviews/, .ai/context/context-map.json
 # - Harness state: .ai/harness/checks/latest.json, .ai/harness/policy.json,
 #   .ai/harness/brain-manifest.json,
 #   .ai/harness/events.jsonl, .ai/harness/architecture/events.jsonl,
@@ -1012,7 +1012,7 @@ print_report() {
   echo "- Legacy docs/TODO.md / docs/plan.md / docs/PROGRESS.md: migrated by scripts/migrate-workflow-docs.ts"
   echo "- Workflow migration: docs/spec.md + plans/ + tasks/contracts + tasks/reviews + .ai/context/context-map.json + .ai/harness/*"
   echo "- Workflow contract manifest installed at: .ai/harness/workflow-contract.json"
-  echo "- Helper scripts: installed from workflow contract manifest, including context scans and maintenance triage"
+  echo "- Helper runtime: installed under .ai/harness/scripts with scripts/* compatibility wrappers"
   echo "- Upgrade/reconfigure/cleanup plan: generated from workflow contract migrations.upgrade"
   echo "- Existing external_tooling overrides are preserved; missing defaults are merged into .ai/harness/policy.json"
   echo "- Runtime temporary ignore block synced to .gitignore"

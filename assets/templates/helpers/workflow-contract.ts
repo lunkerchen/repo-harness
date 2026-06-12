@@ -54,6 +54,8 @@ export type WorkflowContract = {
     };
   };
   helpers: {
+    runtimeDirectory?: string;
+    compatibilityDirectory?: string;
     scripts: string[];
   };
   artifacts: {
@@ -92,6 +94,7 @@ export type WorkflowContract = {
         ownership: "known_generated" | "managed_config" | "user_authored" | "user_local";
         paths: string[];
         targetPaths?: string[];
+        cleanupMode?: "always" | "generated_helper";
         summary: string;
       }>;
     };
@@ -99,7 +102,9 @@ export type WorkflowContract = {
 };
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = join(SCRIPT_DIR, "..");
+const REPO_ROOT = SCRIPT_DIR.endsWith("/.ai/harness/scripts")
+  ? join(SCRIPT_DIR, "../../..")
+  : join(SCRIPT_DIR, "..");
 const LOCAL_ASSET_PATH = join(REPO_ROOT, "assets", "workflow-contract.v1.json");
 
 export function resolveAgenticDevRoot(_repoRoot = REPO_ROOT): string {
@@ -155,6 +160,10 @@ export function resolveWorkflowContractForRepo(repoRoot: string): string {
 
 export function getHelperScripts(contract: WorkflowContract): string[] {
   return [...contract.helpers.scripts];
+}
+
+export function getHelperRuntimeDir(contract: WorkflowContract): string {
+  return contract.helpers.dir ?? "scripts";
 }
 
 export function getRequiredDirectories(contract: WorkflowContract): string[] {

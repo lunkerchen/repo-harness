@@ -5,7 +5,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+if REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  cd "$REPO_ROOT"
+elif [[ "$SCRIPT_DIR" == */.ai/harness/scripts ]]; then
+  cd "$SCRIPT_DIR/../../.."
+else
+  cd "$SCRIPT_DIR/.."
+fi
 
 usage() {
   cat <<'USAGE_EOF'

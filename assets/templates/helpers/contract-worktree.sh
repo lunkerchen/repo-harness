@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if REPO_ROOT="$(git -C "$SCRIPT_DIR/.." rev-parse --show-toplevel 2>/dev/null)"; then
   :
+elif [[ "$SCRIPT_DIR" == */.ai/harness/scripts ]]; then
+  REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 else
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi

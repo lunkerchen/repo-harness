@@ -19,6 +19,7 @@ const COMMANDS = [
   "repo-harness-deploy",
   "repo-harness-repair",
   "repo-harness-check",
+  "repo-harness-prd",
   "repo-harness-sprint",
 ];
 
@@ -214,5 +215,25 @@ describe("repo-harness action command skills", () => {
     expect(docs).toContain("docs-init");
     expect(docs).toContain("create-project-dirs");
     expect(docs).toContain("not public");
+  });
+
+  test("prd command creates only upper-layer PRDs", () => {
+    const prd = readCommand("repo-harness-prd");
+
+    expect(prd).toContain("plans/prds/");
+    expect(prd).toContain("[UNKNOWN]");
+    expect(prd).toContain("[UNVERIFIED]");
+    expect(prd).toContain("Does not create or approve a Sprint backlog");
+    expect(prd).toContain("bash scripts/check-task-workflow.sh --strict");
+  });
+
+  test("sprint command consumes PRDs without re-deciding product intent", () => {
+    const sprint = readCommand("repo-harness-sprint");
+
+    expect(sprint).toContain("from-prd");
+    expect(sprint).toContain("plans/sprints/");
+    expect(sprint).toContain("> **Source PRD**");
+    expect(sprint).toContain("must be machine-checkable");
+    expect(sprint).toContain("must still run `$think` before code edits");
   });
 });

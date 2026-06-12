@@ -2,7 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+if REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  cd "$REPO_ROOT"
+elif [[ "$SCRIPT_DIR" == */.ai/harness/scripts ]]; then
+  cd "$SCRIPT_DIR/../../.."
+else
+  cd "$SCRIPT_DIR/.."
+fi
 
 usage() {
   cat <<'USAGE_EOF'
@@ -15,9 +21,8 @@ Usage:
 
 Program-level sprint backlog helper. PRDs live in plans/prds/ as the upper
 planning layer; sprints live in plans/sprints/ as ordered execution backlogs.
-Each backlog task executes as one task-contract slice through the existing
-plan -> contract -> worktree flow.
-tasks/todos.md stays the deferred-goal ledger.
+Each backlog row is expanded with $think before the existing plan -> contract
+-> worktree flow. tasks/todos.md stays the deferred-goal ledger.
 
 start-task reserves the next (or named) pending backlog row and can capture a
 thin plan seed. The coding agent must still use `$think` to expand the row into

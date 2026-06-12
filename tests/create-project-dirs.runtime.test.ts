@@ -87,34 +87,47 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/harness/context-budget/latest.json"))).toBe(false);
       expect(existsSync(join(cwd, ".ai/harness/planning"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/runs/.gitkeep"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/sprint-backlog.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/harness/scripts/capability-resolver.ts"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/worktrees/.gitkeep"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/triage/.gitkeep"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/new-spec.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/new-sprint.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/prepare-handoff.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/summarize-failures.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/verify-sprint.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/check-agent-tooling.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/check-task-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/check-deploy-sql-order.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/check-architecture-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/check-brain-manifest.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/sync-brain-docs.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/check-context-files.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/select-agent-context-blocks.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/capability-resolver.ts"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/architecture-event.ts"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/capability-config.ts"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/architecture-queue.sh"))).toBe(true);
+      for (const helper of [
+        "new-spec.sh",
+        "new-sprint.sh",
+        "prepare-handoff.sh",
+        "summarize-failures.sh",
+        "verify-sprint.sh",
+        "check-agent-tooling.sh",
+        "check-task-sync.sh",
+        "check-deploy-sql-order.sh",
+        "check-architecture-sync.sh",
+        "check-brain-manifest.sh",
+        "sync-brain-docs.sh",
+        "check-context-files.sh",
+        "select-agent-context-blocks.sh",
+        "capability-resolver.ts",
+        "architecture-event.ts",
+        "capability-config.ts",
+        "architecture-queue.sh",
+        "archive-architecture-request.sh",
+        "context-contract-sync.sh",
+        "workstream-sync.sh",
+        "ensure-task-workflow.sh",
+        "check-task-workflow.sh",
+        "maintenance-triage.sh",
+        "heartbeat-triage.sh",
+        "sprint-backlog.sh",
+      ]) {
+        expect(existsSync(join(cwd, ".ai/harness/scripts", helper))).toBe(true);
+        expect(existsSync(join(cwd, "scripts", helper))).toBe(true);
+      }
+
       expect(existsSync(join(cwd, ".ai/harness/scripts/architecture-drift.sh"))).toBe(false);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/archive-architecture-request.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/context-contract-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/workstream-sync.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/ensure-task-workflow.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/maintenance-triage.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/heartbeat-triage.sh"))).toBe(true);
-      expect(existsSync(join(cwd, ".ai/harness/scripts/sprint-backlog.sh"))).toBe(true);
+      expect(existsSync(join(cwd, "scripts/architecture-drift.sh"))).toBe(false);
+      expect(readFileSync(join(cwd, "scripts/sprint-backlog.sh"), "utf-8")).toContain(
+        ".ai/harness/scripts/sprint-backlog.sh"
+      );
       expect(existsSync(join(cwd, ".claude/templates/sprint.template.md"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/harness/scripts/context-budget.ts"))).toBe(false);
       expect(existsSync(join(cwd, ".ai/harness/scripts/prepare-codex-handoff.sh"))).toBe(true);
@@ -155,6 +168,8 @@ describe("create-project-dirs runtime smoke", () => {
 
       expect(existsSync(join(cwd, "docs/PROGRESS.md"))).toBe(false);
       const workflowContract = JSON.parse(readFileSync(join(cwd, ".ai/harness/workflow-contract.json"), "utf-8"));
+      expect(workflowContract.helpers.runtimeDirectory).toBe(".ai/harness/scripts");
+      expect(workflowContract.helpers.compatibilityDirectory).toBe("scripts");
       expect(workflowContract.helpers.scripts).toContain("check-agent-tooling.sh");
       expect(workflowContract.helpers.scripts).toContain("check-brain-manifest.sh");
       expect(workflowContract.helpers.scripts).toContain("sync-brain-docs.sh");
@@ -208,6 +223,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/worktrees");
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/triage");
       expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/planning");
+      expect(workflowContract.artifacts.requiredDirectories).toContain(".ai/harness/scripts");
       expect(workflowContract.artifacts.requiredDirectories).toContain("docs/architecture/domains");
       expect(workflowContract.artifacts.requiredDirectories).toContain("docs/architecture/modules");
       expect(workflowContract.agenticDevelopment.routing.complexEngineeringPlan).toBe("gstack:plan-eng-review");
@@ -221,6 +237,9 @@ describe("create-project-dirs runtime smoke", () => {
       expect(contextMap.discoverable_contexts.map((entry: { path: string }) => entry.path)).toContain("tasks/workstreams/**/*.md");
       expect(contextMap.discoverable_contexts.find((entry: { path: string }) => entry.path === "tasks/workstreams/**/*.md").purpose).toBe("capability-workstream");
       const policy = JSON.parse(readFileSync(join(cwd, ".ai/harness/policy.json"), "utf-8"));
+      expect(policy.harness.helper_runtime_dir).toBe(".ai/harness/scripts");
+      expect(policy.harness.helper_compat_dir).toBe("scripts");
+      expect(policy.sprints.helper_script).toBe(".ai/harness/scripts/sprint-backlog.sh");
       expect(policy.external_tooling.routing).toEqual({
         complex: "gstack",
         simple: "waza",

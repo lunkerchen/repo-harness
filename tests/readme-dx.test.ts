@@ -128,7 +128,8 @@ describe("README DX contract", () => {
     expect(res.stdout).toContain("=== Migration Report ===");
     expect(res.stdout).toContain("Project hooks synced from:");
     expect(res.stdout).toContain("Workflow migration:");
-    expect(res.stdout).toContain("Helper scripts:");
+    expect(res.stdout).toContain("Helper runtime:");
+    expect(res.stdout).toContain(".ai/harness/scripts with scripts/* compatibility wrappers");
     expect(res.stdout).toContain("Host hook config target: user-level ~/.claude/settings.json and ~/.codex/hooks.json");
     expect(res.stdout).toContain("Host hook adapters are user-level:");
   }, 15000);

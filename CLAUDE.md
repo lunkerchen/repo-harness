@@ -6,7 +6,7 @@ This repository self-hosts the `repo-harness` contract; the former `repo-harness
 
 - `tasks/current.md` for the tracked current-status snapshot derived from workflow artifacts
 - `tasks/todos.md` for deferred medium/long-term goals, not active execution checklists
-- `plans/prds/` for upper-layer PRDs; `plans/sprints/` for ordered sprint backlogs operated by `scripts/sprint-backlog.sh` (task contracts stay the execution slices)
+- `plans/prds/` for upper-layer PRDs; `plans/sprints/` for ordered sprint backlogs operated through `scripts/sprint-backlog.sh` (installed implementations live under `.ai/harness/scripts/`; task contracts stay the execution slices)
 - `.ai/context/capabilities.json` for the capability registry and longest-prefix context boundaries
 - `tasks/workstreams/` for capability long-running workstreams that project durable progress into local contracts
 - `tasks/lessons.md` for correction-derived rules
