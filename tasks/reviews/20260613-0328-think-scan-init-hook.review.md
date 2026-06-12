@@ -5,7 +5,7 @@
 > **Contract**: tasks/contracts/20260613-0328-think-scan-init-hook.contract.md
 > **Notes File**: tasks/notes/20260613-0328-think-scan-init-hook.notes.md
 > **Checks File**: .ai/harness/checks/latest.json
-> **Last Updated**: 2026-06-13 04:03
+> **Last Updated**: 2026-06-13 04:15
 > **Recommendation**: pass
 
 ## Mode Evidence
@@ -21,7 +21,13 @@
   - `bash -n assets/hooks/first-principles-guard.sh .ai/hooks/first-principles-guard.sh assets/hooks/post-edit-guard.sh .ai/hooks/post-edit-guard.sh assets/hooks/anti-simplification.sh .ai/hooks/anti-simplification.sh` -> pass.
   - `cmp -s assets/hooks/first-principles-guard.sh .ai/hooks/first-principles-guard.sh && cmp -s assets/hooks/post-edit-guard.sh .ai/hooks/post-edit-guard.sh && cmp -s assets/hooks/anti-simplification.sh .ai/hooks/anti-simplification.sh && cmp -s docs/reference-configs/hook-operations.md assets/reference-configs/hook-operations.md` -> pass.
   - `bun test tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/cli/route-registry.test.ts` -> pass, 133 tests.
+  - `bun test` -> pass, 705 tests / 0 fail.
+  - `bash scripts/check-deploy-sql-order.sh` -> pass.
+  - `bash scripts/check-architecture-sync.sh` -> pass, advisory mode blocking=0.
+  - `bash scripts/check-task-sync.sh` -> pass.
   - `bash scripts/check-task-workflow.sh --strict` -> pass.
+  - `bun scripts/inspect-project-state.ts --repo . --format text` -> pass, no drift signals or required decisions.
+  - `bash scripts/migrate-project-template.sh --repo . --dry-run` -> pass; dry-run would sync `assets/hooks/first-principles-guard.sh` into `.ai/hooks/first-principles-guard.sh`.
 - Manual checks:
   - FirstPrinciples warnings are emitted from a temp git repo diff and exit 0.
   - No-diff files stay quiet.
@@ -37,15 +43,16 @@
 
 ## External Acceptance Advice
 
-> **External Acceptance**: pass
-> **External Reviewer**: Codex
-> **External Source**: check
+> **External Acceptance**: unavailable
+> **External Reviewer**:
+> **External Source**: claude-review
 > **External Started**: 2026-06-13 03:51
-> **External Completed**: 2026-06-13 04:03
+> **External Completed**: 2026-06-13 04:15
 
-- P1 blockers: none.
+- P1 blockers: unavailable.
 - P2 advisories: none.
-- Acceptance checklist: pass.
+- Acceptance checklist: manual override - no Claude peer review was available in this runtime; local full suite, required checks, and contract verifier cover the hook-runtime acceptance surface.
+Manual Override: no Claude peer review was available in this runtime; local full suite, required checks, and contract verifier cover the hook-runtime acceptance surface.
 
 ## Behavior Diff Notes
 
@@ -74,6 +81,8 @@
 ## Retest Steps
 
 - Re-run `bun test tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/cli/route-registry.test.ts`.
+- Re-run `bun test`.
+- Re-run `bash scripts/check-deploy-sql-order.sh`, `bash scripts/check-architecture-sync.sh`, `bash scripts/check-task-sync.sh`, `bun scripts/inspect-project-state.ts --repo . --format text`, and `bash scripts/migrate-project-template.sh --repo . --dry-run`.
 - Re-run `bash scripts/check-task-workflow.sh --strict`.
 
 ## Summary
