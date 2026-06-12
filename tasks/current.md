@@ -1,27 +1,27 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-13T01:39:05+0800 -->
+<!-- updated_at: 2026-06-13T04:00:22+0800 -->
 <!-- stale_after: 24h -->
 
-> **Status**: Idle
-> **Updated At**: 2026-06-13T01:39:05+0800
-> **Source Branch**: codex/prd-sprint-skills
-> **Source Commit**: 7c3b9ea
+> **Status**: ManualClearedWithActiveWork
+> **Updated At**: 2026-06-13T04:00:22+0800
+> **Source Branch**: codex/plan-completeness-gate-ux-contract
+> **Source Commit**: a723002
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: manual
+> **Reason**: archive-workflow
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
 
 ## Current Focus
 
-- Status: Idle
+- Status: ManualClearedWithActiveWork
 - Active Plan: (none)
 - Plan Status: (none)
-- Next Task: (none)
-- Clear Note: (none)
+- Next Task: inspect active worktree marker(s)
+- Clear Note: Manual clear requested, but active work markers still exist. Idle was not written.
 
 ## Mainline Snapshot Reading
 
@@ -31,7 +31,8 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Active Work
 
-- (none)
+- /Users/chris/Projects/agentic-dev-wt-think-scan-init-hook: plans/plan-20260613-0328-think-scan-init-hook.md
+- /Users/chris/Projects/agentic-dev-wt-think-scan-init-hook: active-worktree owner -> /Users/chris/Projects/agentic-dev-wt-think-scan-init-hook
 ## Active Sprint
 
 - Sprint: (none)
@@ -44,14 +45,21 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Checks
 
-- status=(none), source=(none), exit_code=(none), file=.ai/harness/checks/latest.json
+- status=pass, source=verify-sprint, exit_code=0, file=.ai/harness/checks/latest.json
 
 ## Git Status
 
-- Summary: clean
+- Summary: 8 changed/untracked path(s)
 
 ```
-(none)
+ M .ai/hooks/stop-orchestrator.sh
+ M assets/hooks/stop-orchestrator.sh
+ M tests/hook-runtime.test.ts
+?? plans/archive/plan-20260613-0327-plan-completeness-gate-ux-contract.md
+?? tasks/archive/notes-20260613-0400-plan-completeness-gate-ux-contract.md
+?? tasks/archive/todo-20260613-0400-plan-completeness-gate-ux-contract.md
+?? tasks/contracts/20260613-0327-plan-completeness-gate-ux-contract.contract.md
+?? tasks/reviews/20260613-0327-plan-completeness-gate-ux-contract.review.md
 ```
 
 ## Source Artifacts
