@@ -22,6 +22,7 @@ by Claude/Codex adapters.
 ## Required Alignment
 
 - `package.json`
+- `.claude/.skill-version`
 - `assets/skill-version.json`
 - `src/cli/commands/status.ts`
 - README current release/stamp references
@@ -52,6 +53,12 @@ by Claude/Codex adapters.
   successfully (`727 pass`, `0 fail`, `7099` expectations across `70` files),
   then stopped at `check-task-sync` because the release prep notes file had not
   been added yet.
+- First `npm publish --access public --registry https://registry.npmjs.org/`
+  attempt authenticated as `ancienttwo` and reran the full prepublish gate. It
+  reached `bun test` successfully (`727 pass`, `0 fail`, `7099` expectations
+  across `70` files), then stopped at `check-task-sync` because
+  `.claude/.skill-version` was still tracked at `0.4.3` and the gate updated it
+  to the `0.5.0` stamp.
 - Final `bash scripts/check-npm-release.sh` run passed:
   - npm registry uniqueness for `repo-harness@0.5.0`
   - `bun install --frozen-lockfile`

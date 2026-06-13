@@ -11,8 +11,9 @@ boundary refactor split user-level runtime refresh from repo-local adoption.
 | --- | --- | --- |
 | Use `0.5.0` | `repo-harness update` changed public lifecycle ownership and no longer means repo-local refresh. | Treat the release as a minor version instead of another 0.4.x patch. |
 | Keep one package/template version line | The 0.4.0 release retired the old generated-workflow compatibility split. | Downstream generated stamps move together to `repo-harness@0.5.0+template@0.5.0`. |
+| Include `.claude/.skill-version` in the release commit | The self-host repo tracks the generated workflow stamp, and `migrate-project-template.sh` updates it during release verification. | Publish gates stay clean instead of discovering a tracked stamp diff during `prepublishOnly`. |
 | Document eight hook routes in README | `src/cli/hook/route-registry.ts` exposes eight managed adapter routes across five host events. | The README now explains route behavior without implying there are eight host event types. |
-| Stop at preparation for irreversible publish | The requested slice says prepare the npm and GitHub release, and npm/GitHub publish actions are irreversible. | The release filing records publish/readback as pending until an explicit publish step runs. |
+| Execute publish after `next` | The next slice explicitly continues the prepared release. | npm publish, tag, GitHub release, readbacks, and local runtime refresh become part of the release closeout. |
 
 ## Verification
 
@@ -25,6 +26,10 @@ boundary refactor split user-level runtime refresh from repo-local adoption.
   727 pass, 0 fail, deploy SQL, architecture sync, task sync, brain sync,
   strict workflow, inspector, migration dry-run, and npm pack dry-run all
   completed.
+- First `npm publish` attempt authenticated as `ancienttwo`, reran the full
+  prepublish gate, and stopped at `check-task-sync` only because
+  `.claude/.skill-version` was not in the prepared release commit. The stamp is
+  now aligned to `0.5.0`.
 - `npm pack --dry-run --json` reported `repo-harness-0.5.0.tgz`, 276 files,
   shasum `61f9ca3c64a9fa1ebeaf10e941e087b91df7ba00`, and included
   `docs/images/image.png`.
