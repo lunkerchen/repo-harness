@@ -1,5 +1,9 @@
 # repo-harness
 
+<p align="center">
+  <img src="docs/images/image.png" alt="One next button joining Claude and Codex under repo-harness workflow rules" width="760">
+</p>
+
 `repo-harness` convierte las sesiones de programación con Claude/Codex en un
 workflow repo-local repetible. Incluye un CLI y hooks de skill/runtime que
 escriben contexto, planes, handoffs, checks y evidencias de review dentro del
@@ -43,43 +47,21 @@ Dirección del repositorio: `https://github.com/Ancienttwo/repo-harness`
   1KB o consulta el índice, en vez de gastar miles de tokens redescubriendo la
   estructura.
 
-## Novedades en 0.2.1
+En un repositorio adoptado, la superficie se mantiene pequeña:
 
-- **Comando de inicialización global (`repo-harness init`).** Un solo comando
-  inicializa el entorno global de Claude: essential plugins, policy
-  hooks configurables (worktree guard, atomic commit/pending), LSP plugins
-  opcionales según el tipo de proyecto y cuatro hook profiles (`standard`,
-  `minimal`, `biome`, `biome-strict`). Ejecuta
-  `npx -y repo-harness init`; no necesitas clonar el repositorio fuente.
-- **Comando de adopción del repo (`repo-harness adopt`).** La instalación y el
-  refresco de repos existentes tienen su propia superficie de comando, manteniendo
-  la ruta de migración repo-local anterior mientras `init` queda dedicado al
-  runtime global.
-- **Auto-recuperación del índice CodeGraph.** Si el prompt hook detecta intención
-  de navegación estructural y el repo no tiene índice `.codegraph`, inicializa el
-  índice con el binario CodeGraph local o visible en PATH antes de emitir la pista.
-  Sigue siendo advisory: no instala dependencias, no ejecuta el readiness probe
-  pesado y no bloquea el prompt si CodeGraph no está disponible.
-- **Centinela de seguridad (`repo-harness security scan` + `security-sentinel.sh`).**
-  Una verificación de solo lectura sobre las superficies de inyección de
-  configuración de alto valor (`~/.claude/settings.json`, `~/.codex/hooks.json`,
-  el `.vscode/tasks.json` repo-local y los adapters legacy a nivel de proyecto
-  `.claude`/`.codex`). Marca patrones de comando sospechosos —pipes de remote
-  shell, base64-decode-to-exec, `osascript`, persistencia con
-  `launchctl`/`crontab`, netcat, ejecución inline de intérpretes—, además de
-  hooks no gestionados y tareas `folderOpen` de ejecución automática, y nunca
-  modifica ninguna configuración. El centinela de `SessionStart` toma una huella
-  de este conjunto y solo reescanea cuando la huella cambia, para no generar
-  ruido en el session-start. Auditoría bajo demanda:
-  `repo-harness security scan --json`.
-- **Ciclo de vida draft-plan de Claude/Codex.** El Plan mode tiene explícitamente
-  dos etapas: Draft y Approved. Los hooks reconocen la intención de crear un plan
-  y rastrean la pending orchestration; un stop gate (`stop-orchestrator.sh`) exige
-  que la sesión haga una pasada de autorevisión antes de terminar con el plan sin
-  definir. Captura un borrador con `scripts/capture-plan.sh --slug <slug> --title
-  <title> --status Draft`, después promociónalo a Approved y proyéctalo a
-  ejecución con `--execute` o `scripts/plan-to-todo.sh --plan <plan>`. Los plans
-  se convierten en la fuente de verdad a nivel de archivo en `plans/`.
+| Surface | Propósito |
+| --- | --- |
+| `docs/spec.md` y `docs/reference-configs/` | Estándares compartidos e intención de producto estable que cada sesión de agente puede leer. |
+| `plans/`, `plans/prds/` y `plans/sprints/` | Work packages decision-complete antes de empezar la implementación. |
+| `tasks/contracts/`, `tasks/reviews/` y `.ai/harness/checks/` | Scope, verificación y evidencia de review para probar que el trabajo terminó. |
+| `.ai/harness/handoff/` y `tasks/current.md` | Session journal y estado resumible, derivados de workflow artifacts en vez de chat memory. |
+
+## Novedades en 0.5.1
+
+- **Límite de comandos limpio.** `repo-harness update` solo refresca la superficie user-level CLI/runtime; `repo-harness adopt` es responsable del install, refresh y migration del workflow repo-local.
+- **Package-dispatched helper runtime.** Los wrappers generados en `scripts/*` pueden delegar con `repo-harness run <helper>`, de modo que los repos adoptados no necesitan vendorizar cada helper implementation.
+- **Ocho managed hook routes.** El README documenta la matriz exacta de routes que instalan los adapters de Claude y Codex: session context, edit guards, delegated-agent routing, post-edit/post-bash observers, always-on trace, prompt routing y stop closeout.
+- **Ejemplos de instalación listos para release.** First 5 Minutes separa machine bootstrap, user-level updates, read-only setup audit y repo-local adoption.
 
 ## Qué hace el producto
 
@@ -301,7 +283,7 @@ El comando debería terminar imprimiendo `=== Migration Report ===`, e incluir:
 - `Host hook config target: user-level ~/.claude/settings.json and ~/.codex/hooks.json`: dónde está la capa del adapter
 - `Host hook adapters are user-level:`: recordatorio de instalar los global adapters y de confiar en `~/.codex/hooks.json`
 - `Workflow migration:`: el plan de creación o refresco de las repo-local harness surfaces
-- `Helper scripts:`: la cadena de herramientas operativa que obtendrás tras aplicar
+- `Helper runtime:`: la cadena de herramientas operativa que obtendrás tras aplicar
 - `--- External Tooling ---`: el routing de gstack/Waza/gbrain más las advisory de instalación/actualización
 
 ### Los dos comandos siguientes
@@ -322,6 +304,22 @@ Si la salida del dry-run no es correcta, detente aquí primero y lee
 - Los hook adapters repo-local `.claude/settings.json` y `.codex/hooks.json` son legacy project-level config y deben retirarse durante la migración.
 - Codex debe confiar en `~/.codex/hooks.json` en sus Settings para que los hooks se ejecuten.
 - Orden de depuración: user-level adapter config -> `repo-harness-hook` o el fallback `repo-harness hook` -> route registry -> `.ai/hooks/*`.
+
+
+The installed adapter owns eight managed hook routes. The route tuple
+`event + routeId + matcher` is the stable contract; script names are the current
+implementation under `assets/hooks/` or a repo-pinned `.ai/hooks/` copy.
+
+| Route | Matcher | Scripts | Function |
+| --- | --- | --- | --- |
+| `SessionStart.default` | all sessions | `session-start-context.sh`, `security-sentinel.sh` | Injects prior handoff, sprint status, and read-only config-security findings before work starts. |
+| `PreToolUse.edit` | `Edit|Write` | `worktree-guard.sh`, `pre-edit-guard.sh` | Enforces worktree policy and plan/contract readiness before implementation edits. |
+| `PreToolUse.subagent` | `Task|Agent|SendUserMessage` | `subagent-return-channel-guard.sh` | Keeps delegated work returning through the parent session instead of leaking completion claims. |
+| `PostToolUse.edit` | `Edit|Write` | `post-edit-guard.sh` | Records edit traces, refreshes handoff/task status, and queues architecture drift when controlled files change. |
+| `PostToolUse.bash` | `Bash` | `post-bash.sh` | Observes command results and captures verification evidence without replacing the command runner. |
+| `PostToolUse.always` | all tools | `post-tool-observer.sh` | Provides low-noise always-on trace and runtime observation; stale pinned copies soft-skip with a refresh hint. |
+| `UserPromptSubmit.default` | all prompts | `prompt-guard.sh` | Classifies prompt intent, routes planning/check/hunt hints, and renders host-safe workflow guidance. |
+| `Stop.default` | session stop | `stop-orchestrator.sh` | Finalizes handoff and guards against ending with unresolved draft-plan or completion evidence gaps. |
 
 `SessionStart` ejecuta dos scripts ordenados antes de empezar el trabajo:
 
@@ -393,6 +391,13 @@ Guards habituales:
   - `scripts/inspect-project-state.ts`
   - `scripts/migrate-workflow-docs.ts`
   - `assets/workflow-contract.v1.json`
+- Runtime mode is configurable with template vars:
+  - `{{RUNTIME_MODE}}`
+  - `{{RUNTIME_PROFILE}}`
+  - `{{RECOVERY_PROFILE}}`
+  - `{{STATE_PROFILE}}`
+- Question-pack source of truth is in:
+  - `assets/initializer-question-pack.v4.json`
 - Los generated repos usan por defecto el repo-local harness flow:
   - `docs/spec.md -> plans/ -> tasks/contracts/ -> tasks/reviews/ -> .ai/context/context-map.json -> .ai/harness/*`
 - `repo-harness update` refresca las runtime pieces de usuario:
@@ -418,6 +423,17 @@ hunt y verification de `repo-harness`.
 Gracias a [Garry Tan](https://x.com/garrytan), autor de gstack y gbrain. Ambos
 influyeron en el workflow de product discovery, plan/design review, release
 documentation, knowledge sync y handoff retrieval.
+
+
+### Atribución de contribuidor en GitHub
+
+Cuando Codex contribuya materialmente a un commit, usa el trailer co-author estándar de GitHub al final del commit message:
+
+```text
+Co-authored-by: codex <codex@openai.com>
+```
+
+Mantén esta atribución opt-in y visible por commit. No la incorpores en scripts de commit ni hooks downstream de repo-harness salvo que ese repo adopte explícitamente la misma política.
 
 ## Action Command Skills
 
@@ -462,6 +478,23 @@ bun scripts/inspect-project-state.ts --repo . --format text
 bash scripts/migrate-project-template.sh --repo . --dry-run
 ```
 
+
+### Runtime reference docs
+
+Generic repo-harness runtime/reference docs live in the installed package under
+`assets/reference-configs/` and are resolved through the CLI:
+
+```bash
+repo-harness docs list
+repo-harness docs path harness-overview
+repo-harness docs show harness-overview
+```
+
+Generated and migrated repos still keep `docs/reference-configs/*.md`, but
+those files are deterministic pointer stubs. Repo-local workflow state,
+policy, checks, runs, handoff packets, context maps, and helper snapshots stay
+under `.ai/`.
+
 ### Template assembly
 
 ```bash
@@ -478,7 +511,23 @@ bash scripts/check-task-workflow.sh --strict
 bun scripts/inspect-project-state.ts --repo . --format text
 bash scripts/migrate-project-template.sh --repo . --dry-run
 bash scripts/check-agent-tooling.sh --host both --check-updates
-bun run benchmark:skills --dry-run
+bun run benchmark:skills --eval route-workflow-check
+```
+
+
+### Local benchmark skeleton
+
+```bash
+bun run benchmark:skills --eval route-workflow-check
+```
+
+Eval output is the release/readiness evidence path; dry-run benchmark wiring is only a smoke and is not skill-effectiveness evidence.
+
+
+### Run one eval across both Claude and Codex
+
+```bash
+bun run benchmark:skills --eval repair-agents-task-sync
 ```
 
 ## Key Files
@@ -488,8 +537,54 @@ bun run benchmark:skills --dry-run
 - Plan mapping: `assets/plan-map.json`
 - Question-pack: `assets/initializer-question-pack.v4.json`
 - Shared hooks: `assets/hooks/`
+- Runtime reference docs: `assets/reference-configs/` via `repo-harness docs`
 - Workflow contract: `assets/workflow-contract.v1.json`
 - Hook operations reference: `docs/reference-configs/hook-operations.md`
 - Template assembler: `scripts/assemble-template.ts`
 - State inspector: `scripts/inspect-project-state.ts`
+- External tooling detector: `scripts/check-agent-tooling.sh`
+- Scaffolding scripts:
+  - `scripts/init-project.sh`
+  - `scripts/create-project-dirs.sh`
 - Legacy-doc migrator: `scripts/migrate-workflow-docs.ts`
+
+## Generated vs Self-Hosted Hook Parity
+
+- El comportamiento downstream de hooks lo define la salida generada desde `assets/hooks/` y `assets/reference-configs/`.
+- Este repo dogfoodea el mismo contract, pero el comportamiento self-host no se sincroniza mágicamente con los generated repos; cada cambio debe actualizar explícitamente ambas superficies cuando aplique.
+- Todo cambio de hook debe indicar si afecta a `self-host`, `generated` o `both`.
+
+## Package Manager Defaults
+
+- Prioridad general por defecto: `bun > pnpm > npm`
+- **Plan G/H** (Python-centric) usa **`uv`** como primary package manager por defecto.
+
+## Runtime Profiles
+
+- `Plan-only (recommended)` (default)
+- `Plan + Permissionless`
+- `Standard (ask before each action)`
+
+Se configura en `assets/initializer-question-pack.v4.json` y lo consume `scripts/initializer-question-pack.ts`.
+
+## Verification
+
+Para release review usa el gate único equivalente a CI:
+
+```bash
+bun run check:ci
+```
+
+Ese gate se expande a los checks propios del repo; `bun run check:release` solo añade el preflight de npm unpublished-version antes de delegar al mismo gate.
+
+```bash
+bun test
+bash scripts/check-deploy-sql-order.sh
+bash scripts/check-architecture-sync.sh
+bash scripts/check-task-sync.sh
+bash scripts/check-task-workflow.sh --strict
+bun scripts/inspect-project-state.ts --repo . --format text
+bash scripts/migrate-project-template.sh --repo . --dry-run
+bash scripts/check-agent-tooling.sh --host both --check-updates
+bun run benchmark:skills --eval route-workflow-check
+```

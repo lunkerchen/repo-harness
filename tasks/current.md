@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-14T18:55:19+0800 -->
+<!-- updated_at: 2026-06-14T20:41:27+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-14T18:55:19+0800
+> **Updated At**: 2026-06-14T20:41:27+0800
 > **Source Branch**: main
-> **Source Commit**: a20c682
+> **Source Commit**: 73b1105
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: repo-harness-goal-opus-docs
+> **Reason**: readme-i18n-0.5.1-benchmark-evidence
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -48,7 +48,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 17 changed/untracked path(s)
+- Summary: 8 changed/untracked path(s)
 
 ```
  M README.es.md
@@ -56,18 +56,9 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
  M README.ja.md
  M README.md
  M README.zh-CN.md
- M SKILL.md
- M assets/reference-configs/agentic-development-flow.md
- M assets/skill-commands/manifest.json
- M assets/skill-commands/repo-harness-prd/SKILL.md
- M docs/architecture/modules/public-surface/action-commands.md
- M docs/reference-configs/agentic-development-flow.md
- M evals/evals.json
- M references/arch/trading-terminal.md
+ M evals/benchmark.md
  M tasks/current.md
- M tests/action-command-skills.test.ts
- M tests/evals-contract.test.ts
-?? assets/skill-commands/repo-harness-goal/
+ M tests/readme-dx.test.ts
 ```
 
 ## Source Artifacts

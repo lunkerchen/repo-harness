@@ -10,6 +10,7 @@ const RUNTIME_SCAN_FILES = [
   "README.zh-CN.md",
   "docs/reference-configs/external-tooling.md",
 ];
+const LOCALIZED_READMES = ["README.zh-CN.md", "README.ja.md", "README.es.md", "README.fr.md"];
 const RUNTIME_RED_FLAGS = [
   /在 Claude Code/,
   /Claude Code skill/,
@@ -116,6 +117,29 @@ describe("README DX contract", () => {
     expect(readme).toContain("not hidden hook automation");
     expect(zhReadme).toContain("Co-authored-by: codex <codex@openai.com>");
     expect(zhReadme).toContain("逐 commit 显式添加");
+  });
+
+  test("localized READMEs track the current English release surface", () => {
+    for (const file of LOCALIZED_READMES) {
+      const localized = read(file);
+
+      expect(localized).toContain("docs/images/image.png");
+      expect(localized).toContain("0.5.1");
+      expect(localized).toContain("repo-harness@0.5.1");
+      expect(localized).toContain("repo-harness@0.5.1+template@0.5.1");
+      expect(localized).toContain("repo-harness update");
+      expect(localized).toContain("repo-harness adopt");
+      expect(localized).toContain("repo-harness docs list");
+      expect(localized).toContain("SessionStart.default");
+      expect(localized).toContain("PostToolUse.always");
+      expect(localized).toContain("Generated vs Self-Hosted Hook Parity");
+      expect(localized).toContain("Package Manager Defaults");
+      expect(localized).toContain("Runtime Profiles");
+      expect(localized).toContain("bun run benchmark:skills --eval route-workflow-check");
+      expect(localized).not.toContain("0.5.0");
+      expect(localized).not.toContain("0.2.1");
+      expect(localized).not.toContain("bun run benchmark:skills --dry-run");
+    }
   });
 
   test("dry-run keeps the migration report onboarding signals", () => {

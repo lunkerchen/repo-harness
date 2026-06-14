@@ -1,5 +1,9 @@
 # repo-harness
 
+<p align="center">
+  <img src="docs/images/image.png" alt="One next button joining Claude and Codex under repo-harness workflow rules" width="760">
+</p>
+
 `repo-harness` 把 Claude/Codex 的 AI 编程会话变成可复用、可恢复、可检查的
 repo-local workflow。它提供 CLI 和 skill/runtime hooks，把上下文、计划、
 handoff、检查结果和 review evidence 写回项目文件，让下一个 agent 会话可以从文件继续，
@@ -39,17 +43,17 @@ handoff、检查结果和 review evidence 写回项目文件，让下一个 agen
 | `tasks/contracts/`、`tasks/reviews/`、`.ai/harness/checks/` | 证明完成所需的 scope、verification 和 review evidence。 |
 | `.ai/harness/handoff/` 和 `tasks/current.md` | session journal 与可恢复状态，从 workflow artifacts 派生，而不是依赖聊天记忆。 |
 
-## 0.5.0 新特性
+## 0.5.1 新特性
 
 - **清晰的命令边界。** `repo-harness update` 只负责 user-level CLI/runtime
   刷新；`repo-harness adopt` 负责 repo-local workflow 安装、刷新和迁移。
 - **Package-dispatched helper runtime。** 生成的 `scripts/*` wrapper 可以通过
   `repo-harness run <helper>` 委派到已安装 package，不必在每个下游仓库复制完整
   helper implementation。
-- **8 条 managed hook routes。** README 现在明确记录 Claude/Codex adapter
+- **8 条 managed hook routes。** README 明确记录 Claude/Codex adapter
   安装的 route matrix：session context、edit guards、delegated-agent routing、
   post-edit/post-bash observers、always-on trace、prompt routing 和 stop closeout。
-- **发布前安装刷新例子。** First 5 Minutes 明确区分 machine bootstrap、
+- **发布可用的安装示例。** First 5 Minutes 区分 machine bootstrap、
   user-level update、read-only setup audit 和 repo-local adoption。
 
 ## 产品做什么
@@ -318,7 +322,7 @@ npx -y repo-harness adopt
 - `Host hook config target: user-level ~/.claude/settings.json and ~/.codex/hooks.json`：adapter 层在哪里
 - `Host hook adapters are user-level:`：提醒安装 global adapters，并信任 `~/.codex/hooks.json`
 - `Workflow migration:`：repo-local harness surfaces 的创建或刷新计划
-- `Helper scripts:`：应用后会得到的操作工具链
+- `Helper runtime:`：应用后会得到的操作工具链
 - `--- External Tooling ---`：gstack/Waza/gbrain 路由以及 advisory 安装/更新提示
 
 如果 dry-run 输出不对，先停在这里，阅读
@@ -332,6 +336,22 @@ npx -y repo-harness adopt
 - Repo-local `.claude/settings.json` 和 `.codex/hooks.json` hook adapters 是 legacy project-level config，迁移时应退休。
 - Codex 必须在 Settings 里信任 `~/.codex/hooks.json`，hooks 才会执行。
 - 调试顺序：user-level adapter config -> `repo-harness-hook` 或 fallback `repo-harness hook` -> route registry -> `.ai/hooks/*`。
+
+
+The installed adapter owns eight managed hook routes. The route tuple
+`event + routeId + matcher` is the stable contract; script names are the current
+implementation under `assets/hooks/` or a repo-pinned `.ai/hooks/` copy.
+
+| Route | Matcher | Scripts | Function |
+| --- | --- | --- | --- |
+| `SessionStart.default` | all sessions | `session-start-context.sh`, `security-sentinel.sh` | Injects prior handoff, sprint status, and read-only config-security findings before work starts. |
+| `PreToolUse.edit` | `Edit|Write` | `worktree-guard.sh`, `pre-edit-guard.sh` | Enforces worktree policy and plan/contract readiness before implementation edits. |
+| `PreToolUse.subagent` | `Task|Agent|SendUserMessage` | `subagent-return-channel-guard.sh` | Keeps delegated work returning through the parent session instead of leaking completion claims. |
+| `PostToolUse.edit` | `Edit|Write` | `post-edit-guard.sh` | Records edit traces, refreshes handoff/task status, and queues architecture drift when controlled files change. |
+| `PostToolUse.bash` | `Bash` | `post-bash.sh` | Observes command results and captures verification evidence without replacing the command runner. |
+| `PostToolUse.always` | all tools | `post-tool-observer.sh` | Provides low-noise always-on trace and runtime observation; stale pinned copies soft-skip with a refresh hint. |
+| `UserPromptSubmit.default` | all prompts | `prompt-guard.sh` | Classifies prompt intent, routes planning/check/hunt hints, and renders host-safe workflow guidance. |
+| `Stop.default` | session stop | `stop-orchestrator.sh` | Finalizes handoff and guards against ending with unresolved draft-plan or completion evidence gaps. |
 
 `SessionStart` 先按 central-first 解析 hook source，再按顺序跑两个脚本：
 
@@ -407,6 +427,13 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
   - `scripts/inspect-project-state.ts`
   - `scripts/migrate-workflow-docs.ts`
   - `assets/workflow-contract.v1.json`
+- Runtime mode is configurable with template vars:
+  - `{{RUNTIME_MODE}}`
+  - `{{RUNTIME_PROFILE}}`
+  - `{{RECOVERY_PROFILE}}`
+  - `{{STATE_PROFILE}}`
+- Question-pack source of truth is in:
+  - `assets/initializer-question-pack.v4.json`
 - Generated repos 默认使用 repo-local harness flow：
   - `docs/spec.md -> plans/ -> tasks/contracts/ -> tasks/reviews/ -> .ai/context/context-map.json -> .ai/harness/*`
 - `repo-harness init` 会刷新 runtime pieces：
@@ -489,6 +516,23 @@ bun scripts/inspect-project-state.ts --repo . --format text
 bash scripts/migrate-project-template.sh --repo . --dry-run
 ```
 
+
+### Runtime reference docs
+
+Generic repo-harness runtime/reference docs live in the installed package under
+`assets/reference-configs/` and are resolved through the CLI:
+
+```bash
+repo-harness docs list
+repo-harness docs path harness-overview
+repo-harness docs show harness-overview
+```
+
+Generated and migrated repos still keep `docs/reference-configs/*.md`, but
+those files are deterministic pointer stubs. Repo-local workflow state,
+policy, checks, runs, handoff packets, context maps, and helper snapshots stay
+under `.ai/`.
+
 ### Template assembly
 
 ```bash
@@ -518,6 +562,22 @@ bash scripts/check-agent-tooling.sh --host both --check-updates
 bun run benchmark:skills --eval route-workflow-check
 ```
 
+
+### Local benchmark skeleton
+
+```bash
+bun run benchmark:skills --eval route-workflow-check
+```
+
+Eval output is the release/readiness evidence path; dry-run benchmark wiring is only a smoke and is not skill-effectiveness evidence.
+
+
+### Run one eval across both Claude and Codex
+
+```bash
+bun run benchmark:skills --eval repair-agents-task-sync
+```
+
 ## Key Files
 
 - Skill spec：`SKILL.md`
@@ -525,8 +585,54 @@ bun run benchmark:skills --eval route-workflow-check
 - Plan mapping：`assets/plan-map.json`
 - Question-pack：`assets/initializer-question-pack.v4.json`
 - Shared hooks：`assets/hooks/`
+- Runtime reference docs: `assets/reference-configs/` via `repo-harness docs`
 - Workflow contract：`assets/workflow-contract.v1.json`
 - Hook operations reference：`docs/reference-configs/hook-operations.md`
 - Template assembler：`scripts/assemble-template.ts`
 - State inspector：`scripts/inspect-project-state.ts`
+- External tooling detector: `scripts/check-agent-tooling.sh`
+- Scaffolding scripts:
+  - `scripts/init-project.sh`
+  - `scripts/create-project-dirs.sh`
 - Legacy-doc migrator：`scripts/migrate-workflow-docs.ts`
+
+## Generated vs Self-Hosted Hook Parity
+
+- 下游 hook 行为由 `assets/hooks/` 和 `assets/reference-configs/` 的生成输出定义。
+- 本仓库 dogfood 同一套 contract，但 self-host 行为不会自动与 generated repos 同步；变更必须显式更新两侧 surface。
+- 每个 hook 变更都要说明影响 `self-host`、`generated` 还是 `both`。
+
+## Package Manager Defaults
+
+- 通用默认优先级：`bun > pnpm > npm`
+- **Plan G/H**（Python-centric）默认以 **`uv`** 作为 primary package manager。
+
+## Runtime Profiles
+
+- `Plan-only (recommended)`（默认）
+- `Plan + Permissionless`
+- `Standard (ask before each action)`
+
+配置在 `assets/initializer-question-pack.v4.json`，由 `scripts/initializer-question-pack.ts` 消费。
+
+## Verification
+
+发布 review 使用唯一 CI-equivalent gate：
+
+```bash
+bun run check:ci
+```
+
+这个 gate 展开为下面这些 repo-owned checks；`bun run check:release` 只是在委托同一个 gate 前增加 npm unpublished-version preflight。
+
+```bash
+bun test
+bash scripts/check-deploy-sql-order.sh
+bash scripts/check-architecture-sync.sh
+bash scripts/check-task-sync.sh
+bash scripts/check-task-workflow.sh --strict
+bun scripts/inspect-project-state.ts --repo . --format text
+bash scripts/migrate-project-template.sh --repo . --dry-run
+bash scripts/check-agent-tooling.sh --host both --check-updates
+bun run benchmark:skills --eval route-workflow-check
+```

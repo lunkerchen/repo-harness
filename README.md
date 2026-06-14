@@ -50,7 +50,7 @@ In an adopted repo, the surface area is intentionally small:
 | `tasks/contracts/`, `tasks/reviews/`, and `.ai/harness/checks/` | Scope, verification, and review evidence for proving the work is done. |
 | `.ai/harness/handoff/` and `tasks/current.md` | Session journal and resumable status, derived from workflow artifacts instead of chat memory. |
 
-## What's New in 0.5.0
+## What's New in 0.5.1
 
 - **Clean command boundary.** `repo-harness update` now refreshes only the
   user-level CLI/runtime surface, while `repo-harness adopt` owns repo-local
