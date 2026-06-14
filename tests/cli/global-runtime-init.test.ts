@@ -60,7 +60,7 @@ describe('init command global runtime bootstrap', () => {
     const home = join(tmp, 'home');
     const repo = join(tmp, 'repo');
     const fakeBin = join(tmp, 'bin');
-    const npmLog = join(tmp, 'npm.log');
+    const bunLog = join(tmp, 'bun.log');
     const npxLog = join(tmp, 'npx.log');
     const codegraphLog = join(tmp, 'codegraph.log');
     try {
@@ -70,7 +70,7 @@ describe('init command global runtime bootstrap', () => {
       mkdirSync(fakeBin, { recursive: true });
       setupFakeSource(source);
       writeFakeCodegraph(fakeBin, codegraphLog);
-      writeExecutable(join(fakeBin, 'npm'), `#!/bin/bash\nprintf '%s\\n' "$*" >> "${npmLog}"\nexit 0\n`);
+      writeExecutable(join(fakeBin, 'bun'), `#!/bin/bash\nprintf '%s\\n' "$*" >> "${bunLog}"\nexit 0\n`);
       writeExecutable(
         join(fakeBin, 'npx'),
         [
@@ -96,7 +96,7 @@ describe('init command global runtime bootstrap', () => {
       });
 
       expect(result.exitCode).toBe(0);
-      expect(readFileSync(npmLog, 'utf-8')).toContain(`install -g ${source}`);
+      expect(readFileSync(bunLog, 'utf-8')).toContain(`add -g ${source}`);
       expect(result.steps.find((step) => step.step === 'sync repo-harness skill runtime')?.stdout).toContain(
         'sync runtime',
       );
@@ -129,7 +129,7 @@ describe('init command global runtime bootstrap', () => {
       mkdirSync(home, { recursive: true });
       mkdirSync(fakeBin, { recursive: true });
       setupFakeSource(source);
-      writeExecutable(join(fakeBin, 'npm'), '#!/bin/bash\nexit 0\n');
+      writeExecutable(join(fakeBin, 'bun'), '#!/bin/bash\nexit 0\n');
       writeExecutable(join(fakeBin, 'npx'), '#!/bin/bash\nexit 0\n');
 
       const result = runGlobalRuntimeSetup({
@@ -175,15 +175,15 @@ describe('init command global runtime bootstrap', () => {
     const home = join(tmp, 'home');
     const repo = join(tmp, 'repo');
     const fakeBin = join(tmp, 'bin');
-    const npmLog = join(tmp, 'npm.log');
+    const bunLog = join(tmp, 'bun.log');
     try {
       mkdirSync(home, { recursive: true });
       mkdirSync(repo, { recursive: true });
       mkdirSync(fakeBin, { recursive: true });
-      writeExecutable(join(fakeBin, 'npm'), `#!/bin/bash\nprintf '%s\\n' "$*" >> "${npmLog}"\nexit 0\n`);
+      writeExecutable(join(fakeBin, 'bun'), `#!/bin/bash\nprintf '%s\\n' "$*" >> "${bunLog}"\nexit 0\n`);
 
       const res = spawnSync(
-        'bun',
+        process.execPath,
         [
           CLI,
           'update',
@@ -202,7 +202,7 @@ describe('init command global runtime bootstrap', () => {
 
       expect(res.status).toBe(0);
       const result = JSON.parse(res.stdout);
-      expect(readFileSync(npmLog, 'utf-8')).toContain('install -g repo-harness@latest');
+      expect(readFileSync(bunLog, 'utf-8')).toContain('add -g repo-harness@latest');
       expect(result.steps.find((step: { step: string }) => step.step === 'configure brain root')?.status).toBe('ok');
       expect(existsSync(join(home, '.repo-harness', 'config.json'))).toBe(true);
       expect(existsSync(join(repo, '.ai'))).toBe(false);

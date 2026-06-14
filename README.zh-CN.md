@@ -482,8 +482,18 @@ bun scripts/assemble-template.ts --target agents --plan C --name "MyProject"
 
 ### Verification
 
+发布前 review 使用唯一 CI-equivalent gate：
+
+```bash
+bun run check:ci
+```
+
+这个 gate 展开为下面这些 repo-owned checks；`bun run check:release` 只是在委托同一个 gate 前增加 npm 版本未发布检查。
+
 ```bash
 bun test
+bash scripts/check-deploy-sql-order.sh
+bash scripts/check-architecture-sync.sh
 bash scripts/check-task-sync.sh
 bash scripts/check-task-workflow.sh --strict
 bun scripts/inspect-project-state.ts --repo . --format text

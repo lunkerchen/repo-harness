@@ -119,7 +119,7 @@ function packageVersion(sourceRoot: string): string | null {
 
 function installCli(sourceRoot: string, cwd: string, env?: NodeJS.ProcessEnv, installSpec?: string): GlobalRuntimeStep {
   const spec = installSpec ?? (existsSync(join(sourceRoot, "package.json")) ? sourceRoot : "repo-harness");
-  const step = runProcess("npm", ["install", "-g", spec], cwd, env);
+  const step = runProcess("bun", ["add", "-g", spec], cwd, env);
   const version = packageVersion(sourceRoot);
   return withStepName(
     step,
@@ -219,7 +219,7 @@ function configureBrain(root: string | undefined, env?: NodeJS.ProcessEnv): Glob
 function ensureCodegraphCli(cwd: string, env?: NodeJS.ProcessEnv): GlobalRuntimeStep {
   const check = runProcess("codegraph", ["--version"], cwd, env);
   if (check.status === "ok") return withStepName(check, "ensure CodeGraph CLI", "present");
-  const install = runProcess("npm", ["install", "-g", CODEGRAPH_PACKAGE], cwd, env);
+  const install = runProcess("bun", ["add", "-g", CODEGRAPH_PACKAGE], cwd, env);
   if (install.status !== "ok") return withStepName(install, "ensure CodeGraph CLI", CODEGRAPH_PACKAGE);
   const recheck = runProcess("codegraph", ["--version"], cwd, env);
   if (recheck.status === "ok") return withStepName(recheck, "ensure CodeGraph CLI", "installed");

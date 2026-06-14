@@ -9,7 +9,8 @@ Options:
   --contract <path>     Contract markdown file with a YAML exit_criteria block
   --strict              Exit with code 1 when any criteria fail
   --quiet               Suppress per-check logs; only print on failure or status change
-  --read-only           Do not rewrite the contract Status header (for hook-driven checks)
+  --read-only           Do not rewrite the contract Status header; tests_pass and
+                        commands_succeed still execute for verification
   --report-file <path>  Write structured JSON results for downstream tooling
 USAGE_EOF
 }
@@ -200,6 +201,8 @@ write_report() {
     printf '  "failure_class": "%s",\n' "$(json_escape "$failure_class")"
     printf '  "quiet": %s,\n' "$([[ "$quiet" -eq 1 ]] && echo true || echo false)"
     printf '  "strict": %s,\n' "$([[ "$strict" -eq 1 ]] && echo true || echo false)"
+    printf '  "read_only": %s,\n' "$([[ "$read_only" -eq 1 ]] && echo true || echo false)"
+    printf '  "executes_contract_commands": %s,\n' "$([[ "$executes_contract_commands" -eq 1 ]] && echo true || echo false)"
     printf '  "total": %s,\n' "$total"
     printf '  "failed": %s,\n' "$failed"
     echo '  "results": ['
@@ -226,6 +229,7 @@ read_only=0
 report_file=""
 run_id="$(resolve_run_id)"
 failure_class=""
+executes_contract_commands=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -269,7 +273,8 @@ if [[ -z "$contract_file" ]]; then
   exit 2
 fi
 
-trap 'rm -f /tmp/contract-test.log /tmp/contract-command.log' EXIT
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
 
 if [[ ! -f "$contract_file" ]]; then
   echo "[ContractVerify] Contract file not found: $contract_file" >&2
@@ -458,6 +463,9 @@ while IFS= read -r raw_line; do
       ;;
   esac
 done <<< "$yaml_block"
+if ((${#tests_pass[@]} || ${#commands_succeed[@]})); then
+  executes_contract_commands=1
+fi
 
 total=0
 failed=0
@@ -499,7 +507,7 @@ if ((${#tests_pass[@]})); then
       continue
     fi
 
-    if "$bun_bin" test "$path" >/tmp/contract-test.log 2>&1; then
+    if "$bun_bin" test "$path" >"$tmp_dir/contract-test.log" 2>&1; then
       pass "tests_pass" "$path" "tests_pass: $path"
     else
       fail "tests_pass" "$path" "tests_pass: $path"
@@ -509,7 +517,7 @@ fi
 
 if ((${#commands_succeed[@]})); then
   for cmd in "${commands_succeed[@]}"; do
-    if bash -lc "$cmd" >/tmp/contract-command.log 2>&1; then
+    if bash -lc "$cmd" >"$tmp_dir/contract-command.log" 2>&1; then
       pass "commands_succeed" "$cmd" "commands_succeed: $cmd"
     else
       fail "commands_succeed" "$cmd" "commands_succeed: $cmd"

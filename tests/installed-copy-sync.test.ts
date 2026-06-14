@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { spawnSync } from "child_process";
 
 const ROOT = join(import.meta.dir, "..");
+
+function writeExecutable(filePath: string, content: string) {
+  writeFileSync(filePath, content);
+  chmodSync(filePath, 0o755);
+}
 
 describe("Codex installed copy sync", () => {
   test("keeps command facades only in the canonical repo-harness copy", () => {
@@ -114,6 +119,110 @@ describe("Codex installed copy sync", () => {
       expect(() => lstatSync(join(codexSkills, "repo-harness-skill"))).toThrow();
       expect(() => lstatSync(join(claudeSkills, "repo-harness-skill"))).toThrow();
       expect(existsSync(join(source, "SKILL.md"))).toBe(true);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("copy mode reports explicit unsupported mode when rsync is missing", () => {
+    const tmp = join(tmpdir(), `repo-harness-installed-no-rsync-${Date.now()}`);
+    const source = join(tmp, "source");
+    const codexSkills = join(tmp, "codex-skills");
+    const fakeBin = join(tmp, "fake-bin");
+
+    try {
+      mkdirSync(source, { recursive: true });
+      mkdirSync(codexSkills, { recursive: true });
+      mkdirSync(fakeBin, { recursive: true });
+      writeFileSync(join(source, "SKILL.md"), "---\nname: repo-harness\n---\n");
+
+      const result = spawnSync("/bin/bash", [join(ROOT, "scripts", "sync-codex-installed-copies.sh")], {
+        cwd: ROOT,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: fakeBin,
+          AGENTIC_DEV_SOURCE_ROOT: source,
+          AGENTIC_DEV_LINK_INSTALLED_COPIES: "0",
+          CODEX_SKILLS_ROOT: codexSkills,
+          CLAUDE_SKILLS_ROOT: "",
+        },
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("unsupported copy-mode: rsync capability is missing");
+      expect(result.stderr).toContain("AGENTIC_DEV_LINK_INSTALLED_COPIES=1");
+      expect(existsSync(join(codexSkills, "repo-harness"))).toBe(false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("link mode does not require rsync when symlinks are supported", () => {
+    const tmp = join(tmpdir(), `repo-harness-installed-link-no-rsync-${Date.now()}`);
+    const source = join(tmp, "source");
+    const codexSkills = join(tmp, "codex-skills");
+    const fakeBin = join(tmp, "fake-bin");
+
+    try {
+      mkdirSync(source, { recursive: true });
+      mkdirSync(codexSkills, { recursive: true });
+      mkdirSync(fakeBin, { recursive: true });
+      writeFileSync(join(source, "SKILL.md"), "---\nname: repo-harness\n---\n");
+      writeExecutable(join(fakeBin, "mkdir"), "#!/bin/bash\nexec /bin/mkdir \"$@\"\n");
+      writeExecutable(join(fakeBin, "ln"), "#!/bin/bash\nexec /bin/ln \"$@\"\n");
+
+      const result = spawnSync("/bin/bash", [join(ROOT, "scripts", "sync-codex-installed-copies.sh")], {
+        cwd: ROOT,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: fakeBin,
+          AGENTIC_DEV_SOURCE_ROOT: source,
+          AGENTIC_DEV_LINK_INSTALLED_COPIES: "1",
+          CODEX_SKILLS_ROOT: codexSkills,
+          CLAUDE_SKILLS_ROOT: "",
+        },
+      });
+
+      expect(result.status).toBe(0);
+      expect(lstatSync(join(codexSkills, "repo-harness")).isSymbolicLink()).toBe(true);
+      expect(result.stdout).toContain("canonical skill link");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("link mode reports explicit unsupported mode when symlink creation fails", () => {
+    const tmp = join(tmpdir(), `repo-harness-installed-no-symlink-${Date.now()}`);
+    const source = join(tmp, "source");
+    const codexSkills = join(tmp, "codex-skills");
+    const fakeBin = join(tmp, "fake-bin");
+
+    try {
+      mkdirSync(source, { recursive: true });
+      mkdirSync(codexSkills, { recursive: true });
+      mkdirSync(fakeBin, { recursive: true });
+      writeFileSync(join(source, "SKILL.md"), "---\nname: repo-harness\n---\n");
+      writeExecutable(join(fakeBin, "mkdir"), "#!/bin/bash\nexec /bin/mkdir \"$@\"\n");
+      writeExecutable(join(fakeBin, "ln"), "#!/bin/bash\nexit 1\n");
+
+      const result = spawnSync("/bin/bash", [join(ROOT, "scripts", "sync-codex-installed-copies.sh")], {
+        cwd: ROOT,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: fakeBin,
+          AGENTIC_DEV_SOURCE_ROOT: source,
+          AGENTIC_DEV_LINK_INSTALLED_COPIES: "1",
+          CODEX_SKILLS_ROOT: codexSkills,
+          CLAUDE_SKILLS_ROOT: "",
+        },
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("unsupported link-mode: symlink capability is unavailable");
+      expect(result.stderr).toContain("AGENTIC_DEV_LINK_INSTALLED_COPIES=0");
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

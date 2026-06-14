@@ -687,8 +687,18 @@ Configured in `assets/initializer-question-pack.v4.json` and consumed by `script
 
 ## Verification
 
+Use the single CI-equivalent gate for release review:
+
+```bash
+bun run check:ci
+```
+
+The gate expands to the owned checks below; `bun run check:release` adds only the npm unpublished-version preflight before delegating to the same gate.
+
 ```bash
 bun test
+bash scripts/check-deploy-sql-order.sh
+bash scripts/check-architecture-sync.sh
 bash scripts/check-task-sync.sh
 bash scripts/check-task-workflow.sh --strict
 bun scripts/inspect-project-state.ts --repo . --format text

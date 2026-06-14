@@ -54,15 +54,38 @@ export function clearRegisteredChecks(): void {
 }
 
 function homeDir(): string {
-  return process.env.HOME ?? os.homedir();
+  return process.env.HOME ?? process.env.USERPROFILE ?? os.homedir();
+}
+
+function findCommandOnPath(command: string): string | null {
+  const pathValue = process.env.PATH ?? '';
+  const pathExt = process.platform === 'win32'
+    ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
+    : [''];
+  for (const dir of pathValue.split(path.delimiter)) {
+    if (!dir) continue;
+    for (const ext of pathExt) {
+      const candidate = path.join(dir, `${command}${ext}`);
+      try {
+        if (!fs.statSync(candidate).isFile()) continue;
+        if (process.platform !== 'win32') {
+          fs.accessSync(candidate, fs.constants.X_OK);
+        }
+        return candidate;
+      } catch {
+        // Keep scanning PATH.
+      }
+    }
+  }
+  return null;
 }
 
 function checkPath(): DoctorCheckResult {
   const id = 'cli-on-path';
   const describe = 'repo-harness resolvable via PATH';
-  const result = spawnSync('which', ['repo-harness'], { encoding: 'utf-8' });
-  if (result.status === 0 && (result.stdout ?? '').trim()) {
-    return { id, describe, status: 'ok', detail: (result.stdout as string).trim() };
+  const resolved = findCommandOnPath('repo-harness');
+  if (resolved) {
+    return { id, describe, status: 'ok', detail: resolved };
   }
   return {
     id,
@@ -139,7 +162,7 @@ function checkCliUpdate(): DoctorCheckResult {
       id,
       describe,
       status: 'warn',
-      detail: `current=${CLI_VERSION}; latest=${latest.version}; agent_action=npm install -g ${PACKAGE_NAME}@latest && repo-harness init`,
+      detail: `current=${CLI_VERSION}; latest=${latest.version}; agent_action=bun add -g ${PACKAGE_NAME}@latest && repo-harness init`,
     };
   }
   return { id, describe, status: 'ok', detail: `current=${CLI_VERSION}; latest=${latest.version}` };
@@ -399,7 +422,7 @@ function checkHookScriptDrift(cwd: string): DoctorCheckResult {
 
   const remediation =
     resolved.source === 'packaged'
-      ? 'npm install -g repo-harness@latest'
+      ? 'bun add -g repo-harness@latest'
       : `repo-harness adopt --repo ${repoRoot}`;
   return {
     id,

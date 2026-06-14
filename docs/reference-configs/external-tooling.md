@@ -153,6 +153,33 @@ materializes `node_modules/.bin/codegraph`; its source-only
 repos keep the global MCP installer default and should use the `codegraph`
 command directly unless local policy explicitly opts into vendoring.
 
+### Runtime Ownership Boundary
+
+`repo-harness setup check --target <host> --check-updates --json` reports the
+execution base as separate `runtime.*` checks. Keep the boundary explicit:
+
+| Capability | Owner | Required for |
+|---|---|---|
+| `bun` | repo-harness | repo-harness-owned global installs, local dependency install, tests, and runtime execution |
+| `bash` | repo-harness | helper scripts, migration, setup checks, and contract verification wrappers |
+| `npm` | npm registry | registry readbacks, publish gates, and opt-in update checks; not repo-harness-owned global install repair |
+| `npx` / `skills_cli` | external Skills CLI | Waza and Mermaid skill bootstrap/update commands |
+| `rsync` | platform filesystem | Waza staging-to-Codex sync and installed-copy runtime mirroring |
+| `symlink` | platform filesystem | link-mode aliases; copy mode is the fallback |
+
+The policy is Bun-first, not Bun-only. Repo-harness-owned install/repair commands
+use `bun add -g` or `bun install`. Waza/Mermaid remain explicit external Skills
+CLI dependencies until a separate plan replaces that integration. Missing
+optional capabilities should degrade the named feature, not blur command
+ownership.
+
+Installed-copy sync has two explicit modes. `AGENTIC_DEV_LINK_INSTALLED_COPIES=1`
+uses symlinks and does not require `rsync`; if symlink creation fails, the
+script reports unsupported link-mode and tells the caller to use copy-mode.
+`AGENTIC_DEV_LINK_INSTALLED_COPIES=0` uses copy-mode and requires `rsync`; if
+`rsync` is missing, the script reports unsupported copy-mode instead of a
+generic command failure.
+
 Read-only check:
 
 ```bash
@@ -171,7 +198,7 @@ is one terminal command, or explicit authorization for their agent to run the
 same command:
 
 ```bash
-npm install -g @colbymchenry/codegraph && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" repo-harness tools configure codegraph --target codex --location global
+bun add -g @colbymchenry/codegraph && repo-harness tools configure codegraph --target codex --location global
 ```
 
 This delegates host-specific MCP config to CodeGraph's target adapters for
@@ -272,7 +299,7 @@ gbrain upgrade
 ### CodeGraph
 
 ```bash
-npm install -g @colbymchenry/codegraph@latest && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph sync . && PATH="$HOME/.local/bin:$PATH" codegraph status .
+bun add -g @colbymchenry/codegraph@latest && codegraph sync . && codegraph status .
 ```
 
 ## Manual Knowledge Sync

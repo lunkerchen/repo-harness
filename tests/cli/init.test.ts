@@ -432,6 +432,44 @@ describe("init command", () => {
     }
   }, CODEGRAPH_INIT_TIMEOUT_MS);
 
+  test("adopt reports CodeGraph readiness exceptions as a structured failed step", () => {
+    const tmp = join(tmpdir(), `repo-harness-init-codegraph-failure-${Date.now()}`);
+    const source = join(tmp, "source");
+    const repo = join(tmp, "repo");
+    const home = join(tmp, "home");
+    const fakeBin = join(tmp, "bin");
+    try {
+      mkdirSync(source, { recursive: true });
+      mkdirSync(repo, { recursive: true });
+      mkdirSync(home, { recursive: true });
+      mkdirSync(fakeBin, { recursive: true });
+      setupFakeSource(source);
+      makeExecutable(join(fakeBin, "node"), "#!/bin/bash\necho 'not json'\nexit 0\n");
+
+      const result = runInit({
+        repo,
+        sourceRoot: source,
+        syncSkill: false,
+        hostAdapters: false,
+        externalSkills: false,
+        verify: false,
+        env: {
+          ...process.env,
+          HOME: home,
+          PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+        },
+      });
+
+      const codegraphStep = result.steps.find((step) => step.step === "ensure codegraph index");
+      expect(result.exitCode).toBe(1);
+      expect(codegraphStep?.status).toBe("failed");
+      expect(codegraphStep?.detail).toBe("CodeGraph readiness check failed");
+      expect(codegraphStep?.stderr).toContain("JSON Parse error");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test("writes global working rules as an idempotent managed block", () => {
     const tmp = join(tmpdir(), `repo-harness-init-global-rules-${Date.now()}`);
     const source = join(tmp, "source");
@@ -464,6 +502,29 @@ describe("init command", () => {
       expect(codex).toContain("<!-- BEGIN: repo-harness global-working-rules -->");
       expect(codex).toContain("- Use Chinese to report to user.");
       expect(claude).toContain("- Use Chinese to report to user.");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("resolves host context paths from USERPROFILE when HOME is absent", () => {
+    const tmp = join(tmpdir(), `repo-harness-init-userprofile-${Date.now()}`);
+    const source = join(tmp, "source");
+    const home = join(tmp, "profile");
+    try {
+      mkdirSync(source, { recursive: true });
+      mkdirSync(home, { recursive: true });
+      setupFakeSource(source);
+
+      const result = writeGlobalContextFiles(
+        source,
+        "codex",
+        { reportLanguageInstruction: "Use Chinese to report to user." },
+        { ...process.env, HOME: undefined, USERPROFILE: home } as NodeJS.ProcessEnv,
+      );
+
+      expect(result.status).toBe("ok");
+      expect(existsSync(join(home, ".codex", "AGENTS.md"))).toBe(true);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

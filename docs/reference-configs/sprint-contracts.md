@@ -44,6 +44,10 @@ New contracts include a `## Delegation Contract` YAML block between allowed path
 
 Existing contracts without this block remain valid. `.ai/harness/scripts/verify-contract.sh` continues to evaluate only the `exit_criteria` YAML block, so adding delegation metadata must not make old or new contracts fail verification.
 
+## Verification Execution Boundary
+
+`verify-contract.sh --read-only` is read-only for contract state writes only: it does not rewrite the contract `> **Status**:` line. It still executes `tests_pass` with Bun and `commands_succeed` with `bash -lc` so hook-driven done gates can verify the same exit criteria as an explicit maintainer run. Do not put mutating commands in `commands_succeed` unless the contract deliberately treats that side effect as part of verification.
+
 ## Status Rules
 
 - `Pending`: drafted but not approved for execution

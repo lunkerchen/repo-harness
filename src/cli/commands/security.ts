@@ -97,7 +97,7 @@ const SUSPICIOUS_COMMAND_PATTERNS: Array<{ ruleId: string; regex: RegExp; summar
 ];
 
 function homeDir(): string {
-  return process.env.HOME ?? os.homedir();
+  return process.env.HOME ?? process.env.USERPROFILE ?? os.homedir();
 }
 
 function resolveRepoRoot(cwd: string): string {
@@ -249,7 +249,7 @@ function scanVscodeTasks(findings: SecurityFinding[], filePath: string): void {
 }
 
 function reportStatus(findings: SecurityFinding[]): SecurityStatus {
-  if (findings.some((finding) => finding.severity === 'fail')) return 'fail';
+  if (findings.some((finding) => finding.severity === 'fail' || finding.severity === 'high')) return 'fail';
   if (findings.length > 0) return 'warn';
   return 'ok';
 }

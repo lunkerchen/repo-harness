@@ -67,7 +67,7 @@ export function buildProgram(): Command {
     .option('--no-external-skills', 'Skip Waza, Mermaid, and cross-review (codex-review/claude-review) skill bootstrap')
     .option('--no-codegraph', 'Skip CodeGraph CLI/MCP configuration')
     .option('--brain-root <path>', 'Brain vault root to persist for repo-harness brain commands')
-    .option('--refresh', 'Refresh the idempotent user-level runtime after a CLI package update')
+    .option('--refresh', 'Compatibility no-op; init already refreshes the idempotent user-level runtime')
     .option('--json', 'Output JSON instead of human-readable text')
     .action((rawOpts: {
       target: string;

@@ -25,11 +25,6 @@ if [[ -z "${CLAUDE_SKILLS_ROOT:-}" ]]; then
   fi
 fi
 
-if ! command -v rsync >/dev/null 2>&1; then
-  echo "[sync-installed] rsync is required." >&2
-  exit 1
-fi
-
 SOURCE_ROOT="${SOURCE_ROOT%/}"
 CODEX_SKILLS_ROOT="${CODEX_SKILLS_ROOT%/}"
 if [[ -n "$CLAUDE_SKILLS_ROOT" ]]; then
@@ -74,8 +69,29 @@ common_excludes=(
   --exclude='.ai/harness/runs/'
 )
 
+require_rsync_for_copy_mode() {
+  if command -v rsync >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "[sync-installed] unsupported copy-mode: rsync capability is missing." >&2
+  echo "[sync-installed] Install rsync, or rerun with AGENTIC_DEV_LINK_INSTALLED_COPIES=1 on a filesystem that supports symlinks." >&2
+  exit 1
+}
+
+create_symlink_or_explain() {
+  local source="$1"
+  local dest="$2"
+  if ln -s "$source" "$dest"; then
+    return 0
+  fi
+  echo "[sync-installed] unsupported link-mode: symlink capability is unavailable for $dest." >&2
+  echo "[sync-installed] Rerun with AGENTIC_DEV_LINK_INSTALLED_COPIES=0 to use copy-mode; copy-mode requires rsync." >&2
+  exit 1
+}
+
 sync_copy() {
   local dest="$1"
+  require_rsync_for_copy_mode
   remove_managed_dest "$dest"
   mkdir -p "$dest"
   rsync -a --delete "${common_excludes[@]}" "$SOURCE_ROOT/" "$dest/"
@@ -123,7 +139,7 @@ sync_claude_alias_links() {
   mkdir -p "$CLAUDE_SKILLS_ROOT"
   local alias_dest="$CLAUDE_SKILLS_ROOT/repo-harness"
   remove_managed_dest "$alias_dest"
-  ln -s "$SOURCE_ROOT" "$alias_dest"
+  create_symlink_or_explain "$SOURCE_ROOT" "$alias_dest"
   echo "[sync-installed] Claude skill alias: $alias_dest -> $SOURCE_ROOT"
 }
 
@@ -142,7 +158,7 @@ canonical_dest="$CODEX_SKILLS_ROOT/repo-harness"
 if [[ "$LINK_INSTALLED_COPIES" == "1" ]]; then
   mkdir -p "$CODEX_SKILLS_ROOT"
   remove_managed_dest "$canonical_dest"
-  ln -s "$SOURCE_ROOT" "$canonical_dest"
+  create_symlink_or_explain "$SOURCE_ROOT" "$canonical_dest"
   echo "[sync-installed] canonical skill link: $canonical_dest -> $SOURCE_ROOT"
 
   remove_retired_aliases "$CODEX_SKILLS_ROOT"

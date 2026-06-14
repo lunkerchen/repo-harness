@@ -69,7 +69,8 @@ describe('install command (Phase 1B)', () => {
           const hook = entry.hooks[0];
           const cmd = hook.command;
           expect(cmd).toContain('command -v repo-harness-hook');
-          expect(cmd).toContain('exec repo-harness-hook ');
+          expect(cmd).toContain('repo-harness-hook ');
+          expect(cmd).toContain('&& exit 0');
           expect(cmd).toContain('command -v repo-harness');
           expect(cmd).toContain('HOOK_HOST=codex');
           expect(cmd).toContain('exec repo-harness hook ');

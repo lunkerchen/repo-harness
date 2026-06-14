@@ -135,7 +135,7 @@ repo-harness setup check --json
 |---|---|---|---|---|
 | `repo-harness init` | user-level | `~/.repo-harness/*`、`~/.claude/*`、`~/.codex/*`、user skills、host adapters | 当前 repo workflow files | 首次配置这台机器 |
 | `repo-harness update` | user-level | global CLI package、repo-harness-owned global runtime、host adapter managed entries | 当前 repo workflow files | 更新 CLI/runtime |
-| `repo-harness adopt` | repo-level | `.ai/harness/*`、`.ai/context/*`、`docs/spec.md`、`plans/`、`tasks/`、repo docs stubs/wrappers | `~/.claude/*`、`~/.codex/*`、global skills、npm global package | 安装或刷新 repo contract |
+| `repo-harness adopt` | repo-level | `.ai/harness/*`、`.ai/context/*`、`docs/spec.md`、`plans/`、`tasks/`、repo docs stubs/wrappers | `~/.claude/*`、`~/.codex/*`、global skills、global package | 安装或刷新 repo contract |
 | `repo-harness run` | repo-level dispatch | repo workflow evidence only, if helper does so | user-level config | 运行 package-dispatched helper |
 | `repo-harness setup check` | read-only | 无 | 无 | readiness audit / Agent actions |
 | `repo-harness doctor` | read-only | 无 | 无 | 人类可读诊断 |
@@ -145,7 +145,7 @@ repo-harness setup check --json
 首次安装：
 
 ```bash
-npm install -g repo-harness
+bun add -g repo-harness
 repo-harness init
 ```
 
@@ -1331,7 +1331,7 @@ docs/architecture/modules/runtime-harness/*
 README 新 quickstart：
 
 ```bash
-npm install -g repo-harness
+bun add -g repo-harness
 repo-harness init
 
 cd my-repo

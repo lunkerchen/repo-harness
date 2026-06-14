@@ -2010,6 +2010,55 @@ describe("Workflow helper scripts", () => {
     }
   });
 
+  test("verify-contract --read-only still executes command criteria and reports the boundary", () => {
+    const cwd = tmpWorkspace("helper-verify-contract-read-only-exec");
+    try {
+      mkdirSync(join(cwd, "scripts"), { recursive: true });
+      copyHelpers(cwd);
+
+      const contractPath = join(cwd, "task.contract.md");
+      writeFileSync(
+        contractPath,
+        [
+          "# Task Contract: read-only exec",
+          "",
+          "> **Status**: Pending",
+          "",
+          "```yaml",
+          "exit_criteria:",
+          "  commands_succeed:",
+          "    - printf executed > command-ran.txt",
+          "```",
+          "",
+        ].join("\n")
+      );
+      const originalContent = readFileSync(contractPath, "utf-8");
+
+      const res = run(
+        "bash",
+        [
+          "scripts/verify-contract.sh",
+          "--contract",
+          "task.contract.md",
+          "--strict",
+          "--read-only",
+          "--report-file",
+          "report.json",
+        ],
+        cwd
+      );
+
+      expect(res.status).toBe(0);
+      expect(readFileSync(contractPath, "utf-8")).toBe(originalContent);
+      expect(readFileSync(join(cwd, "command-ran.txt"), "utf-8")).toBe("executed");
+      const report = JSON.parse(readFileSync(join(cwd, "report.json"), "utf-8"));
+      expect(report.read_only).toBe(true);
+      expect(report.executes_contract_commands).toBe(true);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("verify-contract quiet mode should emit only summary and report file", () => {
     const cwd = tmpWorkspace("helper-verify-contract-quiet");
     try {

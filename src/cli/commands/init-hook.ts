@@ -62,7 +62,19 @@ export interface ToolingReport {
   repo_root?: string;
   hosts?: string[];
   check_updates?: boolean;
+  runtime_capabilities?: Record<string, RuntimeCapability>;
   tools?: Record<string, ToolingTool>;
+}
+
+export interface RuntimeCapability {
+  name?: string;
+  status?: string;
+  path?: string | null;
+  owner?: string;
+  required?: boolean;
+  required_for?: string;
+  reason?: string;
+  command?: string;
 }
 
 export interface ToolingTool {
@@ -359,6 +371,52 @@ function updateNeedsAgent(updateStatus: string | null | undefined): boolean {
   return ['update-available', 'outdated', 'stale'].includes(normalized);
 }
 
+function runtimeCapabilityStatus(capability: RuntimeCapability): InitHookCheckStatus {
+  const normalized = (capability.status ?? 'unknown').toLowerCase();
+  if (['present', 'available', 'supported', 'ok', 'ready'].includes(normalized)) return 'ok';
+  if (['missing', 'unavailable', 'unsupported', 'failed', 'fail', 'timed-out'].includes(normalized)) {
+    return capability.required ? 'needs_agent' : 'warn';
+  }
+  return capability.required ? 'needs_agent' : 'warn';
+}
+
+function runtimeCapabilityChecks(
+  report: ToolingReport | undefined,
+  target: InitHookTarget,
+  checkUpdates: boolean,
+  actions: InitHookAction[],
+): InitHookCheck[] {
+  const checks: InitHookCheck[] = [];
+  for (const [capabilityName, capability] of Object.entries(report?.runtime_capabilities ?? {})) {
+    const status = runtimeCapabilityStatus(capability);
+    const owner = capability.owner ? `owner=${capability.owner}` : 'owner=unknown';
+    const required = capability.required ? 'required' : 'optional';
+    const path = capability.path ? `; path=${capability.path}` : '';
+    const requiredFor = capability.required_for ? `; required_for=${capability.required_for}` : '';
+    const reason = capability.reason ? `; reason=${capability.reason}` : '';
+    checks.push({
+      id: `runtime.${capabilityName}`,
+      title: `Runtime capability: ${capability.name ?? capabilityName}`,
+      status,
+      source: 'tooling',
+      detail: `${capability.status ?? 'unknown'} (${required}); ${owner}${path}${requiredFor}${reason}`,
+    });
+
+    if (status === 'needs_agent') {
+      addAction(actions, {
+        id: `runtime.${capabilityName}.repair`,
+        status: 'needs_agent',
+        reason: `${capability.name ?? capabilityName} runtime capability is ${capability.status ?? 'unknown'}.`,
+        requires_agent: true,
+        risk: 'May change host-level runtime tooling; verify setup check after repair.',
+        command: normalizeToolCommand(capability.command, target),
+        verification: verificationCommand(target, checkUpdates),
+      });
+    }
+  }
+  return checks;
+}
+
 function commandForToolGap(toolName: string, tool: ToolingTool, target: InitHookTarget): string | undefined {
   const status = (tool.status ?? '').toLowerCase();
   if (status === 'missing') {
@@ -532,6 +590,7 @@ export function runInitHook(opts: InitHookOptions = {}): InitHookReport {
     ...statusChecks(statusReport, target, checkUpdates, actions),
     ...doctorChecks(doctorReport, target, checkUpdates, actions),
     ...globalRulesChecks(target, opts.env, checkUpdates, actions),
+    ...runtimeCapabilityChecks(toolingProbe.report, target, checkUpdates, actions),
     ...toolingChecks(toolingProbe.report, target, checkUpdates, actions, toolingProbe.error),
     ...legacyChecks(cwd, target, checkUpdates, actions),
   ];

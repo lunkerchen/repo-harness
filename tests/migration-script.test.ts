@@ -197,6 +197,28 @@ describe("Migration script contract", () => {
     }
   });
 
+  test("apply mode treats repo paths as argv and does not evaluate shell metacharacters", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "migration-shell-safe-"));
+    const marker = join(tmp, "pwned");
+    const repo = join(tmp, `repo-\$(touch ${marker})`);
+    try {
+      mkdirSync(join(repo, "docs"), { recursive: true });
+      writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", scripts: {} }, null, 2));
+
+      const res = spawnSync(
+        "bash",
+        ["scripts/migrate-project-template.sh", "--repo", repo, "--apply"],
+        { cwd: ROOT, encoding: "utf-8" }
+      );
+
+      expect(res.status).toBe(0);
+      expect(existsSync(marker)).toBe(false);
+      expect(existsSync(join(repo, ".ai", "harness", "workflow-contract.json"))).toBe(true);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  }, MIGRATION_INTEGRATION_TIMEOUT);
+
   test("should apply migration and create workflow artifacts with single-source plan workflow", () => {
     const repo = mkdtempSync(join(tmpdir(), "migration-apply-"));
     try {

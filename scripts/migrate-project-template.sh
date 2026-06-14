@@ -163,18 +163,19 @@ NODE_EOF
 }
 
 run_or_echo() {
-  local cmd="$1"
   if [[ "$MODE" == "apply" ]]; then
-    eval "$cmd"
+    "$@"
   else
-    echo "[dry-run] $cmd"
+    printf '[dry-run]'
+    printf ' %q' "$@"
+    printf '\n'
   fi
 }
 
 backup_if_exists() {
   local path="$1"
   if [[ -f "$path" ]]; then
-    run_or_echo "cp \"$path\" \"$path.bak.$(date +%Y%m%d%H%M%S)\""
+    run_or_echo cp "$path" "$path.bak.$(date +%Y%m%d%H%M%S)"
   fi
 }
 
@@ -689,7 +690,7 @@ install_reference_configs() {
   local ref_dir="$repo/docs/reference-configs"
   local ref_assets_dir="$SKILL_ROOT/assets/reference-configs"
 
-  run_or_echo "mkdir -p \"$ref_dir\""
+  run_or_echo mkdir -p "$ref_dir"
 
   if [[ -d "$ref_assets_dir" ]]; then
     if [[ "$MODE" == "apply" ]]; then
@@ -704,18 +705,18 @@ ensure_ops_scaffold() {
   local repo="$1"
   local deploy_readme="$repo/deploy/README.md"
 
-  run_or_echo "mkdir -p \"$repo/deploy/env\""
-  run_or_echo "mkdir -p \"$repo/deploy/scripts\""
-  run_or_echo "mkdir -p \"$repo/deploy/submissions\""
-  run_or_echo "mkdir -p \"$repo/deploy/runbooks\""
-  run_or_echo "mkdir -p \"$repo/deploy/release-checklists\""
-  run_or_echo "mkdir -p \"$repo/deploy/sql\""
-  run_or_echo "mkdir -p \"$repo/_ops/env\""
-  run_or_echo "mkdir -p \"$repo/_ops/secrets\""
-  run_or_echo "mkdir -p \"$repo/_ops/artifacts\""
-  run_or_echo "mkdir -p \"$repo/_ops/logs\""
-  run_or_echo "mkdir -p \"$repo/_ops/state\""
-  run_or_echo "mkdir -p \"$repo/_ops/scratch\""
+  run_or_echo mkdir -p "$repo/deploy/env"
+  run_or_echo mkdir -p "$repo/deploy/scripts"
+  run_or_echo mkdir -p "$repo/deploy/submissions"
+  run_or_echo mkdir -p "$repo/deploy/runbooks"
+  run_or_echo mkdir -p "$repo/deploy/release-checklists"
+  run_or_echo mkdir -p "$repo/deploy/sql"
+  run_or_echo mkdir -p "$repo/_ops/env"
+  run_or_echo mkdir -p "$repo/_ops/secrets"
+  run_or_echo mkdir -p "$repo/_ops/artifacts"
+  run_or_echo mkdir -p "$repo/_ops/logs"
+  run_or_echo mkdir -p "$repo/_ops/state"
+  run_or_echo mkdir -p "$repo/_ops/scratch"
 
   if [[ "$MODE" != "apply" ]]; then
     echo "[dry-run] ensure deploy workspace README, tracked placeholders, deploy/sql, and ignored _ops private state"
@@ -918,7 +919,7 @@ migrate_hooks() {
   local project_claude_dir="$repo/.claude"
   local project_ai_hooks_dir="$repo/.ai/hooks"
 
-  run_or_echo "mkdir -p \"$project_claude_dir\" \"$project_ai_hooks_dir\""
+  run_or_echo mkdir -p "$project_claude_dir" "$project_ai_hooks_dir"
 
   cleanup_removed_workflow_assets "$repo"
   pi_install_hook_assets "$repo" "$HOOK_ASSETS_DIR" "$MODE"
@@ -944,17 +945,17 @@ migrate_docs() {
 migrate_workflow() {
   local repo="$1"
 
-  run_or_echo "mkdir -p \"$repo/plans/archive\""
-  run_or_echo "mkdir -p \"$repo/plans/prds\""
-  run_or_echo "mkdir -p \"$repo/plans/sprints\""
-  run_or_echo "mkdir -p \"$repo/tasks/archive\""
-  run_or_echo "mkdir -p \"$repo/tasks/contracts\""
-  run_or_echo "mkdir -p \"$repo/tasks/reviews\""
-  run_or_echo "mkdir -p \"$repo/tasks/notes\""
-  run_or_echo "mkdir -p \"$repo/tasks/workstreams\""
-  run_or_echo "mkdir -p \"$repo/docs/reference-configs\""
-  run_or_echo "mkdir -p \"$repo/.ai/harness/checks\""
-  run_or_echo "mkdir -p \"$repo/.ai/harness/handoff\""
+  run_or_echo mkdir -p "$repo/plans/archive"
+  run_or_echo mkdir -p "$repo/plans/prds"
+  run_or_echo mkdir -p "$repo/plans/sprints"
+  run_or_echo mkdir -p "$repo/tasks/archive"
+  run_or_echo mkdir -p "$repo/tasks/contracts"
+  run_or_echo mkdir -p "$repo/tasks/reviews"
+  run_or_echo mkdir -p "$repo/tasks/notes"
+  run_or_echo mkdir -p "$repo/tasks/workstreams"
+  run_or_echo mkdir -p "$repo/docs/reference-configs"
+  run_or_echo mkdir -p "$repo/.ai/harness/checks"
+  run_or_echo mkdir -p "$repo/.ai/harness/handoff"
   migrate_active_plan_marker "$repo"
 
   install_templates "$repo"
@@ -971,7 +972,7 @@ migrate_workflow() {
   ensure_task_sync_package_script "$repo"
 
   local repo_gitignore="$repo/.gitignore"
-  run_or_echo "touch \"$repo_gitignore\""
+  run_or_echo touch "$repo_gitignore"
   ensure_gitignore_entry "$repo_gitignore" "# Project-specific"
   ensure_gitignore_entry "$repo_gitignore" "artifacts/"
   ensure_gitignore_entry "$repo_gitignore" "coverage/"

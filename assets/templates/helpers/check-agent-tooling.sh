@@ -77,7 +77,7 @@ const WAZA_MANAGED_SKILLS = ["think", "hunt", "check", "health"];
 const WAZA_SHARED_RULES = ["anti-patterns.md", "chinese.md", "durable-context.md", "english.md"];
 const CODEX_AUTOMATION_SKILLS = ["health", "check", "mermaid"];
 const CODEGRAPH_PACKAGE = "@colbymchenry/codegraph";
-const CODEGRAPH_GLOBAL_INSTALL_COMMAND = `npm install -g ${CODEGRAPH_PACKAGE} && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" repo-harness tools configure codegraph --target codex --location global`;
+const CODEGRAPH_GLOBAL_INSTALL_COMMAND = `bun add -g ${CODEGRAPH_PACKAGE} && repo-harness tools configure codegraph --target codex --location global`;
 const CODEGRAPH_MCP_CONFIGURE_COMMAND = "repo-harness tools configure codegraph --target <codex|claude|both> --location global";
 const CODEGRAPH_LOCAL_INSTALL_COMMAND = "bun install";
 const CODEGRAPH_ENSURE_COMMAND = [
@@ -137,6 +137,48 @@ function detectTimeoutBin() {
   if (timeoutBin !== undefined) return timeoutBin;
   timeoutBin = resolvePathCommand("timeout") || "";
   return timeoutBin;
+}
+
+function commandCapability(command, requiredFor, owner, required = false) {
+  const binPath = resolvePathCommand(command);
+  return {
+    name: command,
+    status: binPath ? "present" : "missing",
+    path: binPath,
+    owner,
+    required,
+    required_for: requiredFor,
+  };
+}
+
+function detectSymlinkCapability() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-harness-symlink-check-"));
+  const source = path.join(tmpDir, "source");
+  const link = path.join(tmpDir, "link");
+  try {
+    fs.writeFileSync(source, "ok\n");
+    fs.symlinkSync(source, link);
+    return {
+      name: "symlink",
+      status: "supported",
+      path: null,
+      owner: "platform-filesystem",
+      required: false,
+      required_for: "installed-copy link mode and host skill aliasing; copy mode remains the fallback",
+    };
+  } catch (error) {
+    return {
+      name: "symlink",
+      status: "unsupported",
+      path: null,
+      owner: "platform-filesystem",
+      required: false,
+      required_for: "installed-copy link mode and host skill aliasing; copy mode remains the fallback",
+      reason: String(error?.message || error),
+    };
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 function run(command, args, options = {}) {
@@ -795,6 +837,51 @@ function detectWaza() {
   };
 }
 
+function detectRuntimeCapabilities(waza) {
+  return {
+    bun: commandCapability(
+      "bun",
+      "repo-harness-owned global installs, local package dependency install, and test/runtime execution",
+      "repo-harness",
+      true
+    ),
+    npm: commandCapability(
+      "npm",
+      "npm registry readbacks, publish gates, and opt-in update checks; not used for repo-harness-owned global install repair",
+      "npm-registry",
+      false
+    ),
+    npx: commandCapability(
+      "npx",
+      "external Skills CLI bootstrap/update commands for Waza and Mermaid",
+      "external-skills-cli",
+      false
+    ),
+    skills_cli: {
+      name: "skills_cli",
+      status: waza.skills_cli_status === "available" ? "available" : waza.skills_cli_status,
+      path: null,
+      owner: "external-skills-cli",
+      required: false,
+      required_for: "Waza/Mermaid external skill bootstrap; repo-harness reports this as an explicit exception boundary",
+      command: "npx -y skills ls -g --json",
+    },
+    bash: commandCapability(
+      "bash",
+      "repo-harness helper scripts, migration, setup checks, and contract verification wrappers",
+      "repo-harness",
+      true
+    ),
+    rsync: commandCapability(
+      "rsync",
+      "Waza staging-to-Codex sync and installed-copy runtime mirroring",
+      "platform-filesystem",
+      false
+    ),
+    symlink: detectSymlinkCapability(),
+  };
+}
+
 function inspectCodexAutomationSkill(skill) {
   const skillFile = path.join(HOSTS.codex.skillsDir, skill, "SKILL.md");
   const local = readSkillFile(skillFile);
@@ -1237,7 +1324,7 @@ function detectCodeGraph() {
     mcp_install_command: CODEGRAPH_MCP_CONFIGURE_COMMAND,
     init_command: packageDeclared && CODEGRAPH_ENSURE_BASH_COMMAND ? `${CODEGRAPH_ENSURE_BASH_COMMAND} --init` : "codegraph init -i .",
     sync_command: packageDeclared && CODEGRAPH_ENSURE_BASH_COMMAND ? `${CODEGRAPH_ENSURE_BASH_COMMAND} --sync` : "codegraph sync .",
-    upgrade_command: packageDeclared && CODEGRAPH_ENSURE_BASH_COMMAND ? `bun update @colbymchenry/codegraph && ${CODEGRAPH_ENSURE_BASH_COMMAND} --sync` : `npm install -g ${CODEGRAPH_PACKAGE}@latest && mkdir -p ~/.local/bin && ln -sfn "$(npm config get prefix)/bin/codegraph" ~/.local/bin/codegraph && PATH="$HOME/.local/bin:$PATH" codegraph sync .`,
+    upgrade_command: packageDeclared && CODEGRAPH_ENSURE_BASH_COMMAND ? `bun update @colbymchenry/codegraph && ${CODEGRAPH_ENSURE_BASH_COMMAND} --sync` : `bun add -g ${CODEGRAPH_PACKAGE}@latest && codegraph sync .`,
     uninstall_command: "codegraph uninstall --target codex --location global --yes",
     readiness: {
       required_for: "codex-agent-code-navigation",
@@ -1251,14 +1338,16 @@ function detectCodeGraph() {
   };
 }
 
+const wazaReport = detectWaza();
 const report = {
   generated_at: new Date().toISOString(),
   repo_root: REPO_ROOT,
   hosts: SELECTED_HOSTS,
   check_updates: checkUpdates,
+  runtime_capabilities: detectRuntimeCapabilities(wazaReport),
   tools: {
     gstack: detectGstack(),
-    waza: detectWaza(),
+    waza: wazaReport,
     codex_automation_profile: detectCodexAutomationProfile(),
     gbrain: detectGbrain(),
     codegraph: detectCodeGraph(),
@@ -1273,6 +1362,15 @@ if (strictReadiness && ["missing", "partial"].includes(report.tools.codegraph.st
 function printText(result) {
   console.log("External Tooling Report");
   console.log(`Hosts: ${result.hosts.join(", ")}`);
+  console.log("");
+
+  console.log("Runtime capabilities");
+  for (const capability of Object.values(result.runtime_capabilities || {})) {
+    const required = capability.required ? "required" : "optional";
+    const pathBits = capability.path ? ` at ${capability.path}` : "";
+    console.log(`  - ${capability.name}: ${capability.status} (${required})${pathBits}`);
+    console.log(`    owner=${capability.owner}; required_for=${capability.required_for}`);
+  }
   console.log("");
 
   const gstack = result.tools.gstack;

@@ -67,6 +67,7 @@ describe("Bootstrap Script Contracts", () => {
     expect(cliEntry).toContain("CLI_VERSION");
     expect(cliEntry).toContain("buildDocsCommand");
     expect(cliEntry).not.toMatch(/\\.version\\(['\"][0-9]+\\.[0-9]+\\.[0-9]+['\"]\\)/);
+    expect(pkg.scripts["check:ci"]).toBe("bash scripts/check-ci.sh");
     expect(pkg.scripts["check:brain-manifest"]).toBe("bash scripts/check-brain-manifest.sh");
     expect(pkg.scripts["check:task-sync"]).toBe("bash scripts/check-task-sync.sh");
     expect(pkg.scripts["check:deploy-sql"]).toBe("bash scripts/check-deploy-sql-order.sh");
@@ -76,15 +77,24 @@ describe("Bootstrap Script Contracts", () => {
     expect(pkg.scripts["sync:brain-docs"]).toBe("bash scripts/sync-brain-docs.sh --all");
   });
 
-  test("release gate should refresh handoff current before resume packet", () => {
-    const releaseGate = read("scripts/check-npm-release.sh");
-    const prepare = 'REPO_HARNESS_SKIP_RESUME_REFRESH=1 bash scripts/prepare-handoff.sh "release gate"';
-    const resume = 'bash scripts/codex-handoff-resume.sh --cwd . --reason "release gate"';
+  test("ci gate should refresh handoff current before resume packet", () => {
+    const ciGate = read("scripts/check-ci.sh");
+    const prepare = 'REPO_HARNESS_SKIP_RESUME_REFRESH=1 bash scripts/prepare-handoff.sh "ci gate"';
+    const resume = 'bash scripts/codex-handoff-resume.sh --cwd . --reason "ci gate"';
 
-    expect(releaseGate).toContain(prepare);
-    expect(releaseGate).toContain(resume);
-    expect(releaseGate.indexOf(prepare)).toBeLessThan(releaseGate.indexOf(resume));
-    expect(releaseGate.indexOf(resume)).toBeLessThan(releaseGate.indexOf("bash scripts/check-task-workflow.sh --strict"));
+    expect(ciGate).toContain(prepare);
+    expect(ciGate).toContain(resume);
+    expect(ciGate.indexOf(prepare)).toBeLessThan(ciGate.indexOf(resume));
+    expect(ciGate.indexOf(resume)).toBeLessThan(ciGate.indexOf("bash scripts/check-task-workflow.sh --strict"));
+  });
+
+  test("release gate should delegate owned checks to the ci gate", () => {
+    const releaseGate = read("scripts/check-npm-release.sh");
+    expect(releaseGate).toContain('npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}"');
+    expect(releaseGate).toContain("bash scripts/check-ci.sh");
+    expect(releaseGate.indexOf("bash scripts/check-ci.sh")).toBeGreaterThan(
+      releaseGate.indexOf('npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}"')
+    );
   });
 
   test("create-project-dirs should create tasks primary files", () => {

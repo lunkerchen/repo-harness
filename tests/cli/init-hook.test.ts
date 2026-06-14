@@ -182,14 +182,14 @@ describe('init-hook command', () => {
             id: 'cli-update',
             describe: 'repo-harness latest version advisory',
             status: 'warn',
-            detail: 'current=0.4.2; latest=99.0.0; agent_action=npm install -g repo-harness@latest && repo-harness init',
+            detail: 'current=0.4.2; latest=99.0.0; agent_action=bun add -g repo-harness@latest && repo-harness init',
           },
         ]),
         toolingReport: baseToolingReport(),
       });
 
       const action = report.agent_actions.find((entry) => entry.id === 'cli.update');
-      expect(action?.command).toBe('npm install -g repo-harness@latest && repo-harness init');
+      expect(action?.command).toBe('bun add -g repo-harness@latest && repo-harness init');
       expect(action?.verification).toBe('repo-harness setup check --target codex --check-updates --json');
     });
   });
@@ -228,6 +228,56 @@ describe('init-hook command', () => {
       expect(report.agent_actions.find((entry) => entry.id === 'tooling.codegraph.update')?.command).toBe(
         'upgrade-codegraph',
       );
+    });
+  });
+
+  test('reports runtime capabilities as separate setup checks', () => {
+    withTempHome((home, repo) => {
+      mkdirSync(join(home, '.codex'), { recursive: true });
+      writeFileSync(join(home, '.codex', 'AGENTS.md'), '# Global Working Rules\n');
+
+      const report = runInitHook({
+        cwd: repo,
+        target: 'codex',
+        env: { ...process.env, HOME: home },
+        statusReport: baseStatusReport(),
+        doctorReport: baseDoctorReport(),
+        toolingReport: {
+          ...baseToolingReport(),
+          runtime_capabilities: {
+            bun: {
+              name: 'bun',
+              status: 'present',
+              path: '/tmp/bin/bun',
+              owner: 'repo-harness',
+              required: true,
+              required_for: 'repo-harness-owned global installs',
+            },
+            npx: {
+              name: 'npx',
+              status: 'missing',
+              owner: 'external-skills-cli',
+              required: false,
+              required_for: 'external Skills CLI bootstrap',
+            },
+            skills_cli: {
+              name: 'skills_cli',
+              status: 'timed-out',
+              owner: 'external-skills-cli',
+              required: false,
+              required_for: 'Waza/Mermaid bootstrap',
+            },
+          },
+        },
+      });
+
+      expect(report.checks.find((entry) => entry.id === 'runtime.bun')?.status).toBe('ok');
+      expect(report.checks.find((entry) => entry.id === 'runtime.bun')?.detail).toContain('owner=repo-harness');
+      expect(report.checks.find((entry) => entry.id === 'runtime.npx')?.status).toBe('warn');
+      expect(report.checks.find((entry) => entry.id === 'runtime.skills_cli')?.detail).toContain(
+        'Waza/Mermaid bootstrap',
+      );
+      expect(report.agent_actions.find((entry) => entry.id === 'runtime.npx.repair')).toBeUndefined();
     });
   });
 

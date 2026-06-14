@@ -39,7 +39,7 @@ describe('security scan command', () => {
     });
   });
 
-  test('unmanaged hook command is a warning and suspicious command is high', () => {
+  test('unmanaged hook command is a warning and suspicious command makes the report fail', () => {
     withTempHomeAndRepo(({ home, repo }) => {
       fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
       fs.writeFileSync(
@@ -53,7 +53,7 @@ describe('security scan command', () => {
       );
 
       const report = runSecurityScan({ cwd: repo, home });
-      expect(report.status).toBe('warn');
+      expect(report.status).toBe('fail');
       expect(report.findings.map((finding) => finding.ruleId)).toContain('unmanaged-hook-command');
       expect(report.findings.map((finding) => finding.ruleId)).toContain('remote-shell-pipe');
       expect(report.findings.find((finding) => finding.ruleId === 'remote-shell-pipe')?.severity).toBe('high');
@@ -138,7 +138,7 @@ describe('security scan command', () => {
       });
       expect(json.status).toBe(0);
       const parsed = JSON.parse(json.stdout);
-      expect(parsed.status).toBe('warn');
+      expect(parsed.status).toBe('fail');
       expect(parsed.findings.length).toBeGreaterThan(0);
 
       const strict = spawnSync(process.execPath, [CLI, 'security', 'scan', '--json', '--strict'], {

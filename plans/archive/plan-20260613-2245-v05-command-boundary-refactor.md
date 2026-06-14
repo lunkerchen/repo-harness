@@ -30,7 +30,7 @@ The observed design pressure is broader than a missing prune: the current `updat
 ## Target UX
 
 ```bash
-npm install -g repo-harness
+bun add -g repo-harness
 repo-harness init
 
 repo-harness update

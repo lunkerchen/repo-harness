@@ -153,6 +153,27 @@ describe('doctor command (Phase 1C)', () => {
     });
   }, DOCTOR_CHECK_TIMEOUT_MS);
 
+  test('cli-on-path resolves repo-harness from PATH without requiring Unix which', () => {
+    withTempHome(() => {
+      const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'repo-harness-doctor-path-')));
+      try {
+        const fakeBin = path.join(tmp, 'bin');
+        fs.mkdirSync(fakeBin, { recursive: true });
+        const fakeCli = path.join(fakeBin, 'repo-harness');
+        writeExecutable(fakeCli, '#!/bin/bash\nexit 0\n');
+
+        withEnv({ PATH: fakeBin }, () => {
+          const r = runDoctor(tmp);
+          const pathCheck = r.checks.find((c) => c.id === 'cli-on-path')!;
+          expect(pathCheck.status).toBe('ok');
+          expect(pathCheck.detail).toBe(fakeCli);
+        });
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+  }, DOCTOR_CHECK_TIMEOUT_MS);
+
   test('repo-hook-scripts reports n/a for non-opt-in repos', () => {
     withTempRepo({ optIn: false }, (repoRoot) => {
       const r = runDoctor(repoRoot);
@@ -221,7 +242,7 @@ describe('doctor command (Phase 1C)', () => {
         expect(update.status).toBe('warn');
         expect(update.detail).toContain('current=');
         expect(update.detail).toContain('latest=99.0.0');
-        expect(update.detail).toContain('agent_action=npm install -g repo-harness@latest && repo-harness init');
+        expect(update.detail).toContain('agent_action=bun add -g repo-harness@latest && repo-harness init');
       });
     });
   }, DOCTOR_CHECK_TIMEOUT_MS);

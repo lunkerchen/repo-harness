@@ -300,6 +300,14 @@ describe("check-agent-tooling", () => {
 
       expect(res.status).toBe(0);
       const report = JSON.parse(res.stdout);
+      expect(Object.keys(report.runtime_capabilities)).toEqual(
+        expect.arrayContaining(["bun", "npm", "npx", "skills_cli", "bash", "rsync", "symlink"])
+      );
+      expect(report.runtime_capabilities.bun.required).toBe(true);
+      expect(report.runtime_capabilities.npx.owner).toBe("external-skills-cli");
+      expect(report.runtime_capabilities.skills_cli.status).toBe("available");
+      expect(report.runtime_capabilities.rsync.required).toBe(false);
+      expect(report.runtime_capabilities.symlink.required_for).toContain("copy mode remains the fallback");
       expect(report.tools.gstack.status).toBe("present");
       expect(report.tools.gstack.hosts.claude.version).toBe("1.2.3");
       expect(report.tools.waza.status).toBe("present");

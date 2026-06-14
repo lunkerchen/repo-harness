@@ -10,6 +10,7 @@
 import { spawnSync } from "child_process";
 import { createInterface } from "readline/promises";
 import { stdin, stdout } from "process";
+import { homedir } from "os";
 import {
   cpSync,
   existsSync,
@@ -165,7 +166,7 @@ function hostAgents(target: InstallTargetSpec): string[] {
 }
 
 function homeDir(env?: NodeJS.ProcessEnv): string | null {
-  return env?.HOME ?? process.env.HOME ?? null;
+  return env?.HOME ?? env?.USERPROFILE ?? process.env.HOME ?? process.env.USERPROFILE ?? homedir() ?? null;
 }
 
 function samePath(a: string, b: string): boolean {
@@ -482,41 +483,50 @@ export function runInit(opts: InitCommandOptions = {}): InitCommandResult {
   }
 
   if (codegraph && apply) {
-    const cg = ensureCodegraph({ repoRoot, init: true, sync: syncCodegraph, env: commandEnv, host: target });
-    const cgFailed = cg.actions.some((entry) => entry.status === "failed");
-    steps.push({
-      step: "ensure codegraph index",
-      status: cg.actions.length === 0 ? "skipped" : cgFailed ? "failed" : "ok",
-      detail:
-        cg.resolution.source === "missing"
-          ? "codegraph CLI not found; skipped (install via: repo-harness tools ensure codegraph)"
-          : cg.actions.length > 0
-            ? cg.actions.map((entry) => `${entry.action}:${entry.status}`).join(", ")
-            : `index ${cg.status}`,
-    });
+    try {
+      const cg = ensureCodegraph({ repoRoot, init: true, sync: syncCodegraph, env: commandEnv, host: target });
+      const cgFailed = cg.actions.some((entry) => entry.status === "failed");
+      steps.push({
+        step: "ensure codegraph index",
+        status: cg.actions.length === 0 ? "skipped" : cgFailed ? "failed" : "ok",
+        detail:
+          cg.resolution.source === "missing"
+            ? "codegraph CLI not found; skipped (install via: repo-harness tools ensure codegraph)"
+            : cg.actions.length > 0
+              ? cg.actions.map((entry) => `${entry.action}:${entry.status}`).join(", ")
+              : `index ${cg.status}`,
+      });
 
-    const mcpHosts =
-      (cg.raw as { mcp_hosts?: Record<string, { status?: string }> }).mcp_hosts ?? {};
-    const mcpConfigured =
-      cg.resolution.source !== "missing" &&
-      ["codex", "claude"].every((host) => mcpHosts[host]?.status === "configured");
+      const mcpHosts =
+        (cg.raw as { mcp_hosts?: Record<string, { status?: string }> }).mcp_hosts ?? {};
+      const mcpConfigured =
+        cg.resolution.source !== "missing" &&
+        ["codex", "claude"].every((host) => mcpHosts[host]?.status === "configured");
 
-    if (cg.resolution.source !== "missing" && !mcpConfigured) {
-      if (configureCgMcp) {
-        const conf = configureCodegraph({ repoRoot, target, location: "global", env: commandEnv });
-        steps.push({
-          step: "configure codegraph mcp",
-          status: conf.actions.some((entry) => entry.status === "failed") ? "failed" : "ok",
-          detail: conf.actions.map((entry) => `${entry.action}:${entry.status}`).join(", "),
-        });
-      } else {
-        steps.push({
-          step: "codegraph mcp",
-          status: "skipped",
-          detail:
-            "not registered; run: repo-harness tools configure codegraph --target both --location global",
-        });
+      if (cg.resolution.source !== "missing" && !mcpConfigured) {
+        if (configureCgMcp) {
+          const conf = configureCodegraph({ repoRoot, target, location: "global", env: commandEnv });
+          steps.push({
+            step: "configure codegraph mcp",
+            status: conf.actions.some((entry) => entry.status === "failed") ? "failed" : "ok",
+            detail: conf.actions.map((entry) => `${entry.action}:${entry.status}`).join(", "),
+          });
+        } else {
+          steps.push({
+            step: "codegraph mcp",
+            status: "skipped",
+            detail:
+              "not registered; run: repo-harness tools configure codegraph --target both --location global",
+          });
+        }
       }
+    } catch (error) {
+      steps.push({
+        step: "ensure codegraph index",
+        status: "failed",
+        detail: "CodeGraph readiness check failed",
+        stderr: error instanceof Error ? error.message : String(error),
+      });
     }
   } else {
     steps.push({
