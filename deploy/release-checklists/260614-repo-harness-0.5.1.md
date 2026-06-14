@@ -1,7 +1,7 @@
 # Release Filing: repo-harness 0.5.1
 
 Date: 2026-06-14
-Status: Prepared for release
+Status: Published to npm and GitHub; local runtime refreshed
 
 ## Scope
 
@@ -70,3 +70,43 @@ same resolver into the generated helper template.
   `6509904`, shasum `4bd65926c5516ff1b461ea9ec272c407250a7957`, and included
   both `scripts/check-agent-tooling.sh` and
   `assets/templates/helpers/check-agent-tooling.sh`.
+
+## Publish Evidence
+
+- First publish attempt used the stale token in `~/.npmrc`; prepublish passed,
+  but the registry `PUT` returned `E404` after `npm whoami` showed `E401`.
+- `_ops/env/npm.md` provided the valid npm token. A temporary npmrc verified
+  `npm whoami` as `ancienttwo` without writing the token to global config.
+- Final publish command:
+  `BUN_TEST_TIMEOUT_MS=180000 BUN_TEST_MAX_CONCURRENCY=1 npm --userconfig <temp-npmrc> publish --access public --registry https://registry.npmjs.org/`
+  completed and returned `+ repo-harness@0.5.1`.
+- Publish-time prepublish gate passed:
+  - `bun test` (`744 pass`, `0 fail`, `7260` expectations across `71` files)
+  - workflow checks, repository inspection, migration dry-run, npm pack dry-run
+  - `[release] OK: npm package gate passed.`
+- Registry readback:
+  - `npm view repo-harness version dist-tags --json --registry https://registry.npmjs.org/`
+    returned `version=0.5.1`, `latest=0.5.1`.
+  - `npm view repo-harness@0.5.1 version dist-tags dist.tarball gitHead dist.shasum --json --registry https://registry.npmjs.org/`
+    returned version `0.5.1`, latest `0.5.1`, tarball
+    `https://registry.npmjs.org/repo-harness/-/repo-harness-0.5.1.tgz`,
+    gitHead `18f91e9ebbc2931753c29d8d2e0e91d15ccdc187`, and shasum
+    `4bd65926c5516ff1b461ea9ec272c407250a7957`.
+- Clean-room `npx --yes --package repo-harness@0.5.1 repo-harness --version`
+  returned `0.5.1`.
+- Annotated tag `v0.5.1` was pushed to `origin`.
+- GitHub release `repo-harness 0.5.1` was created as a non-draft,
+  non-prerelease release:
+  `https://github.com/Ancienttwo/repo-harness/releases/tag/v0.5.1`.
+- Local runtime refresh installed `repo-harness@0.5.1` through Bun global, NVM
+  Node 22 global, and the `/opt/homebrew` npm-global prefix. Bun, NVM, npx, and
+  `/opt/homebrew/bin/repo-harness` all returned `0.5.1`.
+- Local health readback:
+  - `repo-harness status --json` reported CLI `0.5.1` and 8 managed routes for
+    both Codex and Claude adapters.
+  - `repo-harness doctor --json` reported `ok=11`, `warn=0`, `fail=0`.
+  - `repo-harness security scan --json` reported `ok` with no findings.
+  - `repo-harness setup check --target codex --check-updates --json` reported
+    `fail=0`, `needs_agent=0`, and CodeGraph `update=up-to-date`; remaining
+    warnings were optional `runtime.skills_cli` timeout and `tooling.gbrain`
+    doctor warning.

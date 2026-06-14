@@ -43,3 +43,9 @@ readiness resolver patch.
   `4bd65926c5516ff1b461ea9ec272c407250a7957`, and included both
   `scripts/check-agent-tooling.sh` and
   `assets/templates/helpers/check-agent-tooling.sh`.
+- Final publish used the valid token from `_ops/env/npm.md` through a temporary
+  npmrc after the stale global `~/.npmrc` token failed `npm whoami`.
+- `npm publish` completed with `+ repo-harness@0.5.1`; npm registry readback,
+  clean-room npx, pushed annotated tag `v0.5.1`, GitHub release, Bun/NVM/
+  Homebrew-visible local refresh, status, doctor, security, and setup check
+  readbacks all completed.
