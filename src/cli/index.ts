@@ -54,7 +54,7 @@ export function buildProgram(): Command {
   program
     .name('repo-harness')
     .description('Make Claude/Codex work resumable, reviewable, and repo-local')
-    .version(CLI_VERSION)
+    .addHelpText('after', '\nGlobal shortcuts:\n  -V, --version  output the version number')
     .exitOverride();
 
   program
@@ -421,9 +421,18 @@ export function buildProgram(): Command {
   return program;
 }
 
+export async function runCli(argv: string[] = process.argv): Promise<void> {
+  const args = argv.slice(2);
+  if (args.length === 1 && (args[0] === '--version' || args[0] === '-V')) {
+    console.log(CLI_VERSION);
+    return;
+  }
+  await buildProgram().parseAsync(argv);
+}
+
 if (import.meta.main) {
   try {
-    await buildProgram().parseAsync(process.argv);
+    await runCli(process.argv);
   } catch (err) {
     const e = err as { exitCode?: number; message?: string };
     if (typeof e.exitCode === 'number') process.exit(e.exitCode);

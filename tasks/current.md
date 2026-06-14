@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-15T05:08:35+0800 -->
+<!-- updated_at: 2026-06-15T05:16:16+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-15T05:08:35+0800
+> **Updated At**: 2026-06-15T05:16:16+0800
 > **Source Branch**: main
-> **Source Commit**: 321d01c
+> **Source Commit**: 79f5a8d
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: repo-harness 0.5.2 release evidence
+> **Reason**: fix update version option collision
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -51,10 +51,11 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 1 changed/untracked path(s)
+- Summary: 2 changed/untracked path(s)
 
 ```
- M deploy/release-checklists/260615-repo-harness-0.5.2.md
+ M src/cli/index.ts
+ M tests/cli/global-runtime-init.test.ts
 ```
 
 ## Source Artifacts

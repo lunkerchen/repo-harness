@@ -213,6 +213,58 @@ describe('init command global runtime bootstrap', () => {
     }
   });
 
+  test('CLI update --version installs the requested package version', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'repo-harness-cli-update-version-'));
+    const home = join(tmp, 'home');
+    const repo = join(tmp, 'repo');
+    const fakeBin = join(tmp, 'bin');
+    const bunLog = join(tmp, 'bun.log');
+    try {
+      mkdirSync(home, { recursive: true });
+      mkdirSync(repo, { recursive: true });
+      mkdirSync(fakeBin, { recursive: true });
+      writeExecutable(join(fakeBin, 'bun'), `#!/bin/bash\nprintf '%s\\n' "$*" >> "${bunLog}"\nexit 0\n`);
+
+      const res = spawnSync(
+        process.execPath,
+        [
+          CLI,
+          'update',
+          '--version',
+          '9.9.9',
+          '--no-sync-skill',
+          '--no-hooks',
+          '--no-external-skills',
+          '--no-codegraph',
+          '--json',
+        ],
+        {
+          cwd: repo,
+          encoding: 'utf-8',
+          env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH ?? ''}` },
+        },
+      );
+
+      expect(res.status).toBe(0);
+      expect(JSON.parse(res.stdout).steps.find((step: { step: string }) => step.step === 'install repo-harness CLI')?.detail).toBe(
+        'spec=repo-harness@9.9.9',
+      );
+      expect(readFileSync(bunLog, 'utf-8')).toContain('add -g repo-harness@9.9.9');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('CLI top-level --version still prints the CLI version', () => {
+    const res = spawnSync(process.execPath, [CLI, '--version'], {
+      cwd: ROOT,
+      encoding: 'utf-8',
+    });
+
+    expect(res.status).toBe(0);
+    expect(res.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
   test('CLI update --check is read-only setup readiness output', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'repo-harness-cli-update-check-'));
     const home = join(tmp, 'home');
