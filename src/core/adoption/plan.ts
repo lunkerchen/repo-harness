@@ -1,0 +1,209 @@
+import { existsSync, readFileSync, statSync } from "fs";
+import { basename, resolve } from "path";
+import type { AdoptionMode } from "./modes";
+import type { AdoptionOperation, AdoptionPlan, AdoptionWarning } from "./operations";
+import { makeOperationId } from "./operations";
+import { gitignoreManagedBlockOperation } from "./gitignore-plan";
+import { summarizeOperations } from "./summary";
+import { managedBlockNeedsUpdate } from "../../effects/managed-block";
+
+export interface PlanAdoptionOptions {
+  readonly repoRoot: string;
+  readonly mode?: AdoptionMode;
+  readonly apply?: boolean;
+}
+
+const MINIMAL_DIRS = [
+  "plans",
+  "tasks",
+  "tasks/contracts",
+  "tasks/reviews",
+  "tasks/notes",
+  "docs",
+  ".ai/harness/checks",
+  ".ai/harness/handoff",
+] as const;
+
+const STANDARD_EXTRA_DIRS = [
+  "plans/archive",
+  "plans/prds",
+  "plans/sprints",
+  "tasks/workstreams",
+  "docs/reference-configs",
+  ".ai/context",
+  ".ai/harness/failures",
+  ".ai/harness/architecture",
+  ".ai/harness/runs",
+] as const;
+
+function directoryPaths(mode: AdoptionMode): readonly string[] {
+  return mode === "minimal" ? MINIMAL_DIRS : [...MINIMAL_DIRS, ...STANDARD_EXTRA_DIRS];
+}
+
+function repoFileStatus(repoRoot: string, relPath: string): "planned" | "skipped" {
+  return existsSync(resolve(repoRoot, relPath)) ? "skipped" : "planned";
+}
+
+function repoDirStatus(repoRoot: string, relPath: string): "planned" | "skipped" {
+  const target = resolve(repoRoot, relPath);
+  return existsSync(target) && statSync(target).isDirectory() ? "skipped" : "planned";
+}
+
+function repoName(repoRoot: string): string {
+  return basename(resolve(repoRoot)) || "repo";
+}
+
+function docsSpecTemplate(repoRoot: string): string {
+  return [
+    `# Product Spec: ${repoName(repoRoot)}`,
+    "",
+    "> **Status**: Draft",
+    "",
+    "Describe the product intent, users, workflows, acceptance scenarios, and constraints before implementation.",
+    "",
+  ].join("\n");
+}
+
+function todosTemplate(): string {
+  return [
+    "# Deferred Goal Ledger",
+    "",
+    "> **Status**: Backlog",
+    "> **Updated**: (initial)",
+    "> **Scope**: Medium/long-term goals deferred from active plan execution",
+    "",
+    "Current plan tasks live in the active plan's `## Task Breakdown`.",
+    "Do not duplicate that execution checklist here. Record only work intentionally deferred beyond this slice, with the tradeoff and revisit trigger.",
+    "",
+    "## Deferred Goals",
+    "",
+    "| Goal | Why Deferred | Tradeoff | Revisit Trigger |",
+    "|------|--------------|----------|-----------------|",
+    "| (none) | No deferred medium/long-term goal recorded yet. | Keep the first sprint bounded. | Add a row when a real follow-up is postponed. |",
+    "",
+  ].join("\n");
+}
+
+function currentTemplate(): string {
+  return [
+    "# Current Status Snapshot",
+    "",
+    "<!-- generated-by: repo-harness refresh-current-status v1 -->",
+    "",
+    "> **Status**: Idle",
+    "> **Reason**: repo-harness adoption bootstrap",
+    "",
+    "This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate.",
+    "",
+  ].join("\n");
+}
+
+function lessonsTemplate(): string {
+  return [
+    "# Lessons",
+    "",
+    "Correction-derived rules that should influence future repo work.",
+    "",
+    "## Active Lessons",
+    "",
+    "- (none yet)",
+    "",
+  ].join("\n");
+}
+
+function writeIfMissingOperations(repoRoot: string): AdoptionOperation[] {
+  const files = [
+    {
+      path: "docs/spec.md",
+      content: docsSpecTemplate(repoRoot),
+      reason: "Create deterministic product spec placeholder when missing",
+    },
+    {
+      path: "tasks/todos.md",
+      content: todosTemplate(),
+      reason: "Create deferred-goal ledger when missing",
+    },
+    {
+      path: "tasks/current.md",
+      content: currentTemplate(),
+      reason: "Create tracked current-status snapshot when missing",
+    },
+    {
+      path: "tasks/lessons.md",
+      content: lessonsTemplate(),
+      reason: "Create correction-derived lessons ledger when missing",
+    },
+  ] as const;
+
+  return files.map((file) => ({
+    id: makeOperationId("writeFile", file.path, "ifMissing"),
+    kind: "writeFile",
+    path: file.path,
+    content: file.content,
+    ifMissing: true,
+    reason: file.reason,
+    risk: "low",
+    status: repoFileStatus(repoRoot, file.path),
+  }));
+}
+
+function selfHostOperations(mode: AdoptionMode): AdoptionOperation[] {
+  if (mode !== "self-host") return [];
+  return [
+    {
+      id: makeOperationId("runCheck", "self-host-adoption-boundary-review"),
+      kind: "runCheck",
+      command: "manual:self-host-hook-helper-pin-review",
+      reason: "Self-host adoption must preserve repo-pinned hook/helper runtime boundaries",
+      risk: "medium",
+      status: "skipped",
+    },
+  ];
+}
+
+function selfHostWarnings(mode: AdoptionMode): AdoptionWarning[] {
+  if (mode !== "self-host") return [];
+  return [
+    {
+      code: "self-host-hook-helper-pin",
+      message: "Self-host mode only records the hook/helper pin review boundary in this sprint; it does not migrate hooks.",
+      risk: "medium",
+    },
+  ];
+}
+
+export function planAdoption(opts: PlanAdoptionOptions): AdoptionPlan {
+  const repoRoot = resolve(opts.repoRoot);
+  const mode = opts.mode ?? "standard";
+  const operations: AdoptionOperation[] = [
+    ...directoryPaths(mode).map((path) => ({
+      id: makeOperationId("mkdir", path),
+      kind: "mkdir" as const,
+      path,
+      reason: "Ensure repo-harness workflow surface directory exists",
+      risk: "low" as const,
+      status: repoDirStatus(repoRoot, path),
+    })),
+    ...writeIfMissingOperations(repoRoot),
+  ];
+
+  const gitignorePath = resolve(repoRoot, ".gitignore");
+  const gitignoreOperation = gitignoreManagedBlockOperation(
+    managedBlockNeedsUpdate(existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf-8") : "", gitignoreManagedBlockOperation("planned"))
+      ? "planned"
+      : "skipped",
+  );
+
+  operations.push(gitignoreOperation, ...selfHostOperations(mode));
+
+  return {
+    protocol: 1,
+    command: "adopt",
+    repoRoot,
+    mode,
+    apply: opts.apply === true,
+    operations,
+    summary: summarizeOperations(operations),
+    warnings: selfHostWarnings(mode),
+  };
+}

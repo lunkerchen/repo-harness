@@ -1,0 +1,227 @@
+import { describe, expect, test } from "bun:test";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { spawnSync } from "child_process";
+import { tmpdir } from "os";
+import { join } from "path";
+import { planAdoption } from "../../src/core/adoption/plan";
+import { renderAdoptionPlanJson, renderAdoptionPlanObject } from "../../src/core/adoption/render";
+import { makeOperationId, type AdoptionOperation, type AdoptionPlan } from "../../src/core/adoption/operations";
+import { summarizeOperations } from "../../src/core/adoption/summary";
+import { gitignoreManagedBlockOperation } from "../../src/core/adoption/gitignore-plan";
+import { renderManagedBlock, upsertManagedBlock } from "../../src/effects/managed-block";
+import { ensureRepoRelativePath, resolveInsideRepo } from "../../src/effects/path-safety";
+import { applyAdoptionPlan } from "../../src/effects/fs-transaction";
+
+const ROOT = join(import.meta.dir, "..", "..");
+const CLI = join(ROOT, "src/cli/index.ts");
+const FIXTURES = join(import.meta.dir, "..", "fixtures", "adoption");
+
+function tempRepo(): string {
+  return mkdtempSync(join(tmpdir(), "repo-harness-adoption-plan-"));
+}
+
+function readJson(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf-8"));
+}
+
+function snapshotOperation(operation: AdoptionOperation): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    id: operation.id,
+    kind: operation.kind,
+    status: operation.status,
+  };
+  if (operation.path) result.path = operation.path;
+  if (operation.kind === "writeFile") result.ifMissing = operation.ifMissing === true;
+  if (operation.kind === "appendManagedBlock") result.marker = operation.marker;
+  if (operation.kind === "runCheck") result.command = operation.command;
+  return result;
+}
+
+function snapshotPlan(plan: AdoptionPlan): Record<string, unknown> {
+  return {
+    mode: plan.mode,
+    apply: plan.apply,
+    operations: plan.operations.map(snapshotOperation),
+    summary: plan.summary,
+    warnings: plan.warnings,
+  };
+}
+
+describe("adoption operation model", () => {
+  test("operation ids are stable and summarizeOperations counts by kind", () => {
+    const operations: AdoptionOperation[] = [
+      {
+        id: makeOperationId("mkdir", "plans"),
+        kind: "mkdir",
+        path: "plans",
+        reason: "test",
+        risk: "low",
+        status: "planned",
+      },
+      {
+        id: makeOperationId("writeFile", "docs/spec.md", "ifMissing"),
+        kind: "writeFile",
+        path: "docs/spec.md",
+        content: "# Spec\n",
+        ifMissing: true,
+        reason: "test",
+        risk: "low",
+        status: "planned",
+      },
+    ];
+
+    expect(operations[0].id).toBe("mkdir:plans");
+    expect(operations[1].id).toBe("writeFile:docs/spec.md:ifMissing");
+    expect(summarizeOperations(operations).byKind).toEqual({ mkdir: 1, writeFile: 1 });
+  });
+});
+
+describe("planAdoption", () => {
+  test("renders stable standard fixture for an empty repo", () => {
+    const repo = tempRepo();
+    try {
+      const plan = planAdoption({ repoRoot: repo, mode: "standard", apply: false });
+      expect(snapshotPlan(plan)).toEqual(readJson(join(FIXTURES, "empty-repo.expected.json")));
+      expect(plan.operations.every((operation) => !operation.path?.startsWith(repo))).toBe(true);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("minimal and self-host modes have distinct operation counts", () => {
+    const minimalRepo = tempRepo();
+    const selfHostRepo = tempRepo();
+    try {
+      expect(snapshotPlan(planAdoption({ repoRoot: minimalRepo, mode: "minimal" }))).toEqual(
+        readJson(join(FIXTURES, "minimal-repo.expected.json")),
+      );
+      expect(snapshotPlan(planAdoption({ repoRoot: selfHostRepo, mode: "self-host" }))).toEqual(
+        readJson(join(FIXTURES, "self-host-repo.expected.json")),
+      );
+    } finally {
+      rmSync(minimalRepo, { recursive: true, force: true });
+      rmSync(selfHostRepo, { recursive: true, force: true });
+    }
+  });
+
+  test("existing files are planned as skipped instead of overwritten", () => {
+    const repo = tempRepo();
+    try {
+      mkdirSync(join(repo, "docs"), { recursive: true });
+      writeFileSync(join(repo, "docs", "spec.md"), "# User spec\n");
+      writeFileSync(join(repo, ".gitignore"), renderManagedBlock(gitignoreManagedBlockOperation("planned")) + "\n");
+
+      const plan = planAdoption({ repoRoot: repo, mode: "standard" });
+      expect(plan.operations.find((operation) => operation.id === "writeFile:docs/spec.md:ifMissing")?.status).toBe(
+        "skipped",
+      );
+      expect(
+        plan.operations.find((operation) => operation.id === "appendManagedBlock:.gitignore:repo-harness-generated-runtime")
+          ?.status,
+      ).toBe("skipped");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("adoption renderers", () => {
+  test("JSON renderer redacts file content with hash and preview", () => {
+    const repo = tempRepo();
+    try {
+      const plan = planAdoption({ repoRoot: repo, mode: "minimal" });
+      const rendered = renderAdoptionPlanObject(plan);
+      const writeFile = (rendered.operations as Record<string, unknown>[]).find(
+        (operation) => operation.kind === "writeFile",
+      );
+
+      expect(writeFile?.content).toBeUndefined();
+      expect(String(writeFile?.contentHash).startsWith("sha256:")).toBe(true);
+      expect(String(writeFile?.contentPreview)).toContain("# Product Spec:");
+      expect(JSON.parse(renderAdoptionPlanJson(plan)).protocol).toBe(1);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("safe adoption applicator subset", () => {
+  test("path safety rejects absolute paths and traversal", () => {
+    expect(ensureRepoRelativePath("../evil").ok).toBe(false);
+    expect(ensureRepoRelativePath("/tmp/evil").ok).toBe(false);
+    expect(resolveInsideRepo("/tmp/repo", "../evil").ok).toBe(false);
+    expect(resolveInsideRepo("/tmp/repo", "docs/spec.md").ok).toBe(true);
+  });
+
+  test("managed block insertion, replacement, and idempotency preserve user content", () => {
+    const operation = gitignoreManagedBlockOperation("planned");
+    const userContent = "# User rules\ncustom.log\n";
+    const inserted = upsertManagedBlock(userContent, operation);
+    expect(inserted.ok).toBe(true);
+    expect(inserted.changed).toBe(true);
+    expect(inserted.content).toContain("custom.log");
+    expect(inserted.content).toContain("# BEGIN: repo-harness generated-runtime");
+
+    const repeated = upsertManagedBlock(inserted.content ?? "", operation);
+    expect(repeated.ok).toBe(true);
+    expect(repeated.changed).toBe(false);
+
+    const oldBlock = [
+      "# User rules",
+      "# BEGIN: repo-harness generated-runtime",
+      "old-entry/",
+      "# END: repo-harness generated-runtime",
+      "",
+    ].join("\n");
+    const replaced = upsertManagedBlock(oldBlock, operation);
+    expect(replaced.ok).toBe(true);
+    expect(replaced.content).not.toContain("old-entry/");
+    expect(replaced.content).toContain("_ops/");
+  });
+
+  test("applicator writes safe subset and remains idempotent", () => {
+    const repo = tempRepo();
+    try {
+      const plan = planAdoption({ repoRoot: repo, mode: "minimal" });
+      const result = applyAdoptionPlan(plan);
+      expect(result.ok).toBe(true);
+      expect(existsSync(join(repo, "docs", "spec.md"))).toBe(true);
+      expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toContain("# BEGIN: repo-harness generated-runtime");
+
+      writeFileSync(join(repo, "docs", "spec.md"), "# User spec\n");
+      const secondPlan = planAdoption({ repoRoot: repo, mode: "minimal" });
+      const second = applyAdoptionPlan(secondPlan);
+      expect(second.ok).toBe(true);
+      expect(readFileSync(join(repo, "docs", "spec.md"), "utf-8")).toBe("# User spec\n");
+      expect(second.results.find((entry) => entry.id === "writeFile:docs/spec.md:ifMissing")?.status).toBe("skipped");
+      expect(second.results.find((entry) => entry.kind === "appendManagedBlock")?.status).toBe("skipped");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("repo-harness adopt --dry-run --json", () => {
+  test("prints protocol v1 JSON without writing repo files or shell migration output", () => {
+    const repo = tempRepo();
+    try {
+      const result = spawnSync("bun", [CLI, "adopt", "--repo", repo, "--dry-run", "--json"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      const output = JSON.parse(result.stdout);
+      expect(output.protocol).toBe(1);
+      expect(output.command).toBe("adopt");
+      expect(output.apply).toBe(false);
+      expect(output.operations.some((operation: { kind: string }) => operation.kind === "appendManagedBlock")).toBe(true);
+      expect(result.stdout).not.toContain("plan repo harness");
+      expect(existsSync(join(repo, "docs", "spec.md"))).toBe(false);
+      expect(existsSync(join(repo, ".gitignore"))).toBe(false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+});

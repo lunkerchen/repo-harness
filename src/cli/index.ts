@@ -22,9 +22,11 @@ import { buildRunCommand } from './commands/run';
 import { formatSecurityScan, runSecurityScan } from './commands/security';
 import { runGlobalRuntimeSetup } from './commands/global-runtime';
 import { runPromptGuardDecideCli } from './commands/prompt-guard-decision';
+import { runAdoptionPlan } from './commands/adopt-plan';
 import { runRuntimeReclaim, runRuntimeRollback } from './repo-adoption/reclaim-runtime';
 import type { Location } from './installer/types';
 import type { HookEvent, RouteId } from './hook/route-registry';
+import type { AdoptionMode } from '../core/adoption/modes';
 
 export const SUBCOMMANDS = [
   'init',
@@ -273,6 +275,15 @@ export function buildProgram(): Command {
       if (rawOpts.brainRoot || rawOpts.brainMode !== 'skip') {
         console.error('repo-harness adopt: brain configuration writes user-level state; run repo-harness update instead');
         process.exit(2);
+      }
+      if (rawOpts.dryRun === true && rawOpts.json === true) {
+        const plan = runAdoptionPlan({
+          repo: rawOpts.repo,
+          mode: (rawOpts.mode ?? 'standard') as AdoptionMode,
+          json: true,
+        });
+        process.stdout.write(plan.output);
+        process.exit(plan.exitCode);
       }
       const common = {
         repo: rawOpts.repo,
