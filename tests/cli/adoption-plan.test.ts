@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { spawnSync } from "child_process";
 import { tmpdir } from "os";
-import { join } from "path";
+import { basename, join } from "path";
 import { planAdoption } from "../../src/core/adoption/plan";
+import { adoptionTemplateFile } from "../../src/core/adoption/manifest-templates";
 import { renderAdoptionPlanJson, renderAdoptionPlanObject } from "../../src/core/adoption/render";
 import { makeOperationId, type AdoptionOperation, type AdoptionPlan } from "../../src/core/adoption/operations";
 import { summarizeOperations } from "../../src/core/adoption/summary";
@@ -77,6 +78,21 @@ describe("adoption operation model", () => {
 });
 
 describe("planAdoption", () => {
+  test("spec and current status templates come from the workflow contract", () => {
+    const repo = tempRepo();
+    try {
+      const spec = adoptionTemplateFile(repo, "spec");
+      const currentStatus = adoptionTemplateFile(repo, "currentStatus");
+
+      expect(spec.path).toBe("docs/spec.md");
+      expect(spec.content).toContain(`# Product Spec: ${basename(repo)}`);
+      expect(currentStatus.path).toBe("tasks/current.md");
+      expect(currentStatus.content).toContain("<!-- generated-by: repo-harness refresh-current-status v1 -->");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   test("renders stable standard fixture for an empty repo", () => {
     const repo = tempRepo();
     try {

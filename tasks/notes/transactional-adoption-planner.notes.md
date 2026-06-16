@@ -83,3 +83,15 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
   skills are up to date", but `repo-harness setup check --target codex
   --check-updates --json` still reports `tooling.waza.update` as
   `needs_agent`.
+
+## Follow-up Slice: Manifest-Driven Bootstrap Templates
+
+- Added `adoptionTemplates.files` to the workflow contract manifest and synced
+  the self-host runtime copy. The entries now own the `docs/spec.md` and
+  `tasks/current.md` bootstrap template bodies plus their planner reasons.
+- Moved the spec/current template rendering out of `plan.ts` into
+  `src/core/adoption/manifest-templates.ts`. The planner still emits
+  `writeFile ifMissing` operations and still leaves `tasks/todos.md` plus
+  `tasks/lessons.md` on the existing local templates.
+- Added tests for manifest field coverage and template rendering from the
+  workflow contract.

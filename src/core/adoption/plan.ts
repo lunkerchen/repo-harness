@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from "fs";
-import { basename, resolve } from "path";
+import { resolve } from "path";
 import type { AdoptionMode } from "./modes";
 import type { AdoptionOperation, AdoptionPlan, AdoptionWarning } from "./operations";
 import { makeOperationId } from "./operations";
@@ -7,6 +7,7 @@ import { gitignoreManagedBlockOperation } from "./gitignore-plan";
 import { summarizeOperations } from "./summary";
 import { managedBlockNeedsUpdate } from "../../effects/managed-block";
 import { workflowContractInstallOperation } from "./workflow-contract-plan";
+import { adoptionTemplateFile } from "./manifest-templates";
 
 export interface PlanAdoptionOptions {
   readonly repoRoot: string;
@@ -50,21 +51,6 @@ function repoDirStatus(repoRoot: string, relPath: string): "planned" | "skipped"
   return existsSync(target) && statSync(target).isDirectory() ? "skipped" : "planned";
 }
 
-function repoName(repoRoot: string): string {
-  return basename(resolve(repoRoot)) || "repo";
-}
-
-function docsSpecTemplate(repoRoot: string): string {
-  return [
-    `# Product Spec: ${repoName(repoRoot)}`,
-    "",
-    "> **Status**: Draft",
-    "",
-    "Describe the product intent, users, workflows, acceptance scenarios, and constraints before implementation.",
-    "",
-  ].join("\n");
-}
-
 function todosTemplate(): string {
   return [
     "# Deferred Goal Ledger",
@@ -85,20 +71,6 @@ function todosTemplate(): string {
   ].join("\n");
 }
 
-function currentTemplate(): string {
-  return [
-    "# Current Status Snapshot",
-    "",
-    "<!-- generated-by: repo-harness refresh-current-status v1 -->",
-    "",
-    "> **Status**: Idle",
-    "> **Reason**: repo-harness adoption bootstrap",
-    "",
-    "This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate.",
-    "",
-  ].join("\n");
-}
-
 function lessonsTemplate(): string {
   return [
     "# Lessons",
@@ -114,21 +86,13 @@ function lessonsTemplate(): string {
 
 function writeIfMissingOperations(repoRoot: string): AdoptionOperation[] {
   const files = [
-    {
-      path: "docs/spec.md",
-      content: docsSpecTemplate(repoRoot),
-      reason: "Create deterministic product spec placeholder when missing",
-    },
+    adoptionTemplateFile(repoRoot, "spec"),
     {
       path: "tasks/todos.md",
       content: todosTemplate(),
       reason: "Create deferred-goal ledger when missing",
     },
-    {
-      path: "tasks/current.md",
-      content: currentTemplate(),
-      reason: "Create tracked current-status snapshot when missing",
-    },
+    adoptionTemplateFile(repoRoot, "currentStatus"),
     {
       path: "tasks/lessons.md",
       content: lessonsTemplate(),

@@ -75,11 +75,22 @@ export type WorkflowContract = {
   };
   documents: {
     spec: string;
+    currentStatus?: string;
     planDirectory: string;
     taskChecklist?: string;
     deferredGoalLedger?: string;
     researchReportsDirectory: string;
     lessonsLog: string;
+  };
+  adoptionTemplates?: {
+    files?: Record<
+      string,
+      {
+        document: string;
+        reason: string;
+        lines: string[];
+      }
+    >;
   };
   migrations: {
     legacyVersions: string[];

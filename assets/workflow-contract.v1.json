@@ -266,11 +266,43 @@
   },
   "documents": {
     "spec": "docs/spec.md",
+    "currentStatus": "tasks/current.md",
     "planDirectory": "plans",
     "deferredGoalLedger": "tasks/todos.md",
     "implementationNotesDirectory": "tasks/notes",
     "lessonsLog": "tasks/lessons.md",
     "researchReportsDirectory": "docs/researches"
+  },
+  "adoptionTemplates": {
+    "files": {
+      "spec": {
+        "document": "spec",
+        "reason": "Create deterministic product spec placeholder when missing",
+        "lines": [
+          "# Product Spec: {{repoName}}",
+          "",
+          "> **Status**: Draft",
+          "",
+          "Describe the product intent, users, workflows, acceptance scenarios, and constraints before implementation.",
+          ""
+        ]
+      },
+      "currentStatus": {
+        "document": "currentStatus",
+        "reason": "Create tracked current-status snapshot when missing",
+        "lines": [
+          "# Current Status Snapshot",
+          "",
+          "<!-- generated-by: repo-harness refresh-current-status v1 -->",
+          "",
+          "> **Status**: Idle",
+          "> **Reason**: repo-harness adoption bootstrap",
+          "",
+          "This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate.",
+          ""
+        ]
+      }
+    }
   },
   "migrations": {
     "legacyVersions": [

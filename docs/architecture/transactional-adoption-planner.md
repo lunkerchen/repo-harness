@@ -113,6 +113,18 @@ This operation is currently part of the auditable dry-run plan only. Default
 apply remains on the shell migrator, which still performs the actual manifest
 copy until the opt-in TypeScript apply path is introduced.
 
+## Manifest-Driven Bootstrap Templates
+
+The planner now reads the initial `docs/spec.md` and `tasks/current.md`
+bootstrap templates from `assets/workflow-contract.v1.json#adoptionTemplates`.
+The manifest owns the target document key, reason, and line-based template body;
+the planner only renders supported placeholders such as `{{repoName}}`.
+
+This removes those two bootstrap file bodies from `plan.ts` while preserving
+the existing `writeFile ifMissing` behavior. `tasks/todos.md` and
+`tasks/lessons.md` remain local planner templates until their manifest entries
+are promoted in a later slice.
+
 ## Compatibility Strategy
 
 The current sprint does not replace shell apply. The invariant is:
@@ -131,6 +143,7 @@ The next coherent slice is to add an explicit opt-in apply path after this
 planner proves stable:
 
 - move workflow-contract install application into the TypeScript applicator
+- move remaining bootstrap templates into the workflow contract manifest
 - add an atomic writer with backup metadata
 - expose `--experimental-ts-apply` for the safe subset
 - add rollback metadata to operation plans

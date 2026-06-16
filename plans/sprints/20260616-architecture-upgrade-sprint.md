@@ -874,7 +874,7 @@ Low-medium. New JSON dry-run path is additive. Existing apply path is preserved.
 
 ```text
 [x] 把 workflow-contract install 从 shell 迁到 TS operation
-[ ] 把 docs/spec.md / tasks/current.md templates 改成 manifest-driven
+[x] 把 docs/spec.md / tasks/current.md templates 改成 manifest-driven
 [ ] 把 helper wrapper install 迁到 TS operation
 [ ] 引入 atomic writer with backup / lock / fsync
 [ ] 让 adopt --dry-run text 也使用 TS planner renderer

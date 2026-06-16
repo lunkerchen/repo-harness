@@ -13,6 +13,9 @@ All notable changes to this skill are documented here.
 - Added workflow-contract manifest planning to the TypeScript adoption plan so
   `standard` and `self-host` dry-run JSON now report installation of
   `.ai/harness/workflow-contract.json` from the canonical tracked asset.
+- Added workflow-contract-backed adoption templates for `docs/spec.md` and
+  `tasks/current.md`, keeping their `writeFile ifMissing` planner behavior while
+  moving the file body and reason out of `plan.ts`.
 
 ## [0.5.3] - 2026-06-15
 

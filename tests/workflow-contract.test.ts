@@ -97,6 +97,10 @@ describe("workflow contract manifest", () => {
     expect(contract.agenticDevelopment?.routing.complexEngineeringPlan).toBe("gstack:plan-eng-review");
     expect(contract.agenticDevelopment?.routing.bugOrRegression).toBe("waza:hunt");
     expect(contract.agenticDevelopment?.dueDiligence.levels).toContain("P2_DATA_FLOW_TRACE");
+    expect(contract.documents.currentStatus).toBe("tasks/current.md");
+    expect(contract.adoptionTemplates?.files?.spec.document).toBe("spec");
+    expect(contract.adoptionTemplates?.files?.spec.lines.join("\n")).toContain("{{repoName}}");
+    expect(contract.adoptionTemplates?.files?.currentStatus.document).toBe("currentStatus");
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/workflow-contract.json");
     expect(contract.artifacts.requiredFiles).not.toContain(".codex/hooks.json");
     expect(contract.artifacts.requiredFiles).toContain(".ai/harness/brain-manifest.json");
