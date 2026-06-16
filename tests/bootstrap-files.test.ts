@@ -79,9 +79,11 @@ describe("Bootstrap Script Contracts", () => {
 
   test("ci gate should refresh handoff current before resume packet", () => {
     const ciGate = read("scripts/check-ci.sh");
+    const bunfig = read("bunfig.toml");
     const prepare = 'REPO_HARNESS_SKIP_RESUME_REFRESH=1 bash scripts/prepare-handoff.sh "ci gate"';
     const resume = 'bash scripts/codex-handoff-resume.sh --cwd . --reason "ci gate"';
 
+    expect(bunfig).toContain("maxConcurrency = 4");
     expect(ciGate).toContain(prepare);
     expect(ciGate).toContain(resume);
     expect(ciGate.indexOf(prepare)).toBeLessThan(ciGate.indexOf(resume));

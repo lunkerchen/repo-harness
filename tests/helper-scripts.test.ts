@@ -2371,7 +2371,8 @@ describe("Workflow helper scripts", () => {
       expect(handoff).toContain("Plan: plans/plan-20260327-2200-alpha.md");
       expect(handoff).toContain("Contract: tasks/contracts/alpha.contract.md");
       expect(handoff).toContain("Checks: .ai/harness/checks/latest.json");
-      expect(handoff).toContain("Next recommended action: Finish handoff");
+      expect(handoff).toContain("Next recommended action: If a major module was just completed, stage its coherent diff first");
+      expect(handoff).toContain("then continue the next Task Breakdown item: Finish handoff");
       expect(handoff).toContain("## Exact Next Step");
       expect(handoff).toContain("## Resume Prompt");
     } finally {
