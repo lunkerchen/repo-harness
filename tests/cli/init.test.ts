@@ -337,7 +337,7 @@ describe("init command", () => {
     }
   });
 
-  test("CLI adopt --no-codegraph disables the CodeGraph step", () => {
+  test("CLI adopt --dry-run --json returns the adoption planner protocol", () => {
     const tmp = join(tmpdir(), `repo-harness-init-cli-codegraph-${Date.now()}`);
     try {
       mkdirSync(tmp, { recursive: true });
@@ -364,9 +364,11 @@ describe("init command", () => {
 
       expect(res.status).toBe(0);
       const result = JSON.parse(res.stdout);
-      const codegraphStep = result.steps.find((step: { step: string }) => step.step === "ensure codegraph index");
-      expect(codegraphStep?.status).toBe("skipped");
-      expect(codegraphStep?.detail).toBe("disabled");
+      expect(result.protocol).toBe(1);
+      expect(result.command).toBe("adopt");
+      expect(result.apply).toBe(false);
+      expect(result.summary.byKind.mkdir).toBeGreaterThan(0);
+      expect(result.steps).toBeUndefined();
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

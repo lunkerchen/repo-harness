@@ -4,6 +4,13 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added the Transactional Adoption Planner foundation for
+  `repo-harness adopt --dry-run --json`, including protocol v1 operation plans,
+  redacted JSON rendering, fixture-backed planner tests, and a safe applicator
+  subset for `mkdir`, `writeFile ifMissing`, and managed `.gitignore` blocks.
+
 ## [0.5.3] - 2026-06-15
 
 ### Fixed

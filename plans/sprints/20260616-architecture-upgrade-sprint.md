@@ -4,7 +4,7 @@
 
 # Sprint：Transactional Adoption Planner Foundation
 
-> **Status**: Executing
+> **Status**: Done
 > **Duration**: 2 weeks / 10 working days
 > **Primary Goal**: 为 `repo-harness adopt` 建立 TypeScript 事务型 adoption planner 骨架，不一次性替换全部 shell migration，但先把 dry-run、operation model、JSON plan、测试夹具和后续迁移路径打牢。
 > **Primary Owner**: repo-harness maintainer / Codex execution agent
@@ -13,6 +13,7 @@
 ## Execution Progress
 
 - 2026-06-16: Phase 1 landed the TypeScript adoption operation model, planner, renderer, `adopt --dry-run --json` CLI branch, safe applicator subset, fixture snapshots, and CLI smoke coverage. Evidence: `bun test tests/cli/adoption-plan.test.ts` passed.
+- 2026-06-16: Sprint closeout added architecture/changelog documentation, updated compatibility tests, preserved HOME-target validation on the new JSON dry-run path, and passed `bun test`, `bash scripts/check-ci.sh`, and source-entrypoint `bun src/cli/index.ts adopt --repo . --dry-run --json`.
 
 ## 1. 背景与问题
 

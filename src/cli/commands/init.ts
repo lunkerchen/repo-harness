@@ -185,7 +185,7 @@ function isGitWorkTree(repoRoot: string, env?: NodeJS.ProcessEnv): boolean {
   return result.status === 0 && result.stdout.trim() === "true";
 }
 
-function validateRepoAdoptionTarget(
+export function validateRepoAdoptionTarget(
   repoRoot: string,
   explicitRepo: boolean,
   env?: NodeJS.ProcessEnv,

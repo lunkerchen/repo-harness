@@ -281,6 +281,7 @@ export function buildProgram(): Command {
           repo: rawOpts.repo,
           mode: (rawOpts.mode ?? 'standard') as AdoptionMode,
           json: true,
+          explicitRepo: rawOpts.repo !== undefined,
         });
         process.stdout.write(plan.output);
         process.exit(plan.exitCode);

@@ -1,6 +1,6 @@
 # Transactional Adoption Planner Notes
 
-> **Status**: Executing
+> **Status**: Done
 > **Sprint**: `plans/sprints/20260616-architecture-upgrade-sprint.md`
 
 ## Phase 1 Evidence
@@ -18,8 +18,45 @@ bun test tests/cli/adoption-plan.test.ts
 
 Result: pass, 9 tests.
 
+```bash
+bun test
+```
+
+Result: pass, 763 tests.
+
+```bash
+bash scripts/check-ci.sh
+```
+
+Result: pass; CI ran install, `bun test --timeout 60000 --max-concurrency 4`,
+workflow checks, repository inspection, migration dry-run, and package dry-run.
+
+```bash
+bun src/cli/index.ts adopt --repo . --dry-run --json
+```
+
+Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
+`apply: false` without writing repo files.
+
+## Documentation
+
+- Added `docs/architecture/transactional-adoption-planner.md` covering protocol
+  v1, safe operation support, `.gitignore` block handling, compatibility
+  invariants, and the next migration path.
+- Updated `docs/CHANGELOG.md` under Unreleased.
+
 ## Decisions
 
 - The JSON dry-run output redacts operation content and exposes `contentHash` plus a short preview so stdout stays reviewable and does not dump large generated templates.
 - Self-host mode records a skipped `runCheck` operation plus warning instead of migrating hooks/helpers in this sprint, preserving the self-host source repo boundary.
 - The first `.gitignore` planner step uses a single `repo-harness generated-runtime` managed block and supports replacing the legacy `claude-runtime-temp` block.
+- Existing HOME target validation is reused before the new planner path, so
+  `adopt --dry-run --json` does not bypass the previous safety guard.
+
+## Environment Caveat
+
+- `which repo-harness` currently resolves to `/Users/kito/.bun/bin/repo-harness`
+  at version `0.5.3`, and that global package still emits the previous
+  `runInit()` JSON shape. The sprint code is verified through the source
+  entrypoint and will become the plain `repo-harness` behavior after the local
+  CLI is refreshed from this branch or the package is published.
