@@ -54,6 +54,7 @@ export const GITIGNORE_MANAGED_BLOCK_CONTENT = [
   ".ai/harness/checks/post-bash-latest.json",
   ".ai/harness/events.jsonl",
   ".ai/harness/archive/",
+  ".ai/harness/backups/",
   ".ai/harness/failures/latest.jsonl",
   ".ai/harness/handoff/current.md",
   ".ai/harness/handoff/resume.md",

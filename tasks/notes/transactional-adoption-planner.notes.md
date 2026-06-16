@@ -114,3 +114,25 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
   `bash scripts/ensure-codegraph.sh --sync` passed. `repo-harness setup check
   --target codex --check-updates --json` reported no warn/fail and one existing
   Waza update `needs_agent` action.
+
+## Follow-up Slice: Atomic Applicator Writes
+
+- Added `atomicWriteFile` under `src/effects/fs-transaction.ts` and routed
+  `writeFile ifMissing` plus `appendManagedBlock` safe-applicator writes through
+  it.
+- The writer acquires a target-local `.repo-harness.lock`, writes through a temp
+  file, fsyncs the file, renames over the target, fsyncs the parent directory,
+  and stores existing target content under
+  `.ai/harness/backups/fs-transaction/`.
+- Added `.ai/harness/backups/` to the managed `.gitignore` block because these
+  backups are runtime evidence, not tracked deliverables.
+- Added tests for backup creation, lock cleanup, existing lock failure, and
+  preserving user content on lock failure.
+- Verification: targeted adoption/workflow/bootstrap/scaffold tests passed, and
+  full `bash scripts/check-ci.sh` passed with 767 tests.
+- Follow-up gates passed: `git diff --check`,
+  `bash scripts/check-task-sync.sh`, `bash scripts/check-task-workflow.sh --strict`,
+  and `bash scripts/ensure-codegraph.sh --sync`.
+- Tooling residual: the bounded Waza update command completed with "All global
+  skills are up to date", but setup check still reports one Waza
+  `needs_agent` action and no warn/fail.

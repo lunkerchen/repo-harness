@@ -12,7 +12,7 @@ import { summarizeOperations } from "../../src/core/adoption/summary";
 import { gitignoreManagedBlockOperation } from "../../src/core/adoption/gitignore-plan";
 import { renderManagedBlock, upsertManagedBlock } from "../../src/effects/managed-block";
 import { ensureRepoRelativePath, resolveInsideRepo } from "../../src/effects/path-safety";
-import { applyAdoptionPlan } from "../../src/effects/fs-transaction";
+import { applyAdoptionPlan, applyAppendManagedBlockOperation } from "../../src/effects/fs-transaction";
 
 const ROOT = join(import.meta.dir, "..", "..");
 const CLI = join(ROOT, "src/cli/index.ts");
@@ -254,6 +254,41 @@ describe("safe adoption applicator subset", () => {
       expect(readFileSync(join(repo, "docs", "spec.md"), "utf-8")).toBe("# User spec\n");
       expect(second.results.find((entry) => entry.id === "writeFile:docs/spec.md:ifMissing")?.status).toBe("skipped");
       expect(second.results.find((entry) => entry.kind === "appendManagedBlock")?.status).toBe("skipped");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("atomic writer backs up managed block updates and cleans transient locks", () => {
+    const repo = tempRepo();
+    try {
+      writeFileSync(join(repo, ".gitignore"), "# User rules\ncustom.log\n");
+      const result = applyAppendManagedBlockOperation(repo, gitignoreManagedBlockOperation("planned"));
+
+      expect(result.status).toBe("applied");
+      expect(result.backupPath?.startsWith(".ai/harness/backups/fs-transaction/.gitignore.")).toBe(true);
+      expect(existsSync(join(repo, result.backupPath ?? ""))).toBe(true);
+      expect(readFileSync(join(repo, result.backupPath ?? ""), "utf-8")).toBe("# User rules\ncustom.log\n");
+      expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toContain("# BEGIN: repo-harness generated-runtime");
+      expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toContain(".ai/harness/backups/");
+      expect(existsSync(join(repo, ".gitignore.repo-harness.lock"))).toBe(false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("atomic writer reports a structured failure when the target is locked", () => {
+    const repo = tempRepo();
+    try {
+      writeFileSync(join(repo, ".gitignore"), "# User rules\n");
+      writeFileSync(join(repo, ".gitignore.repo-harness.lock"), "external writer\n");
+
+      const result = applyAppendManagedBlockOperation(repo, gitignoreManagedBlockOperation("planned"));
+
+      expect(result.status).toBe("failed");
+      expect(result.error).toContain("target is locked");
+      expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toBe("# User rules\n");
+      expect(readFileSync(join(repo, ".gitignore.repo-harness.lock"), "utf-8")).toBe("external writer\n");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

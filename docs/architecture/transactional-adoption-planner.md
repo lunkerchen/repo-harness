@@ -88,6 +88,19 @@ The first safe applicator supports only:
 Unsupported operation kinds return structured failures from the applicator
 rather than exiting the process.
 
+## Atomic Applicator Writes
+
+The safe applicator writes file-changing operations through
+`src/effects/fs-transaction.ts#atomicWriteFile`. Each write acquires a
+target-local lock, writes the new content to a temp file, fsyncs that file,
+renames it over the target, and fsyncs the parent directory. Existing targets
+are first copied into `.ai/harness/backups/fs-transaction/`, and that backup
+path is returned in the operation result.
+
+This currently protects `writeFile ifMissing` and `appendManagedBlock`
+application in the safe subset. Dry-run and skipped operations do not create
+locks, temp files, or backups.
+
 ## Gitignore Managed Block
 
 The planner emits a `.gitignore` `appendManagedBlock` operation with marker:
@@ -161,7 +174,6 @@ planner proves stable:
 - move workflow-contract install application into the TypeScript applicator
 - move remaining bootstrap templates into the workflow contract manifest
 - move source-helper/runtime-copy handling into the TypeScript planner
-- add an atomic writer with backup metadata
 - expose `--experimental-ts-apply` for the safe subset
 - add rollback metadata to operation plans
 - migrate human-readable dry-run text to render from the same plan

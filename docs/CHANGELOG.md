@@ -19,6 +19,8 @@ All notable changes to this skill are documented here.
 - Added standard-mode helper wrapper planning to the TypeScript adoption plan so
   downstream dry-run JSON reports generated `scripts/<helper>` compatibility
   wrappers from the workflow contract helper manifest.
+- Added an atomic safe-applicator writer with target locks, temp-file fsync,
+  parent-directory fsync, and backup metadata for existing targets.
 
 ## [0.5.3] - 2026-06-15
 
