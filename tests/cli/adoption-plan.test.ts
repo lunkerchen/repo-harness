@@ -80,16 +80,22 @@ describe("adoption operation model", () => {
 });
 
 describe("planAdoption", () => {
-  test("spec and current status templates come from the workflow contract", () => {
+  test("bootstrap templates come from the workflow contract", () => {
     const repo = tempRepo();
     try {
       const spec = adoptionTemplateFile(repo, "spec");
+      const deferredGoalLedger = adoptionTemplateFile(repo, "deferredGoalLedger");
       const currentStatus = adoptionTemplateFile(repo, "currentStatus");
+      const lessonsLog = adoptionTemplateFile(repo, "lessonsLog");
 
       expect(spec.path).toBe("docs/spec.md");
       expect(spec.content).toContain(`# Product Spec: ${basename(repo)}`);
+      expect(deferredGoalLedger.path).toBe("tasks/todos.md");
+      expect(deferredGoalLedger.content).toContain("# Deferred Goal Ledger");
       expect(currentStatus.path).toBe("tasks/current.md");
       expect(currentStatus.content).toContain("<!-- generated-by: repo-harness refresh-current-status v1 -->");
+      expect(lessonsLog.path).toBe("tasks/lessons.md");
+      expect(lessonsLog.content).toContain("Correction-derived rules");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

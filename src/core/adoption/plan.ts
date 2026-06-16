@@ -53,53 +53,12 @@ function repoDirStatus(repoRoot: string, relPath: string): "planned" | "skipped"
   return existsSync(target) && statSync(target).isDirectory() ? "skipped" : "planned";
 }
 
-function todosTemplate(): string {
-  return [
-    "# Deferred Goal Ledger",
-    "",
-    "> **Status**: Backlog",
-    "> **Updated**: (initial)",
-    "> **Scope**: Medium/long-term goals deferred from active plan execution",
-    "",
-    "Current plan tasks live in the active plan's `## Task Breakdown`.",
-    "Do not duplicate that execution checklist here. Record only work intentionally deferred beyond this slice, with the tradeoff and revisit trigger.",
-    "",
-    "## Deferred Goals",
-    "",
-    "| Goal | Why Deferred | Tradeoff | Revisit Trigger |",
-    "|------|--------------|----------|-----------------|",
-    "| (none) | No deferred medium/long-term goal recorded yet. | Keep the first sprint bounded. | Add a row when a real follow-up is postponed. |",
-    "",
-  ].join("\n");
-}
-
-function lessonsTemplate(): string {
-  return [
-    "# Lessons",
-    "",
-    "Correction-derived rules that should influence future repo work.",
-    "",
-    "## Active Lessons",
-    "",
-    "- (none yet)",
-    "",
-  ].join("\n");
-}
-
 function writeIfMissingOperations(repoRoot: string): AdoptionOperation[] {
   const files = [
     adoptionTemplateFile(repoRoot, "spec"),
-    {
-      path: "tasks/todos.md",
-      content: todosTemplate(),
-      reason: "Create deferred-goal ledger when missing",
-    },
+    adoptionTemplateFile(repoRoot, "deferredGoalLedger"),
     adoptionTemplateFile(repoRoot, "currentStatus"),
-    {
-      path: "tasks/lessons.md",
-      content: lessonsTemplate(),
-      reason: "Create correction-derived lessons ledger when missing",
-    },
+    adoptionTemplateFile(repoRoot, "lessonsLog"),
   ] as const;
 
   return files.map((file) => ({

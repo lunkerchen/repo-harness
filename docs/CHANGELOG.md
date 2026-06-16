@@ -31,6 +31,9 @@ All notable changes to this skill are documented here.
   experimental apply reports expose the planned recovery strategy per operation.
 - Added workflow-contract install support to the experimental TypeScript
   adoption applicator, including atomic replacement backups for stale manifests.
+- Added workflow-contract-backed adoption templates for `tasks/todos.md` and
+  `tasks/lessons.md`, completing manifest ownership of the initial bootstrap
+  ledger file bodies.
 
 ## [0.5.3] - 2026-06-15
 

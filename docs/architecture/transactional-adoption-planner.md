@@ -148,15 +148,14 @@ it replaces an existing manifest.
 
 ## Manifest-Driven Bootstrap Templates
 
-The planner now reads the initial `docs/spec.md` and `tasks/current.md`
-bootstrap templates from `assets/workflow-contract.v1.json#adoptionTemplates`.
-The manifest owns the target document key, reason, and line-based template body;
-the planner only renders supported placeholders such as `{{repoName}}`.
+The planner now reads all initial bootstrap document templates from
+`assets/workflow-contract.v1.json#adoptionTemplates`: `docs/spec.md`,
+`tasks/todos.md`, `tasks/current.md`, and `tasks/lessons.md`. The manifest owns
+the target document key, reason, and line-based template body; the planner only
+renders supported placeholders such as `{{repoName}}`.
 
-This removes those two bootstrap file bodies from `plan.ts` while preserving
-the existing `writeFile ifMissing` behavior. `tasks/todos.md` and
-`tasks/lessons.md` remain local planner templates until their manifest entries
-are promoted in a later slice.
+This removes the bootstrap file bodies from `plan.ts` while preserving the
+existing `writeFile ifMissing` behavior.
 
 ## Helper Wrapper Operations
 
@@ -198,6 +197,5 @@ auditable and testable.
 The next coherent slice is to make the opt-in apply plan more reviewable and
 recoverable before widening its supported operation set:
 
-- move remaining bootstrap templates into the workflow contract manifest
 - move source-helper/runtime-copy handling into the TypeScript planner
 - add rollback execution helpers for the fs-transaction backup records

@@ -212,3 +212,28 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
 - Setup residual: CodeGraph repair cleared after sync. Waza still reports one
   `needs_agent` action in setup check even though `npx -y skills update`
   reports all global skills are up to date.
+
+## Follow-up Slice: Bootstrap Ledger Manifest Templates
+
+- Moved the remaining initial bootstrap ledger templates,
+  `tasks/todos.md` and `tasks/lessons.md`, into
+  `assets/workflow-contract.v1.json#adoptionTemplates.files`.
+- Kept planner behavior unchanged: both files still emit `writeFile ifMissing`
+  operations with the same paths, reasons, and content; `plan.ts` now resolves
+  them through `adoptionTemplateFile()` like `docs/spec.md` and
+  `tasks/current.md`.
+- Synced the runtime self-host manifest at `.ai/harness/workflow-contract.json`
+  so self-host checks continue comparing the same canonical template body.
+- Updated the sprint follow-up backlog checkbox so
+  `plans/sprints/20260616-architecture-upgrade-sprint.md` records the ledger
+  template migration as completed alongside the earlier manifest-template work.
+- Verification: targeted adoption/workflow/bootstrap/scaffold tests passed, CLI
+  dry-run JSON smoke preserved both ledger `writeFile ifMissing` operations, and
+  full `bash scripts/check-ci.sh` passed with 773 tests.
+- Follow-up gates passed: `git diff --check`, `bash scripts/check-task-sync.sh`,
+  `bash scripts/check-task-workflow.sh --strict`, and
+  `bash scripts/ensure-codegraph.sh --sync`.
+- Setup residual: Waza still reports one `needs_agent` update action in
+  `repo-harness setup check --target codex --check-updates --json` even after
+  the recommended `npx -y skills update` command reports all global skills are up
+  to date; there are no warn/fail setup findings.
