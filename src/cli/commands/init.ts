@@ -7,7 +7,6 @@
  * migration, then verify the installed harness.
  */
 
-import { spawnSync } from "child_process";
 import { createInterface } from "readline/promises";
 import { stdin, stdout } from "process";
 import { homedir } from "os";
@@ -31,6 +30,7 @@ import {
   type BrainRootChoice,
 } from "./brain-root";
 import { configureCodegraph, ensureCodegraph } from "../tools/codegraph";
+import { runProcess as runBoundedProcess } from "../../effects/process-runner";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..", "..", "..");
@@ -104,18 +104,14 @@ interface Choice<T> {
 }
 
 function runProcess(command: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv): InitStep {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: "utf-8",
-    env: { ...process.env, ...(env ?? {}) },
-  });
+  const result = runBoundedProcess(command, args, { cwd, env });
 
   return {
     step: "",
-    status: result.status === 0 && !result.error ? "ok" : "failed",
-    command: [command, ...args],
-    stdout: result.stdout ?? "",
-    stderr: result.stderr || (result.error ? String(result.error) : ""),
+    status: result.ok ? "ok" : "failed",
+    command: [...result.command],
+    stdout: result.stdout,
+    stderr: result.stderr || result.error,
   };
 }
 
@@ -178,11 +174,8 @@ function samePath(a: string, b: string): boolean {
 }
 
 function isGitWorkTree(repoRoot: string, env?: NodeJS.ProcessEnv): boolean {
-  const result = spawnSync("git", ["-C", repoRoot, "rev-parse", "--is-inside-work-tree"], {
-    encoding: "utf-8",
-    env: { ...process.env, ...(env ?? {}) },
-  });
-  return result.status === 0 && result.stdout.trim() === "true";
+  const result = runBoundedProcess("git", ["-C", repoRoot, "rev-parse", "--is-inside-work-tree"], { env });
+  return result.ok && result.stdout.trim() === "true";
 }
 
 export function validateRepoAdoptionTarget(

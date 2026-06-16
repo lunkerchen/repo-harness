@@ -56,7 +56,9 @@ export function renderAdoptionPlanText(plan: AdoptionPlan): string {
     `[adopt-plan] repo: ${plan.repoRoot}`,
     `[adopt-plan] mode: ${plan.mode}`,
     `[adopt-plan] apply: ${plan.apply ? "yes" : "no"}`,
-    `[adopt-plan] operations: ${plan.summary.total}`,
+    `[adopt-plan] operations: ${plan.summary.total} total, ${plan.summary.plannedTotal} planned, ${plan.summary.skippedTotal} skipped${
+      plan.summary.failedTotal > 0 ? `, ${plan.summary.failedTotal} failed` : ""
+    }`,
   ];
   for (const [kind, count] of Object.entries(plan.summary.byKind).sort()) {
     lines.push(`[adopt-plan] ${kind}: ${count}`);

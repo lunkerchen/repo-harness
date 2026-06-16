@@ -4,7 +4,25 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
-- (empty)
+### Fixed
+
+- Made non-standard `repo-harness adopt --mode minimal|self-host` fail closed
+  unless it routes to ordinary TypeScript `--dry-run` or
+  `--experimental-ts-apply`,
+  avoiding a mismatch where dry-run showed a TypeScript mode plan but apply
+  still used the standard shell migrator.
+- Made minimal TypeScript adoption install
+  `.ai/harness/workflow-contract.json`, preserving the hook opt-in marker for
+  all adoption modes.
+- Normalized protocol v1 JSON error output for adoption target validation
+  failures.
+- Added safe-applicator preflight inside `applyAdoptionPlan()` so exported
+  callers cannot partially write a plan before encountering an unsupported
+  operation.
+- Preserved CRLF `.gitignore` managed blocks without duplicate insertion and
+  added planned/skipped/failed summary counts to adoption plan output.
+- Added a bounded CLI process runner for init/adopt/global-runtime and CodeGraph
+  helper calls, with default timeout, output cap, and common secret redaction.
 
 ## [0.6.0] - 2026-06-16
 

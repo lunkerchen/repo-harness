@@ -75,7 +75,11 @@ describe("adoption operation model", () => {
 
     expect(operations[0].id).toBe("mkdir:plans");
     expect(operations[1].id).toBe("writeFile:docs/spec.md:ifMissing");
-    expect(summarizeOperations(operations).byKind).toEqual({ mkdir: 1, writeFile: 1 });
+    const summary = summarizeOperations(operations);
+    expect(summary.byKind).toEqual({ mkdir: 1, writeFile: 1 });
+    expect(summary.byStatus).toEqual({ planned: 2 });
+    expect(summary.plannedTotal).toBe(2);
+    expect(summary.skippedTotal).toBe(0);
   });
 });
 
@@ -150,6 +154,17 @@ describe("planAdoption", () => {
     } finally {
       rmSync(minimalRepo, { recursive: true, force: true });
       rmSync(selfHostRepo, { recursive: true, force: true });
+    }
+  });
+
+  test("minimal mode still plans the workflow-contract opt-in marker", () => {
+    const repo = tempRepo();
+    try {
+      const plan = planAdoption({ repoRoot: repo, mode: "minimal" });
+      expect(plan.operations.find((operation) => operation.id === "writeFile:.ai/harness/workflow-contract.json:workflow-contract"))
+        ?.toEqual(expect.objectContaining({ kind: "writeFile", path: ".ai/harness/workflow-contract.json" }));
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
@@ -287,6 +302,25 @@ describe("safe adoption applicator subset", () => {
     expect(replaced.content).toContain("_ops/");
   });
 
+  test("managed block replacement recognizes CRLF markers without duplicating the block", () => {
+    const operation = gitignoreManagedBlockOperation("planned");
+    const staleBlock = [
+      "# User rules",
+      "# BEGIN: repo-harness generated-runtime",
+      "old-entry/",
+      "# END: repo-harness generated-runtime",
+      "",
+    ].join("\r\n");
+
+    const replaced = upsertManagedBlock(staleBlock, operation);
+
+    expect(replaced.ok).toBe(true);
+    expect(replaced.changed).toBe(true);
+    expect(replaced.content?.match(/# BEGIN: repo-harness generated-runtime/g)).toHaveLength(1);
+    expect(replaced.content).not.toContain("old-entry/");
+    expect(replaced.content).toContain("\r\n");
+  });
+
   test("applicator writes safe subset and remains idempotent", () => {
     const repo = tempRepo();
     try {
@@ -294,6 +328,9 @@ describe("safe adoption applicator subset", () => {
       const result = applyAdoptionPlan(plan);
       expect(result.ok).toBe(true);
       expect(existsSync(join(repo, "docs", "spec.md"))).toBe(true);
+      expect(readFileSync(join(repo, ".ai", "harness", "workflow-contract.json"), "utf-8")).toBe(
+        readWorkflowContractAsset(),
+      );
       expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toContain("# BEGIN: repo-harness generated-runtime");
 
       writeFileSync(join(repo, "docs", "spec.md"), "# User spec\n");
@@ -367,6 +404,26 @@ describe("safe adoption applicator subset", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test("applicator preflights unsupported operations before partial writes", () => {
+    const repo = tempRepo();
+    try {
+      const result = applyAdoptionPlan(planAdoption({ repoRoot: repo, mode: "self-host", apply: true }));
+
+      expect(result.ok).toBe(false);
+      expect(result.results).toEqual([
+        expect.objectContaining({
+          id: "runCheck:self-host-adoption-boundary-review",
+          kind: "runCheck",
+          status: "failed",
+        }),
+      ]);
+      expect(existsSync(join(repo, "docs", "spec.md"))).toBe(false);
+      expect(existsSync(join(repo, ".gitignore"))).toBe(false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("repo-harness adopt dry-run planner output", () => {
@@ -381,7 +438,7 @@ describe("repo-harness adopt dry-run planner output", () => {
       expect(result.status).toBe(0);
       expect(result.stderr).toBe("");
       expect(result.stdout).toContain("[adopt-plan] repo:");
-      expect(result.stdout).toContain("[adopt-plan] operations: 65");
+      expect(result.stdout).toContain("[adopt-plan] operations: 65 total, 65 planned, 0 skipped");
       expect(result.stdout).toContain("[adopt-plan] writeFile: 47");
       expect(result.stdout).not.toContain("plan repo harness");
       expect(existsSync(join(repo, "docs", "spec.md"))).toBe(false);
@@ -413,6 +470,23 @@ describe("repo-harness adopt dry-run planner output", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test("refuses non-standard default apply while shell migrator mode parity is incomplete", () => {
+    const repo = tempRepo();
+    try {
+      const result = spawnSync("bun", [CLI, "adopt", "--repo", repo, "--mode", "minimal", "--no-verify", "--no-codegraph"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("--mode minimal is only supported with ordinary --dry-run or --experimental-ts-apply");
+      expect(existsSync(join(repo, "docs", "spec.md"))).toBe(false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("repo-harness adopt --experimental-ts-apply", () => {
@@ -437,6 +511,9 @@ describe("repo-harness adopt --experimental-ts-apply", () => {
       expect(output.apply.ok).toBe(true);
       expect(output.plan.apply).toBe(true);
       expect(existsSync(join(repo, "docs", "spec.md"))).toBe(true);
+      expect(readFileSync(join(repo, ".ai", "harness", "workflow-contract.json"), "utf-8")).toBe(
+        readWorkflowContractAsset(),
+      );
       expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toContain("# BEGIN: repo-harness generated-runtime");
     } finally {
       rmSync(repo, { recursive: true, force: true });

@@ -278,14 +278,25 @@ export function buildProgram(): Command {
         console.error('repo-harness adopt: brain configuration writes user-level state; run repo-harness update instead');
         process.exit(2);
       }
-      if (
+      const mode = (rawOpts.mode ?? 'standard') as AdoptionMode;
+      const routesToTsDryRunPlan =
         rawOpts.dryRun === true &&
         (rawOpts.json === true ||
-          (rawOpts.interactive !== true && rawOpts.reclaimRuntime !== true && rawOpts.compact !== true))
+          (rawOpts.interactive !== true && rawOpts.reclaimRuntime !== true && rawOpts.compact !== true));
+      if (
+        mode !== 'standard' &&
+        routesToTsDryRunPlan !== true &&
+        rawOpts.experimentalTsApply !== true
       ) {
+        console.error(
+          `repo-harness adopt: --mode ${mode} is only supported with ordinary --dry-run or --experimental-ts-apply; default apply still uses the shell migrator`,
+        );
+        process.exit(2);
+      }
+      if (routesToTsDryRunPlan) {
         const plan = runAdoptionPlan({
           repo: rawOpts.repo,
-          mode: (rawOpts.mode ?? 'standard') as AdoptionMode,
+          mode,
           json: rawOpts.json === true,
           explicitRepo: rawOpts.repo !== undefined,
         });
@@ -301,7 +312,7 @@ export function buildProgram(): Command {
         }
         const apply = runExperimentalTsApply({
           repo: rawOpts.repo,
-          mode: (rawOpts.mode ?? 'standard') as AdoptionMode,
+          mode,
           json: rawOpts.json === true,
           explicitRepo: rawOpts.repo !== undefined,
         });

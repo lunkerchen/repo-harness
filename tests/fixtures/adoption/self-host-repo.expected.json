@@ -35,6 +35,13 @@
       "appendManagedBlock": 1,
       "runCheck": 1
     },
+    "byStatus": {
+      "planned": 23,
+      "skipped": 1
+    },
+    "plannedTotal": 23,
+    "skippedTotal": 1,
+    "failedTotal": 0,
     "userOwnedFilesTouched": 1,
     "generatedFiles": 6,
     "repoHarnessOwnedFiles": 7,

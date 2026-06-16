@@ -108,6 +108,10 @@ export interface AdoptionPlan {
 export interface AdoptionPlanSummary {
   readonly total: number;
   readonly byKind: Record<string, number>;
+  readonly byStatus: Record<string, number>;
+  readonly plannedTotal: number;
+  readonly skippedTotal: number;
+  readonly failedTotal: number;
   readonly userOwnedFilesTouched: number;
   readonly generatedFiles: number;
   readonly repoHarnessOwnedFiles: number;

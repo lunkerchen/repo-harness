@@ -1,7 +1,7 @@
 # Transactional Adoption Planner
 
 > **Status**: Sprint foundation
-> **CLI Surface**: `repo-harness adopt --dry-run --json`, `repo-harness adopt --experimental-ts-apply`
+> **CLI Surface**: `repo-harness adopt --dry-run`, `repo-harness adopt --dry-run --json`, `repo-harness adopt --experimental-ts-apply`
 > **Protocol**: `1`
 
 ## Why This Exists
@@ -13,23 +13,25 @@ creation, skip behavior, managed blocks, and verification are mixed with shell
 side effects.
 
 The transactional adoption planner starts the migration toward a structured
-operation plan. The first shipped surface is additive: JSON dry-run planning.
-It lets agents, tests, and future review tools inspect what adoption would do
-without executing the legacy shell migrator or writing files.
+operation plan. The first shipped surfaces are additive: dry-run text and JSON
+planning. They let agents, tests, and future review tools inspect what adoption
+would do without executing the legacy shell migrator or writing files.
 
 ## Boundary Map
 
-- CLI boundary: `src/cli/index.ts` validates `adopt` arguments and routes only
-  `--dry-run --json` into the TypeScript planner.
+- CLI boundary: `src/cli/index.ts` validates `adopt` arguments and routes
+  ordinary dry-run and dry-run JSON into the TypeScript planner when not
+  combined with interactive/reclaim/compact.
 - Planning boundary: `src/core/adoption/` owns operation types, modes,
   summaries, deterministic templates, `.gitignore` block planning, and
   renderers.
 - Effects boundary: `src/effects/` owns repo-relative path safety and the
   safe applicator subset for tests and future opt-in apply paths.
-- Compatibility boundary: default `repo-harness adopt`, human-readable
-  `--dry-run`, verification, CodeGraph setup, runtime reclaim, and default
-  apply continue through the existing `runInit()` /
-  `scripts/migrate-project-template.sh` path.
+- Compatibility boundary: default `repo-harness adopt --mode standard`,
+  verification, CodeGraph setup, runtime reclaim, and default apply continue
+  through the existing `runInit()` / `scripts/migrate-project-template.sh`
+  path. Non-standard default apply exits before mutation until shell migration
+  parity or TypeScript apply promotion closes the mode gap.
 
 ## Protocol 1 JSON Shape
 
@@ -57,6 +59,12 @@ without executing the legacy shell migrator or writing files.
       "writeFile": 47,
       "appendManagedBlock": 1
     },
+    "byStatus": {
+      "planned": 65
+    },
+    "plannedTotal": 65,
+    "skippedTotal": 0,
+    "failedTotal": 0,
     "userOwnedFilesTouched": 1,
     "generatedFiles": 48,
     "repoHarnessOwnedFiles": 7,
@@ -89,8 +97,9 @@ The first safe applicator supports only:
 - workflow-contract `writeFile` install/replacement
 - `appendManagedBlock`
 
-Unsupported operation kinds return structured failures from the applicator
-rather than exiting the process.
+Unsupported operation kinds are preflighted before any operation writes. The
+applicator returns structured failures rather than exiting the process or
+partially applying the supported prefix of a mixed plan.
 
 ## Atomic Applicator Writes
 
@@ -104,6 +113,16 @@ path is returned in the operation result.
 This currently protects `writeFile ifMissing`, workflow-contract install, and
 `appendManagedBlock` application in the safe subset. Dry-run and skipped
 operations do not create locks, temp files, or backups.
+
+## CLI Process Runner Boundary
+
+Repo adoption, global runtime setup, and CodeGraph setup can all invoke child
+processes while reporting structured step/action results. These paths now use
+`src/effects/process-runner.ts` for process execution instead of local naked
+`spawnSync` calls. The shared runner owns default timeout, output cap, merged
+environment handling, and common output/command redaction. Hook foreground
+runtime dispatch remains outside this boundary because it has host protocol and
+stdio requirements of its own.
 
 ## Rollback Metadata
 
@@ -131,14 +150,17 @@ The applicator inserts the block when missing, replaces the existing block when
 out of date, and preserves user-owned content outside the block. It also
 recognizes legacy `claude-runtime-temp` markers so future apply migration can
 replace the old shell-managed runtime block without duplicating entries.
+Existing CRLF `.gitignore` files keep CRLF output, and marker detection
+normalizes trailing carriage returns so managed blocks are updated rather than
+duplicated.
 
 ## Workflow Contract Install Operation
 
-In `standard` and `self-host` modes, the planner emits a `writeFile` operation
-for `.ai/harness/workflow-contract.json` using the canonical tracked source
-`assets/workflow-contract.v1.json`. The operation is marked `skipped` when the
-target already matches the asset, and `planned` when the runtime manifest is
-missing or stale.
+In every adoption mode, including `minimal`, the planner emits a `writeFile`
+operation for `.ai/harness/workflow-contract.json` using the canonical tracked
+source `assets/workflow-contract.v1.json`. The operation is marked `skipped`
+when the target already matches the asset, and `planned` when the runtime
+manifest is missing or stale.
 
 This operation is now part of the TypeScript safe-applicator subset. Default
 apply remains on the shell migrator, which still performs the compatibility
@@ -182,12 +204,17 @@ The current sprint does not replace shell apply. The invariant is:
 - `repo-harness adopt --dry-run`: TypeScript planner text renderer, no shell
   migration, no file writes.
 - `repo-harness adopt --experimental-ts-apply --mode minimal`: TypeScript
-  safe applicator for the currently supported operation subset.
+  safe applicator for the currently supported operation subset, including the
+  workflow-contract opt-in marker.
 - `repo-harness adopt --experimental-ts-apply`: TypeScript safe applicator for
   standard downstream plans, including workflow-contract install.
 - `repo-harness adopt --experimental-ts-apply --mode self-host`: preflight
   rejects unsupported manual review operations before writing files.
-- `repo-harness adopt`: existing shell apply path and verification behavior.
+- `repo-harness adopt --mode standard`: existing shell apply path and
+  verification behavior.
+- `repo-harness adopt --mode minimal|self-host` outside ordinary TypeScript
+  dry-run or `--experimental-ts-apply`: fail-closed exit 2, because the shell
+  migrator does not yet implement those mode semantics.
 
 This keeps existing user adoption behavior stable while making the new plan
 auditable and testable.

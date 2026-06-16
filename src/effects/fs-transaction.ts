@@ -52,6 +52,18 @@ function failure(operation: AdoptionOperation, error: string): ApplyOperationRes
   };
 }
 
+export function isSupportedAdoptionOperation(operation: AdoptionOperation): boolean {
+  if (operation.kind === "mkdir" || operation.kind === "appendManagedBlock") return true;
+  return operation.kind === "writeFile" && (operation.ifMissing === true || isWorkflowContractInstallOperation(operation));
+}
+
+function unsupportedOperationReason(operation: AdoptionOperation): string {
+  if (operation.kind === "writeFile") {
+    return "writeFile applicator only supports ifMissing operations and workflow-contract install";
+  }
+  return `unsupported operation kind: ${operation.kind}`;
+}
+
 function ensureParent(repoRoot: string, path: string): string | null {
   const parent = resolveParentInsideRepo(repoRoot, path);
   if (!parent.ok || !parent.path) return parent.error ?? "failed to resolve parent directory";
@@ -221,6 +233,15 @@ export function applyAppendManagedBlockOperation(
 }
 
 export function applyAdoptionPlan(plan: AdoptionPlan, dryRun = false): ApplyAdoptionPlanResult {
+  const unsupported = plan.operations.filter((operation) => !isSupportedAdoptionOperation(operation));
+  if (unsupported.length > 0) {
+    return {
+      ok: false,
+      dryRun,
+      results: unsupported.map((operation) => failure(operation, unsupportedOperationReason(operation))),
+    };
+  }
+
   const results = plan.operations.map((operation) => {
     switch (operation.kind) {
       case "mkdir":

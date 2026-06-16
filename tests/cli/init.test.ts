@@ -443,8 +443,16 @@ describe("init command", () => {
 
       expect(res.status).toBe(2);
       const result = JSON.parse(res.stdout);
-      expect(result.steps[0].step).toBe("validate repo target");
-      expect(result.steps[0].detail).toContain("refusing to apply repo harness to HOME");
+      expect(result.protocol).toBe(1);
+      expect(result.command).toBe("adopt");
+      expect(result.ok).toBe(false);
+      expect(result.errors[0]).toEqual(
+        expect.objectContaining({
+          code: "invalid_repo_target",
+          message: expect.stringContaining("refusing to apply repo harness to HOME"),
+        }),
+      );
+      expect(result.operations).toEqual([]);
       expect(existsSync(join(home, ".ai"))).toBe(false);
       expect(existsSync(join(home, ".codex"))).toBe(false);
       expect(existsSync(join(home, ".claude"))).toBe(false);

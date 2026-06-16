@@ -24,6 +24,26 @@ function findMarkerRange(lines: readonly string[], marker: ManagedBlockMarker): 
   return { start, end };
 }
 
+function normalizeMarkerLine(line: string): string {
+  return line.replace(/\r$/, "");
+}
+
+function normalizeLineEndings(value: string): string {
+  return value.replace(/\r\n/g, "\n");
+}
+
+function newlineFor(existing: string): string {
+  return existing.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function withNewlineStyle(value: string, newline: string): string {
+  return value.split("\n").join(newline);
+}
+
+function endsWithLineBreak(value: string): boolean {
+  return value.endsWith("\n") || value.endsWith("\r\n");
+}
+
 export interface ManagedBlockUpdate {
   readonly ok: boolean;
   readonly changed: boolean;
@@ -33,12 +53,13 @@ export interface ManagedBlockUpdate {
 
 export function upsertManagedBlock(existing: string, operation: AppendManagedBlockOperation): ManagedBlockUpdate {
   const block = renderManagedBlock(operation);
-  const normalizedExisting = existing.trimEnd();
+  const newline = newlineFor(existing);
+  const normalizedExisting = normalizeLineEndings(existing.trimEnd());
   if (normalizedExisting === block) {
-    return { ok: true, changed: false, content: existing.endsWith("\n") ? existing : `${existing}\n` };
+    return { ok: true, changed: false, content: endsWithLineBreak(existing) ? existing : `${existing}${newline}` };
   }
 
-  const lines = existing.split("\n");
+  const lines = existing.split("\n").map(normalizeMarkerLine);
   for (const marker of allMarkers(operation)) {
     const range = findMarkerRange(lines, marker);
     if (!range) continue;
@@ -47,14 +68,15 @@ export function upsertManagedBlock(existing: string, operation: AppendManagedBlo
     }
     const currentBlock = lines.slice(range.start, range.end + 1).join("\n");
     if (currentBlock === block) {
-      return { ok: true, changed: false, content: existing.endsWith("\n") ? existing : `${existing}\n` };
+      return { ok: true, changed: false, content: endsWithLineBreak(existing) ? existing : `${existing}${newline}` };
     }
     const nextLines = [...lines.slice(0, range.start), ...block.split("\n"), ...lines.slice(range.end + 1)];
-    return { ok: true, changed: true, content: `${nextLines.join("\n").trimEnd()}\n` };
+    return { ok: true, changed: true, content: `${withNewlineStyle(nextLines.join("\n").trimEnd(), newline)}${newline}` };
   }
 
   const prefix = existing.trimEnd();
-  const content = prefix ? `${prefix}\n\n${block}\n` : `${block}\n`;
+  const styledBlock = withNewlineStyle(block, newline);
+  const content = prefix ? `${prefix}${newline}${newline}${styledBlock}${newline}` : `${styledBlock}${newline}`;
   return { ok: true, changed: true, content };
 }
 

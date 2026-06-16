@@ -73,8 +73,7 @@ function writeIfMissingOperations(repoRoot: string): AdoptionOperation[] {
   }));
 }
 
-function workflowContractOperations(repoRoot: string, mode: AdoptionMode): AdoptionOperation[] {
-  if (mode === "minimal") return [];
+function workflowContractOperations(repoRoot: string): AdoptionOperation[] {
   return [workflowContractInstallOperation(repoRoot)];
 }
 
@@ -116,7 +115,7 @@ export function planAdoption(opts: PlanAdoptionOptions): AdoptionPlan {
       status: repoDirStatus(repoRoot, path),
     })),
     ...writeIfMissingOperations(repoRoot),
-    ...workflowContractOperations(repoRoot, mode),
+    ...workflowContractOperations(repoRoot),
     ...helperWrapperOperations(repoRoot, mode),
   ];
 

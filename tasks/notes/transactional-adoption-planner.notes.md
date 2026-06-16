@@ -237,3 +237,47 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
   `repo-harness setup check --target codex --check-updates --json` even after
   the recommended `npx -y skills update` command reports all global skills are up
   to date; there are no warn/fail setup findings.
+
+## Follow-up Slice: Mode Parity Guard and Planner Protocol Polish
+
+- Added a fail-closed CLI guard for non-standard default apply and non-TS
+  dry-run combinations: `repo-harness adopt --mode minimal|self-host` now exits
+  2 unless it routes to ordinary TypeScript `--dry-run` or
+  `--experimental-ts-apply`. This preserves the invariant that users do not see
+  a TypeScript minimal/self-host plan and then silently run the standard shell
+  migrator path.
+- Kept the legacy shell migrator unchanged in this slice because real mode
+  parity belongs either in the shell migrator itself or in a promoted
+  TypeScript apply path; the guard is the smallest coherent behavior change.
+- Minimal TypeScript adoption now plans and applies
+  `.ai/harness/workflow-contract.json`, so minimal adoption still creates the
+  hook opt-in marker.
+- Normalized adoption target validation failures in dry-run/apply JSON paths to
+  protocol v1 error output with `ok: false`, `errors`, empty `operations`, and a
+  zero summary.
+- Moved unsupported-operation preflight into `applyAdoptionPlan()` so exported
+  callers cannot partially write supported operations before hitting an
+  unsupported `runCheck` or future operation kind.
+- Managed `.gitignore` updates now normalize CRLF marker lines while preserving
+  the file's newline style, preventing duplicate managed blocks in CRLF files.
+- Adoption plan summaries now include `byStatus`, `plannedTotal`,
+  `skippedTotal`, and `failedTotal`; text dry-run output reports total/planned/
+  skipped counts for reviewability.
+
+## Follow-up Slice: Bounded CLI Process Runner
+
+- Added `src/effects/process-runner.ts` as the shared child-process runner for
+  CLI setup/adoption paths. It defaults to a 120s timeout, caps captured output
+  at 64 KiB, redacts common bearer/API key/token/secret/password patterns in
+  output and command args, and returns structured status/error/timedOut fields
+  without throwing.
+- Migrated `src/cli/commands/init.ts`,
+  `src/cli/commands/global-runtime.ts`, and `src/cli/tools/codegraph.ts` to the
+  shared runner while preserving their existing `InitStep`,
+  `GlobalRuntimeStep`, and `CodegraphAction` output shapes.
+- Kept hook runtime dispatch and generated helper wrappers out of this slice.
+  Those paths have different host stdio/foreground semantics and need their own
+  review before applying the shared runner.
+- Verification: process-runner unit tests cover redaction, output capping, and
+  timeout handling. Focused CLI suites passed for init, global runtime, and
+  CodeGraph paths.

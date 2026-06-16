@@ -1,7 +1,7 @@
-import { spawnSync } from "child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { runProcess as runBoundedProcess } from "../../effects/process-runner";
 
 const CLAUDE_CODEGRAPH_ALLOWED_TOOLS_PATTERN = "mcp__codegraph__*";
 const CLAUDE_CODEGRAPH_SERVER_NAME = "codegraph";
@@ -75,13 +75,9 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..", "..", "..");
 
 function runJson(command: string, args: string[], repoRoot: string, env?: NodeJS.ProcessEnv) {
-  const result = spawnSync(command, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    env: { ...process.env, ...(env ?? {}) },
-  });
+  const result = runBoundedProcess(command, args, { cwd: repoRoot, env });
 
-  if (result.status !== 0 || result.error) {
+  if (!result.ok) {
     throw new Error(result.stderr || result.stdout || String(result.error));
   }
 
@@ -89,18 +85,14 @@ function runJson(command: string, args: string[], repoRoot: string, env?: NodeJS
 }
 
 function run(command: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv) {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, ...(env ?? {}) },
-  });
+  const result = runBoundedProcess(command, args, { cwd, env });
 
   return {
-    ok: result.status === 0 && !result.error,
-    status: result.status ?? 1,
-    stdout: result.stdout ?? "",
-    stderr: result.stderr ?? "",
-    error: result.error ? String(result.error.message || result.error) : "",
+    ok: result.ok,
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    error: result.error,
   };
 }
 

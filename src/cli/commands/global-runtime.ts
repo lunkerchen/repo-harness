@@ -1,4 +1,3 @@
-import { spawnSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -6,6 +5,7 @@ import { configureBrainRoot, defaultBrainRootChoice, expandHomePath } from "./br
 import { syncCrossReviewSkills } from "./init";
 import { runInstall, type InstallTargetSpec } from "./install";
 import { configureCodegraph } from "../tools/codegraph";
+import { runProcess as runBoundedProcess } from "../../effects/process-runner";
 
 export interface GlobalRuntimeOptions {
   sourceRoot?: string;
@@ -47,18 +47,14 @@ function defaultSourceRoot(): string {
 }
 
 function runProcess(command: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv): GlobalRuntimeStep {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: "utf-8",
-    env: { ...process.env, ...(env ?? {}) },
-  });
+  const result = runBoundedProcess(command, args, { cwd, env });
 
   return {
     step: "",
-    status: result.status === 0 && !result.error ? "ok" : "failed",
-    command: [command, ...args],
-    stdout: result.stdout ?? "",
-    stderr: result.stderr || (result.error ? String(result.error.message || result.error) : ""),
+    status: result.ok ? "ok" : "failed",
+    command: [...result.command],
+    stdout: result.stdout,
+    stderr: result.stderr || result.error,
   };
 }
 

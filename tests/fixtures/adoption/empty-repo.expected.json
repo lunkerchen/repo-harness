@@ -75,6 +75,12 @@
       "writeFile": 47,
       "appendManagedBlock": 1
     },
+    "byStatus": {
+      "planned": 65
+    },
+    "plannedTotal": 65,
+    "skippedTotal": 0,
+    "failedTotal": 0,
     "userOwnedFilesTouched": 1,
     "generatedFiles": 48,
     "repoHarnessOwnedFiles": 7,

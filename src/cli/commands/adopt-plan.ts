@@ -3,8 +3,7 @@ import type { AdoptionMode } from "../../core/adoption/modes";
 import { planAdoption } from "../../core/adoption/plan";
 import type { AdoptionOperation, AdoptionPlan } from "../../core/adoption/operations";
 import { renderAdoptionPlanJson, renderAdoptionPlanObject, renderAdoptionPlanText } from "../../core/adoption/render";
-import { isWorkflowContractInstallOperation } from "../../core/adoption/workflow-contract-plan";
-import { applyAdoptionPlan, type ApplyAdoptionPlanResult } from "../../effects/fs-transaction";
+import { applyAdoptionPlan, isSupportedAdoptionOperation, type ApplyAdoptionPlanResult } from "../../effects/fs-transaction";
 import { validateRepoAdoptionTarget } from "./init";
 
 export interface RunAdoptionPlanOptions {
@@ -37,20 +36,57 @@ interface ExperimentalTsApplyReport {
   readonly unsupportedOperations?: readonly Record<string, unknown>[];
 }
 
+function targetErrorMessage(targetError: NonNullable<ReturnType<typeof validateRepoAdoptionTarget>>): string {
+  return `${targetError.step}${targetError.detail ? ` - ${targetError.detail}` : ""}`;
+}
+
+function renderTargetError(
+  repoRoot: string,
+  targetError: NonNullable<ReturnType<typeof validateRepoAdoptionTarget>>,
+  json = false,
+): RunAdoptionPlanResult {
+  const message = targetErrorMessage(targetError);
+  if (json) {
+    return {
+      exitCode: 2,
+      output: `${JSON.stringify(
+        {
+          protocol: 1,
+          command: "adopt",
+          ok: false,
+          repoRoot,
+          errors: [
+            {
+              code: "invalid_repo_target",
+              message,
+            },
+          ],
+          operations: [],
+          summary: {
+            total: 0,
+            byKind: {},
+            byStatus: {},
+            plannedTotal: 0,
+            skippedTotal: 0,
+            failedTotal: 0,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    };
+  }
+  return {
+    exitCode: 2,
+    output: `[init] failed: ${message}\n`,
+  };
+}
+
 export function runAdoptionPlan(opts: RunAdoptionPlanOptions): RunAdoptionPlanResult {
   const repoRoot = resolve(opts.repo ?? process.cwd());
   const targetError = validateRepoAdoptionTarget(repoRoot, opts.explicitRepo === true, opts.env);
   if (targetError) {
-    const result = {
-      exitCode: 2,
-      repoRoot,
-      steps: [targetError],
-      lines: [`[init] failed: ${targetError.step}${targetError.detail ? ` - ${targetError.detail}` : ""}`],
-    };
-    return {
-      exitCode: 2,
-      output: opts.json === true ? `${JSON.stringify(result, null, 2)}\n` : `${result.lines.join("\n")}\n`,
-    };
+    return renderTargetError(repoRoot, targetError, opts.json === true);
   }
 
   const plan = planAdoption({
@@ -65,13 +101,8 @@ export function runAdoptionPlan(opts: RunAdoptionPlanOptions): RunAdoptionPlanRe
   };
 }
 
-function isSafeApplicatorOperation(operation: AdoptionOperation): boolean {
-  if (operation.kind === "mkdir" || operation.kind === "appendManagedBlock") return true;
-  return operation.kind === "writeFile" && (operation.ifMissing === true || isWorkflowContractInstallOperation(operation));
-}
-
 function unsupportedSafeApplicatorOperations(plan: AdoptionPlan): readonly AdoptionOperation[] {
-  return plan.operations.filter((operation) => !isSafeApplicatorOperation(operation));
+  return plan.operations.filter((operation) => !isSupportedAdoptionOperation(operation));
 }
 
 function renderExperimentalTsApplyText(report: ExperimentalTsApplyReport): string {
@@ -109,16 +140,7 @@ export function runExperimentalTsApply(opts: RunAdoptionPlanOptions): RunExperim
   const repoRoot = resolve(opts.repo ?? process.cwd());
   const targetError = validateRepoAdoptionTarget(repoRoot, opts.explicitRepo === true, opts.env);
   if (targetError) {
-    const result = {
-      exitCode: 2,
-      repoRoot,
-      steps: [targetError],
-      lines: [`[init] failed: ${targetError.step}${targetError.detail ? ` - ${targetError.detail}` : ""}`],
-    };
-    return {
-      exitCode: 2,
-      output: opts.json === true ? `${JSON.stringify(result, null, 2)}\n` : `${result.lines.join("\n")}\n`,
-    };
+    return renderTargetError(repoRoot, targetError, opts.json === true);
   }
 
   const plan = planAdoption({
