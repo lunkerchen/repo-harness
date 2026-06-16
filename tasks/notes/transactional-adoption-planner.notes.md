@@ -281,3 +281,16 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
 - Verification: process-runner unit tests cover redaction, output capping, and
   timeout handling. Focused CLI suites passed for init, global runtime, and
   CodeGraph paths.
+
+## Follow-up Slice: Helper Runner Process Boundary
+
+- Extended `src/effects/process-runner.ts` with optional `stdio` passthrough and
+  a separate spawn buffer ceiling so captured output can be clipped without
+  failing otherwise successful helpers.
+- Migrated `src/cli/runtime/helper-runner.ts` to the shared runner for repo root
+  discovery and helper execution. Default `repo-harness run` behavior still
+  inherits foreground stdio, while pipe-mode callers now get timeout, output cap,
+  and common secret redaction.
+- Kept `src/cli/hook/runtime.ts` out of scope. It owns host hook foreground
+  dispatch and must preserve Codex/Claude stdout, stderr, and exit-code protocol
+  behavior separately from helper dispatch.

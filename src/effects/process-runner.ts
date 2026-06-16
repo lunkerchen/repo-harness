@@ -8,6 +8,7 @@ export interface ProcessOutputRedaction {
 export interface RunProcessOptions {
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
+  readonly stdio?: "pipe" | "inherit" | "ignore";
   readonly timeoutMs?: number;
   readonly maxOutputBytes?: number;
   readonly redactions?: readonly ProcessOutputRedaction[];
@@ -26,6 +27,7 @@ export interface ProcessRunResult {
 
 export const DEFAULT_PROCESS_TIMEOUT_MS = 120_000;
 export const DEFAULT_PROCESS_MAX_OUTPUT_BYTES = 64 * 1024;
+export const DEFAULT_PROCESS_MAX_BUFFER_BYTES = 1024 * 1024;
 
 const DEFAULT_REDACTIONS: readonly ProcessOutputRedaction[] = [
   {
@@ -61,14 +63,16 @@ export function runProcess(command: string, args: readonly string[], opts: RunPr
   const redactions = opts.redactions ?? DEFAULT_REDACTIONS;
   const result = spawnSync(command, [...args], {
     cwd: opts.cwd,
-    encoding: "utf8",
+    encoding: opts.stdio === "inherit" || opts.stdio === "ignore" ? undefined : "utf8",
     env: { ...process.env, ...(opts.env ?? {}) },
+    stdio: opts.stdio ?? "pipe",
     timeout: timeoutMs,
-    maxBuffer: maxOutputBytes,
+    maxBuffer: Math.max(maxOutputBytes, DEFAULT_PROCESS_MAX_BUFFER_BYTES),
   });
   const error = result.error as NodeJS.ErrnoException | undefined;
   const timedOut = error?.code === "ETIMEDOUT";
-  const stderr = result.stderr || (error ? errorMessage(error) : "");
+  const stdout = typeof result.stdout === "string" ? result.stdout : "";
+  const stderr = (typeof result.stderr === "string" ? result.stderr : "") || (error ? errorMessage(error) : "");
 
   return {
     ok: result.status === 0 && !result.error,
@@ -76,7 +80,7 @@ export function runProcess(command: string, args: readonly string[], opts: RunPr
     signal: result.signal,
     timedOut,
     command: [command, ...args].map((part) => redactProcessOutput(part, redactions)),
-    stdout: capProcessOutput(redactProcessOutput(result.stdout ?? "", redactions), maxOutputBytes),
+    stdout: capProcessOutput(redactProcessOutput(stdout, redactions), maxOutputBytes),
     stderr: capProcessOutput(redactProcessOutput(stderr, redactions), maxOutputBytes),
     error: redactProcessOutput(error ? errorMessage(error) : "", redactions),
   };

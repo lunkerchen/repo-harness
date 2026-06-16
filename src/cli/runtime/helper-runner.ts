@@ -1,7 +1,7 @@
-import { spawnSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { dirname, extname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { runProcess as runBoundedProcess } from '../../effects/process-runner';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(SCRIPT_DIR, '..', '..', '..');
@@ -24,6 +24,8 @@ export interface RunHelperOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   stdio?: 'inherit' | 'pipe' | 'ignore';
+  timeoutMs?: number;
+  maxOutputBytes?: number;
 }
 
 export interface RunHelperResult {
@@ -72,9 +74,9 @@ function candidateFileNames(helper: string): string[] {
 }
 
 function resolveRepoRoot(cwd: string, env: NodeJS.ProcessEnv): string {
-  const result = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], {
-    encoding: 'utf-8',
+  const result = runBoundedProcess('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], {
     env,
+    timeoutMs: 5000,
   });
   return result.status === 0 && result.stdout.trim() ? result.stdout.trim() : cwd;
 }
@@ -141,11 +143,12 @@ export function runHelper(opts: RunHelperOptions): RunHelperResult {
 
   const args = [...(opts.args ?? [])];
   const command = resolved.fileName.endsWith('.sh') ? 'bash' : process.execPath;
-  const child = spawnSync(command, [resolved.path, ...args], {
+  const child = runBoundedProcess(command, [resolved.path, ...args], {
     cwd: resolved.repoRoot,
     env: { ...env, REPO_HARNESS_HELPER_SOURCE_PATH: resolved.path },
-    encoding: opts.stdio === 'pipe' ? 'utf-8' : undefined,
     stdio: opts.stdio ?? 'inherit',
+    timeoutMs: opts.timeoutMs,
+    maxOutputBytes: opts.maxOutputBytes,
   });
 
   if (child.error) {
@@ -154,7 +157,7 @@ export function runHelper(opts: RunHelperOptions): RunHelperResult {
       reason: 'spawn-error',
       helper: opts.helper,
       resolved,
-      stderr: child.error.message,
+      stderr: child.stderr || child.error,
     };
   }
 
@@ -163,7 +166,7 @@ export function runHelper(opts: RunHelperOptions): RunHelperResult {
     reason: 'ok',
     helper: opts.helper,
     resolved,
-    stdout: typeof child.stdout === 'string' ? child.stdout : undefined,
-    stderr: typeof child.stderr === 'string' ? child.stderr : undefined,
+    stdout: child.stdout || undefined,
+    stderr: child.stderr || undefined,
   };
 }

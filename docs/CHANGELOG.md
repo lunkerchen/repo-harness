@@ -21,8 +21,9 @@ All notable changes to this skill are documented here.
   operation.
 - Preserved CRLF `.gitignore` managed blocks without duplicate insertion and
   added planned/skipped/failed summary counts to adoption plan output.
-- Added a bounded CLI process runner for init/adopt/global-runtime and CodeGraph
-  helper calls, with default timeout, output cap, and common secret redaction.
+- Added a bounded CLI process runner for init/adopt/global-runtime, CodeGraph
+  setup, and `repo-harness run` helper dispatch, with default timeout, output
+  cap, and common secret redaction.
 
 ## [0.6.0] - 2026-06-16
 

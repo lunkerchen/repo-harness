@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "os";
 import { join } from "path";
 import { spawnSync } from "child_process";
-import { resolveHelper } from "../../src/cli/runtime/helper-runner";
+import { resolveHelper, runHelper } from "../../src/cli/runtime/helper-runner";
 
 const ROOT = join(import.meta.dir, "..", "..");
 const CLI = join(ROOT, "src/cli/index.ts");
@@ -59,6 +59,81 @@ describe("run command", () => {
 
       expect(resolved?.source).toBe("repo-pin");
       expect(resolved?.path).toBe(join(tmp, ".ai/harness/scripts/check-task-workflow.sh"));
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("runHelper pipe mode redacts common secrets from helper output", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "repo-harness-run-redact-"));
+    const helpers = join(tmp, "helpers");
+    try {
+      mkdirSync(helpers, { recursive: true });
+      const helper = join(helpers, "leaky.sh");
+      writeFileSync(helper, "#!/bin/bash\necho 'api_key=super-secret'\necho 'Authorization: Bearer token-value' >&2\n");
+      chmodSync(helper, 0o755);
+
+      const res = runHelper({
+        helper: "leaky",
+        cwd: tmp,
+        env: { REPO_HARNESS_HELPER_SOURCE: helpers },
+        stdio: "pipe",
+      });
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toContain("api_key=[redacted]");
+      expect(res.stderr).toContain("Authorization: [redacted]");
+      expect(`${res.stdout}\n${res.stderr}`).not.toContain("super-secret");
+      expect(`${res.stdout}\n${res.stderr}`).not.toContain("token-value");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("runHelper pipe mode caps helper output with a marker", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "repo-harness-run-cap-"));
+    const helpers = join(tmp, "helpers");
+    try {
+      mkdirSync(helpers, { recursive: true });
+      const helper = join(helpers, "chatty.sh");
+      writeFileSync(helper, "#!/bin/bash\nprintf '0123456789'\n");
+      chmodSync(helper, 0o755);
+
+      const res = runHelper({
+        helper: "chatty",
+        cwd: tmp,
+        env: { REPO_HARNESS_HELPER_SOURCE: helpers },
+        stdio: "pipe",
+        maxOutputBytes: 5,
+      });
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toBe("01234\n[output truncated after 5 bytes]");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("runHelper reports timed out helpers as spawn errors", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "repo-harness-run-timeout-"));
+    const helpers = join(tmp, "helpers");
+    try {
+      mkdirSync(helpers, { recursive: true });
+      const helper = join(helpers, "sleepy.sh");
+      writeFileSync(helper, "#!/bin/bash\nsleep 1\n");
+      chmodSync(helper, 0o755);
+
+      const res = runHelper({
+        helper: "sleepy",
+        cwd: tmp,
+        env: { REPO_HARNESS_HELPER_SOURCE: helpers },
+        stdio: "pipe",
+        timeoutMs: 20,
+      });
+
+      expect(res.exitCode).toBe(1);
+      expect(res.reason).toBe("spawn-error");
+      expect(res.stderr).toContain("ETIMEDOUT");
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

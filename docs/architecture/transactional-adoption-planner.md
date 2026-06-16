@@ -116,13 +116,14 @@ operations do not create locks, temp files, or backups.
 
 ## CLI Process Runner Boundary
 
-Repo adoption, global runtime setup, and CodeGraph setup can all invoke child
-processes while reporting structured step/action results. These paths now use
-`src/effects/process-runner.ts` for process execution instead of local naked
-`spawnSync` calls. The shared runner owns default timeout, output cap, merged
-environment handling, and common output/command redaction. Hook foreground
-runtime dispatch remains outside this boundary because it has host protocol and
-stdio requirements of its own.
+Repo adoption, global runtime setup, CodeGraph setup, and `repo-harness run`
+helper dispatch can all invoke child processes while reporting structured
+step/action results. These paths now use `src/effects/process-runner.ts` for
+process execution instead of local naked `spawnSync` calls. The shared runner
+owns default timeout, output cap, merged environment handling, common
+output/command redaction, and optional `stdio` passthrough for foreground helper
+execution. Hook foreground runtime dispatch remains outside this boundary
+because it has host protocol and stdio requirements of its own.
 
 ## Rollback Metadata
 
