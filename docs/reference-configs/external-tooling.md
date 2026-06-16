@@ -14,11 +14,17 @@ source, while `~/.agents/skills` is only the skills CLI staging/cache path used
 to receive upstream `tw93/Waza` updates before syncing verified copies into
 Codex.
 
-`repo-harness init` is allowed to bootstrap the workflow-owned global runtime in
-one pass: the `repo-harness` CLI, repo-harness runtime aliases, user-level
+`repo-harness install` is allowed to bootstrap the workflow-owned global runtime
+in one pass: the `repo-harness` CLI, repo-harness runtime aliases, user-level
 Codex/Claude hook adapters, Waza (`think`, `hunt`, `check`, `health`), brain
-root persistence, Mermaid, and CodeGraph CLI/MCP configuration. It must not
-silently install unrelated toolchains or Claude marketplace plugins.
+root persistence, Mermaid, and CodeGraph CLI/MCP configuration.
+`repo-harness init` remains a compatibility alias for existing automation. The
+bootstrap path must not silently install unrelated toolchains or Claude
+marketplace plugins.
+
+`repo-harness uninstall` removes repo-harness managed Codex/Claude hook
+adapters. It intentionally does not uninstall Waza, Mermaid, CodeGraph, gbrain,
+brain config, package-manager globals, or user-authored sibling hook entries.
 
 `repo-harness update` refreshes only the CLI and repo-harness-owned user-level
 runtime by default. Third-party tooling and CodeGraph registration stay
@@ -30,7 +36,7 @@ The cross-review skills are **harness-owned and self-contained** — their sourc
 lives in `assets/skills/<skill>/` and they wrap the peer CLI (`codex exec` /
 `claude -p`) in a read-only sandbox with no gstack dependency, so installing them
 is a workflow-owned runtime concern, not an unrelated toolchain. They install
-host-aware during `repo-harness init` and explicit external-skill refreshes:
+host-aware during `repo-harness install`/`init` and explicit external-skill refreshes:
 `codex-review` only into `~/.claude/skills` (a Claude session asking
 Codex for an independent review) and `claude-review` only into `~/.codex/skills`
 (a Codex session asking Claude). When gstack is present, its `/codex` and

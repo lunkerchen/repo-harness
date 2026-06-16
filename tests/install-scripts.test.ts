@@ -47,7 +47,7 @@ describe("install script contracts", () => {
     expect(readme).toContain("curl -fsSL https://raw.githubusercontent.com/Ancienttwo/repo-harness/main/install.sh | sh");
     expect(readme).toContain("irm https://raw.githubusercontent.com/Ancienttwo/repo-harness/main/install.ps1 | iex");
     expect(readme).toContain("<summary>Already have Bun or Node? Use package managers instead</summary>");
-    expect(readme).toContain("npx -y repo-harness init");
+    expect(readme).toContain("npx -y repo-harness install");
     expect(zhReadme).toContain("curl -fsSL https://raw.githubusercontent.com/Ancienttwo/repo-harness/main/install.sh | sh");
     expect(zhReadme).toContain("irm https://raw.githubusercontent.com/Ancienttwo/repo-harness/main/install.ps1 | iex");
     expect(pkg.files).toContain("install.sh");

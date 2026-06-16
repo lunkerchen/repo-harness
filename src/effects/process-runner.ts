@@ -61,6 +61,7 @@ export function runProcess(command: string, args: readonly string[], opts: RunPr
   const timeoutMs = opts.timeoutMs ?? DEFAULT_PROCESS_TIMEOUT_MS;
   const maxOutputBytes = opts.maxOutputBytes ?? DEFAULT_PROCESS_MAX_OUTPUT_BYTES;
   const redactions = opts.redactions ?? DEFAULT_REDACTIONS;
+  const redactedCommand = [command, ...args].map((part) => redactProcessOutput(part, redactions));
   const result = spawnSync(command, [...args], {
     cwd: opts.cwd,
     encoding: opts.stdio === "inherit" || opts.stdio === "ignore" ? undefined : "utf8",
@@ -72,16 +73,19 @@ export function runProcess(command: string, args: readonly string[], opts: RunPr
   const error = result.error as NodeJS.ErrnoException | undefined;
   const timedOut = error?.code === "ETIMEDOUT";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const stderr = (typeof result.stderr === "string" ? result.stderr : "") || (error ? errorMessage(error) : "");
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const rawError = error ? errorMessage(error) : "";
+  const timeoutMessage = timedOut ? `process timed out after ${timeoutMs}ms: ${redactedCommand.join(" ")}` : "";
+  const stderrOrError = [stderr, timeoutMessage || (!stderr && rawError ? rawError : "")].filter(Boolean).join("\n");
 
   return {
     ok: result.status === 0 && !result.error,
     status: result.status ?? 1,
     signal: result.signal,
     timedOut,
-    command: [command, ...args].map((part) => redactProcessOutput(part, redactions)),
+    command: redactedCommand,
     stdout: capProcessOutput(redactProcessOutput(stdout, redactions), maxOutputBytes),
-    stderr: capProcessOutput(redactProcessOutput(stderr, redactions), maxOutputBytes),
-    error: redactProcessOutput(error ? errorMessage(error) : "", redactions),
+    stderr: capProcessOutput(redactProcessOutput(stderrOrError, redactions), maxOutputBytes),
+    error: redactProcessOutput(timeoutMessage || rawError, redactions),
   };
 }

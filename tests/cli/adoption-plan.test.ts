@@ -23,8 +23,8 @@ function tempRepo(): string {
   return mkdtempSync(join(tmpdir(), "repo-harness-adoption-plan-"));
 }
 
-function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, "utf-8"));
+function readJson<T = Record<string, unknown>>(path: string): T {
+  return JSON.parse(readFileSync(path, "utf-8")) as T;
 }
 
 function snapshotOperation(operation: AdoptionOperation): Record<string, unknown> {
@@ -125,6 +125,8 @@ describe("planAdoption", () => {
         expect(newPlanWrapper.content).toContain("repo-harness run new-plan");
       }
       expect(helperWrapperContent("contract-run.ts")).toContain('["repo-harness", "run", "contract-run"]');
+      expect(helperWrapperContent("contract-run.ts")).toContain("timeout: timeoutMs");
+      expect(helperWrapperContent("contract-run.ts")).toContain("timed out after ${timeoutMs}ms");
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

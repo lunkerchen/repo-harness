@@ -10,6 +10,9 @@ BUN_TEST_MAX_CONCURRENCY="${BUN_TEST_MAX_CONCURRENCY:-4}"
 echo "[ci] install"
 bun install --frozen-lockfile
 
+echo "[ci] typecheck"
+bun run check:type
+
 echo "[ci] tests"
 bun test --timeout "$BUN_TEST_TIMEOUT_MS" --max-concurrency "$BUN_TEST_MAX_CONCURRENCY"
 

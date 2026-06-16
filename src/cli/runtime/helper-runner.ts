@@ -30,7 +30,7 @@ export interface RunHelperOptions {
 
 export interface RunHelperResult {
   exitCode: number;
-  reason: 'missing-helper' | 'spawn-error' | 'ok';
+  reason: 'missing-helper' | 'spawn-error' | 'timeout' | 'ok';
   helper: string;
   resolved?: ResolvedHelper;
   stdout?: string;
@@ -154,7 +154,7 @@ export function runHelper(opts: RunHelperOptions): RunHelperResult {
   if (child.error) {
     return {
       exitCode: 1,
-      reason: 'spawn-error',
+      reason: child.timedOut ? 'timeout' : 'spawn-error',
       helper: opts.helper,
       resolved,
       stderr: child.stderr || child.error,

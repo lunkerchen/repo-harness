@@ -2,7 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { runInstall } from '../../src/cli/commands/install';
+import { spawnSync } from 'child_process';
+import { runInstall, runUninstall } from '../../src/cli/commands/install';
+
+const ROOT = path.join(import.meta.dir, '..', '..');
+const CLI = path.join(ROOT, 'src/cli/index.ts');
 
 function withTempHome(fn: (home: string) => void): void {
   const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'repo-harness-install-')));
@@ -157,7 +161,7 @@ describe('install command (Phase 1B)', () => {
     });
   });
 
-  test('uninstall + re-install round-trip leaves sibling entries intact', () => {
+  test('uninstall removes only managed Claude entries and leaves sibling entries intact', () => {
     withTempHome((home) => {
       const filePath = path.join(home, '.claude/settings.json');
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -174,6 +178,48 @@ describe('install command (Phase 1B)', () => {
       const beforeUninstall = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       expect(beforeUninstall.theme).toBe('dark');
       expect(beforeUninstall.hooks.UserPromptSubmit.length).toBe(2);
+
+      const uninstall = runUninstall({ target: 'claude', location: 'global' });
+      expect(uninstall.exitCode).toBe(0);
+      expect(uninstall.lines.some((l) => l.includes('[claude] removed'))).toBe(true);
+      const afterUninstall = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      expect(afterUninstall.theme).toBe('dark');
+      expect(afterUninstall.hooks.UserPromptSubmit).toEqual([
+        { hooks: [{ type: 'command', command: 'rtk hook claude' }] },
+      ]);
+    });
+  });
+
+  test('uninstall removes managed Codex entries and preserves trust TOML', () => {
+    withTempHome((home) => {
+      const result = runInstall({ target: 'codex', location: 'global' });
+      expect(result.exitCode).toBe(0);
+      const hooksPath = path.join(home, '.codex/hooks.json');
+      const tomlPath = path.join(home, '.codex/config.toml');
+      expect(fs.existsSync(hooksPath)).toBe(true);
+      expect(fs.existsSync(tomlPath)).toBe(true);
+
+      const uninstall = runUninstall({ target: 'codex', location: 'global' });
+      expect(uninstall.exitCode).toBe(0);
+      expect(uninstall.lines.some((l) => l.includes('[codex] removed'))).toBe(true);
+      expect(uninstall.lines.some((l) => l.includes('[codex] note: ~/.codex/config.toml [hooks.state]'))).toBe(true);
+
+      const data = JSON.parse(fs.readFileSync(hooksPath, 'utf-8'));
+      expect(data.hooks).toEqual({});
+      expect(fs.readFileSync(tomlPath, 'utf-8')).toContain('default_mode_request_user_input = true');
+    });
+  });
+
+  test('uninstall is idempotent when no managed entries exist', () => {
+    withTempHome(() => {
+      runInstall({ target: 'both', location: 'global' });
+      const first = runUninstall({ target: 'both', location: 'global' });
+      expect(first.exitCode).toBe(0);
+      expect(first.lines.some((l) => l.includes('removed'))).toBe(true);
+
+      const second = runUninstall({ target: 'both', location: 'global' });
+      expect(second.exitCode).toBe(0);
+      expect(second.lines.filter((l) => l.includes('not-found')).length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -186,6 +232,52 @@ describe('install command (Phase 1B)', () => {
       // Both targets each emit at least one created/updated line
       expect(result.lines.filter((l) => l.startsWith('[codex]')).length).toBeGreaterThan(0);
       expect(result.lines.filter((l) => l.startsWith('[claude]')).length).toBeGreaterThan(0);
+    });
+  });
+
+  test('CLI exposes uninstall command', () => {
+    withTempHome((home) => {
+      const install = spawnSync('bun', [CLI, 'install', '--target', 'codex', '--location', 'global'], {
+        cwd: ROOT,
+        env: { ...process.env, HOME: home },
+        encoding: 'utf-8',
+      });
+      expect(install.status).toBe(0);
+
+      const uninstall = spawnSync('bun', [CLI, 'uninstall'], {
+        cwd: ROOT,
+        env: { ...process.env, HOME: home },
+        encoding: 'utf-8',
+      });
+      expect(uninstall.status).toBe(0);
+      expect(uninstall.stdout).toContain('[codex] removed');
+    });
+  });
+
+  test('CLI install without --location runs the full runtime bootstrap path', () => {
+    withTempHome((home) => {
+      const install = spawnSync(
+        'bun',
+        [
+          CLI,
+          'install',
+          '--target',
+          'codex',
+          '--no-cli',
+          '--no-sync-skill',
+          '--no-external-skills',
+          '--no-codegraph',
+        ],
+        {
+          cwd: ROOT,
+          env: { ...process.env, HOME: home },
+          encoding: 'utf-8',
+        },
+      );
+      expect(install.status).toBe(0);
+      expect(install.stdout).toContain('[runtime] ok: install host adapters');
+      expect(install.stdout).toContain('[codex] created');
+      expect(fs.existsSync(path.join(home, '.codex/hooks.json'))).toBe(true);
     });
   });
 });

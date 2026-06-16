@@ -149,26 +149,28 @@ export function atomicWriteFile(
 ): AtomicWriteResult {
   const target = resolveInsideRepo(repoRoot, path);
   if (!target.ok || !target.path) throw new Error(target.error ?? "invalid path");
+  const targetPath = target.path;
   const parentError = ensureParent(repoRoot, path);
   if (parentError) throw new Error(parentError);
 
-  return withTargetLock(target.path, () => {
+  return withTargetLock(targetPath, () => {
     let backupPath: string | undefined;
-    if (existsSync(target.path)) {
+    if (existsSync(targetPath)) {
       backupPath = backupPathFor(path);
       const backup = resolveInsideRepo(repoRoot, backupPath);
       if (!backup.ok || !backup.path) throw new Error(backup.error ?? "invalid backup path");
+      const resolvedBackupPath = backup.path;
       const backupParentError = ensureParent(repoRoot, backupPath);
       if (backupParentError) throw new Error(backupParentError);
-      writeFileDurably(backup.path, readFileSync(target.path, "utf-8"));
-      fsyncDirectory(dirname(backup.path));
+      writeFileDurably(resolvedBackupPath, readFileSync(targetPath, "utf-8"));
+      fsyncDirectory(dirname(resolvedBackupPath));
     }
 
-    const tempPath = resolve(dirname(target.path), `.${basename(target.path)}.${process.pid}.${Date.now()}.tmp`);
+    const tempPath = resolve(dirname(targetPath), `.${basename(targetPath)}.${process.pid}.${Date.now()}.tmp`);
     try {
       writeFileDurably(tempPath, content, opts.mode);
-      renameSync(tempPath, target.path);
-      fsyncDirectory(dirname(target.path));
+      renameSync(tempPath, targetPath);
+      fsyncDirectory(dirname(targetPath));
     } finally {
       rmSync(tempPath, { force: true });
     }

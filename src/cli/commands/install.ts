@@ -1,9 +1,10 @@
 /**
- * `repo-harness install --target codex|claude|both --location global|local`
+ * `repo-harness install|uninstall --target codex|claude|both --location global|local`
  *
- * Resolves --target to AgentTarget list, calls target.install(loc, opts)
- * for each, prints WriteResult lines. Idempotent: re-run with no diff
- * returns `action: 'unchanged'` (verified by tests/cli/install.test.ts).
+ * Resolves --target to AgentTarget list, calls target install/uninstall for
+ * each, prints WriteResult lines. Idempotent: re-run with no diff returns
+ * `action: 'unchanged'` or `action: 'not-found'` (verified by
+ * tests/cli/install.test.ts).
  *
  * Target/location matrix:
  *   - codex + global → writes ~/.codex/hooks.json
@@ -29,6 +30,8 @@ export interface InstallCommandResult {
   lines: string[];
 }
 
+type AdapterAction = 'install' | 'uninstall';
+
 function resolveTargets(spec: InstallTargetSpec) {
   if (spec === 'both') return [...ALL_TARGETS];
   const t = getTarget(spec);
@@ -40,7 +43,7 @@ function resolveTargets(spec: InstallTargetSpec) {
   return [t];
 }
 
-export function runInstall(opts: InstallCommandOptions): InstallCommandResult {
+function runAdapterAction(action: AdapterAction, opts: InstallCommandOptions): InstallCommandResult {
   const targets = resolveTargets(opts.target);
   const lines: string[] = [];
   let exitCode = 0;
@@ -56,7 +59,9 @@ export function runInstall(opts: InstallCommandOptions): InstallCommandResult {
       continue;
     }
     try {
-      const result = target.install(opts.location, {});
+      const result = action === 'install'
+        ? target.install(opts.location, {})
+        : target.uninstall(opts.location);
       for (const file of result.files) {
         lines.push(`[${target.id}] ${file.action}: ${file.path}`);
       }
@@ -70,4 +75,12 @@ export function runInstall(opts: InstallCommandOptions): InstallCommandResult {
   }
 
   return { exitCode, lines };
+}
+
+export function runInstall(opts: InstallCommandOptions): InstallCommandResult {
+  return runAdapterAction('install', opts);
+}
+
+export function runUninstall(opts: InstallCommandOptions): InstallCommandResult {
+  return runAdapterAction('uninstall', opts);
 }

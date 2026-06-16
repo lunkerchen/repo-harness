@@ -7,7 +7,7 @@
  */
 
 import { Command } from 'commander';
-import { runInstall, type InstallTargetSpec } from './commands/install';
+import { runInstall, runUninstall, type InstallTargetSpec } from './commands/install';
 import { runInit, runInteractiveInit, type InitBrainMode } from './commands/init';
 import { runHook } from './commands/hook';
 import { CLI_VERSION, formatStatus, runStatus } from './commands/status';
@@ -32,6 +32,7 @@ export const SUBCOMMANDS = [
   'init',
   'init-hook',
   'install',
+  'uninstall',
   'hook',
   'status',
   'doctor',
@@ -50,6 +51,41 @@ export type Subcommand = (typeof SUBCOMMANDS)[number];
 
 const VALID_TARGETS: readonly InstallTargetSpec[] = ['codex', 'claude', 'both'];
 const VALID_LOCATIONS: readonly Location[] = ['global', 'local'];
+
+interface GlobalRuntimeCommandOptions {
+  target: string;
+  cli?: boolean;
+  syncSkill?: boolean;
+  hooks?: string | false;
+  externalSkills?: boolean;
+  codegraph?: boolean;
+  brainRoot?: string;
+  json?: boolean;
+}
+
+function runGlobalRuntimeBootstrap(commandName: 'init' | 'install', rawOpts: GlobalRuntimeCommandOptions): never {
+  if (!VALID_TARGETS.includes(rawOpts.target as InstallTargetSpec)) {
+    console.error(
+      `repo-harness ${commandName}: invalid --target "${rawOpts.target}" (expected: ${VALID_TARGETS.join(', ')})`,
+    );
+    process.exit(2);
+  }
+  const result = runGlobalRuntimeSetup({
+    target: rawOpts.target as InstallTargetSpec,
+    installCli: rawOpts.cli !== false,
+    syncSkill: rawOpts.syncSkill !== false,
+    hostAdapters: rawOpts.hooks !== false,
+    externalSkills: rawOpts.externalSkills !== false,
+    codegraph: rawOpts.codegraph !== false,
+    brainRoot: rawOpts.brainRoot,
+  });
+  if (rawOpts.json === true) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    for (const line of result.lines) console.log(line);
+  }
+  process.exit(result.exitCode);
+}
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -71,38 +107,8 @@ export function buildProgram(): Command {
     .option('--brain-root <path>', 'Brain vault root to persist for repo-harness brain commands')
     .option('--refresh', 'Compatibility no-op; init already refreshes the idempotent user-level runtime')
     .option('--json', 'Output JSON instead of human-readable text')
-    .action((rawOpts: {
-      target: string;
-      cli?: boolean;
-      syncSkill?: boolean;
-      hooks?: string | false;
-      externalSkills?: boolean;
-      codegraph?: boolean;
-      brainRoot?: string;
-      refresh?: boolean;
-      json?: boolean;
-    }) => {
-      if (!VALID_TARGETS.includes(rawOpts.target as InstallTargetSpec)) {
-        console.error(
-          `repo-harness init: invalid --target "${rawOpts.target}" (expected: ${VALID_TARGETS.join(', ')})`,
-        );
-        process.exit(2);
-      }
-      const result = runGlobalRuntimeSetup({
-        target: rawOpts.target as InstallTargetSpec,
-        installCli: rawOpts.cli !== false,
-        syncSkill: rawOpts.syncSkill !== false,
-        hostAdapters: rawOpts.hooks !== false,
-        externalSkills: rawOpts.externalSkills !== false,
-        codegraph: rawOpts.codegraph !== false,
-        brainRoot: rawOpts.brainRoot,
-      });
-      if (rawOpts.json === true) {
-        console.log(JSON.stringify(result, null, 2));
-      } else {
-        for (const line of result.lines) console.log(line);
-      }
-      process.exit(result.exitCode);
+    .action((rawOpts: GlobalRuntimeCommandOptions & { refresh?: boolean }) => {
+      runGlobalRuntimeBootstrap('init', rawOpts);
     });
 
   program
@@ -364,15 +370,25 @@ export function buildProgram(): Command {
 
   program
     .command('install')
-    .description('Install hook adapters into Codex and/or Claude host config')
-    .requiredOption('--target <target>', `Target host: ${VALID_TARGETS.join('|')}`)
-    .requiredOption('--location <location>', `Install location: ${VALID_LOCATIONS.join('|')}`)
-    .action((rawOpts: { target: string; location: string }) => {
+    .description('Install the repo-harness global runtime; with --location, install only hook adapters')
+    .option('--target <target>', `Target host: ${VALID_TARGETS.join('|')}`, 'both')
+    .option('--location <location>', `Adapter-only install location: ${VALID_LOCATIONS.join('|')}`)
+    .option('--no-cli', 'Skip installing the repo-harness CLI globally')
+    .option('--no-sync-skill', 'Skip refreshing repo-harness skill aliases under host skill roots')
+    .option('--no-hooks', 'Skip global hook adapter installation during full runtime install')
+    .option('--no-external-skills', 'Skip Waza, Mermaid, and cross-review (codex-review/claude-review) skill bootstrap')
+    .option('--no-codegraph', 'Skip CodeGraph CLI/MCP configuration')
+    .option('--brain-root <path>', 'Brain vault root to persist for repo-harness brain commands')
+    .option('--json', 'Output JSON instead of human-readable text')
+    .action((rawOpts: GlobalRuntimeCommandOptions & { location?: string }) => {
       if (!VALID_TARGETS.includes(rawOpts.target as InstallTargetSpec)) {
         console.error(
           `repo-harness install: invalid --target "${rawOpts.target}" (expected: ${VALID_TARGETS.join(', ')})`,
         );
         process.exit(2);
+      }
+      if (rawOpts.location === undefined) {
+        runGlobalRuntimeBootstrap('install', rawOpts);
       }
       if (!VALID_LOCATIONS.includes(rawOpts.location as Location)) {
         console.error(
@@ -381,6 +397,32 @@ export function buildProgram(): Command {
         process.exit(2);
       }
       const result = runInstall({
+        target: rawOpts.target as InstallTargetSpec,
+        location: rawOpts.location as Location,
+      });
+      for (const line of result.lines) console.log(line);
+      process.exit(result.exitCode);
+    });
+
+  program
+    .command('uninstall')
+    .description('Remove repo-harness managed hook adapters from Codex and/or Claude host config')
+    .option('--target <target>', `Target host: ${VALID_TARGETS.join('|')}`, 'both')
+    .option('--location <location>', `Install location: ${VALID_LOCATIONS.join('|')}`, 'global')
+    .action((rawOpts: { target: string; location: string }) => {
+      if (!VALID_TARGETS.includes(rawOpts.target as InstallTargetSpec)) {
+        console.error(
+          `repo-harness uninstall: invalid --target "${rawOpts.target}" (expected: ${VALID_TARGETS.join(', ')})`,
+        );
+        process.exit(2);
+      }
+      if (!VALID_LOCATIONS.includes(rawOpts.location as Location)) {
+        console.error(
+          `repo-harness uninstall: invalid --location "${rawOpts.location}" (expected: ${VALID_LOCATIONS.join(', ')})`,
+        );
+        process.exit(2);
+      }
+      const result = runUninstall({
         target: rawOpts.target as InstallTargetSpec,
         location: rawOpts.location as Location,
       });

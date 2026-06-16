@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-15T05:38:29+0800 -->
+<!-- updated_at: 2026-06-16T18:08:55+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-15T05:38:29+0800
+> **Updated At**: 2026-06-16T18:08:55+0800
 > **Source Branch**: main
-> **Source Commit**: 88a1271
+> **Source Commit**: 87eeb70
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: repo-harness 0.5.3 release evidence
+> **Reason**: manual
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -34,10 +34,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 - (none)
 ## Active Sprint
 
-- Sprint: `plans/sprints/20260612-0236-loop-engine.sprint.md`
-- Sprint Status: Done
-- Backlog: 8/8
-- Next Sprint Task: (none)
+- Sprint: (none)
 ## Workstreams
 
 - `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`: status=completed, current_slice=todo-01, source_plan=(none)
@@ -47,14 +44,35 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Checks
 
-- status=pass, source=post-bash, exit_code=0, file=.ai/harness/checks/latest.json
+- status=pass, source=verify-sprint, exit_code=0, file=.ai/harness/checks/latest.json
 
 ## Git Status
 
-- Summary: 1 changed/untracked path(s)
+- Summary: 22 changed/untracked path(s)
 
 ```
- M deploy/release-checklists/260615-repo-harness-0.5.3.md
+ M README.md
+ M README.zh-CN.md
+ M bun.lock
+ M docs/CHANGELOG.md
+ M docs/architecture/modules/public-surface/root-router.md
+ M docs/reference-configs/external-tooling.md
+ M package.json
+ M scripts/check-ci.sh
+ M src/cli/commands/install.ts
+ M src/cli/index.ts
+ M src/cli/runtime/helper-runner.ts
+ M src/core/adoption/helper-wrapper-plan.ts
+ M src/effects/fs-transaction.ts
+ M src/effects/process-runner.ts
+ M tasks/current.md
+ M tests/cli/adoption-plan.test.ts
+ M tests/cli/install.test.ts
+ M tests/cli/run.test.ts
+ M tests/install-scripts.test.ts
+ M tests/process-runner.test.ts
+ M tests/readme-dx.test.ts
+?? tsconfig.json
 ```
 
 ## Source Artifacts

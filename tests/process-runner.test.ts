@@ -27,6 +27,7 @@ describe("process runner", () => {
 
     expect(result.ok).toBe(false);
     expect(result.timedOut).toBe(true);
-    expect(result.error).toContain("ETIMEDOUT");
+    expect(result.error).toContain("process timed out after 20ms");
+    expect(result.stderr).toContain("process timed out after 20ms");
   });
 });

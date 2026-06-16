@@ -22,7 +22,8 @@ Weak dependencies:
 
 - Compatibility name `repo-harness-skill`.
 - Retired `project-initializer` install paths, which are cleanup targets only.
-- `repo-harness init` owns first-run global bootstrap: install the CLI, install user-level hook adapters, configure Waza, persist the brain root, and configure CodeGraph MCP.
+- `repo-harness install` owns first-run global bootstrap: install the CLI, install user-level hook adapters, configure Waza, persist the brain root, and configure CodeGraph MCP. `repo-harness init` remains a compatibility alias.
+- `repo-harness uninstall` removes repo-harness managed host adapters without deleting sibling hooks or third-party tools.
 - `repo-harness adopt` owns repo-local harness adoption and refresh.
 - gstack/gbrain policy references remain advisory; this self-host repo vendors CodeGraph as a dev dependency while downstream generated repos keep global MCP setup explicit unless policy opts in.
 
@@ -35,7 +36,7 @@ Out of scope:
 ## P2 Trace
 
 Concrete route: user asks for first-run host setup -> root `README.md` selects
-`repo-harness init` -> the command installs the current package as the global
+`repo-harness install` -> the command installs the current package as the global
 CLI, refreshes repo-harness skill aliases, installs user-level hook adapters,
 configures Waza `think`/`hunt`/`check`/`health`, writes the selected brain root
 to `~/.repo-harness/config.json`, and configures CodeGraph MCP for the selected

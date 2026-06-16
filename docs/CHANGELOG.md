@@ -4,6 +4,19 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added `repo-harness uninstall` to remove repo-harness managed Codex/Claude
+  hook adapters while preserving sibling user hooks and Codex trust-state
+  residue.
+
+### Changed
+
+- Made `repo-harness install` the primary first-run global runtime bootstrap
+  command, while preserving `repo-harness init` as a compatibility alias and
+  keeping `repo-harness install --target <host> --location <scope>` as the
+  adapter-only path.
+
 ### Fixed
 
 - Made non-standard `repo-harness adopt --mode minimal|self-host` fail closed

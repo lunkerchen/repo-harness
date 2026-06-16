@@ -236,10 +236,10 @@ irm https://raw.githubusercontent.com/Ancienttwo/repo-harness/main/install.ps1 |
 ```bash
 # Bun
 bun add -g repo-harness
-repo-harness init
+repo-harness install
 
 # Node/npm, with Bun already on PATH because the CLI runs on Bun
-npx -y repo-harness init
+npx -y repo-harness install
 ```
 
 </details>
@@ -247,14 +247,15 @@ npx -y repo-harness init
 ### 2. Bootstrap the host runtime once
 
 ```bash
-repo-harness init
+repo-harness install
 ```
 
-`init` is the first-run global bootstrap path. It installs the current npm
+`install` is the first-run global bootstrap path. It installs the current npm
 package as the global CLI, refreshes repo-harness skill aliases, installs
 user-level hook adapters, configures Waza runtime skills, persists a brain root
 under `~/.repo-harness/config.json`, and configures CodeGraph MCP. It does not
-apply repo-local workflow files to the current directory.
+apply repo-local workflow files to the current directory. `repo-harness init`
+remains a compatibility alias for existing scripts.
 
 For an Agent-owned, read-only bootstrap audit, run `npx -y repo-harness setup
 check --json` or add `--check-updates` for version advisories. `setup check` is
@@ -267,10 +268,16 @@ optional command, and verification surface for the Agent to execute deliberately
 
 ```bash
 # First machine bootstrap after installing the CLI: skills, host adapters, Waza, brain, CodeGraph.
-repo-harness init
+repo-harness install
 
 # Refresh user-level CLI/runtime pieces after a package update.
 repo-harness update
+
+# Remove repo-harness managed host adapters without deleting sibling hooks or third-party tools.
+repo-harness uninstall
+
+# Install only the host hook adapters, preserving the older adapter-only surface.
+repo-harness install --target both --location global
 
 # Ask for read-only repair guidance without writing files.
 repo-harness update --check

@@ -206,10 +206,10 @@ irm https://raw.githubusercontent.com/Ancienttwo/repo-harness/main/install.ps1 |
 ```bash
 # Bun
 bun add -g repo-harness
-repo-harness init
+repo-harness install
 
 # Node/npm；仍要求 Bun 已在 PATH 上，因为 CLI runtime 是 Bun
-npx -y repo-harness init
+npx -y repo-harness install
 ```
 
 </details>
@@ -217,13 +217,13 @@ npx -y repo-harness init
 ### 2. 先做一次 host runtime bootstrap
 
 ```bash
-repo-harness init
+repo-harness install
 ```
 
-`init` 是首次全局引导入口。它把当前 npm 包安装成全局 CLI，刷新 repo-harness
+`install` 是首次全局引导入口。它把当前 npm 包安装成全局 CLI，刷新 repo-harness
 skill aliases，安装 user-level hook adapters，配置 Waza runtime skills，把 brain
 root 持久化到 `~/.repo-harness/config.json`，并配置 CodeGraph MCP。它不会把当前目录
-默认迁移成 repo-local workflow。
+默认迁移成 repo-local workflow。`repo-harness init` 保留为兼容 alias，给已有脚本用。
 
 如果要让 Agent 做只读 bootstrap audit，运行 `npx -y repo-harness setup check
 --json`；需要版本提示时加 `--check-updates`。`setup check` 不是 runtime hook：
@@ -235,10 +235,16 @@ targets、可选 command 和 verification 的 `agent_actions`，由 Agent 再显
 
 ```bash
 # 安装 CLI 后做首次机器级 bootstrap：skills、host adapters、Waza、brain、CodeGraph。
-repo-harness init
+repo-harness install
 
 # 包更新后刷新 user-level CLI/runtime。
 repo-harness update
+
+# 移除 repo-harness 管理的 host adapters，不删除 sibling hooks 或第三方工具。
+repo-harness uninstall
+
+# 只安装 host hook adapters，保留旧版 adapter-only surface。
+repo-harness install --target both --location global
 
 # 只读检查需要 agent 修复什么，不写文件。
 repo-harness update --check

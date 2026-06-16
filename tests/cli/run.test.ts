@@ -114,7 +114,7 @@ describe("run command", () => {
     }
   });
 
-  test("runHelper reports timed out helpers as spawn errors", () => {
+  test("runHelper reports timed out helpers distinctly", () => {
     const tmp = mkdtempSync(join(tmpdir(), "repo-harness-run-timeout-"));
     const helpers = join(tmp, "helpers");
     try {
@@ -132,8 +132,8 @@ describe("run command", () => {
       });
 
       expect(res.exitCode).toBe(1);
-      expect(res.reason).toBe("spawn-error");
-      expect(res.stderr).toContain("ETIMEDOUT");
+      expect(res.reason).toBe("timeout");
+      expect(res.stderr).toContain("process timed out after 20ms");
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

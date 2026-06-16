@@ -48,11 +48,12 @@ describe("README DX contract", () => {
     const maintainer = section(readme, "Maintainer Reference");
 
     expect(readme.indexOf("## First 5 Minutes")).toBeLessThan(readme.indexOf("## Current Model"));
-    expect(firstFive).toContain("npx -y repo-harness init");
+    expect(firstFive).toContain("npx -y repo-harness install");
     expect(firstFive).toContain("npx -y repo-harness adopt --dry-run");
     expect(firstFive).toContain("npx -y repo-harness adopt");
     expect(firstFive).toContain("first-run global bootstrap path");
     expect(firstFive.match(/npx -y repo-harness adopt --dry-run/g)?.length).toBe(2);
+    expect(firstFive).not.toContain("npx -y repo-harness install --dry-run");
     expect(firstFive).not.toContain("npx -y repo-harness init --dry-run");
     expect(firstFive).not.toContain("bun scripts/assemble-template.ts");
     expect(firstFive).toContain("=== Migration Report ===");
