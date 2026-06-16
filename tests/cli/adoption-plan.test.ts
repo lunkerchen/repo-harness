@@ -31,7 +31,7 @@ function snapshotOperation(operation: AdoptionOperation): Record<string, unknown
     status: operation.status,
   };
   if (operation.path) result.path = operation.path;
-  if (operation.kind === "writeFile") result.ifMissing = operation.ifMissing === true;
+  if (operation.kind === "writeFile" && operation.ifMissing !== undefined) result.ifMissing = operation.ifMissing;
   if (operation.kind === "appendManagedBlock") result.marker = operation.marker;
   if (operation.kind === "runCheck") result.command = operation.command;
   return result;
@@ -108,13 +108,22 @@ describe("planAdoption", () => {
     const repo = tempRepo();
     try {
       mkdirSync(join(repo, "docs"), { recursive: true });
+      mkdirSync(join(repo, ".ai", "harness"), { recursive: true });
       writeFileSync(join(repo, "docs", "spec.md"), "# User spec\n");
+      writeFileSync(
+        join(repo, ".ai", "harness", "workflow-contract.json"),
+        readFileSync(join(ROOT, "assets", "workflow-contract.v1.json"), "utf-8"),
+      );
       writeFileSync(join(repo, ".gitignore"), renderManagedBlock(gitignoreManagedBlockOperation("planned")) + "\n");
 
       const plan = planAdoption({ repoRoot: repo, mode: "standard" });
       expect(plan.operations.find((operation) => operation.id === "writeFile:docs/spec.md:ifMissing")?.status).toBe(
         "skipped",
       );
+      expect(
+        plan.operations.find((operation) => operation.id === "writeFile:.ai/harness/workflow-contract.json:workflow-contract")
+          ?.status,
+      ).toBe("skipped");
       expect(
         plan.operations.find((operation) => operation.id === "appendManagedBlock:.gitignore:repo-harness-generated-runtime")
           ?.status,

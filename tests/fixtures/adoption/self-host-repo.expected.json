@@ -23,20 +23,21 @@
     { "id": "writeFile:tasks/todos.md:ifMissing", "kind": "writeFile", "path": "tasks/todos.md", "status": "planned", "ifMissing": true },
     { "id": "writeFile:tasks/current.md:ifMissing", "kind": "writeFile", "path": "tasks/current.md", "status": "planned", "ifMissing": true },
     { "id": "writeFile:tasks/lessons.md:ifMissing", "kind": "writeFile", "path": "tasks/lessons.md", "status": "planned", "ifMissing": true },
+    { "id": "writeFile:.ai/harness/workflow-contract.json:workflow-contract", "kind": "writeFile", "path": ".ai/harness/workflow-contract.json", "status": "planned" },
     { "id": "appendManagedBlock:.gitignore:repo-harness-generated-runtime", "kind": "appendManagedBlock", "path": ".gitignore", "status": "planned", "marker": "repo-harness generated-runtime" },
     { "id": "runCheck:self-host-adoption-boundary-review", "kind": "runCheck", "status": "skipped", "command": "manual:self-host-hook-helper-pin-review" }
   ],
   "summary": {
-    "total": 23,
+    "total": 24,
     "byKind": {
       "mkdir": 17,
-      "writeFile": 4,
+      "writeFile": 5,
       "appendManagedBlock": 1,
       "runCheck": 1
     },
     "userOwnedFilesTouched": 1,
-    "generatedFiles": 5,
-    "repoHarnessOwnedFiles": 6,
+    "generatedFiles": 6,
+    "repoHarnessOwnedFiles": 7,
     "requiresVerification": true
   },
   "warnings": [

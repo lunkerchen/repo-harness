@@ -873,7 +873,7 @@ Low-medium. New JSON dry-run path is additive. Existing apply path is preserved.
 本 sprint 结束后，下一 sprint 可以继续做：
 
 ```text
-[ ] 把 workflow-contract install 从 shell 迁到 TS operation
+[x] 把 workflow-contract install 从 shell 迁到 TS operation
 [ ] 把 docs/spec.md / tasks/current.md templates 改成 manifest-driven
 [ ] 把 helper wrapper install 迁到 TS operation
 [ ] 引入 atomic writer with backup / lock / fsync

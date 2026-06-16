@@ -69,3 +69,17 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
 - Left section 12, "下一 sprint 预留 backlog", unchecked because those items are
   intentionally deferred migration candidates rather than completed work in
   this sprint.
+
+## Follow-up Slice: Workflow Contract Planning
+
+- Added a TypeScript adoption operation for `.ai/harness/workflow-contract.json`
+  in `standard` and `self-host` modes. The operation reads the canonical
+  `assets/workflow-contract.v1.json` asset and marks the runtime copy as
+  `skipped` when it already matches.
+- Kept `minimal` mode unchanged and did not change default `adopt` apply
+  behavior; shell migration remains the compatibility apply engine.
+- Ran the requested tooling update commands. CodeGraph updated to `1.0.1` and
+  verified as up to date. Waza's `skills update` command reported "All global
+  skills are up to date", but `repo-harness setup check --target codex
+  --check-updates --json` still reports `tooling.waza.update` as
+  `needs_agent`.

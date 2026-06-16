@@ -51,15 +51,15 @@ without executing the legacy shell migrator or writing files.
     }
   ],
   "summary": {
-    "total": 22,
+    "total": 23,
     "byKind": {
       "mkdir": 17,
-      "writeFile": 4,
+      "writeFile": 5,
       "appendManagedBlock": 1
     },
     "userOwnedFilesTouched": 1,
-    "generatedFiles": 5,
-    "repoHarnessOwnedFiles": 6,
+    "generatedFiles": 6,
+    "repoHarnessOwnedFiles": 7,
     "requiresVerification": false
   },
   "warnings": []
@@ -101,6 +101,18 @@ out of date, and preserves user-owned content outside the block. It also
 recognizes legacy `claude-runtime-temp` markers so future apply migration can
 replace the old shell-managed runtime block without duplicating entries.
 
+## Workflow Contract Install Operation
+
+In `standard` and `self-host` modes, the planner emits a `writeFile` operation
+for `.ai/harness/workflow-contract.json` using the canonical tracked source
+`assets/workflow-contract.v1.json`. The operation is marked `skipped` when the
+target already matches the asset, and `planned` when the runtime manifest is
+missing or stale.
+
+This operation is currently part of the auditable dry-run plan only. Default
+apply remains on the shell migrator, which still performs the actual manifest
+copy until the opt-in TypeScript apply path is introduced.
+
 ## Compatibility Strategy
 
 The current sprint does not replace shell apply. The invariant is:
@@ -118,7 +130,7 @@ auditable and testable.
 The next coherent slice is to add an explicit opt-in apply path after this
 planner proves stable:
 
-- move workflow-contract install planning into TypeScript operations
+- move workflow-contract install application into the TypeScript applicator
 - add an atomic writer with backup metadata
 - expose `--experimental-ts-apply` for the safe subset
 - add rollback metadata to operation plans

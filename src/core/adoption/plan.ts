@@ -6,6 +6,7 @@ import { makeOperationId } from "./operations";
 import { gitignoreManagedBlockOperation } from "./gitignore-plan";
 import { summarizeOperations } from "./summary";
 import { managedBlockNeedsUpdate } from "../../effects/managed-block";
+import { workflowContractInstallOperation } from "./workflow-contract-plan";
 
 export interface PlanAdoptionOptions {
   readonly repoRoot: string;
@@ -147,6 +148,11 @@ function writeIfMissingOperations(repoRoot: string): AdoptionOperation[] {
   }));
 }
 
+function workflowContractOperations(repoRoot: string, mode: AdoptionMode): AdoptionOperation[] {
+  if (mode === "minimal") return [];
+  return [workflowContractInstallOperation(repoRoot)];
+}
+
 function selfHostOperations(mode: AdoptionMode): AdoptionOperation[] {
   if (mode !== "self-host") return [];
   return [
@@ -185,6 +191,7 @@ export function planAdoption(opts: PlanAdoptionOptions): AdoptionPlan {
       status: repoDirStatus(repoRoot, path),
     })),
     ...writeIfMissingOperations(repoRoot),
+    ...workflowContractOperations(repoRoot, mode),
   ];
 
   const gitignorePath = resolve(repoRoot, ".gitignore");

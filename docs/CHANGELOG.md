@@ -10,6 +10,9 @@ All notable changes to this skill are documented here.
   `repo-harness adopt --dry-run --json`, including protocol v1 operation plans,
   redacted JSON rendering, fixture-backed planner tests, and a safe applicator
   subset for `mkdir`, `writeFile ifMissing`, and managed `.gitignore` blocks.
+- Added workflow-contract manifest planning to the TypeScript adoption plan so
+  `standard` and `self-host` dry-run JSON now report installation of
+  `.ai/harness/workflow-contract.json` from the canonical tracked asset.
 
 ## [0.5.3] - 2026-06-15
 
