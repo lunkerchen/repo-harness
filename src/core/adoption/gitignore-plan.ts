@@ -75,13 +75,20 @@ export const GITIGNORE_MANAGED_BLOCK_CONTENT = [
   ".claude/.plan-state/",
 ].join("\n");
 
-export function gitignoreManagedBlockOperation(status: AppendManagedBlockOperation["status"]): AppendManagedBlockOperation {
+function gitignoreManagedBlockContent(extraContent = ""): string {
+  return [GITIGNORE_MANAGED_BLOCK_CONTENT, extraContent].filter((content) => content.trim().length > 0).join("\n\n");
+}
+
+export function gitignoreManagedBlockOperation(
+  status: AppendManagedBlockOperation["status"],
+  extraContent = "",
+): AppendManagedBlockOperation {
   return {
     id: makeOperationId("appendManagedBlock", ".gitignore", GITIGNORE_MANAGED_BLOCK_MARKER),
     kind: "appendManagedBlock",
     path: ".gitignore",
     marker: GITIGNORE_MANAGED_BLOCK_MARKER,
-    content: GITIGNORE_MANAGED_BLOCK_CONTENT,
+    content: gitignoreManagedBlockContent(extraContent),
     legacyMarkers: LEGACY_GITIGNORE_MANAGED_MARKERS,
     reason: "Ensure repo-harness generated/runtime ignore block is present and current",
     risk: "low",

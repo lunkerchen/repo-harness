@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { basename, join } from "path";
 import { planAdoption } from "../../src/core/adoption/plan";
 import { adoptionTemplateFile } from "../../src/core/adoption/manifest-templates";
+import { helperWrapperContent, helperWrapperGitignoreContent } from "../../src/core/adoption/helper-wrapper-plan";
 import { renderAdoptionPlanJson, renderAdoptionPlanObject } from "../../src/core/adoption/render";
 import { makeOperationId, type AdoptionOperation, type AdoptionPlan } from "../../src/core/adoption/operations";
 import { summarizeOperations } from "../../src/core/adoption/summary";
@@ -93,6 +94,31 @@ describe("planAdoption", () => {
     }
   });
 
+  test("standard mode plans helper compatibility wrappers from the workflow contract", () => {
+    const repo = tempRepo();
+    try {
+      const contract = readJson(join(ROOT, "assets", "workflow-contract.v1.json")) as {
+        helpers: { scripts: string[] };
+      };
+      const plan = planAdoption({ repoRoot: repo, mode: "standard" });
+      const wrappers = plan.operations.filter((operation) => operation.id.endsWith(":helper-wrapper"));
+      const newPlanWrapper = plan.operations.find(
+        (operation) => operation.id === "writeFile:scripts/new-plan.sh:helper-wrapper",
+      );
+
+      expect(wrappers).toHaveLength(contract.helpers.scripts.length);
+      expect(newPlanWrapper?.kind).toBe("writeFile");
+      if (newPlanWrapper?.kind === "writeFile") {
+        expect(newPlanWrapper.ifMissing).toBe(true);
+        expect(newPlanWrapper.mode).toBe(0o755);
+        expect(newPlanWrapper.content).toContain("repo-harness run new-plan");
+      }
+      expect(helperWrapperContent("contract-run.ts")).toContain('["repo-harness", "run", "contract-run"]');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   test("renders stable standard fixture for an empty repo", () => {
     const repo = tempRepo();
     try {
@@ -125,12 +151,17 @@ describe("planAdoption", () => {
     try {
       mkdirSync(join(repo, "docs"), { recursive: true });
       mkdirSync(join(repo, ".ai", "harness"), { recursive: true });
+      mkdirSync(join(repo, "scripts"), { recursive: true });
       writeFileSync(join(repo, "docs", "spec.md"), "# User spec\n");
+      writeFileSync(join(repo, "scripts", "new-plan.sh"), "#!/bin/bash\necho user-owned\n");
       writeFileSync(
         join(repo, ".ai", "harness", "workflow-contract.json"),
         readFileSync(join(ROOT, "assets", "workflow-contract.v1.json"), "utf-8"),
       );
-      writeFileSync(join(repo, ".gitignore"), renderManagedBlock(gitignoreManagedBlockOperation("planned")) + "\n");
+      writeFileSync(
+        join(repo, ".gitignore"),
+        renderManagedBlock(gitignoreManagedBlockOperation("planned", helperWrapperGitignoreContent(repo, "standard"))) + "\n",
+      );
 
       const plan = planAdoption({ repoRoot: repo, mode: "standard" });
       expect(plan.operations.find((operation) => operation.id === "writeFile:docs/spec.md:ifMissing")?.status).toBe(
@@ -140,6 +171,9 @@ describe("planAdoption", () => {
         plan.operations.find((operation) => operation.id === "writeFile:.ai/harness/workflow-contract.json:workflow-contract")
           ?.status,
       ).toBe("skipped");
+      expect(plan.operations.find((operation) => operation.id === "writeFile:scripts/new-plan.sh:helper-wrapper")?.status).toBe(
+        "skipped",
+      );
       expect(
         plan.operations.find((operation) => operation.id === "appendManagedBlock:.gitignore:repo-harness-generated-runtime")
           ?.status,

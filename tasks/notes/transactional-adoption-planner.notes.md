@@ -95,3 +95,22 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
   `tasks/lessons.md` on the existing local templates.
 - Added tests for manifest field coverage and template rendering from the
   workflow contract.
+
+## Follow-up Slice: Helper Wrapper Planning
+
+- Added standard-mode helper wrapper planning from `helpers.scripts`; an empty
+  downstream dry-run now emits 42 `writeFile ifMissing` helper wrapper
+  operations.
+- Added generated helper wrapper entries to the `.gitignore` managed block for
+  ordinary downstream targets.
+- Preserved self-host source repos and `harness.helper_source = "repo"` as
+  shell-only in this slice; current source repo dry-run still emits 0 helper
+  wrapper operations.
+- Verification: `bun test tests/cli/adoption-plan.test.ts`; empty downstream
+  CLI smoke reported 42 helper wrappers; current source repo CLI smoke reported
+  0 helper wrappers; full `bash scripts/check-ci.sh` passed.
+- Follow-up gates: `git diff --check`, `bash scripts/check-task-sync.sh`,
+  `bash scripts/check-task-workflow.sh --strict`, and
+  `bash scripts/ensure-codegraph.sh --sync` passed. `repo-harness setup check
+  --target codex --check-updates --json` reported no warn/fail and one existing
+  Waza update `needs_agent` action.

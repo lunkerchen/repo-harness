@@ -51,14 +51,14 @@ without executing the legacy shell migrator or writing files.
     }
   ],
   "summary": {
-    "total": 23,
+    "total": 65,
     "byKind": {
       "mkdir": 17,
-      "writeFile": 5,
+      "writeFile": 47,
       "appendManagedBlock": 1
     },
     "userOwnedFilesTouched": 1,
-    "generatedFiles": 6,
+    "generatedFiles": 48,
     "repoHarnessOwnedFiles": 7,
     "requiresVerification": false
   },
@@ -125,6 +125,22 @@ the existing `writeFile ifMissing` behavior. `tasks/todos.md` and
 `tasks/lessons.md` remain local planner templates until their manifest entries
 are promoted in a later slice.
 
+## Helper Wrapper Operations
+
+For ordinary `standard` downstream repos, the planner reads
+`assets/workflow-contract.v1.json#helpers.scripts` and emits
+`writeFile ifMissing` operations for the generated `scripts/<helper>`
+compatibility wrappers. Wrapper content mirrors the shell
+`pi_write_helper_wrapper` behavior: prefer a source checkout via
+`REPO_HARNESS_SOURCE_ROOT`, `AGENTIC_DEV_ROOT`, or `AGENTIC_DEV_SKILL_ROOT`,
+otherwise delegate to `repo-harness run <helper>`.
+
+The planner also includes those generated wrapper paths in the `.gitignore`
+managed block. Self-host source repos and repos with
+`harness.helper_source = "repo"` remain shell-only in this slice so
+source-helper/runtime-copy behavior is not misrepresented as wrapper
+installation.
+
 ## Compatibility Strategy
 
 The current sprint does not replace shell apply. The invariant is:
@@ -144,6 +160,7 @@ planner proves stable:
 
 - move workflow-contract install application into the TypeScript applicator
 - move remaining bootstrap templates into the workflow contract manifest
+- move source-helper/runtime-copy handling into the TypeScript planner
 - add an atomic writer with backup metadata
 - expose `--experimental-ts-apply` for the safe subset
 - add rollback metadata to operation plans

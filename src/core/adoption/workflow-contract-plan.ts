@@ -1,11 +1,10 @@
 import { existsSync, readFileSync } from "fs";
-import { join, resolve } from "path";
+import { resolve } from "path";
 import type { WriteFileOperation } from "./operations";
 import { makeOperationId } from "./operations";
+import { readWorkflowContractAsset } from "./workflow-contract-asset";
 
 export const WORKFLOW_CONTRACT_RUNTIME_PATH = ".ai/harness/workflow-contract.json";
-
-const WORKFLOW_CONTRACT_ASSET_PATH = join(import.meta.dir, "..", "..", "..", "assets", "workflow-contract.v1.json");
 
 function workflowContractStatus(repoRoot: string, content: string): WriteFileOperation["status"] {
   const target = resolve(repoRoot, WORKFLOW_CONTRACT_RUNTIME_PATH);
@@ -14,7 +13,7 @@ function workflowContractStatus(repoRoot: string, content: string): WriteFileOpe
 }
 
 export function workflowContractInstallOperation(repoRoot: string): WriteFileOperation {
-  const content = readFileSync(WORKFLOW_CONTRACT_ASSET_PATH, "utf-8");
+  const content = readWorkflowContractAsset();
   return {
     id: makeOperationId("writeFile", WORKFLOW_CONTRACT_RUNTIME_PATH, "workflow-contract"),
     kind: "writeFile",

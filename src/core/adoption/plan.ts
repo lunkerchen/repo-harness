@@ -8,6 +8,7 @@ import { summarizeOperations } from "./summary";
 import { managedBlockNeedsUpdate } from "../../effects/managed-block";
 import { workflowContractInstallOperation } from "./workflow-contract-plan";
 import { adoptionTemplateFile } from "./manifest-templates";
+import { helperWrapperGitignoreContent, helperWrapperOperations } from "./helper-wrapper-plan";
 
 export interface PlanAdoptionOptions {
   readonly repoRoot: string;
@@ -156,13 +157,17 @@ export function planAdoption(opts: PlanAdoptionOptions): AdoptionPlan {
     })),
     ...writeIfMissingOperations(repoRoot),
     ...workflowContractOperations(repoRoot, mode),
+    ...helperWrapperOperations(repoRoot, mode),
   ];
 
   const gitignorePath = resolve(repoRoot, ".gitignore");
+  const gitignoreExtraContent = helperWrapperGitignoreContent(repoRoot, mode);
+  const plannedGitignoreOperation = gitignoreManagedBlockOperation("planned", gitignoreExtraContent);
   const gitignoreOperation = gitignoreManagedBlockOperation(
-    managedBlockNeedsUpdate(existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf-8") : "", gitignoreManagedBlockOperation("planned"))
+    managedBlockNeedsUpdate(existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf-8") : "", plannedGitignoreOperation)
       ? "planned"
       : "skipped",
+    gitignoreExtraContent,
   );
 
   operations.push(gitignoreOperation, ...selfHostOperations(mode));

@@ -1,5 +1,5 @@
-import { readFileSync } from "fs";
-import { basename, join, resolve } from "path";
+import { basename, resolve } from "path";
+import { loadWorkflowContractAsset } from "./workflow-contract-asset";
 
 export type AdoptionTemplateKey = "spec" | "currentStatus";
 
@@ -22,8 +22,6 @@ interface WorkflowContractForAdoptionTemplates {
   };
 }
 
-const WORKFLOW_CONTRACT_ASSET_PATH = join(import.meta.dir, "..", "..", "..", "assets", "workflow-contract.v1.json");
-
 function repoName(repoRoot: string): string {
   return basename(resolve(repoRoot)) || "repo";
 }
@@ -39,7 +37,7 @@ function renderTemplate(lines: readonly string[], repoRoot: string): string {
 }
 
 function loadWorkflowContract(): WorkflowContractForAdoptionTemplates {
-  return JSON.parse(readFileSync(WORKFLOW_CONTRACT_ASSET_PATH, "utf-8")) as WorkflowContractForAdoptionTemplates;
+  return loadWorkflowContractAsset<WorkflowContractForAdoptionTemplates>();
 }
 
 export function adoptionTemplateFile(repoRoot: string, key: AdoptionTemplateKey): AdoptionTemplateFile {
