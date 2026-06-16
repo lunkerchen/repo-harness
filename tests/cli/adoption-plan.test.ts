@@ -13,6 +13,7 @@ import { gitignoreManagedBlockOperation } from "../../src/core/adoption/gitignor
 import { renderManagedBlock, upsertManagedBlock } from "../../src/effects/managed-block";
 import { ensureRepoRelativePath, resolveInsideRepo } from "../../src/effects/path-safety";
 import { applyAdoptionPlan, applyAppendManagedBlockOperation } from "../../src/effects/fs-transaction";
+import { readWorkflowContractAsset } from "../../src/core/adoption/workflow-contract-asset";
 
 const ROOT = join(import.meta.dir, "..", "..");
 const CLI = join(ROOT, "src/cli/index.ts");
@@ -335,6 +336,31 @@ describe("safe adoption applicator subset", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test("workflow-contract install writes stale manifests through the atomic writer", () => {
+    const repo = tempRepo();
+    try {
+      mkdirSync(join(repo, ".ai", "harness"), { recursive: true });
+      writeFileSync(join(repo, ".ai", "harness", "workflow-contract.json"), "{\"version\":\"old\"}\n");
+
+      const result = applyAdoptionPlan(planAdoption({ repoRoot: repo, mode: "standard", apply: true }));
+      const workflowContract = result.results.find(
+        (entry) => entry.id === "writeFile:.ai/harness/workflow-contract.json:workflow-contract",
+      );
+
+      expect(result.ok).toBe(true);
+      expect(workflowContract?.status).toBe("applied");
+      expect(workflowContract?.backupPath?.startsWith(".ai/harness/backups/fs-transaction/.ai__harness__workflow-contract.json.")).toBe(
+        true,
+      );
+      expect(readFileSync(join(repo, workflowContract?.backupPath ?? ""), "utf-8")).toBe("{\"version\":\"old\"}\n");
+      expect(readFileSync(join(repo, ".ai", "harness", "workflow-contract.json"), "utf-8")).toBe(
+        readWorkflowContractAsset(),
+      );
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("repo-harness adopt dry-run planner output", () => {
@@ -411,10 +437,32 @@ describe("repo-harness adopt --experimental-ts-apply", () => {
     }
   });
 
-  test("fails before writes when the plan contains unsupported applicator operations", () => {
+  test("applies the standard TypeScript plan including workflow-contract install", () => {
     const repo = tempRepo();
     try {
       const result = spawnSync("bun", [CLI, "adopt", "--repo", repo, "--experimental-ts-apply", "--json"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      const output = JSON.parse(result.stdout);
+      expect(output.ok).toBe(true);
+      expect(output.unsupportedOperations).toBeUndefined();
+      expect(readFileSync(join(repo, ".ai", "harness", "workflow-contract.json"), "utf-8")).toBe(
+        readWorkflowContractAsset(),
+      );
+      expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toContain("# BEGIN: repo-harness generated-runtime");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("fails before writes when the plan contains unsupported applicator operations", () => {
+    const repo = tempRepo();
+    try {
+      const result = spawnSync("bun", [CLI, "adopt", "--repo", repo, "--mode", "self-host", "--experimental-ts-apply", "--json"], {
         cwd: ROOT,
         encoding: "utf-8",
       });
@@ -425,8 +473,8 @@ describe("repo-harness adopt --experimental-ts-apply", () => {
       expect(output.ok).toBe(false);
       expect(output.unsupportedOperations).toEqual([
         expect.objectContaining({
-          id: "writeFile:.ai/harness/workflow-contract.json:workflow-contract",
-          kind: "writeFile",
+          id: "runCheck:self-host-adoption-boundary-review",
+          kind: "runCheck",
         }),
       ]);
       expect(existsSync(join(repo, "docs", "spec.md"))).toBe(false);

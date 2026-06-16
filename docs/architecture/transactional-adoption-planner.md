@@ -86,6 +86,7 @@ The first safe applicator supports only:
 
 - `mkdir`
 - `writeFile ifMissing`
+- workflow-contract `writeFile` install/replacement
 - `appendManagedBlock`
 
 Unsupported operation kinds return structured failures from the applicator
@@ -100,9 +101,9 @@ renames it over the target, and fsyncs the parent directory. Existing targets
 are first copied into `.ai/harness/backups/fs-transaction/`, and that backup
 path is returned in the operation result.
 
-This currently protects `writeFile ifMissing` and `appendManagedBlock`
-application in the safe subset. Dry-run and skipped operations do not create
-locks, temp files, or backups.
+This currently protects `writeFile ifMissing`, workflow-contract install, and
+`appendManagedBlock` application in the safe subset. Dry-run and skipped
+operations do not create locks, temp files, or backups.
 
 ## Rollback Metadata
 
@@ -139,11 +140,11 @@ for `.ai/harness/workflow-contract.json` using the canonical tracked source
 target already matches the asset, and `planned` when the runtime manifest is
 missing or stale.
 
-This operation is currently part of the auditable plan, but it is not yet in
-the TypeScript safe-applicator subset. Default apply remains on the shell
-migrator, which still performs the actual manifest copy. The opt-in
-`--experimental-ts-apply` path preflights for unsupported operations and fails
-before writing files when this manifest operation is planned.
+This operation is now part of the TypeScript safe-applicator subset. Default
+apply remains on the shell migrator, which still performs the compatibility
+manifest copy. The opt-in `--experimental-ts-apply` path can install or replace
+the runtime manifest through the atomic writer and returns backup metadata when
+it replaces an existing manifest.
 
 ## Manifest-Driven Bootstrap Templates
 
@@ -183,9 +184,10 @@ The current sprint does not replace shell apply. The invariant is:
   migration, no file writes.
 - `repo-harness adopt --experimental-ts-apply --mode minimal`: TypeScript
   safe applicator for the currently supported operation subset.
-- `repo-harness adopt --experimental-ts-apply`: preflight rejects plans that
-  contain unsupported operations, such as workflow-contract installation,
-  before writing files.
+- `repo-harness adopt --experimental-ts-apply`: TypeScript safe applicator for
+  standard downstream plans, including workflow-contract install.
+- `repo-harness adopt --experimental-ts-apply --mode self-host`: preflight
+  rejects unsupported manual review operations before writing files.
 - `repo-harness adopt`: existing shell apply path and verification behavior.
 
 This keeps existing user adoption behavior stable while making the new plan
@@ -196,7 +198,6 @@ auditable and testable.
 The next coherent slice is to make the opt-in apply plan more reviewable and
 recoverable before widening its supported operation set:
 
-- move workflow-contract install application into the TypeScript applicator
 - move remaining bootstrap templates into the workflow contract manifest
 - move source-helper/runtime-copy handling into the TypeScript planner
 - add rollback execution helpers for the fs-transaction backup records

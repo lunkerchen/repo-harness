@@ -5,6 +5,7 @@ import { makeOperationId } from "./operations";
 import { readWorkflowContractAsset } from "./workflow-contract-asset";
 
 export const WORKFLOW_CONTRACT_RUNTIME_PATH = ".ai/harness/workflow-contract.json";
+const WORKFLOW_CONTRACT_OPERATION_ID = makeOperationId("writeFile", WORKFLOW_CONTRACT_RUNTIME_PATH, "workflow-contract");
 
 function workflowContractStatus(repoRoot: string, content: string): WriteFileOperation["status"] {
   const target = resolve(repoRoot, WORKFLOW_CONTRACT_RUNTIME_PATH);
@@ -15,7 +16,7 @@ function workflowContractStatus(repoRoot: string, content: string): WriteFileOpe
 export function workflowContractInstallOperation(repoRoot: string): WriteFileOperation {
   const content = readWorkflowContractAsset();
   return {
-    id: makeOperationId("writeFile", WORKFLOW_CONTRACT_RUNTIME_PATH, "workflow-contract"),
+    id: WORKFLOW_CONTRACT_OPERATION_ID,
     kind: "writeFile",
     path: WORKFLOW_CONTRACT_RUNTIME_PATH,
     content,
@@ -23,4 +24,8 @@ export function workflowContractInstallOperation(repoRoot: string): WriteFileOpe
     risk: "low",
     status: workflowContractStatus(repoRoot, content),
   };
+}
+
+export function isWorkflowContractInstallOperation(operation: WriteFileOperation): boolean {
+  return operation.id === WORKFLOW_CONTRACT_OPERATION_ID && operation.path === WORKFLOW_CONTRACT_RUNTIME_PATH;
 }

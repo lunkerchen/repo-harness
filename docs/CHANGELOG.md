@@ -29,6 +29,8 @@ All notable changes to this skill are documented here.
   unsupported operations.
 - Added rollback metadata to adoption operation plans so dry-run JSON and
   experimental apply reports expose the planned recovery strategy per operation.
+- Added workflow-contract install support to the experimental TypeScript
+  adoption applicator, including atomic replacement backups for stale manifests.
 
 ## [0.5.3] - 2026-06-15
 

@@ -3,6 +3,7 @@ import type { AdoptionMode } from "../../core/adoption/modes";
 import { planAdoption } from "../../core/adoption/plan";
 import type { AdoptionOperation, AdoptionPlan } from "../../core/adoption/operations";
 import { renderAdoptionPlanJson, renderAdoptionPlanObject, renderAdoptionPlanText } from "../../core/adoption/render";
+import { isWorkflowContractInstallOperation } from "../../core/adoption/workflow-contract-plan";
 import { applyAdoptionPlan, type ApplyAdoptionPlanResult } from "../../effects/fs-transaction";
 import { validateRepoAdoptionTarget } from "./init";
 
@@ -66,7 +67,7 @@ export function runAdoptionPlan(opts: RunAdoptionPlanOptions): RunAdoptionPlanRe
 
 function isSafeApplicatorOperation(operation: AdoptionOperation): boolean {
   if (operation.kind === "mkdir" || operation.kind === "appendManagedBlock") return true;
-  return operation.kind === "writeFile" && operation.ifMissing === true;
+  return operation.kind === "writeFile" && (operation.ifMissing === true || isWorkflowContractInstallOperation(operation));
 }
 
 function unsupportedSafeApplicatorOperations(plan: AdoptionPlan): readonly AdoptionOperation[] {

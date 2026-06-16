@@ -19,6 +19,7 @@ import type {
   MkdirOperation,
   WriteFileOperation,
 } from "../core/adoption/operations";
+import { isWorkflowContractInstallOperation } from "../core/adoption/workflow-contract-plan";
 import { resolveInsideRepo, resolveParentInsideRepo } from "./path-safety";
 import { upsertManagedBlock } from "./managed-block";
 
@@ -172,17 +173,20 @@ export function applyMkdirOperation(repoRoot: string, operation: MkdirOperation,
   return { id: operation.id, kind: operation.kind, path: operation.path, status: "applied" };
 }
 
-export function applyWriteFileIfMissingOperation(
+export function applyWriteFileOperation(
   repoRoot: string,
   operation: WriteFileOperation,
   dryRun = false,
 ): ApplyOperationResult {
-  if (operation.ifMissing !== true) {
-    return failure(operation, "writeFile applicator only supports ifMissing operations");
-  }
   const target = resolveInsideRepo(repoRoot, operation.path);
   if (!target.ok || !target.path) return failure(operation, target.error ?? "invalid path");
-  if (existsSync(target.path)) {
+  if (operation.ifMissing === true && existsSync(target.path)) {
+    return { id: operation.id, kind: operation.kind, path: operation.path, status: "skipped" };
+  }
+  if (operation.ifMissing !== true && !isWorkflowContractInstallOperation(operation)) {
+    return failure(operation, "writeFile applicator only supports ifMissing operations and workflow-contract install");
+  }
+  if (operation.ifMissing !== true && existsSync(target.path) && readFileSync(target.path, "utf-8") === operation.content) {
     return { id: operation.id, kind: operation.kind, path: operation.path, status: "skipped" };
   }
   if (dryRun) return { id: operation.id, kind: operation.kind, path: operation.path, status: "planned" };
@@ -222,7 +226,7 @@ export function applyAdoptionPlan(plan: AdoptionPlan, dryRun = false): ApplyAdop
       case "mkdir":
         return applyMkdirOperation(plan.repoRoot, operation, dryRun);
       case "writeFile":
-        return applyWriteFileIfMissingOperation(plan.repoRoot, operation, dryRun);
+        return applyWriteFileOperation(plan.repoRoot, operation, dryRun);
       case "appendManagedBlock":
         return applyAppendManagedBlockOperation(plan.repoRoot, operation, dryRun);
       default:

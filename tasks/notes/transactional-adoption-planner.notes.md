@@ -191,3 +191,24 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
 - Verification: focused adoption/init/workflow tests passed, CLI dry-run JSON
   smoke confirmed every operation has rollback metadata, and full
   `bash scripts/check-ci.sh` passed with 771 tests.
+
+## Follow-up Slice: Workflow Contract Apply
+
+- Moved workflow-contract install/replacement into the experimental TypeScript
+  safe applicator.
+- `repo-harness adopt --experimental-ts-apply` can now apply the standard
+  downstream plan, including `.ai/harness/workflow-contract.json`; default
+  `repo-harness adopt` remains on the shell migrator.
+- Kept unsupported preflight behavior by using self-host `runCheck` as the
+  remaining unsupported operation boundary.
+- Verification: focused adoption/init tests passed, standard CLI smoke applied
+  workflow-contract through `--experimental-ts-apply`, self-host CLI smoke
+  failed before writes on the unsupported manual review boundary, and targeted
+  adoption/init/workflow/bootstrap/scaffold tests passed.
+- Full verification: `bash scripts/check-ci.sh` passed with 773 tests. Follow-up
+  gates passed: `git diff --check`, `bash scripts/check-task-sync.sh`,
+  `bash scripts/check-task-workflow.sh --strict`, and
+  `bash scripts/ensure-codegraph.sh --sync`.
+- Setup residual: CodeGraph repair cleared after sync. Waza still reports one
+  `needs_agent` action in setup check even though `npx -y skills update`
+  reports all global skills are up to date.
