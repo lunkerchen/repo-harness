@@ -155,3 +155,23 @@ Result: pass; source entrypoint emitted `protocol: 1`, `command: "adopt"`, and
 - Setup residual: `repo-harness setup check --target codex --check-updates --json`
   reports no warn/fail and one Waza update `needs_agent` action. A transient
   CodeGraph attention result cleared after the index sync settled.
+
+## Follow-up Slice: Experimental TS Apply
+
+- Added `--experimental-ts-apply` for opt-in TypeScript safe-applicator
+  execution.
+- `--mode minimal` applies the supported safe subset and writes `docs/spec.md`
+  plus the managed `.gitignore` block through the atomic writer.
+- Standard mode preflights unsupported operations and fails before writes
+  because workflow-contract install application is still outside this slice.
+- Kept default `repo-harness adopt` on the existing shell migrator and rejected
+  incompatible `--interactive`, `--reclaim-runtime`, and `--compact`
+  combinations.
+- Verification: focused adoption/init tests passed; CLI smoke confirmed minimal
+  apply success and standard preflight failure without writes. Full
+  `bash scripts/check-ci.sh` passed with 770 tests, and follow-up gates passed:
+  `git diff --check`, `bash scripts/check-task-sync.sh`,
+  `bash scripts/check-task-workflow.sh --strict`, and
+  `bash scripts/ensure-codegraph.sh --sync`.
+- Setup residual: `repo-harness setup check --target codex --check-updates --json`
+  reports no warn/fail and one existing Waza update `needs_agent` action.

@@ -22,7 +22,7 @@ import { buildRunCommand } from './commands/run';
 import { formatSecurityScan, runSecurityScan } from './commands/security';
 import { runGlobalRuntimeSetup } from './commands/global-runtime';
 import { runPromptGuardDecideCli } from './commands/prompt-guard-decision';
-import { runAdoptionPlan } from './commands/adopt-plan';
+import { runAdoptionPlan, runExperimentalTsApply } from './commands/adopt-plan';
 import { runRuntimeReclaim, runRuntimeRollback } from './repo-adoption/reclaim-runtime';
 import type { Location } from './installer/types';
 import type { HookEvent, RouteId } from './hook/route-registry';
@@ -214,6 +214,7 @@ export function buildProgram(): Command {
     .option('--brain-root <path>', 'Deprecated: user-level brain config belongs to repo-harness update/setup')
     .option('--brain-mode <mode>', 'Deprecated: adopt does not perform user-level brain sync', 'skip')
     .option('--interactive', 'Run the numbered interactive install planner')
+    .option('--experimental-ts-apply', 'Apply the current TypeScript safe-subset adoption plan instead of the shell migrator')
     .option('--json', 'Output JSON instead of human-readable text')
     .action(async (action: string | undefined, rawOpts: {
       repo?: string;
@@ -233,6 +234,7 @@ export function buildProgram(): Command {
       brainRoot?: string;
       brainMode?: string;
       interactive?: boolean;
+      experimentalTsApply?: boolean;
       json?: boolean;
     }) => {
       if (action) {
@@ -289,6 +291,22 @@ export function buildProgram(): Command {
         });
         process.stdout.write(plan.output);
         process.exit(plan.exitCode);
+      }
+      if (rawOpts.experimentalTsApply === true) {
+        if (rawOpts.interactive === true || rawOpts.reclaimRuntime === true || rawOpts.compact === true) {
+          console.error(
+            'repo-harness adopt: --experimental-ts-apply cannot be combined with --interactive, --reclaim-runtime, or --compact',
+          );
+          process.exit(2);
+        }
+        const apply = runExperimentalTsApply({
+          repo: rawOpts.repo,
+          mode: (rawOpts.mode ?? 'standard') as AdoptionMode,
+          json: rawOpts.json === true,
+          explicitRepo: rawOpts.repo !== undefined,
+        });
+        process.stdout.write(apply.output);
+        process.exit(apply.exitCode);
       }
       const common = {
         repo: rawOpts.repo,

@@ -384,6 +384,7 @@ describe("init command", () => {
     expect(res.stdout).toContain("Usage: repo-harness adopt");
     expect(res.stdout).toContain("--repo <path>");
     expect(res.stdout).toContain("--dry-run");
+    expect(res.stdout).toContain("--experimental-ts-apply");
     expect(res.stdout).toContain("--no-codegraph");
   });
 

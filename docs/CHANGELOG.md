@@ -24,6 +24,9 @@ All notable changes to this skill are documented here.
 - Routed human-readable `repo-harness adopt --dry-run` output through the
   TypeScript adoption planner text renderer, matching the JSON dry-run source of
   truth without writing repo files.
+- Added `repo-harness adopt --experimental-ts-apply` as an opt-in TypeScript
+  safe-applicator path, with preflight rejection for plans containing
+  unsupported operations.
 
 ## [0.5.3] - 2026-06-15
 

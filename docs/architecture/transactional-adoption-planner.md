@@ -1,7 +1,7 @@
 # Transactional Adoption Planner
 
 > **Status**: Sprint foundation
-> **CLI Surface**: `repo-harness adopt --dry-run --json`
+> **CLI Surface**: `repo-harness adopt --dry-run --json`, `repo-harness adopt --experimental-ts-apply`
 > **Protocol**: `1`
 
 ## Why This Exists
@@ -27,9 +27,9 @@ without executing the legacy shell migrator or writing files.
 - Effects boundary: `src/effects/` owns repo-relative path safety and the
   safe applicator subset for tests and future opt-in apply paths.
 - Compatibility boundary: default `repo-harness adopt`, human-readable
-  `--dry-run`, verification, CodeGraph setup, and runtime reclaim continue
-  through the existing `runInit()` / `scripts/migrate-project-template.sh`
-  path.
+  `--dry-run`, verification, CodeGraph setup, runtime reclaim, and default
+  apply continue through the existing `runInit()` /
+  `scripts/migrate-project-template.sh` path.
 
 ## Protocol 1 JSON Shape
 
@@ -122,9 +122,11 @@ for `.ai/harness/workflow-contract.json` using the canonical tracked source
 target already matches the asset, and `planned` when the runtime manifest is
 missing or stale.
 
-This operation is currently part of the auditable dry-run plan only. Default
-apply remains on the shell migrator, which still performs the actual manifest
-copy until the opt-in TypeScript apply path is introduced.
+This operation is currently part of the auditable plan, but it is not yet in
+the TypeScript safe-applicator subset. Default apply remains on the shell
+migrator, which still performs the actual manifest copy. The opt-in
+`--experimental-ts-apply` path preflights for unsupported operations and fails
+before writing files when this manifest operation is planned.
 
 ## Manifest-Driven Bootstrap Templates
 
@@ -162,6 +164,11 @@ The current sprint does not replace shell apply. The invariant is:
   shell migration, no file writes.
 - `repo-harness adopt --dry-run`: TypeScript planner text renderer, no shell
   migration, no file writes.
+- `repo-harness adopt --experimental-ts-apply --mode minimal`: TypeScript
+  safe applicator for the currently supported operation subset.
+- `repo-harness adopt --experimental-ts-apply`: preflight rejects plans that
+  contain unsupported operations, such as workflow-contract installation,
+  before writing files.
 - `repo-harness adopt`: existing shell apply path and verification behavior.
 
 This keeps existing user adoption behavior stable while making the new plan
@@ -169,11 +176,10 @@ auditable and testable.
 
 ## Next Migration Path
 
-The next coherent slice is to add an explicit opt-in apply path after this
-planner proves stable:
+The next coherent slice is to make the opt-in apply plan more reviewable and
+recoverable before widening its supported operation set:
 
 - move workflow-contract install application into the TypeScript applicator
 - move remaining bootstrap templates into the workflow contract manifest
 - move source-helper/runtime-copy handling into the TypeScript planner
-- expose `--experimental-ts-apply` for the safe subset
 - add rollback metadata to operation plans

@@ -340,3 +340,57 @@ describe("repo-harness adopt dry-run planner output", () => {
     }
   });
 });
+
+describe("repo-harness adopt --experimental-ts-apply", () => {
+  test("applies the safe minimal TypeScript plan", () => {
+    const repo = tempRepo();
+    try {
+      const result = spawnSync(
+        "bun",
+        [CLI, "adopt", "--repo", repo, "--mode", "minimal", "--experimental-ts-apply", "--json"],
+        {
+          cwd: ROOT,
+          encoding: "utf-8",
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      const output = JSON.parse(result.stdout);
+      expect(output.protocol).toBe(1);
+      expect(output.experimentalTsApply).toBe(true);
+      expect(output.ok).toBe(true);
+      expect(output.apply.ok).toBe(true);
+      expect(output.plan.apply).toBe(true);
+      expect(existsSync(join(repo, "docs", "spec.md"))).toBe(true);
+      expect(readFileSync(join(repo, ".gitignore"), "utf-8")).toContain("# BEGIN: repo-harness generated-runtime");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("fails before writes when the plan contains unsupported applicator operations", () => {
+    const repo = tempRepo();
+    try {
+      const result = spawnSync("bun", [CLI, "adopt", "--repo", repo, "--experimental-ts-apply", "--json"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toBe("");
+      const output = JSON.parse(result.stdout);
+      expect(output.ok).toBe(false);
+      expect(output.unsupportedOperations).toEqual([
+        expect.objectContaining({
+          id: "writeFile:.ai/harness/workflow-contract.json:workflow-contract",
+          kind: "writeFile",
+        }),
+      ]);
+      expect(existsSync(join(repo, "docs", "spec.md"))).toBe(false);
+      expect(existsSync(join(repo, ".gitignore"))).toBe(false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+});
