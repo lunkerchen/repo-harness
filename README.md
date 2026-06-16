@@ -61,6 +61,9 @@ In an adopted repo, the surface area is intentionally small:
 - **Experimental TypeScript apply.** `repo-harness adopt --experimental-ts-apply`
   can apply the safe operation subset with atomic writes, target locks, backups,
   and preflight rejection for unsupported self-host boundaries.
+- **Executable rollback evidence.** Experimental TypeScript apply writes a
+  transaction manifest under `.ai/harness/backups/fs-transaction/`; restore with
+  `repo-harness adopt rollback --transaction <manifest>`.
 
 ## What repo-harness Does
 

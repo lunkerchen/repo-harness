@@ -35,6 +35,8 @@
     "check:type": "tsc --noEmit",
     "check:ci": "bash scripts/check-ci.sh",
     "check:release": "bash scripts/check-npm-release.sh",
+    "check:release-published": "bash scripts/check-release-published.sh",
+    "smoke:tarball-install": "bash scripts/check-tarball-install-smoke.sh",
     "check:brain-manifest": "bash scripts/check-brain-manifest.sh",
     "check:context-files": "bash scripts/check-context-files.sh",
     "check:deploy-sql": "bash scripts/check-deploy-sql-order.sh",

@@ -90,11 +90,16 @@ describe("Bootstrap Script Contracts", () => {
 
   test("release gate should delegate owned checks to the ci gate", () => {
     const releaseGate = read("scripts/check-npm-release.sh");
+    const ciGate = read("scripts/check-ci.sh");
+    const pkg = JSON.parse(read("package.json"));
     expect(releaseGate).toContain('npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}"');
     expect(releaseGate).toContain("bash scripts/check-ci.sh");
     expect(releaseGate.indexOf("bash scripts/check-ci.sh")).toBeGreaterThan(
       releaseGate.indexOf('npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}"')
     );
+    expect(ciGate).toContain("bash scripts/check-tarball-install-smoke.sh");
+    expect(pkg.scripts["check:release-published"]).toBe("bash scripts/check-release-published.sh");
+    expect(pkg.scripts["smoke:tarball-install"]).toBe("bash scripts/check-tarball-install-smoke.sh");
   });
 
   test("create-project-dirs should create tasks primary files", () => {
