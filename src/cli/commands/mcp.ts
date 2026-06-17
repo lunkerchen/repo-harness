@@ -19,6 +19,9 @@ export interface McpServeOptions {
   port: string;
   profile: string;
   auth?: string;
+  enableDevRunner?: boolean;
+  devRunnerAgents?: string;
+  devRunnerTimeoutMs?: string;
 }
 
 interface McpSetupChatgptOptions {
@@ -54,6 +57,13 @@ function parsePort(value: string): number {
     throw new Error(`invalid --port "${value}"`);
   }
   return port;
+}
+
+function parsePositiveIntegerOption(name: string, value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) throw new Error(`invalid --${name} "${value}"`);
+  return parsed;
 }
 
 async function runMcpAction(action: () => void | Promise<void>): Promise<void> {
@@ -109,10 +119,20 @@ export function buildMcpCommand(): Command {
     .option('--port <port>', 'HTTP bind port', '8765')
     .option('--profile <profile>', 'MCP profile: planner|executor|orchestrator', 'planner')
     .option('--auth <mode>', 'HTTP auth mode: oauth|bearer', 'oauth')
+    .option('--enable-dev-runner', 'Enable local dev-mode agent runner tools for the orchestrator profile')
+    .option('--dev-runner-agents <agents>', 'Comma-separated dev runner agents: codex,claude')
+    .option('--dev-runner-timeout-ms <ms>', 'Dev runner timeout in milliseconds')
     .action(async (rawOpts: McpServeOptions) => {
       await runMcpAction(async () => {
+        const devRunnerTimeoutMs = parsePositiveIntegerOption('dev-runner-timeout-ms', rawOpts.devRunnerTimeoutMs);
         if (rawOpts.transport === 'stdio') {
-          await startMcpStdio({ repo: rawOpts.repo, profile: rawOpts.profile });
+          await startMcpStdio({
+            repo: rawOpts.repo,
+            profile: rawOpts.profile,
+            enableDevRunner: rawOpts.enableDevRunner,
+            devRunnerAgents: rawOpts.devRunnerAgents,
+            devRunnerTimeoutMs,
+          });
           return;
         }
         if (rawOpts.transport === 'http') {
@@ -122,6 +142,9 @@ export function buildMcpCommand(): Command {
             host: rawOpts.host,
             port: parsePort(rawOpts.port),
             auth: rawOpts.auth,
+            enableDevRunner: rawOpts.enableDevRunner,
+            devRunnerAgents: rawOpts.devRunnerAgents,
+            devRunnerTimeoutMs,
           });
           return;
         }
