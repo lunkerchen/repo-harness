@@ -1,7 +1,7 @@
 # repo-harness
 
 <p align="center">
-  <img src="docs/images/image.png" alt="One next button joining Claude and Codex under repo-harness workflow rules" width="760">
+  <img src="docs/images/repo-harness-gptpro.png" alt="repo-harness architecture and ChatGPT Pro local planner workflow diagram" width="960">
 </p>
 
 `repo-harness` convierte las sesiones de programación con Claude/Codex en un

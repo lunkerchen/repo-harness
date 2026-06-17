@@ -143,8 +143,12 @@ describe("README DX contract", () => {
   test("localized READMEs track the current English release surface", () => {
     for (const file of LOCALIZED_READMES) {
       const localized = read(file);
+      const expectedHeroImage =
+        file === "README.zh-CN.md"
+          ? "docs/images/repo-harness-gptpro-cn.png"
+          : "docs/images/repo-harness-gptpro.png";
 
-      expect(localized).toContain("docs/images/image.png");
+      expect(localized).toContain(expectedHeroImage);
       expect(localized).toContain("0.7.0");
       expect(localized).toContain("repo-harness@0.7.0");
       expect(localized).toContain("repo-harness@0.7.0+template@0.7.0");

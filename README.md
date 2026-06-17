@@ -1,7 +1,7 @@
 # repo-harness
 
 <p align="center">
-  <img src="docs/images/image.png" alt="One next button joining Claude and Codex under repo-harness workflow rules" width="760">
+  <img src="docs/images/repo-harness-gptpro.png" alt="repo-harness architecture and ChatGPT Pro local planner workflow diagram" width="960">
 </p>
 
 `repo-harness` turns Claude/Codex coding sessions into a repeatable repo-local
@@ -176,10 +176,15 @@ The design has three layers:
    `.ai/harness/`, helper scripts, and `.ai/hooks/`.
 3. **Host adapters**: user-level `~/.claude/settings.json` and
    `~/.codex/hooks.json` route Claude/Codex events into `repo-harness-hook`.
-   The hook entrypoint exits silently for non-opt-in repos. For opted-in repos,
-   it resolves hooks central-first through the packaged install or
-   `~/.repo-harness/hooks/`, with repo policy able to pin self-host development
-   back to `.ai/hooks/*`.
+
+<p align="center">
+  <img src="docs/images/repo-harness-diagram.png" alt="repo-harness complete component diagram showing source package, target repo contract, workflow runtime, host adapters, and optional integrations" width="960">
+</p>
+
+The hook entrypoint exits silently for non-opt-in repos. For opted-in repos,
+it resolves hooks central-first through the packaged install or
+`~/.repo-harness/hooks/`, with repo policy able to pin self-host development
+back to `.ai/hooks/*`.
 
 For `UserPromptSubmit`, the public adapter contract stays
 `repo-harness-hook UserPromptSubmit --route default`. The CLI route registry

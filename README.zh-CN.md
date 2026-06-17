@@ -1,7 +1,7 @@
 # repo-harness
 
 <p align="center">
-  <img src="docs/images/image.png" alt="One next button joining Claude and Codex under repo-harness workflow rules" width="760">
+  <img src="docs/images/repo-harness-gptpro-cn.png" alt="repo-harness x GPT Pro 本地 Planner Agent 推广图" width="960">
 </p>
 
 `repo-harness` 把 Claude/Codex 的 AI 编程会话变成可复用、可恢复、可检查的
