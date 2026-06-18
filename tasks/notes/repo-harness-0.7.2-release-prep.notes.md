@@ -9,7 +9,7 @@ to `main`.
 | --- | --- | --- |
 | Use `0.7.2` | The merged diff hardens existing GPT Pro, Oracle, and ChatGPT MCP setup surfaces without adding a new public product line. | `package.json`, `assets/skill-version.json`, `.claude/.skill-version`, README release surfaces, changelog, and version tests move together to `0.7.2`. |
 | Keep one package/template version line | The 0.4.0 release retired the separate generated-workflow compatibility line, and this release does not introduce a compatibility split. | Downstream generated stamps move together to `repo-harness@0.7.2+template@0.7.2`. |
-| Stop before publish/tag/release unless npm auth is explicitly available | The default npm config returns `ENEEDAUTH`; creating a tag or GitHub release before npm publish would make public release state misleading. | Release checklist records the hold reason and required publish/readback steps. |
+| Use a temporary npmrc for publish | The default npm config returns `ENEEDAUTH`; `_ops/env/npm-token.md` is the established local secret surface. | npm auth stays local, no token is printed, and global npm config is not mutated. |
 
 ## Evidence
 
@@ -20,6 +20,8 @@ to `main`.
   returned `E404`, so the target version is available.
 - `npm whoami --registry https://registry.npmjs.org/` returned `ENEEDAUTH` for
   the default npm config in this shell.
+- `npm whoami` with a temporary npmrc verified the publish identity as
+  `ancienttwo`.
 
 ## Verification
 
@@ -40,5 +42,17 @@ to `main`.
   `10245516`, `333` files, shasum
   `fd80672886702dcf7f925cb9384dcb030a0694f5`, and integrity
   `sha512-yokXmM1rt4lc/ajJKnDWvVZPQq9s0x5O37wtYLqxALRG6ugOhV+UUqOPN0MaXojZSikagrkz1yhRSzLVc+Ur7A==`.
-- npm publish, `v0.7.2` tag push, and GitHub release creation are intentionally
-  held until npm auth is available and registry readback can be completed.
+- `npm publish --access public --registry https://registry.npmjs.org/` used a
+  temporary npmrc and temporary cache, reran the full `prepublishOnly` release
+  gate successfully, and published `repo-harness@0.7.2`.
+- Registry readback reported version `0.7.2`, latest dist-tag `0.7.2`, tarball
+  `https://registry.npmjs.org/repo-harness/-/repo-harness-0.7.2.tgz`, shasum
+  `fd80672886702dcf7f925cb9384dcb030a0694f5`, and npm `gitHead`
+  `2106c5725ebc2cc9e4ec2fa942c94b06daea855c`.
+- Git tag `v0.7.2` was pushed and points to `2106c57`.
+- GitHub release was created:
+  `https://github.com/Ancienttwo/repo-harness/releases/tag/v0.7.2`.
+- `bash scripts/check-release-published.sh 0.7.2` passed.
+- Clean temporary install smoke passed:
+  `npm install --registry https://registry.npmjs.org/ repo-harness@0.7.2`
+  followed by `node_modules/.bin/repo-harness --version` returned `0.7.2`.

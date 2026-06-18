@@ -1,7 +1,7 @@
 # Release Filing: repo-harness 0.7.2
 
 Date: 2026-06-19
-Status: Prepared; npm publish, Git tag, and GitHub release pending
+Status: Published
 
 ## Scope
 
@@ -71,8 +71,38 @@ preserves existing endpoint/operator settings when only the server name changes.
   `docs/repo-harness-chatgpt-browser-engine.md`, and
   `src/cli/chatgpt-browser/oracle-provider.ts`.
 
-## Publish Hold
+## Publish Evidence
 
-- npm publish has not been run for this prep-only slice.
-- Do not tag `v0.7.2` or create the GitHub release until npm publish and
-  registry readback succeed.
+- `npm whoami` with a temporary npmrc backed by the local
+  `_ops/env/npm-token.md` token verified the publish identity as `ancienttwo`
+  without writing the token to global config.
+- `npm publish --access public --registry https://registry.npmjs.org/` used the
+  same temporary npmrc and a temporary npm cache, reran the full
+  `prepublishOnly` release gate successfully, and published
+  `repo-harness@0.7.2`.
+- Publish-time prepublish gate passed:
+  - `bun test`: `866 pass`, `0 fail`, `8410` expect calls across `79` files.
+  - deploy SQL order, architecture sync, task sync, brain sync, strict workflow,
+    repository inspection, package dry-run, and tarball install smoke all passed.
+  - `[release] OK: npm package gate passed.`
+- `npm view repo-harness@0.7.2 version dist.tarball dist.shasum dist.integrity gitHead --json --registry https://registry.npmjs.org/`
+  returned:
+  - `version = "0.7.2"`
+  - `dist.tarball = "https://registry.npmjs.org/repo-harness/-/repo-harness-0.7.2.tgz"`
+  - `dist.shasum = "fd80672886702dcf7f925cb9384dcb030a0694f5"`
+  - `dist.integrity = "sha512-yokXmM1rt4lc/ajJKnDWvVZPQq9s0x5O37wtYLqxALRG6ugOhV+UUqOPN0MaXojZSikagrkz1yhRSzLVc+Ur7A=="`
+  - `gitHead = "2106c5725ebc2cc9e4ec2fa942c94b06daea855c"`
+- `npm view repo-harness dist-tags --json --registry https://registry.npmjs.org/`
+  returned `{ "latest": "0.7.2" }`.
+- Git tag `v0.7.2` points to release commit `2106c57`.
+- `bash scripts/check-release-published.sh 0.7.2` passed, proving registry,
+  dist-tag, tarball, local tag, and local version files agree.
+- Clean temporary install smoke passed:
+  `npm install --registry https://registry.npmjs.org/ repo-harness@0.7.2`
+  followed by `node_modules/.bin/repo-harness --version` returned `0.7.2`.
+
+## Release Links
+
+- npm: https://www.npmjs.com/package/repo-harness/v/0.7.2
+- npm tarball: https://registry.npmjs.org/repo-harness/-/repo-harness-0.7.2.tgz
+- GitHub release: https://github.com/Ancienttwo/repo-harness/releases/tag/v0.7.2
