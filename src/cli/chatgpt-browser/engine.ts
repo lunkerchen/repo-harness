@@ -12,7 +12,7 @@ import {
 } from './binding';
 import { resolveBrowserOutputPath } from './file-policy';
 import { checkNativeChatgptSession, nativeDebuggingBlockedByDefaultProfile, nativeProviderAvailable, runNativeProvider } from './native-provider';
-import { buildOracleCommand, runOracleProvider } from './oracle-provider';
+import { buildOracleCommand, probeOracle, resolveOracleBin, runOracleProvider } from './oracle-provider';
 import { assemblePromptBundle } from './prompt-assembler';
 import {
   cleanupBrowserSessions,
@@ -33,7 +33,10 @@ export interface BrowserDoctorOptions {
   timeoutMs?: number;
   keepBrowser?: boolean;
   headless?: boolean;
+  oracleBin?: string;
 }
+
+export type BrowserDoctorStatus = 'ready' | 'unavailable' | 'action_required' | 'deprecated' | 'experimental';
 
 export interface BrowserBindOptions {
   profileDir?: string;
@@ -171,9 +174,17 @@ export async function browserDoctor(
   repoRoot: string,
   provider: BrowserProviderName = 'oracle',
   opts: BrowserDoctorOptions = {},
-): Promise<{ status: 'ready' | 'partial'; lines: string[]; json: Record<string, unknown> }> {
+): Promise<{ status: BrowserDoctorStatus; lines: string[]; json: Record<string, unknown> }> {
   const sessionRoot = ensureBrowserSessionRoot(repoRoot);
-  const oraclePresent = Bun.which('oracle') !== null;
+  const oracleResolution = resolveOracleBin({ repoRoot, oracleBin: opts.oracleBin });
+  const oraclePresent = Boolean(oracleResolution.binary);
+  const oracleProbe = oracleResolution.binary ? probeOracle(oracleResolution.binary) : undefined;
+  const oracleCapabilitiesReady = Boolean(
+    oracleProbe?.nodeCompatible
+    && oracleProbe.capabilities.browserEngine
+    && oracleProbe.capabilities.manualLogin
+    && oracleProbe.capabilities.writeOutput,
+  );
   const nativePresent = await nativeProviderAvailable();
   const bindingResult = readBrowserBinding(repoRoot);
   const binding = bindingResult.binding;
@@ -204,19 +215,27 @@ export async function browserDoctor(
   }
   const nativeReady = nativePresent && Boolean(profileDir) && !defaultProfileBlocked && (opts.validateSession !== true || validation?.status === 'ready');
   const bridgeReady = Boolean(profileDir);
-  const status = provider === 'oracle' && !oraclePresent
-    ? 'partial'
-    : provider === 'native' && !nativeReady
-      ? 'partial'
-      : provider === 'bridge' && !bridgeReady
-        ? 'partial'
-        : 'ready';
+  // Oracle is the main path: ready iff a resolved binary probes with the
+  // browser-mode capabilities we depend on. native is deprecated; bridge is
+  // experimental. We no longer overload a single `partial` for all three.
+  const status: BrowserDoctorStatus = provider === 'oracle'
+    ? (!oraclePresent ? 'unavailable' : oracleCapabilitiesReady ? 'ready' : 'action_required')
+    : provider === 'native'
+      ? 'deprecated'
+      : 'experimental';
   const next = [
     'repo-harness chatgpt browser-consult --dry-run --prompt "Reply exactly OK"',
   ];
-  if (provider === 'oracle' && !oraclePresent) {
-    next.push('Install oracle before non-dry-run provider execution.');
+  if (provider === 'oracle') {
+    if (!oraclePresent) {
+      next.push('Install oracle (pin the version) or pass --oracle-bin / set REPO_HARNESS_ORACLE_BIN before non-dry-run execution.');
+    } else if (!oracleCapabilitiesReady) {
+      next.push('Resolved oracle binary did not report the required browser-mode flags; upgrade oracle or check `oracle --help`.');
+    } else {
+      next.push('repo-harness chatgpt browser-consult --provider oracle --prompt "Reply exactly OK"');
+    }
   } else if (provider === 'native') {
+    next.push('The native CDP provider is deprecated; use --provider oracle. Native remains only for short-term diagnostics.');
     if (!nativePresent) {
       next.push('Install Google Chrome before native provider execution.');
     } else if (!profileDir) {
@@ -240,12 +259,31 @@ export async function browserDoctor(
       next.push('repo-harness chatgpt browser-consult --provider bridge --prompt "Reply exactly OK"');
     }
   }
+  const oracleCode = provider === 'oracle'
+    ? (!oraclePresent ? 'ORACLE_NOT_INSTALLED' : oracleCapabilitiesReady ? undefined : 'ORACLE_INCOMPATIBLE')
+    : provider === 'native' ? 'NATIVE_PROVIDER_DEPRECATED' : 'BRIDGE_EXPERIMENTAL';
   const json = {
     status,
+    code: oracleCode,
     provider,
+    posture: { oracle: 'default', native: 'deprecated', bridge: 'experimental' },
     repo: { root: repoRoot, sessionRoot },
-    oracle: { installed: oraclePresent, path: Bun.which('oracle') },
+    oracle: {
+      installed: oraclePresent,
+      binary: oracleResolution.binary,
+      resolvedFrom: oracleResolution.source,
+      version: oracleProbe?.version,
+      nodeCompatible: oracleProbe?.nodeCompatible ?? false,
+      capabilities: oracleProbe?.capabilities ?? {
+        browserEngine: false,
+        manualLogin: false,
+        writeOutput: false,
+        browserFollowup: false,
+        sessionFollowup: false,
+      },
+    },
     native: {
+      deprecated: true,
       installed: nativePresent,
       driver: 'chrome-cdp',
       defaultChannel: 'chrome',
@@ -265,6 +303,7 @@ export async function browserDoctor(
       },
     },
     bridge: {
+      experimental: true,
       installed: bridgeReady,
       driver: 'chrome-extension-localhost',
       productSession: {
@@ -286,8 +325,8 @@ export async function browserDoctor(
       `[repo-harness chatgpt] status=${status}`,
       `[repo-harness chatgpt] provider=${provider}`,
       `[repo-harness chatgpt] sessionRoot=${sessionRoot}`,
-      `[repo-harness chatgpt] oracle=${oraclePresent ? Bun.which('oracle') : 'missing'}`,
-      `[repo-harness chatgpt] native=${nativePresent ? 'chrome-cdp' : 'missing'}`,
+      `[repo-harness chatgpt] oracle=${oracleResolution.binary ?? 'missing'}${oracleProbe?.version ? ` (v${oracleProbe.version})` : ''}`,
+      `[repo-harness chatgpt] native=${nativePresent ? 'chrome-cdp (deprecated)' : 'missing'}`,
       `[repo-harness chatgpt] chatgptSession=${productSessionStatus}`,
       ...(profileDir ? [`[repo-harness chatgpt] profileDir=${profileDir}`] : []),
       ...(profileDirectory ? [`[repo-harness chatgpt] profileDirectory=${profileDirectory}`] : []),
@@ -316,6 +355,11 @@ export async function runBrowserConsult(input: BrowserConsultInput): Promise<Bro
         error: oracle.error,
         conversationUrl: oracle.conversationUrl,
         providerSessionId: oracle.providerSessionId,
+        oracle: {
+          binary: oracle.oracleBinary,
+          version: oracle.oracleVersion,
+          captureStatus: oracle.status === 'completed' ? 'completed' : oracle.status === 'recoverable' ? 'recoverable' : undefined,
+        },
         artifacts: oracle.artifacts,
         command: oracle.command,
       });
@@ -362,14 +406,23 @@ export function listSessions(repoRoot: string, limit?: number): StoredBrowserSes
   return listBrowserSessions(repoRoot, undefined, limit);
 }
 
+const FOLLOWUP_RESUMABLE_STATUSES = new Set(['completed', 'recoverable', 'incomplete_capture', 'dry_run']);
+
 export async function runBrowserFollowup(input: Omit<BrowserConsultInput, 'sourceSessionId'> & { sessionId: string }): Promise<BrowserConsultResult> {
   const existing = readBrowserSession(input.repoRoot, input.sessionId);
   const provider = input.provider ?? existing.meta.provider;
+  // A follow-up reattaches to the same ChatGPT conversation; only resume from a
+  // session that actually reached a resumable terminal state. A `failed`/`cancelled`
+  // source has no conversation to continue.
+  if (input.dryRun !== true && !FOLLOWUP_RESUMABLE_STATUSES.has(existing.meta.status)) {
+    throw new Error(`cannot follow up from session ${input.sessionId} with status "${existing.meta.status}" (expected completed/recoverable)`);
+  }
   return runBrowserConsult({
     ...input,
     title: input.title ?? `followup ${input.sessionId}`,
     sourceSessionId: input.sessionId,
     providerSessionId: input.providerSessionId ?? existing.meta.providerSessionId,
+    parentProviderSessionId: existing.meta.providerSessionId,
     model: input.model ?? existing.meta.model.requested,
     thinking: input.thinking ?? existing.meta.model.thinking,
     provider,

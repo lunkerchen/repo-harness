@@ -5,6 +5,8 @@ import { homedir, tmpdir } from 'os';
 import { join } from 'path';
 import { inspectBridgeExtensionInstall, renderBrowserAuthorizePage } from '../../src/cli/chatgpt-browser/bind-server';
 import { writeChatgptBridgeExtension } from '../../src/cli/chatgpt-browser/bridge-extension';
+import { runBridgeProvider } from '../../src/cli/chatgpt-browser/bridge-provider';
+import type { PromptBundle } from '../../src/cli/chatgpt-browser/types';
 
 const ROOT = join(import.meta.dir, '../..');
 const CLI = join(ROOT, 'src/cli/index.ts');
@@ -29,6 +31,24 @@ function withRepo<T>(fn: (repoRoot: string) => T): T {
   } finally {
     rmSync(repoRoot, { recursive: true, force: true });
   }
+}
+
+async function withRepoAsync<T>(fn: (repoRoot: string) => Promise<T>): Promise<T> {
+  const repoRoot = mkdtempSync(join(tmpdir(), 'repo-harness-chatgpt-browser-'));
+  try {
+    return await fn(repoRoot);
+  } finally {
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+}
+
+function emptyBundle(prompt: string): PromptBundle {
+  return { prompt, rendered: prompt, files: [], followups: [], totalChars: prompt.length };
+}
+
+function readBridgeToken(repoRoot: string): string {
+  const script = readFileSync(join(repoRoot, '.ai/harness/chatgpt/bridge-extension/content-script.js'), 'utf-8');
+  return script.match(/REPO_HARNESS_CHATGPT_BRIDGE_TOKEN = "([^"]+)"/)?.[1] ?? '';
 }
 
 describe('chatgpt browser command', () => {
@@ -228,7 +248,10 @@ describe('chatgpt browser command', () => {
       expect(doctor.status).toBe(0);
       const readiness = JSON.parse(doctor.stdout);
       expect(readiness.provider).toBe('native');
-      expect(['ready', 'partial']).toContain(readiness.status);
+      expect(readiness.status).toBe('deprecated');
+      expect(readiness.code).toBe('NATIVE_PROVIDER_DEPRECATED');
+      expect(readiness.native.deprecated).toBe(true);
+      expect(readiness.posture).toEqual({ oracle: 'default', native: 'deprecated', bridge: 'experimental' });
       expect(typeof readiness.native.installed).toBe('boolean');
       expect(readiness.native.driver).toBe('chrome-cdp');
       expect(readiness.native.defaultChannel).toBe('chrome');
@@ -427,7 +450,7 @@ describe('chatgpt browser command', () => {
 
   test('bridge extension is scoped to ChatGPT product domains and localhost only', () => {
     withRepo((repoRoot) => {
-      const extension = writeChatgptBridgeExtension(repoRoot, 'http://127.0.0.1:17651');
+      const extension = writeChatgptBridgeExtension(repoRoot, 'http://127.0.0.1:17651', 'tok_example_123');
       const manifest = JSON.parse(readFileSync(extension.manifestPath, 'utf-8'));
       expect(manifest.host_permissions).toEqual([
         'https://chatgpt.com/*',
@@ -437,7 +460,10 @@ describe('chatgpt browser command', () => {
       expect(JSON.stringify(manifest)).not.toContain('<all_urls>');
       expect(JSON.stringify(manifest)).not.toContain('cookies');
       expect(JSON.stringify(manifest)).not.toContain('storage');
-      expect(readFileSync(extension.contentScriptPath, 'utf-8')).toContain('/api/extension/task');
+      const script = readFileSync(extension.contentScriptPath, 'utf-8');
+      expect(script).toContain('/api/extension/task');
+      expect(script).toContain('REPO_HARNESS_CHATGPT_BRIDGE_TOKEN = "tok_example_123"');
+      expect(script).toContain('x-repo-harness-bridge-token');
     });
   });
 
@@ -453,7 +479,7 @@ describe('chatgpt browser command', () => {
         '1000',
         '--prompt',
         'Reply exactly OK',
-      ], repoRoot, {
+      ], ROOT, {
         ...process.env,
         REPO_HARNESS_CHATGPT_BRIDGE_PORT: String(32000 + Math.floor(Math.random() * 10000)),
       });
@@ -464,6 +490,46 @@ describe('chatgpt browser command', () => {
       const meta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'meta.json'), 'utf-8'));
       expect(meta.provider).toBe('bridge');
       expect(existsSync(join(repoRoot, '.ai/harness/chatgpt/bridge-extension/manifest.json'))).toBe(true);
+    });
+  });
+
+  test('bridge enforces the capability token and backstops status-only completions', async () => {
+    await withRepoAsync(async (repoRoot) => {
+      const port = 33000 + Math.floor(Math.random() * 9000);
+      const prevPort = process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT;
+      process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT = String(port);
+      try {
+        // Start the provider without awaiting; the server binds and the extension
+        // (carrying the token) is written before the first internal await.
+        const promise = runBridgeProvider({ repoRoot, prompt: 'Reply exactly OK', timeoutMs: 6000 }, emptyBundle('Reply exactly OK'));
+        const base = `http://127.0.0.1:${port}`;
+        const token = readBridgeToken(repoRoot);
+        expect(token.length).toBeGreaterThan(0);
+
+        // Any caller missing the token is rejected before it can claim the task.
+        const unauthorized = await fetch(`${base}/api/extension/task`, { headers: { accept: 'application/json' } });
+        expect(unauthorized.status).toBe(401);
+
+        // The authorized extension claims the task...
+        const claim = await fetch(`${base}/api/extension/task`, { headers: { accept: 'application/json', 'x-repo-harness-bridge-token': token } });
+        expect(claim.status).toBe(200);
+        const task = await claim.json();
+        expect(task.kind).toBe('consult');
+
+        // ...then posts a "completed" with status-only text, which must be coerced.
+        await fetch(`${base}/api/extension/result`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-repo-harness-bridge-token': token },
+          body: JSON.stringify({ taskId: task.id, status: 'completed', output: 'Pro thinking' }),
+        });
+
+        const result = await promise;
+        expect(result.status).toBe('failed');
+        expect(result.error?.code).toBe('CHATGPT_BRIDGE_NO_FINAL_MESSAGE');
+      } finally {
+        if (prevPort === undefined) delete process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT;
+        else process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT = prevPort;
+      }
     });
   });
 
@@ -489,7 +555,7 @@ describe('chatgpt browser command', () => {
       ]);
       expect(doctor.status).toBe(0);
       const readiness = JSON.parse(doctor.stdout);
-      expect(readiness.status).toBe('partial');
+      expect(readiness.status).toBe('deprecated');
       expect(readiness.native.productSession.status).toBe('blocked_default_profile');
       expect(readiness.native.productSession.blockedByDefaultProfile).toBe(true);
       expect(readiness.native.productSession.validation).toBeUndefined();
@@ -517,22 +583,29 @@ describe('chatgpt browser command', () => {
     });
   });
 
-  test('oracle provider wrapper executes a visible oracle binary and ignores stdout artifact paths', () => {
+  test('oracle provider reads the --write-output answer file and treats stdout as logs', () => {
     withRepo((repoRoot) => {
       const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-bin-'));
-      const outside = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-secret-'));
-      const artifactPath = join(outside, 'secret-artifact.md');
       try {
         const oraclePath = join(binDir, 'oracle');
-        writeFileSync(artifactPath, '# Secret artifact\n');
+        // The fake echoes its args to stdout (logs) and writes the answer to the
+        // managed --write-output path (authority). conversationUrl/sessionId come
+        // from the stdout logs.
         writeFileSync(
           oraclePath,
           [
             '#!/bin/sh',
-            'printf "%s\\n" "Oracle saw: $*"',
+            'ARGS="$*"',
+            'OUT=""',
+            'PREV=""',
+            'for a in "$@"; do',
+            '  if [ "$PREV" = "--write-output" ]; then OUT="$a"; fi',
+            '  PREV="$a"',
+            'done',
+            'printf "%s\\n" "Oracle saw: $ARGS"',
             'printf "%s\\n" "Session ID: oracle_fake_123"',
             'printf "%s\\n" "https://chatgpt.com/c/fake-conversation"',
-            `printf "%s\\n" "Artifact: ${artifactPath}"`,
+            'if [ -n "$OUT" ]; then printf "%s\\n" "Final answer: Oracle saw: $ARGS" > "$OUT"; fi',
           ].join('\n'),
         );
         chmodSync(oraclePath, 0o755);
@@ -548,24 +621,106 @@ describe('chatgpt browser command', () => {
           'GPT-5.5 Pro',
           '--thinking',
           'heavy',
-        ], repoRoot, { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ''}` });
+          '--oracle-bin',
+          oraclePath,
+        ]);
         expect(result.status).toBe(0);
         const payload = JSON.parse(result.stdout);
         expect(payload.status).toBe('completed');
         const output = readFileSync(payload.paths.output, 'utf-8');
-        expect(output).toContain('Oracle saw: --engine browser');
+        expect(output).toContain('Final answer: Oracle saw: --engine browser');
+        expect(output).toContain('--browser-archive never');
         const meta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'meta.json'), 'utf-8'));
         expect(meta.browser.conversationUrl).toBe('https://chatgpt.com/c/fake-conversation');
         expect(meta.providerSessionId).toBe('oracle_fake_123');
+        expect(meta.oracle.binary).toBe(oraclePath);
+        expect(meta.oracle.captureStatus).toBe('completed');
         expect(meta.output.artifacts).toEqual([]);
-        expect(existsSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'artifacts/secret-artifact.md'))).toBe(false);
 
         const opened = runChatgpt(['browser-open', '--repo', repoRoot, payload.sessionId]);
         expect(opened.status).toBe(0);
         expect(JSON.parse(opened.stdout).url).toBe('https://chatgpt.com/c/fake-conversation');
       } finally {
         rmSync(binDir, { recursive: true, force: true });
-        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test('oracle provider downgrades an empty answer file to recoverable, not completed', () => {
+    withRepo((repoRoot) => {
+      const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-empty-'));
+      try {
+        const oraclePath = join(binDir, 'oracle');
+        // Clean exit but no answer file written: oracle submitted, capture lost.
+        writeFileSync(
+          oraclePath,
+          [
+            '#!/bin/sh',
+            'printf "%s\\n" "Session ID: oracle_recover_789"',
+            'exit 0',
+          ].join('\n'),
+        );
+        chmodSync(oraclePath, 0o755);
+        const result = runChatgpt([
+          'browser-consult',
+          '--repo',
+          repoRoot,
+          '--prompt',
+          'Review this.',
+          '--oracle-bin',
+          oraclePath,
+        ]);
+        expect(result.status).toBe(0);
+        const payload = JSON.parse(result.stdout);
+        expect(payload.status).toBe('recoverable');
+        expect(payload.error.code).toBe('ORACLE_CAPTURE_INCOMPLETE');
+        const meta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'meta.json'), 'utf-8'));
+        expect(meta.providerSessionId).toBe('oracle_recover_789');
+        expect(meta.oracle.captureStatus).toBe('recoverable');
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test('oracle doctor probes binary capabilities and reports ready', () => {
+    withRepo((repoRoot) => {
+      const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-doctor-'));
+      try {
+        const oraclePath = join(binDir, 'oracle');
+        writeFileSync(
+          oraclePath,
+          [
+            '#!/bin/sh',
+            'case "$1" in',
+            '  --version) printf "%s\\n" "0.13.0";;',
+            '  *) printf "%s\\n" "Usage: oracle --engine browser --browser-manual-login --write-output <p> --browser-follow-up <t> --followup <id>";;',
+            'esac',
+          ].join('\n'),
+        );
+        chmodSync(oraclePath, 0o755);
+        const doctor = runChatgpt(['browser-doctor', '--repo', repoRoot, '--provider', 'oracle', '--oracle-bin', oraclePath, '--json']);
+        expect(doctor.status).toBe(0);
+        const readiness = JSON.parse(doctor.stdout);
+        expect(readiness.status).toBe('ready');
+        expect(readiness.oracle.installed).toBe(true);
+        expect(readiness.oracle.binary).toBe(oraclePath);
+        expect(readiness.oracle.version).toBe('0.13.0');
+        expect(readiness.oracle.capabilities).toEqual({
+          browserEngine: true,
+          manualLogin: true,
+          writeOutput: true,
+          browserFollowup: true,
+          sessionFollowup: true,
+        });
+
+        const missing = runChatgpt(['browser-doctor', '--repo', repoRoot, '--provider', 'oracle', '--oracle-bin', join(binDir, 'nope'), '--json']);
+        const missingReadiness = JSON.parse(missing.stdout);
+        expect(missingReadiness.status).toBe('unavailable');
+        expect(missingReadiness.code).toBe('ORACLE_NOT_INSTALLED');
+        expect(missingReadiness.oracle.installed).toBe(false);
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
       }
     });
   });
@@ -594,8 +749,15 @@ describe('chatgpt browser command', () => {
           oraclePath,
           [
             '#!/bin/sh',
-            'printf "%s\\n" "Oracle saw: $*"',
+            'ARGS="$*"',
+            'OUT=""',
+            'PREV=""',
+            'for a in "$@"; do',
+            '  if [ "$PREV" = "--write-output" ]; then OUT="$a"; fi',
+            '  PREV="$a"',
+            'done',
             'printf "%s\\n" "Session ID: oracle_followup_456"',
+            'if [ -n "$OUT" ]; then printf "%s\\n" "Oracle saw: $ARGS" > "$OUT"; fi',
           ].join('\n'),
         );
         chmodSync(oraclePath, 0o755);
@@ -607,12 +769,19 @@ describe('chatgpt browser command', () => {
           initialPayload.sessionId,
           '--prompt',
           'Continue.',
-        ], repoRoot, { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ''}` });
+          '--oracle-bin',
+          oraclePath,
+        ]);
         expect(followup.status).toBe(0);
         const followupPayload = JSON.parse(followup.stdout);
         const output = readFileSync(followupPayload.paths.output, 'utf-8');
-        expect(output).toContain('--session oracle_upstream_123');
-        expect(output).not.toContain(`--session ${initialPayload.sessionId}`);
+        expect(output).toContain('--followup oracle_upstream_123');
+        expect(output).not.toContain(initialPayload.sessionId);
+        const followupMeta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', followupPayload.sessionId, 'meta.json'), 'utf-8'));
+        // Parent linkage points at the source conversation; the new session's own
+        // providerSessionId reflects what oracle returned for the reopened run.
+        expect(followupMeta.parentProviderSessionId).toBe('oracle_upstream_123');
+        expect(followupMeta.providerSessionId).toBe('oracle_followup_456');
       } finally {
         rmSync(binDir, { recursive: true, force: true });
       }

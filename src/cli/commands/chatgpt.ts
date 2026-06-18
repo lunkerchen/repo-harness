@@ -35,6 +35,7 @@ interface BrowserDoctorOptions extends BrowserCommonOptions {
   timeoutMs?: string;
   keepBrowser?: boolean;
   headless?: boolean;
+  oracleBin?: string;
 }
 
 interface BrowserBindOptions extends BrowserCommonOptions {
@@ -64,6 +65,7 @@ interface BrowserConsultOptions extends BrowserCommonOptions {
   overwriteOutput?: boolean;
   maxInlineChars?: string;
   manualLogin?: boolean;
+  oracleBin?: string;
   profileDir?: string;
   profileDirectory?: string;
   browserChannel?: string;
@@ -89,6 +91,7 @@ interface BrowserFollowupOptions extends BrowserCommonOptions {
   browserChannel?: string;
   keepBrowser?: boolean;
   headless?: boolean;
+  oracleBin?: string;
 }
 
 function parseProvider(value?: string): BrowserProviderName {
@@ -119,7 +122,7 @@ function parsePositiveInteger(name: string, value?: string): number | undefined 
 
 function parseStatus(value?: string): BrowserSessionStatus | undefined {
   if (value === undefined) return undefined;
-  if (value === 'completed' || value === 'running' || value === 'incomplete_capture' || value === 'failed' || value === 'cancelled' || value === 'dry_run') return value;
+  if (value === 'completed' || value === 'running' || value === 'incomplete_capture' || value === 'recoverable' || value === 'failed' || value === 'cancelled' || value === 'dry_run') return value;
   throw new Error(`invalid --status "${value}"`);
 }
 
@@ -196,6 +199,7 @@ export function buildChatgptCommand(): Command {
     .option('--timeout-ms <ms>', 'Native session validation timeout in milliseconds')
     .option('--keep-browser', 'Leave the validation browser open')
     .option('--headless', 'Run native validation headless')
+    .option('--oracle-bin <path>', 'Explicit oracle binary path (overrides REPO_HARNESS_ORACLE_BIN / node_modules / PATH)')
     .option('--json', 'Output JSON instead of human-readable text')
     .action((rawOpts: BrowserDoctorOptions) => {
       void runChatgptAction(async () => {
@@ -208,6 +212,7 @@ export function buildChatgptCommand(): Command {
           timeoutMs: parsePositiveInteger('timeout-ms', rawOpts.timeoutMs),
           keepBrowser: rawOpts.keepBrowser === true,
           headless: rawOpts.headless === true,
+          oracleBin: rawOpts.oracleBin,
         });
         console.log(rawOpts.json === true ? JSON.stringify(result.json, null, 2) : result.lines.join('\n'));
       });
@@ -236,6 +241,7 @@ export function buildChatgptCommand(): Command {
     .option('--browser-channel <channel>', 'Native provider Chrome channel: chrome|chrome-beta|chrome-dev|chrome-canary')
     .option('--keep-browser', 'Native provider leaves the browser open after the run')
     .option('--headless', 'Native provider runs the selected Chrome channel headless')
+    .option('--oracle-bin <path>', 'Explicit oracle binary path (overrides REPO_HARNESS_ORACLE_BIN / node_modules / PATH)')
     .option('--dry-run', 'Resolve prompt/files and save a dry-run session without opening a browser')
     .action((rawOpts: BrowserConsultOptions) => {
       void runChatgptAction(async () => {
@@ -262,6 +268,7 @@ export function buildChatgptCommand(): Command {
           browserChannel: parseBrowserChannel(rawOpts.browserChannel),
           keepBrowser: rawOpts.keepBrowser === true,
           headless: rawOpts.headless === true,
+          oracleBin: rawOpts.oracleBin,
         });
         console.log(JSON.stringify({
           sessionId: result.sessionId,
@@ -306,6 +313,7 @@ export function buildChatgptCommand(): Command {
     .option('--browser-channel <channel>', 'Native provider Chrome channel: chrome|chrome-beta|chrome-dev|chrome-canary')
     .option('--keep-browser', 'Native provider leaves the browser open after the run')
     .option('--headless', 'Native provider runs the selected Chrome channel headless')
+    .option('--oracle-bin <path>', 'Explicit oracle binary path (overrides REPO_HARNESS_ORACLE_BIN / node_modules / PATH)')
     .option('--dry-run', 'Resolve prompt/session and save a dry-run follow-up without opening a browser')
     .action((rawOpts: BrowserFollowupOptions) => {
       void runChatgptAction(async () => {
@@ -329,6 +337,7 @@ export function buildChatgptCommand(): Command {
           browserChannel: parseBrowserChannel(rawOpts.browserChannel),
           keepBrowser: rawOpts.keepBrowser === true,
           headless: rawOpts.headless === true,
+          oracleBin: rawOpts.oracleBin,
         });
         console.log(JSON.stringify({
           sourceSessionId: rawOpts.session,

@@ -7,7 +7,7 @@
 - Builds a policy-checked prompt bundle from explicit repo files.
 - Saves repo-local session records under `.ai/harness/chatgpt/sessions/<sessionId>/`.
 - Supports dry-run preview without opening a browser.
-- Supports an Oracle provider wrapper for `oracle --engine browser`.
+- Supports an Oracle provider wrapper for `oracle --engine browser` (the default, recommended main path).
 - Supports linked follow-up sessions, conversation URL readback, and safe cleanup planning.
 - Exposes optional MCP tools only when the MCP server is started with `--enable-chatgpt-browser`.
 
@@ -18,7 +18,13 @@
 - It does not enable remote CDP by default.
 - It does not treat ChatGPT Web as the source of truth; the repo-local session store is the audit record.
 - It does not import local artifact paths from ordinary provider stdout.
-- The native Chrome CDP provider is a spike surface. It is available, but selector/login behavior must be validated against ChatGPT Web changes before promotion.
+- It does not auto-fall back from Oracle to another provider. Oracle may have already submitted the prompt before a capture drop, so silent retries would double-ask.
+
+## Provider Posture
+
+- **`oracle` — default main path.** Oracle owns the browser engine; repo-harness always passes `--engine browser --browser-manual-login`. This is the recommended provider.
+- **`native` — deprecated.** The homegrown Chrome CDP engine is no longer maintained and is kept only as a short-term diagnostic entry (`browser-doctor --provider native`). It will be removed. Chrome 136+ also blocks remote-debugging switches against the *default* Chrome data directory (custom `--user-data-dir` still works), but the deprecation is a maintenance decision, not a Chrome limitation.
+- **`bridge` — experimental, explicit-only.** The localhost Chrome-extension bridge is not a fallback yet; it still derives completion from a DOM heuristic. Select it explicitly only. It now requires a per-binding capability token and has a server-side backstop (see below).
 
 ## First-Time Setup
 
@@ -72,7 +78,13 @@ repo-harness chatgpt browser-consult \
   --write-output .ai/harness/handoff/chatgpt-review.md
 ```
 
-The wrapper maps repo-harness input to `oracle --engine browser`, then saves stdout, transcript, metadata, any detected ChatGPT conversation URL, and provider session ID into the repo-local session store. It deliberately ignores `Artifact:` / `Output:` / `Session file:` paths in ordinary stdout because that text can include model-controlled content.
+The wrapper maps repo-harness input to `oracle --engine browser --browser-manual-login --browser-archive never`, passing an internal managed `--write-output` answer file. **The answer file plus the process terminal state are authoritative; stdout/stderr are treated as logs only** (used to detect the ChatGPT conversation URL and provider session ID, never as the answer). A clean exit that produces no answer file is reported as `recoverable` / `ORACLE_CAPTURE_INCOMPLETE` (the prompt may already be submitted — reattach with `browser-followup` rather than re-sending). All behavior is passed explicitly so `.oracle/config.json` defaults are never silently inherited.
+
+The oracle binary is resolved in a fixed, auditable order — `--oracle-bin`, then `REPO_HARNESS_ORACLE_BIN`, then repo-local `node_modules/.bin/oracle`, then `oracle` on `PATH`. A missing binary fails with `ORACLE_NOT_INSTALLED`; repo-harness never implicitly downloads or `npx`-executes an unpinned oracle. `browser-doctor --provider oracle --json` runs a `--help`/`--version` capability probe and reports `installed`, resolved `binary`, `version`, `nodeCompatible`, and a `capabilities` map (`browserEngine`, `manualLogin`, `writeOutput`, `browserFollowup`, `sessionFollowup`); `status:"ready"` requires all required capabilities.
+
+Multi-turn works two ways: repeat `--follow-up` within one run, or reopen a saved conversation later with `browser-followup --session <id>` (which passes oracle `--followup <providerSessionId>`). A follow-up records the parent `providerSessionId` and only resumes from a session that reached a resumable terminal state.
+
+The doctor status taxonomy is distinct per provider (no single overloaded `partial`): oracle → `ready` | `unavailable` (`ORACLE_NOT_INSTALLED`) | `action_required` (`ORACLE_INCOMPATIBLE`); native → `deprecated` (`NATIVE_PROVIDER_DEPRECATED`); bridge → `experimental` (`BRIDGE_EXPERIMENTAL`).
 
 `--write-output` is validated by repo-harness before the provider runs. By default it must be repo-relative, must not target denied paths, and must not overwrite an existing file unless `--overwrite-output` is passed. Absolute output paths require the human-only `--allow-absolute-output` flag and are not available through MCP browser tools.
 
@@ -87,6 +99,8 @@ repo-harness chatgpt browser-consult \
 ```
 
 The bridge provider uses the generated unpacked Chrome extension in the user's selected profile. The extension is scoped to `https://chatgpt.com/*`, `https://chat.openai.com/*`, and the local bridge URL only. It does not request cookies or storage permissions. The extension polls localhost for one task, submits the prompt through the visible ChatGPT composer, waits for assistant text, and posts the result back to repo-harness.
+
+The localhost bridge requires a per-binding capability token: `browser-bind` generates and persists `bridgeToken` in `.repo-harness/chatgpt-browser.local.json`, injects it into the generated extension, and the bridge server rejects any request whose `x-repo-harness-bridge-token` header does not match with `401`. Because the token is stable per binding, reload the unpacked extension once after upgrading. A server-side backstop also coerces any `completed` result whose output is empty or a status-only string (e.g. `Pro thinking`) into a `failed` / `CHATGPT_BRIDGE_NO_FINAL_MESSAGE`, so the DOM-scrape path can never persist a non-answer as success.
 
 Bridge provider runs use the current model and thinking mode already selected in the ChatGPT Web UI. Passing `--model` or `--thinking` with `--provider bridge` fails closed with `BRIDGE_MODEL_SELECTION_UNSUPPORTED`; use the Oracle provider when provider-side model selection is required.
 
