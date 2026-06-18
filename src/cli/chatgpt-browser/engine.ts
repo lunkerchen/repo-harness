@@ -40,11 +40,14 @@ export type BrowserDoctorStatus = 'ready' | 'unavailable' | 'action_required' | 
 
 const EMPTY_ORACLE_CAPABILITIES = {
   browserEngine: false,
-  manualLogin: false,
   writeOutput: false,
   browserFollowup: false,
   sessionFollowup: false,
   browserArchive: false,
+  browserModelStrategy: false,
+  browserCookiePath: false,
+  browserThinkingTime: false,
+  chatgptUrl: false,
 };
 
 export interface BrowserBindOptions {
@@ -167,8 +170,15 @@ export async function runBrowserBind(repoRoot: string, opts: BrowserBindOptions 
   };
 }
 
-function withNativeBinding(input: BrowserConsultInput, provider: BrowserProviderName): BrowserConsultInput {
-  if (provider !== 'native' && provider !== 'bridge') return input;
+function withBrowserBinding(input: BrowserConsultInput, provider: BrowserProviderName): BrowserConsultInput {
+  if (provider !== 'oracle' && provider !== 'native' && provider !== 'bridge') return input;
+  if (provider === 'oracle' && input.sourceSessionId) {
+    return {
+      ...input,
+      profileDir: input.profileDir ? resolve(input.profileDir) : undefined,
+      chatgptUrl: input.chatgptUrl ?? DEFAULT_CHATGPT_URL,
+    };
+  }
   const binding = readBrowserBinding(input.repoRoot).binding;
   return {
     ...input,
@@ -351,7 +361,7 @@ export async function browserDoctor(
 
 export async function runBrowserConsult(input: BrowserConsultInput): Promise<BrowserConsultResult> {
   const provider = input.provider ?? 'oracle';
-  const effectiveInput = withNativeBinding(input, provider);
+  const effectiveInput = withBrowserBinding(input, provider);
   assertOutputTarget(effectiveInput);
   const bundle = assemblePromptBundle(effectiveInput);
   if (effectiveInput.dryRun !== true) {

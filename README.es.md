@@ -439,6 +439,12 @@ Gracias a [Garry Tan](https://x.com/garrytan), autor de gstack y gbrain. Ambos
 influyeron en el workflow de product discovery, plan/design review, release
 documentation, knowledge sync y handoff retrieval.
 
+Gracias a [Peter Steinberger](https://x.com/steipete), autor de Oracle
+(`@steipete/oracle`, MIT). Es el motor de consult de navegador GPT Pro / ChatGPT
+Web por defecto de `chatgpt-browser`: el provider Oracle ejecuta el binario oracle
+externo para los consults `gptpro`, sin descarga automática, y un binario ausente
+es un fallo explícito.
+
 
 ### Atribución de contribuidor en GitHub
 

@@ -444,6 +444,12 @@ Merci à [Garry Tan](https://x.com/garrytan), auteur de gstack et gbrain. Ils on
 influencé le workflow de product discovery, plan/design review, release
 documentation, knowledge sync et handoff retrieval.
 
+Merci à [Peter Steinberger](https://x.com/steipete), auteur d'Oracle
+(`@steipete/oracle`, MIT). C'est le moteur de consult navigateur GPT Pro /
+ChatGPT Web par défaut de `chatgpt-browser` : le provider Oracle lance le binaire
+oracle externe pour les consults `gptpro`, sans téléchargement automatique, et un
+binaire manquant est une erreur franche.
+
 
 ### Attribution GitHub des contributeurs
 

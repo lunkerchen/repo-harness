@@ -456,6 +456,10 @@ decision rationale 的要求，来自他的贡献与启发。
 product discovery、plan/design review、release 文档、knowledge sync 和
 handoff retrieval 的工作流设计。
 
+感谢 [Peter Steinberger](https://x.com/steipete) 创作 Oracle（`@steipete/oracle`，MIT）；它是
+`chatgpt-browser` 默认的 GPT Pro / ChatGPT Web 浏览器 consult 引擎，Oracle provider
+通过 spawn 外部 oracle 二进制完成 `gptpro` consult，从不自动下载，缺失即硬失败。
+
 感谢 OpenAI Codex 作为本仓库主要执行 agent 参与实现、验证和收口。
 
 ### GitHub Contributor Attribution

@@ -1,5 +1,5 @@
 import { spawnSync } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import { accessSync, constants, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import { isAbsolute, join, resolve } from 'path';
 import type { BrowserConsultInput, BrowserImportedArtifact, PromptBundle } from './types';
@@ -34,11 +34,14 @@ export interface OracleResolution {
 
 export interface OracleCapabilities {
   browserEngine: boolean;
-  manualLogin: boolean;
   writeOutput: boolean;
   browserFollowup: boolean;
   sessionFollowup: boolean;
   browserArchive: boolean;
+  browserModelStrategy: boolean;
+  browserCookiePath: boolean;
+  browserThinkingTime: boolean;
+  chatgptUrl: boolean;
 }
 
 export interface OracleProbe {
@@ -106,15 +109,18 @@ export function resolveOracleBin(input: Pick<BrowserConsultInput, 'repoRoot' | '
   };
 }
 
-function detectCapabilities(helpText: string): OracleCapabilities {
+function detectCapabilities(helpText: string, browserThinkingTime: boolean): OracleCapabilities {
   const has = (flag: string) => helpText.includes(flag);
   return {
     browserEngine: has('--engine'),
-    manualLogin: has('--browser-manual-login') || has('manual-login'),
     writeOutput: has('--write-output'),
     browserFollowup: has('--browser-follow-up'),
     sessionFollowup: has('--followup'),
     browserArchive: has('--browser-archive'),
+    browserModelStrategy: has('--browser-model-strategy'),
+    browserCookiePath: has('--browser-cookie-path'),
+    browserThinkingTime,
+    chatgptUrl: has('--chatgpt-url'),
   };
 }
 
@@ -129,17 +135,47 @@ function detectVersion(text: string): string | undefined {
  */
 export function probeOracle(binary: string): OracleProbe {
   const help = spawnSync(binary, ['--help'], { encoding: 'utf-8', timeout: 30_000, maxBuffer: 4 * 1024 * 1024 });
-  const helpText = `${help.stdout ?? ''}\n${help.stderr ?? ''}`;
+  const debugHelp = spawnSync(binary, ['--debug-help'], { encoding: 'utf-8', timeout: 30_000, maxBuffer: 4 * 1024 * 1024 });
+  const helpText = `${help.stdout ?? ''}\n${help.stderr ?? ''}\n${debugHelp.stdout ?? ''}\n${debugHelp.stderr ?? ''}`;
   const versionRun = spawnSync(binary, ['--version'], { encoding: 'utf-8', timeout: 30_000, maxBuffer: 1024 * 1024 });
   const versionText = `${versionRun.stdout ?? ''}\n${versionRun.stderr ?? ''}`;
   const ranOk = !help.error && (help.status === 0 || helpText.trim().length > 0);
+  const browserThinkingTime = probeBrowserThinkingTime(binary);
   return {
     binary,
     version: detectVersion(versionText) ?? detectVersion(helpText),
     nodeCompatible: ranOk,
-    capabilities: detectCapabilities(helpText),
+    capabilities: detectCapabilities(helpText, browserThinkingTime),
     helpText,
   };
+}
+
+function probeBrowserThinkingTime(binary: string): boolean {
+  const probeDir = mkdtempSync(join(tmpdir(), 'repo-harness-oracle-probe-'));
+  try {
+    const result = spawnSync(binary, [
+      '--engine',
+      'browser',
+      '--browser-thinking-time',
+      'heavy',
+      '--dry-run',
+      'json',
+      '--prompt',
+      'repo-harness parser probe',
+    ], {
+      cwd: probeDir,
+      env: buildOracleEnv(probeDir),
+      encoding: 'utf-8',
+      timeout: 30_000,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    const text = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+    return !result.error && result.status === 0 && !/unknown option|error: option/i.test(text);
+  } catch (_error) {
+    return false;
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -149,14 +185,59 @@ export function probeOracle(binary: string): OracleProbe {
  * distinct from the user's repo-relative `--write-output` copy-out).
  */
 export function buildOracleCommand(input: BrowserConsultInput, answerPath?: string): string[] {
-  const args = ['--engine', 'browser', '--browser-manual-login', '--browser-archive', 'never', '--prompt', input.prompt];
+  const args = ['--engine', 'browser', '--browser-archive', 'never', '--prompt', input.prompt];
   if (answerPath) args.push('--write-output', answerPath);
   if (input.providerSessionId) args.push('--followup', input.providerSessionId);
-  if (input.model) args.push('--model', input.model);
+  if (input.model) args.push('--model', input.model, '--browser-model-strategy', 'select');
+  else args.push('--browser-model-strategy', 'current');
   if (input.thinking) args.push('--browser-thinking-time', input.thinking);
-  for (const file of input.files ?? []) args.push('--file', file.path);
+  if (input.chatgptUrl) args.push('--chatgpt-url', input.chatgptUrl);
+  const cookiePath = resolveOracleCookiePath(input);
+  if (cookiePath) args.push('--browser-cookie-path', cookiePath);
+  for (const file of input.files ?? []) args.push('--file', resolveOracleFilePath(input, file.path));
   for (const followup of input.followups ?? []) args.push('--browser-follow-up', followup);
   return args;
+}
+
+function resolveOracleFilePath(input: BrowserConsultInput, filePath: string): string {
+  return isAbsolute(filePath) ? filePath : join(input.repoRoot, filePath);
+}
+
+export function resolveOracleCookiePath(input: Pick<BrowserConsultInput, 'profileDir' | 'profileDirectory'>): string | undefined {
+  if (!input.profileDir) return undefined;
+  const selectedProfilePath = input.profileDirectory
+    ? join(input.profileDir, input.profileDirectory)
+    : input.profileDir;
+  const candidates = [
+    join(selectedProfilePath, 'Network', 'Cookies'),
+    join(selectedProfilePath, 'Cookies'),
+  ];
+  return candidates.find((candidate) => regularFileExists(candidate));
+}
+
+function regularFileExists(path: string): boolean {
+  try {
+    if (lstatSync(path).isSymbolicLink()) return false;
+    if (!statSync(path).isFile()) return false;
+    accessSync(path, constants.R_OK);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+function resolveOracleHomeDir(input: BrowserConsultInput): string {
+  return join(input.repoRoot, '.ai', 'harness', 'chatgpt', 'oracle-home');
+}
+
+function buildOracleEnv(oracleHomeDir: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith('ORACLE_')) continue;
+    env[key] = value;
+  }
+  env.ORACLE_HOME_DIR = oracleHomeDir;
+  return env;
 }
 
 function extractConversationUrl(text: string): string | undefined {
@@ -194,14 +275,33 @@ export function runOracleProvider(input: BrowserConsultInput, _bundle: PromptBun
       },
     };
   }
-
+  if (input.profileDir && !resolveOracleCookiePath(input)) {
+    const selectedProfilePath = input.profileDirectory
+      ? join(input.profileDir, input.profileDirectory)
+      : input.profileDir;
+    return {
+      status: 'failed',
+      output: `Oracle could not find a Chrome cookie database for the selected ChatGPT profile: ${selectedProfilePath}`,
+      command: [resolution.binary, ...buildOracleCommand(input)],
+      oracleBinary: resolution.binary,
+      error: {
+        code: 'ORACLE_PROFILE_COOKIE_NOT_FOUND',
+        message: 'Oracle could not find a Chrome cookie database for the selected ChatGPT profile',
+        recovery: 'Re-run browser-setup with the correct Chrome profile directory, or omit the profile binding only if you intentionally want Oracle to use its own browser session.',
+      },
+    };
+  }
   const answerDir = mkdtempSync(join(tmpdir(), 'repo-harness-oracle-answer-'));
+  const runCwd = mkdtempSync(join(tmpdir(), 'repo-harness-oracle-cwd-'));
+  const oracleHomeDir = resolveOracleHomeDir(input);
+  mkdirSync(oracleHomeDir, { recursive: true });
   const answerPath = join(answerDir, 'answer.md');
   const args = buildOracleCommand(input, answerPath);
   const command = [resolution.binary, ...args];
   try {
     const result = spawnSync(resolution.binary, args, {
-      cwd: input.repoRoot,
+      cwd: runCwd,
+      env: buildOracleEnv(oracleHomeDir),
       encoding: 'utf-8',
       timeout: input.timeoutMs ?? 1_800_000,
       maxBuffer: 8 * 1024 * 1024,
@@ -275,5 +375,6 @@ export function runOracleProvider(input: BrowserConsultInput, _bundle: PromptBun
     };
   } finally {
     rmSync(answerDir, { recursive: true, force: true });
+    rmSync(runCwd, { recursive: true, force: true });
   }
 }

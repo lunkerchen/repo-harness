@@ -605,10 +605,21 @@ describe('chatgpt browser command', () => {
             'printf "%s\\n" "Oracle saw: $ARGS"',
             'printf "%s\\n" "Session ID: oracle_fake_123"',
             'printf "%s\\n" "https://chatgpt.com/c/fake-conversation"',
-            'if [ -n "$OUT" ]; then printf "%s\\n" "Final answer: Oracle saw: $ARGS" > "$OUT"; fi',
+            'if [ -n "$OUT" ]; then',
+            '  printf "%s\\n" "Final answer: Oracle saw: $ARGS" > "$OUT"',
+            '  printf "%s\\n" "PWD: $PWD" >> "$OUT"',
+            '  printf "%s\\n" "ORACLE_HOME_DIR: ${ORACLE_HOME_DIR:-}" >> "$OUT"',
+            '  printf "%s\\n" "ORACLE_ENGINE: ${ORACLE_ENGINE:-}" >> "$OUT"',
+            '  printf "%s\\n" "ORACLE_REMOTE_HOST: ${ORACLE_REMOTE_HOST:-}" >> "$OUT"',
+            'fi',
           ].join('\n'),
         );
         chmodSync(oraclePath, 0o755);
+        mkdirSync(join(repoRoot, '.oracle'), { recursive: true });
+        writeFileSync(
+          join(repoRoot, '.oracle/config.json'),
+          '{"promptSuffix":"DO NOT INHERIT","browser":{"manualLogin":true,"modelStrategy":"ignore"}}\n',
+        );
         const result = runChatgpt([
           'browser-consult',
           '--repo',
@@ -619,17 +630,27 @@ describe('chatgpt browser command', () => {
           'docs/example.md',
           '--model',
           'GPT-5.5 Pro',
-          '--thinking',
-          'heavy',
           '--oracle-bin',
           oraclePath,
-        ]);
+        ], ROOT, {
+          ...process.env,
+          ORACLE_ENGINE: 'api',
+          ORACLE_REMOTE_HOST: '127.0.0.1:9473',
+        });
         expect(result.status).toBe(0);
         const payload = JSON.parse(result.stdout);
         expect(payload.status).toBe('completed');
         const output = readFileSync(payload.paths.output, 'utf-8');
         expect(output).toContain('Final answer: Oracle saw: --engine browser');
         expect(output).toContain('--browser-archive never');
+        expect(output).toContain('--browser-model-strategy select');
+        expect(output).toContain(`--file ${join(repoRoot, 'docs/example.md')}`);
+        expect(output).not.toContain('--browser-manual-login');
+        expect(output).not.toContain('DO NOT INHERIT');
+        expect(output).not.toContain(`PWD: ${repoRoot}`);
+        expect(output).toContain(`ORACLE_HOME_DIR: ${join(repoRoot, '.ai/harness/chatgpt/oracle-home')}`);
+        expect(output).toContain('ORACLE_ENGINE:');
+        expect(output).toContain('ORACLE_REMOTE_HOST:');
         const meta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'meta.json'), 'utf-8'));
         expect(meta.browser.conversationUrl).toBe('https://chatgpt.com/c/fake-conversation');
         expect(meta.providerSessionId).toBe('oracle_fake_123');
@@ -640,6 +661,185 @@ describe('chatgpt browser command', () => {
         const opened = runChatgpt(['browser-open', '--repo', repoRoot, payload.sessionId]);
         expect(opened.status).toBe(0);
         expect(JSON.parse(opened.stdout).url).toBe('https://chatgpt.com/c/fake-conversation');
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test('oracle provider uses the bound ChatGPT profile cookie database', () => {
+    withRepo((repoRoot) => {
+      const userDataDir = join(repoRoot, 'Chrome/User Data');
+      const profileDir = join(userDataDir, 'Profile 1');
+      mkdirSync(profileDir, { recursive: true });
+      writeFileSync(join(userDataDir, 'Local State'), '{}\n');
+      writeFileSync(join(profileDir, 'Preferences'), '{}\n');
+      writeFileSync(join(profileDir, 'Cookies'), 'fake cookie db\n');
+      const setup = runChatgpt([
+        'browser-setup',
+        '--repo',
+        repoRoot,
+        '--profile-dir',
+        profileDir,
+        '--browser-channel',
+        'chrome',
+        '--chatgpt-url',
+        'https://chatgpt.com/',
+      ]);
+      expect(setup.status).toBe(0);
+
+      const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-profile-'));
+      try {
+        const oraclePath = join(binDir, 'oracle');
+        writeFileSync(
+          oraclePath,
+          [
+            '#!/bin/sh',
+            'ARGS="$*"',
+            'OUT=""',
+            'PREV=""',
+            'for a in "$@"; do',
+            '  if [ "$PREV" = "--write-output" ]; then OUT="$a"; fi',
+            '  PREV="$a"',
+            'done',
+            'printf "%s\\n" "Session ID: oracle_profile_123"',
+            'if [ -n "$OUT" ]; then printf "%s\\n" "Oracle saw: $ARGS" > "$OUT"; fi',
+          ].join('\n'),
+        );
+        chmodSync(oraclePath, 0o755);
+        const result = runChatgpt([
+          'browser-consult',
+          '--repo',
+          repoRoot,
+          '--prompt',
+          'Review this.',
+          '--oracle-bin',
+          oraclePath,
+        ]);
+        expect(result.status).toBe(0);
+        const payload = JSON.parse(result.stdout);
+        expect(payload.status).toBe('completed');
+        const output = readFileSync(payload.paths.output, 'utf-8');
+        expect(output).toContain('--browser-model-strategy current');
+        expect(output).toContain(`--browser-cookie-path ${join(profileDir, 'Cookies')}`);
+        expect(output).toContain('--chatgpt-url https://chatgpt.com/');
+        const meta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'meta.json'), 'utf-8'));
+        expect(meta.browser.profileDir).toBe(userDataDir);
+        expect(meta.browser.profileDirectory).toBe('Profile 1');
+        expect(meta.browser.selectedProfilePath).toBe(profileDir);
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test('oracle provider prefers modern Network/Cookies over legacy Cookies', () => {
+    withRepo((repoRoot) => {
+      const userDataDir = join(repoRoot, 'Chrome/User Data');
+      const profileDir = join(userDataDir, 'Profile 1');
+      const networkDir = join(profileDir, 'Network');
+      mkdirSync(networkDir, { recursive: true });
+      writeFileSync(join(userDataDir, 'Local State'), '{}\n');
+      writeFileSync(join(profileDir, 'Preferences'), '{}\n');
+      writeFileSync(join(profileDir, 'Cookies'), 'legacy cookie db\n');
+      writeFileSync(join(networkDir, 'Cookies'), 'modern cookie db\n');
+      const setup = runChatgpt([
+        'browser-setup',
+        '--repo',
+        repoRoot,
+        '--profile-dir',
+        profileDir,
+        '--browser-channel',
+        'chrome',
+      ]);
+      expect(setup.status).toBe(0);
+
+      const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-network-cookie-'));
+      try {
+        const oraclePath = join(binDir, 'oracle');
+        writeFileSync(
+          oraclePath,
+          [
+            '#!/bin/sh',
+            'ARGS="$*"',
+            'OUT=""',
+            'PREV=""',
+            'for a in "$@"; do',
+            '  if [ "$PREV" = "--write-output" ]; then OUT="$a"; fi',
+            '  PREV="$a"',
+            'done',
+            'if [ -n "$OUT" ]; then printf "%s\n" "Oracle saw: $ARGS" > "$OUT"; fi',
+          ].join('\n'),
+        );
+        chmodSync(oraclePath, 0o755);
+        const result = runChatgpt([
+          'browser-consult',
+          '--repo',
+          repoRoot,
+          '--prompt',
+          'Review this.',
+          '--oracle-bin',
+          oraclePath,
+        ]);
+        expect(result.status).toBe(0);
+        const payload = JSON.parse(result.stdout);
+        expect(payload.status).toBe('completed');
+        const output = readFileSync(payload.paths.output, 'utf-8');
+        expect(output).toContain(`--browser-cookie-path ${join(networkDir, 'Cookies')}`);
+        expect(output).not.toContain(`--browser-cookie-path ${join(profileDir, 'Cookies')}`);
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test('oracle provider fails closed when the bound profile has no regular cookie database', () => {
+    withRepo((repoRoot) => {
+      const userDataDir = join(repoRoot, 'Chrome/User Data');
+      const profileDir = join(userDataDir, 'Profile 1');
+      mkdirSync(profileDir, { recursive: true });
+      writeFileSync(join(userDataDir, 'Local State'), '{}\n');
+      writeFileSync(join(profileDir, 'Preferences'), '{}\n');
+      mkdirSync(join(profileDir, 'Cookies'));
+      const setup = runChatgpt([
+        'browser-setup',
+        '--repo',
+        repoRoot,
+        '--profile-dir',
+        profileDir,
+        '--browser-channel',
+        'chrome',
+      ]);
+      expect(setup.status).toBe(0);
+
+      const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-no-cookie-'));
+      try {
+        const oraclePath = join(binDir, 'oracle');
+        writeFileSync(
+          oraclePath,
+          [
+            '#!/bin/sh',
+            'printf "%s\\n" "unexpected oracle execution" >&2',
+            'exit 99',
+          ].join('\n'),
+        );
+        chmodSync(oraclePath, 0o755);
+        const result = runChatgpt([
+          'browser-consult',
+          '--repo',
+          repoRoot,
+          '--prompt',
+          'Review this.',
+          '--oracle-bin',
+          oraclePath,
+        ]);
+        expect(result.status).toBe(0);
+        const payload = JSON.parse(result.stdout);
+        expect(payload.status).toBe('failed');
+        expect(payload.error.code).toBe('ORACLE_PROFILE_COOKIE_NOT_FOUND');
+        const output = readFileSync(payload.paths.output, 'utf-8');
+        expect(output).toContain('could not find a Chrome cookie database');
+        expect(output).not.toContain('unexpected oracle execution');
       } finally {
         rmSync(binDir, { recursive: true, force: true });
       }
@@ -683,6 +883,53 @@ describe('chatgpt browser command', () => {
     });
   });
 
+  test('oracle provider maps thinking to Oracle browser thinking time', () => {
+    withRepo((repoRoot) => {
+      const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-thinking-'));
+      try {
+        const oraclePath = join(binDir, 'oracle');
+        writeFileSync(
+          oraclePath,
+          [
+            '#!/bin/sh',
+            'ARGS="$*"',
+            'OUT=""',
+            'PREV=""',
+            'for a in "$@"; do',
+            '  if [ "$PREV" = "--write-output" ]; then OUT="$a"; fi',
+            '  PREV="$a"',
+            'done',
+            'if [ -n "$OUT" ]; then printf "%s\\n" "Oracle saw: $ARGS" > "$OUT"; fi',
+          ].join('\n'),
+        );
+        chmodSync(oraclePath, 0o755);
+        const result = runChatgpt([
+          'browser-consult',
+          '--repo',
+          repoRoot,
+          '--prompt',
+          'Review this.',
+          '--thinking',
+          'heavy',
+          '--model',
+          'gpt-5.5-pro',
+          '--oracle-bin',
+          oraclePath,
+        ]);
+        expect(result.status).toBe(0);
+        const payload = JSON.parse(result.stdout);
+        expect(payload.status).toBe('completed');
+        const output = readFileSync(payload.paths.output, 'utf-8');
+        expect(output).toContain('--model gpt-5.5-pro --browser-model-strategy select');
+        expect(output).toContain('--browser-thinking-time heavy');
+        const meta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'meta.json'), 'utf-8'));
+        expect(meta.model.thinking).toBe('heavy');
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
+      }
+    });
+  });
+
   test('oracle doctor probes binary capabilities and reports ready', () => {
     withRepo((repoRoot) => {
       const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-doctor-'));
@@ -694,7 +941,7 @@ describe('chatgpt browser command', () => {
             '#!/bin/sh',
             'case "$1" in',
             '  --version) printf "%s\\n" "0.13.0";;',
-            '  *) printf "%s\\n" "Usage: oracle --engine browser --browser-manual-login --browser-archive never --write-output <p> --browser-follow-up <t> --followup <id>";;',
+            '  *) printf "%s\\n" "Usage: oracle --engine browser --browser-archive never --write-output <p> --browser-follow-up <t> --followup <id> --browser-model-strategy current --browser-cookie-path <path> --chatgpt-url <url>";;',
             'esac',
           ].join('\n'),
         );
@@ -708,11 +955,14 @@ describe('chatgpt browser command', () => {
         expect(readiness.oracle.version).toBe('0.13.0');
         expect(readiness.oracle.capabilities).toEqual({
           browserEngine: true,
-          manualLogin: true,
           writeOutput: true,
           browserFollowup: true,
           sessionFollowup: true,
           browserArchive: true,
+          browserModelStrategy: true,
+          browserCookiePath: true,
+          browserThinkingTime: true,
+          chatgptUrl: true,
         });
         expect(readiness.oracle.missingCapabilities).toEqual([]);
 
@@ -741,9 +991,12 @@ describe('chatgpt browser command', () => {
           oraclePath,
           [
             '#!/bin/sh',
+            'for a in "$@"; do',
+            '  if [ "$a" = "--browser-thinking-time" ]; then printf "%s\\n" "error: unknown option --browser-thinking-time" >&2; exit 1; fi',
+            'done',
             'case "$1" in',
             '  --version) printf "%s\\n" "0.12.0";;',
-            '  *) printf "%s\\n" "Usage: oracle --engine browser --browser-manual-login --write-output <p>";;',
+            '  *) printf "%s\\n" "Usage: oracle --engine browser --write-output <p>";;',
             'esac',
           ].join('\n'),
         );
@@ -755,13 +1008,16 @@ describe('chatgpt browser command', () => {
         expect(readiness.code).toBe('ORACLE_INCOMPATIBLE');
         expect(readiness.oracle.capabilities).toEqual({
           browserEngine: true,
-          manualLogin: true,
           writeOutput: true,
           browserFollowup: false,
           sessionFollowup: false,
           browserArchive: false,
+          browserModelStrategy: false,
+          browserCookiePath: false,
+          browserThinkingTime: false,
+          chatgptUrl: false,
         });
-        expect(readiness.oracle.missingCapabilities).toEqual(['browserFollowup', 'sessionFollowup', 'browserArchive']);
+        expect(readiness.oracle.missingCapabilities).toEqual(['browserFollowup', 'sessionFollowup', 'browserArchive', 'browserModelStrategy', 'browserCookiePath', 'browserThinkingTime', 'chatgptUrl']);
         expect(readiness.oracle.error.message).toContain('browserFollowup');
       } finally {
         rmSync(binDir, { recursive: true, force: true });
@@ -785,6 +1041,22 @@ describe('chatgpt browser command', () => {
       const meta = JSON.parse(readFileSync(metaPath, 'utf-8'));
       meta.providerSessionId = 'oracle_upstream_123';
       writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n');
+      const userDataDir = join(repoRoot, 'Chrome/User Data');
+      const profileDir = join(userDataDir, 'Profile 1');
+      mkdirSync(profileDir, { recursive: true });
+      writeFileSync(join(userDataDir, 'Local State'), '{}\n');
+      writeFileSync(join(profileDir, 'Preferences'), '{}\n');
+      writeFileSync(join(profileDir, 'Cookies'), 'fake cookie db\n');
+      const setup = runChatgpt([
+        'browser-setup',
+        '--repo',
+        repoRoot,
+        '--profile-dir',
+        profileDir,
+        '--browser-channel',
+        'chrome',
+      ]);
+      expect(setup.status).toBe(0);
 
       const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-followup-bin-'));
       try {
@@ -821,6 +1093,7 @@ describe('chatgpt browser command', () => {
         const output = readFileSync(followupPayload.paths.output, 'utf-8');
         expect(output).toContain('--followup oracle_upstream_123');
         expect(output).not.toContain(initialPayload.sessionId);
+        expect(output).not.toContain('--browser-cookie-path');
         const followupMeta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', followupPayload.sessionId, 'meta.json'), 'utf-8'));
         // Parent linkage points at the source conversation; the new session's own
         // providerSessionId reflects what oracle returned for the reopened run.
@@ -843,10 +1116,25 @@ describe('chatgpt browser command', () => {
   test('ships browser engine docs and Codex Skill', () => {
     const guide = join(ROOT, 'docs/repo-harness-chatgpt-browser-engine.md');
     const skill = join(ROOT, '.agents/skills/repo-harness-chatgpt-browser/SKILL.md');
+    const gptproSkill = join(ROOT, 'assets/skill-commands/repo-harness-gptpro/SKILL.md');
     expect(readFileSync(guide, 'utf-8')).toContain('repo-harness chatgpt browser-consult');
     expect(readFileSync(guide, 'utf-8')).toContain('--provider native');
     expect(readFileSync(guide, 'utf-8')).toContain('--provider bridge');
     expect(readFileSync(guide, 'utf-8')).toContain('--browser-channel chrome');
-    expect(readFileSync(skill, 'utf-8')).toContain('repo-harness-chatgpt-browser');
+    expect(readFileSync(guide, 'utf-8')).toContain('.ai/harness/handoff/gptpro/chatgpt-review-${stamp}.md');
+    expect(readFileSync(guide, 'utf-8')).toContain('docs/researches/YYYYMMDD-<topic>.md');
+    expect(readFileSync(guide, 'utf-8')).toContain('not `oracle-mcp`');
+    expect(readFileSync(join(ROOT, 'docs/researches/README.md'), 'utf-8')).toContain('.ai/harness/handoff/gptpro/');
+    expect(readFileSync(guide, 'utf-8')).toContain('Oracle CLI package currently requires `node >=24`');
+    const browserSkillText = readFileSync(skill, 'utf-8');
+    expect(browserSkillText).toContain('repo-harness-chatgpt-browser');
+    expect(browserSkillText).toContain('--provider oracle --json');
+    expect(browserSkillText).toContain('node >=24');
+    const gptproSkillText = readFileSync(gptproSkill, 'utf-8');
+    expect(gptproSkillText).toContain('date -u +%Y%m%dT%H%M%SZ');
+    expect(gptproSkillText).toContain('mkdir -p .ai/harness/handoff/gptpro');
+    expect(gptproSkillText).toContain('.ai/harness/handoff/gptpro/gptpro-${stamp}-${slug}.md');
+    expect(gptproSkillText).toContain('--model gpt-5.5-pro');
+    expect(gptproSkillText).not.toContain('gptpro-consult.md');
   });
 });

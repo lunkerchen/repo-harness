@@ -417,6 +417,11 @@ bug hunt、verification のリズムを形作っています。
 これらは product discovery、plan/design review、release documentation、
 knowledge sync、handoff retrieval の workflow 設計に影響を与えています。
 
+[Peter Steinberger](https://x.com/steipete) による Oracle（`@steipete/oracle`、MIT）にも
+感謝します。これは `chatgpt-browser` の既定の GPT Pro / ChatGPT Web ブラウザ consult
+エンジンで、Oracle provider が外部の oracle バイナリを spawn して `gptpro` consult を
+実行します（自動ダウンロードはせず、見つからなければ hard failure）。
+
 
 ### GitHub contributor attribution
 
