@@ -56,6 +56,32 @@ En un repositorio adoptado, la superficie se mantiene pequeña:
 | `tasks/contracts/`, `tasks/reviews/` y `.ai/harness/checks/` | Scope, verificación y evidencia de review para probar que el trabajo terminó. |
 | `.ai/harness/handoff/` y `tasks/current.md` | Session journal y estado resumible, derivados de workflow artifacts en vez de chat memory. |
 
+## Human Review Path
+
+Empieza por `tasks/reviews/<task>.review.md`. La `## Human Review Card` es la
+superficie de decisión de una sola pantalla: verdict, change type, archivos
+previstos vs reales, comandos que pasaron, external acceptance, riesgo residual,
+acción del reviewer y rollback. Luego inspecciona el contract activo, el último
+trace en `.ai/harness/checks/latest.json` y los archivos modificados. Acepta solo
+cuando la review recomiende pass, el verdict de la card sea pass y el external
+acceptance sea pass, `not_required` o un manual override explícito.
+
+## Agent Tracking Path
+
+Los agentes leen los source artifacts antes que los resúmenes derivados:
+
+| Agent reads first | Human reviews first |
+| --- | --- |
+| Prompt actual del usuario y archivos referenciados | Human Review Card de `tasks/reviews/<task>.review.md` |
+| `AGENTS.md` / `CLAUDE.md` | Archivos modificados y diff |
+| Plan activo en `.ai/harness/active-plan` | Allowed paths y exit criteria del contract activo |
+| Contract activo en `tasks/contracts/` | `.ai/harness/checks/latest.json` y run trace |
+| Último handoff en `.ai/harness/handoff/` | Riesgos residuales y rollback |
+
+`tasks/current.md` es solo un snapshot de orientación. Si discrepa del plan
+activo, el contract, la review, los checks o el handoff, ganan los source
+artifacts.
+
 ## Novedades en 0.7.1
 
 - **ChatGPT browser engine.** `repo-harness chatgpt browser-*` crea sesiones
@@ -300,6 +326,61 @@ bun test
 
 Si la salida del dry-run no es correcta, detente aquí primero y lee
 [`docs/reference-configs/hook-operations.md`](docs/reference-configs/hook-operations.md).
+
+## MCP Connector Quickstart
+
+Este sidecar opcional asume que el CLI ya está instalado según «Primeros 5
+minutos» de arriba. Úsalo cuando quieras que ChatGPT planifique contra el estado
+real del repositorio y que Codex ejecute el Sprint file-backed resultante.
+
+```bash
+repo-harness mcp setup chatgpt --repo .
+repo-harness mcp serve --repo . --transport http --host 127.0.0.1 --port 8765 --profile planner
+```
+
+Expón ese server local a través de un túnel HTTPS y crea un Connector de ChatGPT
+con la URL `/mcp`. La guía generada se escribe en:
+
+```text
+docs/repo-harness-chatgpt-mcp-setup.md
+```
+
+El human workflow es:
+
+1. ChatGPT lee los archivos de workflow de repo-harness a través de MCP.
+2. ChatGPT escribe un PRD con `write_prd_from_idea`.
+3. ChatGPT escribe un Sprint checklist con `write_checklist_sprint`.
+4. ChatGPT prepara `.ai/harness/handoff/codex-goal.md` con `prepare_codex_goal_from_sprint`.
+5. Codex ejecuta el prompt host-native `/goal` y hace stage de cada Sprint phase completada.
+
+Alternativa local para el último paso de handoff:
+
+```bash
+repo-harness mcp prepare-goal --repo . --prd plans/prds/<feature>.prd.md --sprint plans/sprints/<feature>.sprint.md
+```
+
+El Skill orientado al agente se instala en:
+
+```text
+.agents/skills/repo-harness-chatgpt-bridge/SKILL.md
+```
+
+Ese Skill le indica a Codex cómo consumir los artifacts PRD/Sprint/Goal
+producidos por ChatGPT sin concederle a ChatGPT escritura sobre el source-code
+ni ejecución de shell.
+
+El Dev Mode puede optar por la ejecución local de agentes a través de MCP. Está
+desactivado por defecto. Cuando el usuario activa el profile `orchestrator` con
+el ajuste dev runner, ChatGPT puede llamar a `run_agent_goal`, que solo lee
+`.ai/harness/handoff/codex-goal.md` y ejecuta el handoff fijo a través de un CLI
+local permitido como `codex exec` o `claude -p`.
+
+```bash
+repo-harness mcp serve --repo . --transport http --profile orchestrator --enable-dev-runner --dev-runner-agents codex
+```
+
+Este ajuste es solo para el Developer Mode local. Tiene límite de timeout, está
+auditado, y no es un shell arbitrario.
 
 ## Hook Authority Map
 

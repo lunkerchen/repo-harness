@@ -356,6 +356,57 @@ npx -y repo-harness adopt
 如果 dry-run 输出不对，先停在这里，阅读
 [`docs/reference-configs/hook-operations.md`](docs/reference-configs/hook-operations.md)。
 
+## MCP Connector Quickstart
+
+这个可选 sidecar 假设 CLI 已经按上面「前 5 分钟」装好。当你想让 ChatGPT
+对着真实仓库状态做规划、由 Codex 执行生成的 file-backed Sprint 时用它。
+
+```bash
+repo-harness mcp setup chatgpt --repo .
+repo-harness mcp serve --repo . --transport http --host 127.0.0.1 --port 8765 --profile planner
+```
+
+把这个本地 server 通过 HTTPS tunnel 暴露出去，再用 `/mcp` URL 创建一个
+ChatGPT Connector。生成的指南写到：
+
+```text
+docs/repo-harness-chatgpt-mcp-setup.md
+```
+
+human workflow 是：
+
+1. ChatGPT 通过 MCP 读取 repo-harness workflow 文件。
+2. ChatGPT 用 `write_prd_from_idea` 写 PRD。
+3. ChatGPT 用 `write_checklist_sprint` 写 checklist Sprint。
+4. ChatGPT 用 `prepare_codex_goal_from_sprint` 准备 `.ai/harness/handoff/codex-goal.md`。
+5. Codex 运行 host-native `/goal` prompt，逐个 stage 完成的 Sprint phase。
+
+最后一步 handoff 的本地兜底：
+
+```bash
+repo-harness mcp prepare-goal --repo . --prd plans/prds/<feature>.prd.md --sprint plans/sprints/<feature>.sprint.md
+```
+
+面向 agent 的 Skill 安装在：
+
+```text
+.agents/skills/repo-harness-chatgpt-bridge/SKILL.md
+```
+
+这个 Skill 告诉 Codex 如何消费 ChatGPT 产出的 PRD/Sprint/Goal artifacts，
+而不给 ChatGPT 源码写入或 shell 执行权限。
+
+Dev Mode 可以选择通过 MCP 开启本地 agent 执行，默认关闭。当用户启用
+`orchestrator` profile 并打开 dev runner 设置后，ChatGPT 可以调用
+`run_agent_goal`，它只读取 `.ai/harness/handoff/codex-goal.md`，并通过
+`codex exec` 或 `claude -p` 这类被允许的本地 CLI 运行这段固定 handoff。
+
+```bash
+repo-harness mcp serve --repo . --transport http --profile orchestrator --enable-dev-runner --dev-runner-agents codex
+```
+
+这个设置只面向本地 Developer Mode，有超时上限、有审计，不是任意 shell。
+
 ## Hook Authority Map
 
 - `.ai/hooks/` 是唯一应该优先编辑的 shared hook implementation。
@@ -488,8 +539,11 @@ decision rationale 的要求，来自他的贡献与启发。
 product discovery、plan/design review、release 文档、knowledge sync 和
 handoff retrieval 的工作流设计。
 
-感谢 OpenAI Codex 作为本仓库主要执行 agent 参与实现、验证和收口。Codex 对某个
-commit 有实质贡献时，GitHub contributor 署名使用显式 trailer：
+感谢 OpenAI Codex 作为本仓库主要执行 agent 参与实现、验证和收口。
+
+### GitHub Contributor Attribution
+
+Codex 对某个 commit 有实质贡献时，GitHub contributor 署名使用显式 trailer：
 
 ```text
 Co-authored-by: codex <codex@openai.com>

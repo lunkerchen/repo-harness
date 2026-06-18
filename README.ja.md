@@ -47,6 +47,31 @@ Agent に完全な PRD または Sprint を渡せば、あとは review and `nex
 | `tasks/contracts/`, `tasks/reviews/`, `.ai/harness/checks/` | 作業完了を証明する scope、verification、review evidence。 |
 | `.ai/harness/handoff/` と `tasks/current.md` | chat memory ではなく workflow artifacts から派生する session journal と resumable status。 |
 
+## Human Review Path
+
+まず `tasks/reviews/<task>.review.md` を読みます。`## Human Review Card` は
+1 画面の意思決定面で、verdict、change type、想定/実際の変更ファイル、通過した
+コマンド、external acceptance、残余リスク、reviewer action、rollback を載せます。
+続いて active contract、`.ai/harness/checks/latest.json` の latest trace、変更
+ファイルを確認します。review が pass を推奨し、card の verdict が pass で、
+external acceptance が pass・`not_required`・明示的な manual override のいずれ
+かのときだけ accept します。
+
+## Agent Tracking Path
+
+Agent は派生サマリーより先に source artifacts を読みます。
+
+| Agent reads first | Human reviews first |
+| --- | --- |
+| 現在のユーザー prompt と参照ファイル | `tasks/reviews/<task>.review.md` の Human Review Card |
+| `AGENTS.md` / `CLAUDE.md` | 変更ファイルと diff |
+| `.ai/harness/active-plan` の active plan | active contract の allowed paths と exit criteria |
+| `tasks/contracts/` の active contract | `.ai/harness/checks/latest.json` と run trace |
+| `.ai/harness/handoff/` の latest handoff | 残余リスクと rollback |
+
+`tasks/current.md` は orientation snapshot にすぎません。active plan、contract、
+review、checks、handoff と食い違う場合は、source artifacts を優先します。
+
 ## 0.7.1 の新機能
 
 - **ChatGPT browser engine。** `repo-harness chatgpt browser-*` は、OpenAI API を使わず、policy-checked な repo-local ChatGPT Web consult session を作れます。
@@ -271,6 +296,60 @@ bun test
 
 dry-run の出力がおかしい場合は、ここで一旦止め、
 [`docs/reference-configs/hook-operations.md`](docs/reference-configs/hook-operations.md) を読んでください。
+
+## MCP Connector Quickstart
+
+このオプションの sidecar は、上記「最初の 5 分」で CLI が既にインストール済み
+であることを前提とします。ChatGPT に実際のリポジトリ状態へ対してプランニング
+させ、生成された file-backed Sprint を Codex に実行させたいときに使います。
+
+```bash
+repo-harness mcp setup chatgpt --repo .
+repo-harness mcp serve --repo . --transport http --host 127.0.0.1 --port 8765 --profile planner
+```
+
+このローカル server を HTTPS tunnel 経由で公開し、`/mcp` URL で ChatGPT
+Connector を作成します。生成されるガイドの書き出し先は次のとおりです。
+
+```text
+docs/repo-harness-chatgpt-mcp-setup.md
+```
+
+human workflow は次のとおりです。
+
+1. ChatGPT が MCP 経由で repo-harness の workflow ファイルを読む。
+2. ChatGPT が `write_prd_from_idea` で PRD を書く。
+3. ChatGPT が `write_checklist_sprint` で checklist Sprint を書く。
+4. ChatGPT が `prepare_codex_goal_from_sprint` で `.ai/harness/handoff/codex-goal.md` を準備する。
+5. Codex が host-native `/goal` prompt を実行し、完了した Sprint phase を順に stage する。
+
+最後の handoff ステップのローカルなフォールバック：
+
+```bash
+repo-harness mcp prepare-goal --repo . --prd plans/prds/<feature>.prd.md --sprint plans/sprints/<feature>.sprint.md
+```
+
+agent 向けの Skill のインストール先は次のとおりです。
+
+```text
+.agents/skills/repo-harness-chatgpt-bridge/SKILL.md
+```
+
+この Skill は、ChatGPT に source-code への書き込みや shell 実行を与えることなく、
+ChatGPT が生成した PRD/Sprint/Goal artifacts を Codex がどう消費するかを伝えます。
+
+Dev Mode は MCP 経由でローカル agent 実行を opt-in できます。デフォルトでは
+無効です。ユーザーが `orchestrator` profile と dev runner 設定を有効にすると、
+ChatGPT は `run_agent_goal` を呼べます。これは `.ai/harness/handoff/codex-goal.md`
+だけを読み、`codex exec` や `claude -p` などの許可されたローカル CLI を通じて
+固定された handoff を実行します。
+
+```bash
+repo-harness mcp serve --repo . --transport http --profile orchestrator --enable-dev-runner --dev-runner-agents codex
+```
+
+この設定はローカルの Developer Mode 専用です。タイムアウト上限があり、監査され、
+任意の shell ではありません。
 
 ## Hook Authority Map
 
