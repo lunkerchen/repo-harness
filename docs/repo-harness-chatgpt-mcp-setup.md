@@ -49,8 +49,10 @@ cloudflared tunnel run --url http://127.0.0.1:8765 repo-harness-mcp
 Then regenerate this guide with the stable endpoint:
 
 ```bash
-repo-harness mcp setup chatgpt --repo . --endpoint https://repo-harness-mcp.example.com/mcp
+repo-harness mcp setup chatgpt --repo . --endpoint <https-url>/mcp
 ```
+
+The endpoint is stored in ignored local config. The tracked guide stays placeholder-only so real operator domains do not enter source control.
 
 One-off quick tunnel smoke:
 

@@ -7,6 +7,7 @@ import {
   patchCodexConfigToml,
   runMcpDoctor,
   runMcpInstallSkill,
+  runMcpPrintGuide,
   runMcpSetupChatgpt,
   runMcpSetupCodex,
 } from '../../src/cli/mcp/setup';
@@ -62,7 +63,7 @@ describe('mcp setup', () => {
     });
   });
 
-  test('stores a stable ChatGPT endpoint in ignored local config and generated guide', () => {
+  test('stores a stable ChatGPT endpoint in ignored local config and keeps the tracked guide generic', () => {
     withTmpRepo((repoRoot) => {
       runMcpSetupChatgpt({ repo: repoRoot, endpoint: 'https://repo-harness-mcp.example.com/mcp' });
 
@@ -70,8 +71,10 @@ describe('mcp setup', () => {
       expect(config.chatgpt.endpoint).toBe('https://repo-harness-mcp.example.com/mcp');
 
       const guide = readFileSync(join(repoRoot, 'docs/repo-harness-chatgpt-mcp-setup.md'), 'utf-8');
-      expect(guide).toContain('https://repo-harness-mcp.example.com/mcp');
+      expect(guide).not.toContain('https://repo-harness-mcp.example.com/mcp');
+      expect(guide).toContain('<https-tunnel-url>/mcp');
       expect(guide).toContain('Quick tunnels are useful for one-off smoke tests');
+      expect(guide).toContain('tracked guide stays placeholder-only');
 
       const doctor = JSON.parse(runMcpDoctor({ repo: repoRoot, json: true }).lines[0]);
       expect(doctor.chatgpt.publicEndpoint).toBe('https://repo-harness-mcp.example.com/mcp');
@@ -80,12 +83,41 @@ describe('mcp setup', () => {
 
   test('rejects unstable ChatGPT endpoint values', () => {
     withTmpRepo((repoRoot) => {
-      expect(() => runMcpSetupChatgpt({ repo: repoRoot, endpoint: 'http://example.test/mcp' })).toThrow(
-        'expected a public HTTPS URL ending in /mcp',
-      );
-      expect(() => runMcpSetupChatgpt({ repo: repoRoot, endpoint: 'https://example.test/not-mcp' })).toThrow(
-        'expected a public HTTPS URL ending in /mcp',
-      );
+      for (const endpoint of [
+        'http://example.com/mcp',
+        'https://example.com/not-mcp',
+        'https://example.com/foo/mcp',
+        'https://localhost/mcp',
+        'https://127.0.0.1/mcp',
+        'https://10.0.0.1/mcp',
+        'https://172.16.0.1/mcp',
+        'https://192.168.1.1/mcp',
+        'https://169.254.1.1/mcp',
+        'https://[::1]/mcp',
+        'https://[fc00::1]/mcp',
+        'https://user:pass@example.com/mcp',
+        'https://example.com/mcp?token=secret',
+        'https://example.com/mcp#fragment',
+      ]) {
+        expect(() => runMcpSetupChatgpt({ repo: repoRoot, endpoint })).toThrow(
+          'expected a public HTTPS URL exactly ending in /mcp with no username, password, query, or fragment',
+        );
+      }
+    });
+  });
+
+  test('print guide write mode keeps tracked docs generic while reporting the session endpoint', () => {
+    withTmpRepo((repoRoot) => {
+      const result = runMcpPrintGuide({
+        repo: repoRoot,
+        endpoint: 'https://repo-harness-mcp.example.com/mcp',
+        write: true,
+      });
+
+      const guide = readFileSync(join(repoRoot, 'docs/repo-harness-chatgpt-mcp-setup.md'), 'utf-8');
+      expect(guide).toContain('<https-tunnel-url>/mcp');
+      expect(guide).not.toContain('https://repo-harness-mcp.example.com/mcp');
+      expect(result.lines.join('\n')).toContain('https://repo-harness-mcp.example.com/mcp');
     });
   });
 

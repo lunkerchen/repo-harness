@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { isIP } from 'net';
 import { dirname, join, relative } from 'path';
 import { ensureMcpBearerToken, ensureMcpOAuthPassphrase, loadMcpLocalConfig, mcpOAuthPath, mcpTokenPath } from './auth';
 import { resolveMcpRepoRoot } from './repo';
@@ -20,6 +21,9 @@ const REQUIRED_CODEX_TOOLS = [
   'run_workflow_check',
 ];
 
+const CHATGPT_MCP_ENDPOINT_PLACEHOLDER = '<https-tunnel-url>/mcp';
+const ENDPOINT_ERROR = 'expected a public HTTPS URL exactly ending in /mcp with no username, password, query, or fragment';
+
 function writeFileIfChanged(path: string, content: string, changed: string[]): void {
   if (existsSync(path) && readFileSync(path, 'utf-8') === content) return;
   mkdirSync(dirname(path), { recursive: true });
@@ -40,6 +44,46 @@ function ensureGitignoreEntries(repoRoot: string, entries: string[], changed: st
   writeFileIfChanged(path, next, changed);
 }
 
+function isPrivateOrLocalIPv4(hostname: string): boolean {
+  const parts = hostname.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const [a, b] = parts;
+  return a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    a === 169 && b === 254 ||
+    a === 172 && b >= 16 && b <= 31 ||
+    a === 192 && b === 168 ||
+    a === 100 && b >= 64 && b <= 127 ||
+    a === 192 && b === 0 ||
+    a === 198 && (b === 18 || b === 19) ||
+    a >= 224;
+}
+
+function isPrivateOrLocalIPv6(hostname: string): boolean {
+  const normalized = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return normalized === '::' ||
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe8') ||
+    normalized.startsWith('fe9') ||
+    normalized.startsWith('fea') ||
+    normalized.startsWith('feb');
+}
+
+function isPrivateOrLocalHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/\.$/, '');
+  if (!normalized || normalized === 'localhost' || normalized.endsWith('.localhost') || normalized.endsWith('.local')) {
+    return true;
+  }
+  const ipCandidate = normalized.replace(/^\[|\]$/g, '');
+  const ipVersion = isIP(ipCandidate);
+  if (ipVersion === 4) return isPrivateOrLocalIPv4(ipCandidate);
+  if (ipVersion === 6) return isPrivateOrLocalIPv6(ipCandidate);
+  return false;
+}
+
 function normalizePublicMcpEndpoint(endpoint: string | undefined): string | undefined {
   if (endpoint === undefined) return undefined;
   const trimmed = endpoint.trim();
@@ -48,15 +92,23 @@ function normalizePublicMcpEndpoint(endpoint: string | undefined): string | unde
   try {
     parsed = new URL(trimmed);
   } catch (_error) {
-    throw new Error(`invalid --endpoint "${endpoint}" (expected a public HTTPS URL ending in /mcp)`);
+    throw new Error(`invalid --endpoint "${endpoint}" (${ENDPOINT_ERROR})`);
   }
-  if (parsed.protocol !== 'https:' || !parsed.pathname.endsWith('/mcp')) {
-    throw new Error(`invalid --endpoint "${endpoint}" (expected a public HTTPS URL ending in /mcp)`);
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.pathname !== '/mcp' ||
+    parsed.username !== '' ||
+    parsed.password !== '' ||
+    parsed.search !== '' ||
+    parsed.hash !== '' ||
+    isPrivateOrLocalHost(parsed.hostname)
+  ) {
+    throw new Error(`invalid --endpoint "${endpoint}" (${ENDPOINT_ERROR})`);
   }
   return parsed.toString();
 }
 
-export function chatgptGuideMarkdown(endpoint = '<https-tunnel-url>/mcp'): string {
+export function chatgptGuideMarkdown(endpoint = CHATGPT_MCP_ENDPOINT_PLACEHOLDER): string {
   return `# repo-harness ChatGPT MCP Connector Setup
 
 ## Prerequisites
@@ -108,8 +160,10 @@ cloudflared tunnel run --url http://127.0.0.1:8765 repo-harness-mcp
 Then regenerate this guide with the stable endpoint:
 
 \`\`\`bash
-repo-harness mcp setup chatgpt --repo . --endpoint https://repo-harness-mcp.example.com/mcp
+repo-harness mcp setup chatgpt --repo . --endpoint <https-url>/mcp
 \`\`\`
+
+The endpoint is stored in ignored local config. The tracked guide stays placeholder-only so real operator domains do not enter source control.
 
 One-off quick tunnel smoke:
 
@@ -305,7 +359,7 @@ export function runMcpSetupChatgpt(opts: { repo?: string; host?: string; port?: 
     },
   };
   writeFileIfChanged(configPath, `${JSON.stringify(config, null, 2)}\n`, changed);
-  writeFileIfChanged(guidePath, chatgptGuideMarkdown(endpoint), changed);
+  writeFileIfChanged(guidePath, chatgptGuideMarkdown(), changed);
   ensureGitignoreEntries(repoRoot, [
     '.repo-harness/mcp.local.json',
     '.repo-harness/mcp.tokens.json',
@@ -328,7 +382,7 @@ export function runMcpSetupChatgpt(opts: { repo?: string; host?: string; port?: 
       `[repo-harness mcp] Auth: OAuth passphrase (${relative(repoRoot, oauth.path)})`,
       `[repo-harness mcp] Bearer fallback token: ${relative(repoRoot, token.path)}`,
       `[repo-harness mcp] Config: ${relative(repoRoot, configPath)}`,
-      `[repo-harness mcp] Guide: ${relative(repoRoot, guidePath)}`,
+      `[repo-harness mcp] Guide: ${relative(repoRoot, guidePath)} (generic; endpoint stays in ignored local config)`,
       `Next: repo-harness mcp serve --repo . --transport http --host ${host} --port ${port} --profile planner`,
     ],
   };
@@ -650,15 +704,19 @@ The orchestrator dev runner is separate from planner mode. It is off by default 
 export function runMcpPrintGuide(opts: { repo?: string; endpoint?: string; write?: boolean }): McpSetupResult {
   const repoRoot = resolveMcpRepoRoot(opts.repo ?? '.');
   const changed: string[] = [];
-  const content = chatgptGuideMarkdown(normalizePublicMcpEndpoint(opts.endpoint));
+  const endpoint = normalizePublicMcpEndpoint(opts.endpoint);
+  const content = chatgptGuideMarkdown(opts.write === true ? undefined : endpoint);
   if (opts.write === true) {
-    writeFileIfChanged(join(repoRoot, 'docs', 'repo-harness-chatgpt-mcp-setup.md'), content, changed);
+    writeFileIfChanged(join(repoRoot, 'docs', 'repo-harness-chatgpt-mcp-setup.md'), chatgptGuideMarkdown(), changed);
   }
   return {
     status: 'ok',
     repoRoot,
     changed,
-    lines: [content.trimEnd()],
+    lines: [
+      content.trimEnd(),
+      ...(opts.write === true && endpoint ? ['', `[repo-harness mcp] ChatGPT endpoint for this session: ${endpoint}`] : []),
+    ],
   };
 }
 

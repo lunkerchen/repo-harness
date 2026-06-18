@@ -10,6 +10,9 @@ All notable changes to this skill are documented here.
   CLI instead of the unrelated npm registry `gbrain` package.
 - Excluded `gbrain` from setup readiness dependencies: missing or stale gbrain
   stays visible as advisory tooling state without creating Agent actions.
+- Kept ChatGPT MCP stable endpoints out of tracked generated guides, storing
+  real Connector URLs only in ignored local config while public docs remain
+  placeholder-only.
 - Limited SessionStart tooling update advisories to one render per cached
   report, so weekly Waza/CodeGraph update checks do not re-inject stale
   update instructions on every new agent turn.
