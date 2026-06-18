@@ -82,38 +82,10 @@ Los agentes leen los source artifacts antes que los resúmenes derivados:
 activo, el contract, la review, los checks o el handoff, ganan los source
 artifacts.
 
-## Novedades en 0.7.1
+## Novedades
 
-- **ChatGPT browser engine.** `repo-harness chatgpt browser-*` crea sesiones
-  ChatGPT Web repo-locales con archivos revisados por policy, sin usar OpenAI API.
-- **MCP browser tools opt-in.** `repo-harness mcp serve
-  --enable-chatgpt-browser` expone consult/read/list/continue/open; por defecto
-  estos tools siguen desactivados.
-- **Oracle y native providers.** El engine incluye un Oracle browser wrapper y
-  un spike native vía Chrome instalado + CDP local.
-- **Hosted CI y release smoke.** El repo añade un GitHub CI gate y un tarball
-  install smoke que arranca los binarios empaquetados de `repo-harness`.
-
-## Qué hace el producto
-
-`repo-harness` convierte el desarrollo asistido por IA de una "coordinación verbal
-en el historial de chat" en un "estado de workflow auditable en el repositorio".
-Instala en el repositorio objetivo un conjunto de contracts de archivos pequeño y
-explícito, para que Claude, Codex y las personas tengan una misma fuente de verdad
-sobre estas cuestiones:
-
-- cuál es la intención de producto estable
-- qué plan ya está aprobado para entrar en ejecución
-- qué scope permite modificar el sprint contract actual
-- qué checks, review y evidence prueban que la tarea está realmente completa
-- cómo deben los hooks advertir, bloquear, registrar trace y hacer handoff entre
-  sesiones
-
-No es un agent gateway, ni un runtime de producto, ni un servicio de base de
-datos, ni un MCP server. El límite del producto es claro: inspecciona el
-repositorio objetivo, instala o refresca los archivos de workflow, enruta los host
-events de Claude/Codex hacia los hooks repo-local, y luego verifica que esas
-workflow surfaces sigan siendo coherentes.
+Las notas de versión viven en [`docs/CHANGELOG.md`](docs/CHANGELOG.md). La línea
+actual es `0.7.1`.
 
 ## Cómo funciona
 
@@ -222,6 +194,10 @@ retoma contra un sprint concreto en vez de reinterpretar el chat original.
 Esta es la ruta más rápida para evaluar si un repositorio real es apto para
 adoptar este workflow.
 
+Prerrequisitos: un Git working tree, `bash` y `bun` (para la verificación
+posterior y el template assembly). `jq` es opcional para `--dry-run`, pero se
+recomienda al aplicar el settings merge.
+
 ### Instalar el CLI
 
 La ruta por defecto no requiere Node.js: el instalador usa Bun como runtime. Si
@@ -236,15 +212,15 @@ irm https://raw.githubusercontent.com/Ancienttwo/repo-harness/main/install.ps1 |
 ```
 
 <details>
-<summary>¿Ya tienes Bun o Node? Usa gestores de paquetes</summary>
+<summary>¿Ya tienes Bun? Usa Bun primero, o npx como fallback</summary>
 
 ```bash
-# Bun
+# Bun (recomendado)
 bun add -g repo-harness
-repo-harness init
+repo-harness install
 
-# Node/npm, con Bun ya en PATH porque el CLI corre sobre Bun
-npx -y repo-harness init
+# Fallback con npx, con Bun ya en PATH porque el CLI corre sobre Bun
+npx -y repo-harness install
 ```
 
 </details>
@@ -252,54 +228,27 @@ npx -y repo-harness init
 ### Bootstrap del runtime del host
 
 ```bash
-repo-harness init
+repo-harness install
 ```
 
-`repo-harness init` es el bootstrap global, `repo-harness update` es el refresco
-user-level y `repo-harness adopt` es el refresco repo-local. `repo-harness init`
+`repo-harness install` es el bootstrap global, `repo-harness update` es el refresco
+user-level y `repo-harness adopt` es el refresco repo-local. `repo-harness install`
 configura el CLI, los hook adapters de nivel usuario, Waza, Mermaid, el brain
 root y CodeGraph MCP; el viejo camino Claude plugin `scripts/setup-plugins.sh`
 queda retirado.
-
-Si trabajas desde un checkout del código fuente:
-
-```bash
-git clone https://github.com/Ancienttwo/repo-harness.git ~/Projects/repo-harness
-cd ~/Projects/repo-harness
-bun src/cli/index.ts init
-```
-
-Modelo de rutas locales:
-
-- Repositorio fuente: `~/Projects/repo-harness`
-- Claude skill alias: `~/.claude/skills/repo-harness`
-- Codex discoverable skill alias: `~/.codex/skills/repo-harness`
-
-`~/Projects/repo-harness` es la única source of truth editable. Las rutas locales
-de Claude/Codex son runtime entrypoints respaldados por symlinks. Los directorios
-de los runtimes ya retirados `repo-harness-skill` y `project-initializer` los
-elimina `scripts/sync-codex-installed-copies.sh`.
-
-### Prerrequisitos mínimos
-
-- Git working tree
-- `bash`
-- `bun`, para la verificación posterior y el template assembly
-- `jq` es opcional; se recomienda al hacer `--dry-run` y resulta más útil al
-  aplicar el settings merge
 
 ### Empieza por aquí
 
 En un repositorio existente, ejecuta desde el repo root:
 
 ```bash
-npx -y repo-harness adopt --dry-run
+repo-harness adopt --dry-run
 ```
 
 Aplica solo después de que el reporte del dry-run sea correcto:
 
 ```bash
-npx -y repo-harness adopt
+repo-harness adopt
 ```
 
 Para un proyecto o módulo nuevo, usa la branch command `repo-harness-scaffold`.
@@ -329,9 +278,15 @@ Si la salida del dry-run no es correcta, detente aquí primero y lee
 
 ## MCP Connector Quickstart
 
-Este sidecar opcional asume que el CLI ya está instalado según «Primeros 5
-minutos» de arriba. Úsalo cuando quieras que ChatGPT planifique contra el estado
-real del repositorio y que Codex ejecute el Sprint file-backed resultante.
+Como sidecar opcional, `repo-harness mcp` expone solo workflow artifacts a los
+clientes MCP. ChatGPT actúa como planner/reviewer que lee el estado y mueve una
+idea a través de PRD, Sprint checklist y artifacts de handoff de goal de Codex —
+sin acceso de escritura al código fuente, ejecución de shell arbitraria ni un
+runner de Codex por defecto. Codex sigue siendo el ejecutor.
+
+Este sidecar asume que el CLI ya está instalado según «Primeros 5 minutos» de
+arriba. Úsalo cuando quieras que ChatGPT planifique contra el estado real del
+repositorio y que Codex ejecute el Sprint file-backed resultante.
 
 ```bash
 repo-harness mcp setup chatgpt --repo .
@@ -469,32 +424,6 @@ Guards habituales:
 - GitHub repository: `Ancienttwo/repo-harness`
 - Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
-## Current Model
-
-- El question flow usa **12 grouped decision points**, infiriendo primero los harness defaults.
-- El plan menu está por capas: los **Core Plans (A-F)** primero, los **Custom Presets (G-K)** solo cuando hace falta.
-- El skill routing es inspection-first:
-  - `scripts/inspect-project-state.ts`
-  - `scripts/migrate-workflow-docs.ts`
-  - `assets/workflow-contract.v1.json`
-- Runtime mode is configurable with template vars:
-  - `{{RUNTIME_MODE}}`
-  - `{{RUNTIME_PROFILE}}`
-  - `{{RECOVERY_PROFILE}}`
-  - `{{STATE_PROFILE}}`
-- Question-pack source of truth is in:
-  - `assets/initializer-question-pack.v4.json`
-- Los generated repos usan por defecto el repo-local harness flow:
-  - `docs/spec.md -> plans/ -> tasks/contracts/ -> tasks/reviews/ -> .ai/context/context-map.json -> .ai/harness/*`
-- `repo-harness update` refresca las runtime pieces de usuario:
-  - los `repo-harness` skill aliases
-  - los global Codex/Claude hook adapters
-  - las Waza skills: `think`, `hunt`, `check`, `health`
-  - Mermaid
-- El resto del external tooling se mantiene advisory-only:
-  - `bash scripts/check-agent-tooling.sh --host both --check-updates`
-  - no configura automáticamente gstack, gbrain, CodeGraph MCP, daemon ni provider
-
 ## Agradecimientos
 
 Gracias a [Hylarucoder](https://x.com/hylarucoder) por su contribución
@@ -555,15 +484,28 @@ queda como branch command para crear proyectos o módulos nuevos. `hooks-init`, 
 
 ## Maintainer Reference
 
-### Verificar el workflow contract de este repositorio
+Quienes editan el propio paquete necesitan un checkout del código fuente:
 
 ```bash
-bash scripts/check-task-sync.sh
-bash scripts/check-task-workflow.sh --strict
-bun scripts/inspect-project-state.ts --repo . --format text
-bash scripts/migrate-project-template.sh --repo . --dry-run
+git clone https://github.com/Ancienttwo/repo-harness.git ~/Projects/repo-harness
+cd ~/Projects/repo-harness
+bun src/cli/index.ts update
 ```
 
+`~/Projects/repo-harness` es la única source of truth editable; las rutas locales
+de Claude/Codex (`~/.claude/skills/repo-harness`, `~/.codex/skills/repo-harness`)
+son runtime entrypoints respaldados por symlinks. Solo
+`~/.codex/skills/repo-harness` expone `SKILL.md` y `assets/skill-commands/`;
+`scripts/sync-codex-installed-copies.sh` reconstruye estos alias y elimina los
+directorios retirados `repo-harness-skill` / `project-initializer`. El script
+enlaza las rutas al repo fuente por defecto; usa
+`AGENTIC_DEV_LINK_INSTALLED_COPIES=0` para staging por copia, o
+`CODEX_SKILLS_ROOT` / `CLAUDE_SKILLS_ROOT` para raíces alternativas.
+
+### Verificar el workflow contract de este repositorio
+
+Ejecuta el gate completo en [Verification](#verification); `bun run check:ci` es
+el único comando equivalente a CI.
 
 ### Runtime reference docs
 
@@ -576,10 +518,12 @@ repo-harness docs path harness-overview
 repo-harness docs show harness-overview
 ```
 
-Generated and migrated repos still keep `docs/reference-configs/*.md`, but
-those files are deterministic pointer stubs. Repo-local workflow state,
-policy, checks, runs, handoff packets, context maps, and helper snapshots stay
-under `.ai/`.
+Los defaults del initializer y del runtime (question flow, plan menu, template
+vars, routing de external tooling) están documentados en `harness-overview.md`
+bajo **Initializer and Runtime Model**. Generated and migrated repos still keep
+`docs/reference-configs/*.md`, but those files are deterministic pointer stubs.
+Repo-local workflow state, policy, checks, runs, handoff packets, context maps,
+and helper snapshots stay under `.ai/`.
 
 ### Template assembly
 
