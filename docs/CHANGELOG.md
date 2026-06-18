@@ -8,6 +8,9 @@ All notable changes to this skill are documented here.
 
 - Corrected gbrain remediation guidance to install the official GitHub GBrain
   CLI instead of the unrelated npm registry `gbrain` package.
+- Limited SessionStart tooling update advisories to one render per cached
+  report, so weekly Waza/CodeGraph update checks do not re-inject stale
+  update instructions on every new agent turn.
 
 ## [0.7.1] - 2026-06-18
 

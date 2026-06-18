@@ -176,8 +176,38 @@ if (updateActions.length > 5) {
   fi
 }
 
+tooling_update_report_was_rendered() {
+  local report_file="$1"
+  local marker_file="$2"
+  local report_mtime marker_mtime
+
+  [[ -f "$report_file" && -f "$marker_file" ]] || return 1
+  report_mtime="$(file_mtime "$report_file" 2>/dev/null || true)"
+  marker_mtime="$(cat "$marker_file" 2>/dev/null | tr -d "[:space:]" || true)"
+  [[ -n "$report_mtime" && "$marker_mtime" == "$report_mtime" ]]
+}
+
+tooling_update_mark_report_rendered() {
+  local report_file="$1"
+  local marker_file="$2"
+  local report_mtime
+
+  report_mtime="$(file_mtime "$report_file" 2>/dev/null || true)"
+  [[ -n "$report_mtime" ]] || return 0
+  printf '%s\n' "$report_mtime" > "$marker_file"
+}
+
+render_tooling_update_context_once() {
+  local report_file="$1"
+  local marker_file="$2"
+
+  tooling_update_report_was_rendered "$report_file" "$marker_file" && return 0
+  render_tooling_update_context "$report_file" || true
+  tooling_update_mark_report_rendered "$report_file" "$marker_file" || true
+}
+
 tooling_update_advisory_context() {
-  local target state_dir report_file lock_dir tmp_report
+  local target state_dir report_file marker_file lock_dir tmp_report
 
   [[ -f ".ai/harness/workflow-contract.json" ]] || return 1
   [[ "${REPO_HARNESS_TOOLING_ADVISORY:-1}" != "0" ]] || return 1
@@ -185,10 +215,11 @@ tooling_update_advisory_context() {
   target="$(tooling_update_target)"
   state_dir=".ai/harness/security"
   report_file="$state_dir/tooling-update-advisory-${target}.json"
+  marker_file="$state_dir/tooling-update-advisory-${target}.rendered"
   lock_dir="$state_dir/tooling-update-advisory-${target}.lock"
 
   if tooling_update_cache_is_fresh "$report_file"; then
-    render_tooling_update_context "$report_file" || true
+    render_tooling_update_context_once "$report_file" "$marker_file" || true
     return 0
   fi
 
@@ -197,14 +228,10 @@ tooling_update_advisory_context() {
     tmp_report="$(mktemp "${TMPDIR:-/tmp}/repo-harness-tooling-update.XXXXXX")"
     if repo_harness_setup_check "$target" >"$tmp_report" 2>/dev/null; then
       cp "$tmp_report" "$report_file"
-      render_tooling_update_context "$tmp_report" || true
+      render_tooling_update_context_once "$report_file" "$marker_file" || true
     fi
     rm -f "$tmp_report"
     return 0
-  fi
-
-  if [[ -f "$report_file" ]]; then
-    render_tooling_update_context "$report_file" || true
   fi
 
   if mkdir "$lock_dir" 2>/dev/null; then

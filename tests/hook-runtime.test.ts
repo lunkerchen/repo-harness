@@ -1464,7 +1464,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("session-start-context emits throttled tooling update agent actions", () => {
+  test("session-start-context emits tooling update agent actions once per cached report", () => {
     const cwd = tmpWorkspace("session-start-tooling-update");
     try {
       installHooks(cwd);
@@ -1521,13 +1521,15 @@ describe("Hook runtime behavior", () => {
       ]);
 
       const reportFile = join(cwd, ".ai/harness/security/tooling-update-advisory-codex.json");
+      const renderedMarkerFile = join(cwd, ".ai/harness/security/tooling-update-advisory-codex.rendered");
       const sixDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
       utimesSync(reportFile, sixDaysAgo, sixDaysAgo);
+      writeFileSync(renderedMarkerFile, `${Math.floor(sixDaysAgo.getTime() / 1000)}\n`);
 
       const second = runHook("session-start-context.sh", cwd, { env });
       expect(second.status).toBe(0);
-      expect(second.stdout).toContain("Tooling Update Advisory");
-      expect(second.stdout).toContain("tooling.codegraph.update");
+      expect(second.stdout).not.toContain("Tooling Update Advisory");
+      expect(second.stdout).not.toContain("tooling.codegraph.update");
       expect(readFileSync(logFile, "utf-8").trim().split("\n")).toEqual([
         "setup check --target codex --check-updates --json",
       ]);

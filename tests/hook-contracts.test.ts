@@ -159,6 +159,7 @@ describe("Hook contracts", () => {
     expect(script).toContain("setup check --target \"$target\" --check-updates --json");
     expect(script).toContain("REPO_HARNESS_TOOLING_ADVISORY_TTL_SECONDS:-604800");
     expect(script).toContain("tooling-update-advisory-${target}.json");
+    expect(script).toContain("tooling-update-advisory-${target}.rendered");
     expect(script).toContain("cli.update");
     expect(script).toContain("tooling\\.[^.]+\\.update");
   });
