@@ -12,7 +12,7 @@ function writeExecutable(filePath: string, content: string) {
 }
 
 describe("Codex installed copy sync", () => {
-  test("keeps command facades only in the canonical repo-harness copy", () => {
+  test("registers each command facade as a standalone skill in copy mode", () => {
     const tmp = join(tmpdir(), `repo-harness-installed-sync-${Date.now()}`);
     const source = join(tmp, "source");
     const codexSkills = join(tmp, "codex-skills");
@@ -72,6 +72,11 @@ describe("Codex installed copy sync", () => {
       expect(existsSync(join(claudeSkills, "repo-harness", ".codex", "hooks.json"))).toBe(false);
       expect(existsSync(join(legacyAliasTarget, "SKILL.md"))).toBe(false);
       expect(existsSync(join(legacyAliasTarget, "assets", "skill-commands"))).toBe(false);
+
+      // Each facade is also registered as its own host skill (copy mode).
+      expect(existsSync(join(codexSkills, "repo-harness-plan", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(claudeSkills, "repo-harness-plan", "SKILL.md"))).toBe(true);
+      expect(result.stdout).toContain("command facades (copy)");
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
@@ -119,6 +124,12 @@ describe("Codex installed copy sync", () => {
       expect(() => lstatSync(join(codexSkills, "repo-harness-skill"))).toThrow();
       expect(() => lstatSync(join(claudeSkills, "repo-harness-skill"))).toThrow();
       expect(existsSync(join(source, "SKILL.md"))).toBe(true);
+
+      // Each facade is registered as its own source-backed symlink (link mode).
+      expect(lstatSync(join(codexSkills, "repo-harness-plan")).isSymbolicLink()).toBe(true);
+      expect(lstatSync(join(claudeSkills, "repo-harness-plan")).isSymbolicLink()).toBe(true);
+      expect(existsSync(join(codexSkills, "repo-harness-plan", "SKILL.md"))).toBe(true);
+      expect(result.stdout).toContain("command facades (link)");
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
