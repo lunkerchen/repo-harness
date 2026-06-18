@@ -325,7 +325,11 @@ describe('chatgpt browser command', () => {
       expect(readiness.native.productSession.profileDirectory).toBe('Profile 1');
       expect(readiness.native.productSession.selectedProfilePath).toBe(profileDir);
       expect(Object.keys(readiness.native.productSession)).not.toEqual(expect.arrayContaining(retiredPageKeys));
-      expect(readiness.next).toContain('repo-harness chatgpt browser-doctor --provider native --validate-session');
+      if (readiness.native.installed) {
+        expect(readiness.next).toContain('repo-harness chatgpt browser-doctor --provider native --validate-session');
+      } else {
+        expect(readiness.next).toContain('Install Google Chrome before native provider execution.');
+      }
 
       const result = runChatgpt([
         'browser-consult',
