@@ -694,7 +694,7 @@ describe('chatgpt browser command', () => {
             '#!/bin/sh',
             'case "$1" in',
             '  --version) printf "%s\\n" "0.13.0";;',
-            '  *) printf "%s\\n" "Usage: oracle --engine browser --browser-manual-login --write-output <p> --browser-follow-up <t> --followup <id>";;',
+            '  *) printf "%s\\n" "Usage: oracle --engine browser --browser-manual-login --browser-archive never --write-output <p> --browser-follow-up <t> --followup <id>";;',
             'esac',
           ].join('\n'),
         );
@@ -712,13 +712,57 @@ describe('chatgpt browser command', () => {
           writeOutput: true,
           browserFollowup: true,
           sessionFollowup: true,
+          browserArchive: true,
         });
+        expect(readiness.oracle.missingCapabilities).toEqual([]);
 
-        const missing = runChatgpt(['browser-doctor', '--repo', repoRoot, '--provider', 'oracle', '--oracle-bin', join(binDir, 'nope'), '--json']);
+        const missing = runChatgpt(['browser-doctor', '--repo', repoRoot, '--provider', 'oracle', '--oracle-bin', join(binDir, 'nope'), '--json'], ROOT, {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        });
         const missingReadiness = JSON.parse(missing.stdout);
         expect(missingReadiness.status).toBe('unavailable');
         expect(missingReadiness.code).toBe('ORACLE_NOT_INSTALLED');
         expect(missingReadiness.oracle.installed).toBe(false);
+        expect(missingReadiness.oracle.resolvedFrom).toBe('--oracle-bin');
+        expect(missingReadiness.oracle.error.message).toContain('--oracle-bin');
+      } finally {
+        rmSync(binDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test('oracle doctor requires every runtime flag before reporting ready', () => {
+    withRepo((repoRoot) => {
+      const binDir = mkdtempSync(join(tmpdir(), 'repo-harness-fake-oracle-incompatible-'));
+      try {
+        const oraclePath = join(binDir, 'oracle');
+        writeFileSync(
+          oraclePath,
+          [
+            '#!/bin/sh',
+            'case "$1" in',
+            '  --version) printf "%s\\n" "0.12.0";;',
+            '  *) printf "%s\\n" "Usage: oracle --engine browser --browser-manual-login --write-output <p>";;',
+            'esac',
+          ].join('\n'),
+        );
+        chmodSync(oraclePath, 0o755);
+        const doctor = runChatgpt(['browser-doctor', '--repo', repoRoot, '--provider', 'oracle', '--oracle-bin', oraclePath, '--json']);
+        expect(doctor.status).toBe(0);
+        const readiness = JSON.parse(doctor.stdout);
+        expect(readiness.status).toBe('action_required');
+        expect(readiness.code).toBe('ORACLE_INCOMPATIBLE');
+        expect(readiness.oracle.capabilities).toEqual({
+          browserEngine: true,
+          manualLogin: true,
+          writeOutput: true,
+          browserFollowup: false,
+          sessionFollowup: false,
+          browserArchive: false,
+        });
+        expect(readiness.oracle.missingCapabilities).toEqual(['browserFollowup', 'sessionFollowup', 'browserArchive']);
+        expect(readiness.oracle.error.message).toContain('browserFollowup');
       } finally {
         rmSync(binDir, { recursive: true, force: true });
       }

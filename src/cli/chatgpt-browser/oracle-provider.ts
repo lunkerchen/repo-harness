@@ -1,7 +1,7 @@
 import { spawnSync } from 'child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { isAbsolute, join, resolve } from 'path';
 import type { BrowserConsultInput, BrowserImportedArtifact, PromptBundle } from './types';
 
 export interface OracleProviderResult {
@@ -24,7 +24,12 @@ export interface OracleResolution {
   /** Absolute path to the resolved oracle binary, or undefined when none is found. */
   binary?: string;
   /** Which source in the fixed resolution order provided the binary. */
-  source?: '--oracle-bin' | 'REPO_HARNESS_ORACLE_BIN' | 'node_modules/.bin' | 'PATH';
+  source?: '--oracle-bin' | 'REPO_HARNESS_ORACLE_BIN' | 'node_modules/.bin' | 'PATH' | 'missing';
+  error?: {
+    code: string;
+    message: string;
+    recovery?: string;
+  };
 }
 
 export interface OracleCapabilities {
@@ -33,6 +38,7 @@ export interface OracleCapabilities {
   writeOutput: boolean;
   browserFollowup: boolean;
   sessionFollowup: boolean;
+  browserArchive: boolean;
 }
 
 export interface OracleProbe {
@@ -49,15 +55,55 @@ export interface OracleProbe {
  * download or `npx`-execute an unpinned oracle; a missing binary is a hard,
  * actionable failure (`ORACLE_NOT_INSTALLED`).
  */
+function resolveConfiguredOracleBin(value: string, repoRoot: string): string | undefined {
+  const hasPathSeparator = value.includes('/') || value.includes('\\');
+  if (!hasPathSeparator) {
+    const repoRelative = join(repoRoot, value);
+    if (existsSync(repoRelative)) return repoRelative;
+    return Bun.which(value) ?? undefined;
+  }
+  const candidate = isAbsolute(value) ? value : resolve(repoRoot, value);
+  return existsSync(candidate) ? candidate : undefined;
+}
+
 export function resolveOracleBin(input: Pick<BrowserConsultInput, 'repoRoot' | 'oracleBin'>): OracleResolution {
-  if (input.oracleBin && existsSync(input.oracleBin)) return { binary: input.oracleBin, source: '--oracle-bin' };
+  if (input.oracleBin) {
+    const binary = resolveConfiguredOracleBin(input.oracleBin, input.repoRoot);
+    if (binary) return { binary, source: '--oracle-bin' };
+    return {
+      source: '--oracle-bin',
+      error: {
+        code: 'ORACLE_NOT_INSTALLED',
+        message: `oracle binary was not found at --oracle-bin ${input.oracleBin}`,
+        recovery: 'Pass a valid --oracle-bin path, install oracle locally, or remove --oracle-bin to use the configured fallback order.',
+      },
+    };
+  }
   const fromEnv = process.env.REPO_HARNESS_ORACLE_BIN;
-  if (fromEnv && existsSync(fromEnv)) return { binary: fromEnv, source: 'REPO_HARNESS_ORACLE_BIN' };
+  if (fromEnv) {
+    const binary = resolveConfiguredOracleBin(fromEnv, input.repoRoot);
+    if (binary) return { binary, source: 'REPO_HARNESS_ORACLE_BIN' };
+    return {
+      source: 'REPO_HARNESS_ORACLE_BIN',
+      error: {
+        code: 'ORACLE_NOT_INSTALLED',
+        message: `oracle binary was not found at REPO_HARNESS_ORACLE_BIN=${fromEnv}`,
+        recovery: 'Fix REPO_HARNESS_ORACLE_BIN, install oracle locally, or unset it to use the configured fallback order.',
+      },
+    };
+  }
   const repoLocal = join(input.repoRoot, 'node_modules', '.bin', 'oracle');
   if (existsSync(repoLocal)) return { binary: repoLocal, source: 'node_modules/.bin' };
   const onPath = Bun.which('oracle');
   if (onPath) return { binary: onPath, source: 'PATH' };
-  return {};
+  return {
+    source: 'missing',
+    error: {
+      code: 'ORACLE_NOT_INSTALLED',
+      message: 'oracle CLI could not be resolved via --oracle-bin, REPO_HARNESS_ORACLE_BIN, node_modules/.bin, or PATH',
+      recovery: 'Install oracle (pin the version; do not auto-download), pass --oracle-bin, set REPO_HARNESS_ORACLE_BIN, or rerun with --dry-run.',
+    },
+  };
 }
 
 function detectCapabilities(helpText: string): OracleCapabilities {
@@ -68,6 +114,7 @@ function detectCapabilities(helpText: string): OracleCapabilities {
     writeOutput: has('--write-output'),
     browserFollowup: has('--browser-follow-up'),
     sessionFollowup: has('--followup'),
+    browserArchive: has('--browser-archive'),
   };
 }
 
@@ -138,12 +185,12 @@ export function runOracleProvider(input: BrowserConsultInput, _bundle: PromptBun
   if (!resolution.binary) {
     return {
       status: 'failed',
-      output: 'Oracle CLI is not installed or not visible on PATH.',
-      command: ['oracle', ...buildOracleCommand(input)],
+      output: resolution.error?.message ?? 'Oracle CLI is not installed or not visible to repo-harness.',
+      command: [input.oracleBin ?? process.env.REPO_HARNESS_ORACLE_BIN ?? 'oracle', ...buildOracleCommand(input)],
       error: {
-        code: 'ORACLE_NOT_INSTALLED',
-        message: 'oracle CLI could not be resolved via --oracle-bin, REPO_HARNESS_ORACLE_BIN, node_modules/.bin, or PATH',
-        recovery: 'Install oracle (pin the version; do not auto-download), or pass --oracle-bin / set REPO_HARNESS_ORACLE_BIN, or rerun with --dry-run.',
+        code: resolution.error?.code ?? 'ORACLE_NOT_INSTALLED',
+        message: resolution.error?.message ?? 'oracle CLI could not be resolved via --oracle-bin, REPO_HARNESS_ORACLE_BIN, node_modules/.bin, or PATH',
+        recovery: resolution.error?.recovery ?? 'Install oracle (pin the version; do not auto-download), or pass --oracle-bin / set REPO_HARNESS_ORACLE_BIN, or rerun with --dry-run.',
       },
     };
   }

@@ -38,6 +38,15 @@ export interface BrowserDoctorOptions {
 
 export type BrowserDoctorStatus = 'ready' | 'unavailable' | 'action_required' | 'deprecated' | 'experimental';
 
+const EMPTY_ORACLE_CAPABILITIES = {
+  browserEngine: false,
+  manualLogin: false,
+  writeOutput: false,
+  browserFollowup: false,
+  sessionFollowup: false,
+  browserArchive: false,
+};
+
 export interface BrowserBindOptions {
   profileDir?: string;
   profileDirectory?: string;
@@ -179,12 +188,11 @@ export async function browserDoctor(
   const oracleResolution = resolveOracleBin({ repoRoot, oracleBin: opts.oracleBin });
   const oraclePresent = Boolean(oracleResolution.binary);
   const oracleProbe = oracleResolution.binary ? probeOracle(oracleResolution.binary) : undefined;
-  const oracleCapabilitiesReady = Boolean(
-    oracleProbe?.nodeCompatible
-    && oracleProbe.capabilities.browserEngine
-    && oracleProbe.capabilities.manualLogin
-    && oracleProbe.capabilities.writeOutput,
-  );
+  const oracleCapabilities = oracleProbe?.capabilities ?? EMPTY_ORACLE_CAPABILITIES;
+  const missingOracleCapabilities = Object.entries(oracleCapabilities)
+    .filter(([, supported]) => supported !== true)
+    .map(([capability]) => capability);
+  const oracleCapabilitiesReady = Boolean(oracleProbe?.nodeCompatible && missingOracleCapabilities.length === 0);
   const nativePresent = await nativeProviderAvailable();
   const bindingResult = readBrowserBinding(repoRoot);
   const binding = bindingResult.binding;
@@ -262,6 +270,13 @@ export async function browserDoctor(
   const oracleCode = provider === 'oracle'
     ? (!oraclePresent ? 'ORACLE_NOT_INSTALLED' : oracleCapabilitiesReady ? undefined : 'ORACLE_INCOMPATIBLE')
     : provider === 'native' ? 'NATIVE_PROVIDER_DEPRECATED' : 'BRIDGE_EXPERIMENTAL';
+  const oracleError = provider === 'oracle'
+    ? oracleResolution.error ?? (!oracleCapabilitiesReady && oraclePresent ? {
+      code: 'ORACLE_INCOMPATIBLE',
+      message: `oracle binary did not report required browser-mode capabilities: ${missingOracleCapabilities.join(', ')}`,
+      recovery: 'Upgrade oracle or check `oracle --help`; repo-harness requires every flag it may send at runtime.',
+    } : undefined)
+    : undefined;
   const json = {
     status,
     code: oracleCode,
@@ -274,13 +289,9 @@ export async function browserDoctor(
       resolvedFrom: oracleResolution.source,
       version: oracleProbe?.version,
       nodeCompatible: oracleProbe?.nodeCompatible ?? false,
-      capabilities: oracleProbe?.capabilities ?? {
-        browserEngine: false,
-        manualLogin: false,
-        writeOutput: false,
-        browserFollowup: false,
-        sessionFollowup: false,
-      },
+      capabilities: oracleCapabilities,
+      missingCapabilities: missingOracleCapabilities,
+      error: oracleError,
     },
     native: {
       deprecated: true,
