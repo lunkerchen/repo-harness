@@ -1,7 +1,7 @@
 # Release Filing: repo-harness 0.7.1
 
 Date: 2026-06-18
-Status: Prepared; npm publish, Git tag, and GitHub release pending
+Status: Published
 
 ## Scope
 
@@ -65,11 +65,42 @@ metadata so it no longer pollutes the authoritative `latest.json`
   `assets/skill-commands/repo-harness-gptpro-setup/SKILL.md`,
   `assets/skill-commands/repo-harness-gptpro/SKILL.md`, and the updated
   `assets/hooks/post-bash.sh`.
-- Pending publish readback:
-  `bash scripts/check-release-published.sh 0.7.1`
+- `npm publish --registry https://registry.npmjs.org/ --access public` used a
+  temporary npmrc backed by the local `_ops/env/npm-token.md` token, verified
+  the publish identity as `ancienttwo`, reran the full `prepublishOnly` release
+  gate successfully, and published `repo-harness@0.7.1`.
+- `npm view repo-harness@0.7.1 version dist.tarball dist.shasum dist.integrity gitHead --json --registry https://registry.npmjs.org/`
+  returned:
+  - `version = "0.7.1"`
+  - `dist.tarball = "https://registry.npmjs.org/repo-harness/-/repo-harness-0.7.1.tgz"`
+  - `dist.shasum = "b5578e47bf8638f9f3ac994577f8ce6637269205"`
+  - `dist.integrity = "sha512-EAZMeECUmCCcm7oZWHQTfrKrZbe7FFwpAaQ/iGy2Ru0DcRNRPnroPP6eii03bL+1uzMOhPrscdBii+NiB+CQiw=="`
+  - `gitHead = "43d2f3d9362f4d4018286b94815aa9e21f015dbc"`
+- `npm view repo-harness dist-tags --json --registry https://registry.npmjs.org/`
+  returned `{ "latest": "0.7.1" }`.
+- `bash scripts/check-release-published.sh 0.7.1` passed, proving registry,
+  dist-tag, tarball, local tag, and local version files agree.
+- Clean temporary install smoke passed:
+  `npm install --registry https://registry.npmjs.org/ repo-harness@0.7.1`
+  followed by `node_modules/.bin/repo-harness --version` returned `0.7.1`.
+- Git tag `v0.7.1` points to release commit `43d2f3d`.
 
-## Publish Hold
+## Post-Release Local Install
 
-- npm publish has not been run yet.
-- Do not tag `v0.7.1` or create the GitHub release until npm publish and
-  registry readback succeed.
+- `bun add -g repo-harness@0.7.1` installed the local PATH-visible
+  `repo-harness` and `repo-harness-hook` binaries.
+- `repo-harness --version` returned `0.7.1` from `/Users/kito/.bun/bin/repo-harness`.
+- Final `repo-harness setup check --target codex --check-updates --json`
+  reported repo-harness itself current with `current=0.7.1; latest=0.7.1`,
+  CodeGraph up to date, Waza up to date, and one residual external-tooling
+  action for `gbrain`.
+- Residual: `bun add -g gbrain` now installs npm `gbrain@1.3.1`, a GPU
+  JavaScript library with no CLI `bin`; the previous `~/.bun/bin/gbrain` shim
+  therefore remains non-runnable. Do not treat this as a `repo-harness@0.7.1`
+  release blocker.
+
+## Release Links
+
+- npm: https://www.npmjs.com/package/repo-harness/v/0.7.1
+- npm tarball: https://registry.npmjs.org/repo-harness/-/repo-harness-0.7.1.tgz
+- GitHub release: https://github.com/Ancienttwo/repo-harness/releases/tag/v0.7.1
