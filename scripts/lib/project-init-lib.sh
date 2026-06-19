@@ -55,6 +55,7 @@ tasks/.current.md.tmp.*
 !.ai/harness/security/.gitkeep
 .ai/harness/planning/*
 !.ai/harness/planning/.gitkeep
+.ai/harness/delegation/*
 .ai/harness/architecture/events.jsonl
 .ai/harness/active-plan
 .ai/harness/active-worktree
@@ -2021,6 +2022,15 @@ pi_write_harness_policy() {
     "edit_plan_gate_modes": ["enforce", "advice", "off"],
     "rule": "pre-edit-guard blocks implementation edits (non-workflow paths) unless an active plan is Approved/Executing; prompt-layer plan gates are advisory routing only"
   },
+  "delegation": {
+    "mode": "explicit",
+    "max_agents": 3,
+    "max_depth": 1,
+    "allow_parallel_writers": false,
+    "stop_fallback": true,
+    "state_file": ".ai/harness/delegation/latest.json",
+    "rule": "UserPromptSubmit.delegation only injects bounded subagent context after explicit user authorization such as /delegate, /parallel, spawn subagents, or parallel investigation"
+  },
   "sidecar_research": {
     "default": true,
     "output_dir": "docs/researches",
@@ -2404,6 +2414,7 @@ pi_ensure_harness_state_surface() {
     "$target_dir/.ai/harness/failures" \
     "$target_dir/.ai/harness/security" \
     "$target_dir/.ai/harness/planning" \
+    "$target_dir/.ai/harness/delegation" \
     "$target_dir/.ai/harness/architecture" \
     "$target_dir/.ai/harness/worktrees" \
     "$target_dir/.ai/harness/triage" \

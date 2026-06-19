@@ -153,6 +153,7 @@
       ".ai/harness/handoff",
       ".ai/harness/security",
       ".ai/harness/planning",
+      ".ai/harness/delegation",
       ".ai/harness/architecture",
       ".ai/harness/worktrees",
       ".ai/harness/runs",

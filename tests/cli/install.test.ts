@@ -30,7 +30,7 @@ describe('install command (Phase 1B)', () => {
     });
   });
 
-  test('codex --location global creates ~/.codex/hooks.json with 8 matcher-grouped entries', () => {
+  test('codex --location global creates ~/.codex/hooks.json with 11 matcher-grouped entries', () => {
     withTempHome((home) => {
       const result = runInstall({ target: 'codex', location: 'global' });
       expect(result.exitCode).toBe(0);
@@ -42,7 +42,7 @@ describe('install command (Phase 1B)', () => {
       const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       const entries = data.hooks;
       const total = Object.values(entries as Record<string, unknown[]>).flat().length;
-      expect(total).toBe(8);
+      expect(total).toBe(11);
 
       // PostToolUse must have 3 matcher-disjoint entries
       expect((entries.PostToolUse as { matcher?: string }[]).map((e) => e.matcher)).toEqual([
@@ -55,10 +55,13 @@ describe('install command (Phase 1B)', () => {
         'Edit|Write',
         'Task|Agent|SendUserMessage',
       ]);
-      // SessionStart / Stop / UserPromptSubmit must have 1 matcher-less entry each
+      // SessionStart / Stop / SubagentStart / SubagentStop have 1 matcher-less entry each;
+      // UserPromptSubmit has default + delegation.
       expect(entries.SessionStart.length).toBe(1);
       expect(entries.Stop.length).toBe(1);
-      expect(entries.UserPromptSubmit.length).toBe(1);
+      expect(entries.UserPromptSubmit.length).toBe(2);
+      expect(entries.SubagentStart.length).toBe(1);
+      expect(entries.SubagentStop.length).toBe(1);
     });
   });
 
@@ -120,7 +123,7 @@ describe('install command (Phase 1B)', () => {
     });
   });
 
-  test('claude --location global creates ~/.claude/settings.json with hooks segment', () => {
+  test('claude --location global creates ~/.claude/settings.json with 8 shared hooks', () => {
     withTempHome((home) => {
       const result = runInstall({ target: 'claude', location: 'global' });
       expect(result.exitCode).toBe(0);
@@ -129,12 +132,47 @@ describe('install command (Phase 1B)', () => {
       );
       const total = Object.values(data.hooks as Record<string, unknown[]>).flat().length;
       expect(total).toBe(8);
+      expect(data.hooks.UserPromptSubmit.length).toBe(1);
+      expect(data.hooks.SubagentStart).toBeUndefined();
+      expect(data.hooks.SubagentStop).toBeUndefined();
       for (const entries of Object.values(data.hooks) as { hooks: { command: string; timeout?: number }[] }[][]) {
         for (const entry of entries) {
           expect(entry.hooks[0].command).toContain('HOOK_HOST=claude');
           expect(entry.hooks[0].timeout).toBe(30);
         }
       }
+    });
+  });
+
+  test('claude install self-heals legacy Codex-only managed entries back to 8 shared hooks', () => {
+    withTempHome((home) => {
+      const filePath = path.join(home, '.claude/settings.json');
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(
+        filePath,
+        `${JSON.stringify({
+          hooks: {
+            UserPromptSubmit: [
+              { hooks: [{ type: 'command', command: 'HOOK_HOST=claude repo-harness hook UserPromptSubmit --route delegation' }] },
+            ],
+            SubagentStart: [
+              { hooks: [{ type: 'command', command: 'HOOK_HOST=claude repo-harness hook SubagentStart --route context' }] },
+            ],
+            SubagentStop: [
+              { hooks: [{ type: 'command', command: 'HOOK_HOST=claude repo-harness hook SubagentStop --route quality' }] },
+            ],
+          },
+        }, null, 2)}\n`,
+      );
+
+      const result = runInstall({ target: 'claude', location: 'global' });
+      expect(result.exitCode).toBe(0);
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const total = Object.values(data.hooks as Record<string, unknown[]>).flat().length;
+      expect(total).toBe(8);
+      expect(data.hooks.UserPromptSubmit.length).toBe(1);
+      expect(data.hooks.SubagentStart).toBeUndefined();
+      expect(data.hooks.SubagentStop).toBeUndefined();
     });
   });
 

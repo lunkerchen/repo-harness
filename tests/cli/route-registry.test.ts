@@ -6,12 +6,33 @@ import {
   allEvents,
   getRoute,
   listRoutesForEvent,
+  routeSupportsHost,
+  routesForHost,
 } from '../../src/cli/hook/route-registry';
 
 describe('route registry (Phase 1B Z design)', () => {
-  test('ROUTES is frozen and has exactly 8 routes', () => {
+  test('ROUTES is frozen and has exactly 11 routes', () => {
     expect(Object.isFrozen(ROUTES)).toBe(true);
-    expect(ROUTES.length).toBe(8);
+    expect(ROUTES.length).toBe(11);
+  });
+
+  test('host-scoped route views keep Codex at 11 and Claude at 8 shared routes', () => {
+    expect(routesForHost('codex').length).toBe(11);
+    expect(routesForHost('claude').length).toBe(8);
+    expect(routesForHost('claude').map((r) => `${r.event}.${r.routeId}`)).toEqual([
+      'SessionStart.default',
+      'PreToolUse.edit',
+      'PreToolUse.subagent',
+      'PostToolUse.edit',
+      'PostToolUse.bash',
+      'PostToolUse.always',
+      'UserPromptSubmit.default',
+      'Stop.default',
+    ]);
+    expect(routeSupportsHost(getRoute('UserPromptSubmit', 'delegation')!, 'codex')).toBe(true);
+    expect(routeSupportsHost(getRoute('UserPromptSubmit', 'delegation')!, 'claude')).toBe(false);
+    expect(routeSupportsHost(getRoute('SubagentStart', 'context')!, 'claude')).toBe(false);
+    expect(routeSupportsHost(getRoute('SubagentStop', 'quality')!, 'claude')).toBe(false);
   });
 
   test('PostToolUse has 3 matcher-disjoint routes (Edit|Write / Bash / undefined)', () => {
@@ -37,6 +58,9 @@ describe('route registry (Phase 1B Z design)', () => {
     expect(getRoute('PostToolUse', 'bash')?.scripts).toEqual(['post-bash.sh']);
     expect(getRoute('PostToolUse', 'always')?.scripts).toEqual(['post-tool-observer.sh']);
     expect(getRoute('UserPromptSubmit', 'default')?.scripts).toEqual(['prompt-guard.sh']);
+    expect(getRoute('UserPromptSubmit', 'delegation')?.scripts).toEqual(['codex-delegation-advisor.sh']);
+    expect(getRoute('SubagentStart', 'context')?.scripts).toEqual(['subagent-start-context.sh']);
+    expect(getRoute('SubagentStop', 'quality')?.scripts).toEqual(['subagent-stop-quality.sh']);
     expect(getRoute('Stop', 'default')?.scripts).toEqual(['stop-orchestrator.sh']);
   });
 
@@ -45,14 +69,18 @@ describe('route registry (Phase 1B Z design)', () => {
     expect(getRoute('SessionStart', 'bash')).toBeUndefined();
     expect(getRoute('PreToolUse', 'always')).toBeUndefined();
     expect(getRoute('PostToolUse', 'subagent')).toBeUndefined();
+    expect(getRoute('SubagentStart', 'default')).toBeUndefined();
+    expect(getRoute('SubagentStop', 'default')).toBeUndefined();
   });
 
-  test('allEvents returns the 5 supported events in canonical order', () => {
+  test('allEvents returns the 7 supported events in canonical order', () => {
     expect(allEvents()).toEqual([
       'SessionStart',
       'PreToolUse',
       'PostToolUse',
       'UserPromptSubmit',
+      'SubagentStart',
+      'SubagentStop',
       'Stop',
     ]);
   });
@@ -68,6 +96,9 @@ describe('route registry (Phase 1B Z design)', () => {
       'post-bash.sh',
       'post-tool-observer.sh',
       'prompt-guard.sh',
+      'codex-delegation-advisor.sh',
+      'subagent-start-context.sh',
+      'subagent-stop-quality.sh',
       'stop-orchestrator.sh',
     ]);
     for (const r of ROUTES) {
@@ -87,6 +118,7 @@ describe('route registry (Phase 1B Z design)', () => {
     for (const r of ROUTES) {
       expect(Object.isFrozen(r)).toBe(true);
       expect(Object.isFrozen(r.scripts)).toBe(true);
+      if (r.hosts) expect(Object.isFrozen(r.hosts)).toBe(true);
     }
   });
 });
