@@ -176,8 +176,8 @@ export function buildMcpCommand(): Command {
     .command('chatgpt')
     .description('Generate ChatGPT Connector local config and manual setup guide')
     .option('--repo <path>', 'Repository root to configure', '.')
-    .option('--host <host>', 'Local MCP HTTP bind host', '127.0.0.1')
-    .option('--port <port>', 'Local MCP HTTP bind port', '8765')
+    .option('--host <host>', 'Local MCP HTTP bind host')
+    .option('--port <port>', 'Local MCP HTTP bind port')
     .option('--endpoint <url>', 'Stable public HTTPS /mcp endpoint to store in ignored local config')
     .option('--server-name <name>', 'ChatGPT Connector/MCP server name to record in ignored local config')
     .action((rawOpts: McpSetupChatgptOptions) => {

@@ -4,6 +4,23 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-06-20
+
+### Fixed
+
+- Preserved imperative Codex delegation prompts whose investigation target uses
+  `why` or `how`, while keeping mechanism/design questions non-authorizing.
+- Scoped `SubagentStop.quality` retry state by session/run identity, subagent
+  identity, and message hash so different subagents or sessions do not inherit a
+  prior thin-report retry allowance.
+- Kept existing ChatGPT MCP bind host and port when rerunning
+  `repo-harness mcp setup chatgpt --server-name` through the real CLI.
+- Made `repo-harness adopt --compact` reclaim generated root helper wrappers and
+  copied helper implementations while preserving app-owned `scripts/*` files and
+  rollback archives.
+- Allowed strict workflow checks to pass when package-dispatched helpers replace
+  repo-local root compatibility wrappers.
+
 ## [0.7.2] - 2026-06-19
 
 ### Added

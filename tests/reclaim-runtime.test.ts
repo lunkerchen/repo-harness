@@ -32,11 +32,36 @@ function copyHelper(repo: string, helper: string): void {
   );
 }
 
+function writeGeneratedRootWrapper(repo: string, helper: string): void {
+  const helperId = helper.replace(/\.[^.]+$/, "");
+  mkdirSync(join(repo, "scripts"), { recursive: true });
+  writeFileSync(
+    join(repo, "scripts", helper),
+    [
+      "#!/bin/bash",
+      "set -euo pipefail",
+      "",
+      "if command -v repo-harness >/dev/null 2>&1; then",
+      `  exec repo-harness run ${helperId} "$@"`,
+      "fi",
+      "",
+      `echo "Missing repo-harness CLI for helper ${helperId}" >&2`,
+      "exit 1",
+      "",
+    ].join("\n"),
+  );
+}
+
 describe("runtime reclaim", () => {
-  test("removes generated helper runtime after writing wrappers and compact package scripts", () => {
+  test("removes generated helper runtime and root helpers while compacting package scripts", () => {
     const repo = tempRepo("runtime-reclaim-generated-");
     try {
       copyHelper(repo, "check-task-workflow.sh");
+      writeGeneratedRootWrapper(repo, "check-task-workflow.sh");
+      copyFileSync(
+        join(ROOT, "assets/templates/helpers/check-task-sync.sh"),
+        join(repo, "scripts/check-task-sync.sh"),
+      );
       writeJson(join(repo, "package.json"), {
         name: "demo",
         scripts: {
@@ -50,15 +75,17 @@ describe("runtime reclaim", () => {
       expect(result.status).toBe("ok");
       expect(result.runtime_reclaim.archive).toBeDefined();
       expect(existsSync(join(repo, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(false);
-      expect(readFileSync(join(repo, "scripts/check-task-workflow.sh"), "utf-8")).toContain(
-        "repo-harness run check-task-workflow",
-      );
+      expect(existsSync(join(repo, "scripts/check-task-workflow.sh"))).toBe(false);
+      expect(existsSync(join(repo, "scripts/check-task-sync.sh"))).toBe(false);
+      expect(existsSync(join(repo, "scripts/repo-harness/check-task-workflow.sh"))).toBe(false);
       const pkg = JSON.parse(readFileSync(join(repo, "package.json"), "utf-8"));
       expect(pkg.scripts["check:task-workflow"]).toBe("repo-harness run check-task-workflow --strict");
       expect(pkg.scripts["app:test"]).toBe("node app-test.js");
       expect(existsSync(join(repo, ".ai/harness/runtime-manifest.json"))).toBe(true);
       const archive = result.runtime_reclaim.archive ?? "";
       expect(existsSync(join(repo, archive, "files/.ai/harness/scripts/check-task-workflow.sh"))).toBe(true);
+      expect(existsSync(join(repo, archive, "files/scripts/check-task-workflow.sh"))).toBe(true);
+      expect(existsSync(join(repo, archive, "files/scripts/check-task-sync.sh"))).toBe(true);
       expect(existsSync(join(repo, archive, "files/package.json"))).toBe(true);
     } finally {
       rmSync(repo, { recursive: true, force: true });
@@ -99,6 +126,24 @@ describe("runtime reclaim", () => {
       expect(readFileSync(join(repo, "scripts/repo-harness/check-task-workflow.sh"), "utf-8")).toContain(
         "repo-harness run check-task-workflow",
       );
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("compact mode preserves app-owned root scripts without writing fallback wrappers", () => {
+    const repo = tempRepo("runtime-reclaim-compact-app-script-");
+    try {
+      mkdirSync(join(repo, "scripts"), { recursive: true });
+      writeFileSync(join(repo, "scripts/check-task-workflow.sh"), "#!/bin/bash\necho app-owned\n");
+
+      const result = runRuntimeReclaim({ repo, apply: true, compact: true, verify: false });
+      const entry = result.runtime_reclaim.files.find((file) => file.path === "scripts/check-task-workflow.sh");
+
+      expect(entry?.classification).toBe("custom-unknown");
+      expect(entry?.action).toBe("preserve");
+      expect(readFileSync(join(repo, "scripts/check-task-workflow.sh"), "utf-8")).toContain("app-owned");
+      expect(existsSync(join(repo, "scripts/repo-harness/check-task-workflow.sh"))).toBe(false);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -190,6 +235,7 @@ describe("runtime reclaim", () => {
     const repo = tempRepo("runtime-reclaim-rollback-");
     try {
       copyHelper(repo, "check-task-workflow.sh");
+      writeGeneratedRootWrapper(repo, "check-task-workflow.sh");
       writeJson(join(repo, "package.json"), {
         name: "demo",
         scripts: { "check:task-workflow": "bash .ai/harness/scripts/check-task-workflow.sh --strict" },
@@ -197,13 +243,16 @@ describe("runtime reclaim", () => {
 
       const result = runRuntimeReclaim({ repo, apply: true, compact: true, verify: false });
       expect(existsSync(join(repo, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(false);
+      expect(existsSync(join(repo, "scripts/check-task-workflow.sh"))).toBe(false);
 
       const rollback = runRuntimeRollback({ repo, archive: result.runtime_reclaim.archive ?? "" });
 
       expect(rollback.status).toBe("ok");
       expect(rollback.restored).toContain(".ai/harness/scripts/check-task-workflow.sh");
+      expect(rollback.restored).toContain("scripts/check-task-workflow.sh");
       expect(rollback.restored).toContain("package.json");
       expect(existsSync(join(repo, ".ai/harness/scripts/check-task-workflow.sh"))).toBe(true);
+      expect(existsSync(join(repo, "scripts/check-task-workflow.sh"))).toBe(true);
       const pkg = JSON.parse(readFileSync(join(repo, "package.json"), "utf-8"));
       expect(pkg.scripts["check:task-workflow"]).toBe("bash .ai/harness/scripts/check-task-workflow.sh --strict");
     } finally {

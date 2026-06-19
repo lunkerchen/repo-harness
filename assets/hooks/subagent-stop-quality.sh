@@ -28,6 +28,15 @@ JSON_INPUT="$input" REPO_ROOT="${HOOK_REPO_ROOT:-$(pwd)}" bun -e '
     return "";
   }
 
+  function sanitize(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .replace(/-{2,}/g, "-")
+      .slice(0, 120);
+  }
+
   let input;
   try {
     input = JSON.parse(process.env.JSON_INPUT || "");
@@ -73,15 +82,35 @@ JSON_INPUT="$input" REPO_ROOT="${HOOK_REPO_ROOT:-$(pwd)}" bun -e '
   fs.mkdirSync(stateDir, { recursive: true });
   const statePath = path.join(stateDir, "subagent-stop-quality.json");
   const hash = crypto.createHash("sha1").update(trimmed).digest("hex");
+  const sessionIdentity = firstString(input, ["run_id", "session_id", "transcript_path"]) ||
+    process.env.CODEX_SESSION_ID || process.env.CLAUDE_SESSION_ID || "";
+  const subagentIdentity = firstString(input, [
+    "subagent_id",
+    "agent_id",
+    "task_id",
+    "thread_id",
+    "name",
+    "role",
+  ]);
+  const scopeKey = [
+    sessionIdentity ? sanitize(sessionIdentity) : "unscoped-session",
+    subagentIdentity ? sanitize(subagentIdentity) : "unscoped-subagent",
+    hash,
+  ].join(":");
   try {
     const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    if (state.last_blocked_hash === hash) process.exit(0);
+    if (state.last_blocked_key === scopeKey) process.exit(0);
   } catch {
     // First quality block for this result.
   }
   fs.writeFileSync(statePath, `${JSON.stringify({
     version: 1,
+    last_blocked_key: scopeKey,
     last_blocked_hash: hash,
+    scope: {
+      session: sessionIdentity ? sanitize(sessionIdentity) : "",
+      subagent: subagentIdentity ? sanitize(subagentIdentity) : "",
+    },
     updated_at: new Date().toISOString(),
   }, null, 2)}\n`);
 

@@ -74,9 +74,10 @@ JSON_INPUT="$input" REPO_ROOT="${HOOK_REPO_ROOT:-$(pwd)}" bun -e '
 
   function isDelegationDiscussion(text) {
     if (!/\b(spawn|use|run)\s+(bounded\s+)?subagents?\b/i.test(text)) return false;
+    if (/^\s*(please\s+)?(spawn|use|run)\s+(bounded\s+)?subagents?\s+(to|for)\b/i.test(text)) return false;
     return [
       /[?？]/,
-      /\b(should|need|necessary|why|how|what)\b/i,
+      /\b(should|need|necessary)\b/i,
       /(机制|有必要|必要|是否|为什么|怎么|如何|架构|设计|注册|路由|本来就有)/i,
       /\b(mechanism|architecture|design|registration|route|routing|adapter|hook)\b/i,
     ].some((pattern) => pattern.test(text));

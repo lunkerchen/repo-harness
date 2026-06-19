@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { spawnSync } from 'child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -11,6 +12,8 @@ import {
   runMcpSetupChatgpt,
   runMcpSetupCodex,
 } from '../../src/cli/mcp/setup';
+
+const CLI = join(import.meta.dir, '../..', 'src/cli/index.ts');
 
 function withTmpRepo<T>(fn: (repoRoot: string) => T): T {
   const repoRoot = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-setup-'));
@@ -140,6 +143,41 @@ describe('mcp setup', () => {
         agentRunner: true,
         allowedAgents: ['codex', 'claude'],
         timeoutMs: 300000,
+      });
+    });
+  });
+
+  test('server-name-only ChatGPT CLI setup preserves existing bind host and port', () => {
+    withTmpRepo((repoRoot) => {
+      mkdirSync(join(repoRoot, '.repo-harness'), { recursive: true });
+      writeFileSync(join(repoRoot, '.repo-harness/mcp.local.json'), `${JSON.stringify({
+        version: 1,
+        repo: repoRoot,
+        server: { host: '0.0.0.0', port: 9876, transport: 'http' },
+        auth: { mode: 'bearer', tokenFile: '.repo-harness/custom.tokens.json' },
+        chatgpt: { endpoint: 'https://repo-harness-mcp.example.com/mcp' },
+        profile: 'orchestrator',
+        devMode: {
+          agentRunner: true,
+          allowedAgents: ['codex', 'claude'],
+          timeoutMs: 300000,
+        },
+      }, null, 2)}\n`);
+
+      const result = spawnSync(
+        process.execPath,
+        [CLI, 'mcp', 'setup', 'chatgpt', '--repo', repoRoot, '--server-name', 'team-review-mcp'],
+        { encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('ChatGPT MCP server name: team-review-mcp');
+      expect(result.stdout).toContain('Local endpoint: http://0.0.0.0:9876/mcp');
+
+      const config = JSON.parse(readFileSync(join(repoRoot, '.repo-harness/mcp.local.json'), 'utf-8'));
+      expect(config.server).toMatchObject({ host: '0.0.0.0', port: 9876, transport: 'http' });
+      expect(config.chatgpt).toMatchObject({
+        serverName: 'team-review-mcp',
+        endpoint: 'https://repo-harness-mcp.example.com/mcp',
       });
     });
   });

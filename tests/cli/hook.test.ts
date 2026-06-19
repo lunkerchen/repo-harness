@@ -548,6 +548,49 @@ describe('hook command (Phase 1B)', () => {
       expect(discussion.stdout).toBe('');
       expect(fs.existsSync(path.join(repoRoot, '.ai/harness/delegation/latest.json'))).toBe(false);
 
+      const englishDiscussion = spawnSync(
+        process.execPath,
+        [CLI, 'hook', 'UserPromptSubmit', '--route', 'delegation'],
+        {
+          cwd: repoRoot,
+          input: JSON.stringify({
+            session_id: 'session-english-discussion',
+            prompt: 'Should we use subagents for this?',
+          }),
+          encoding: 'utf-8',
+          env: { ...process.env, HOOK_HOST: 'codex' },
+        },
+      );
+      expect(englishDiscussion.status).toBe(0);
+      expect(englishDiscussion.stdout).toBe('');
+      expect(fs.existsSync(path.join(repoRoot, '.ai/harness/delegation/latest.json'))).toBe(false);
+
+      for (const [sessionId, prompt] of [
+        ['session-why', 'Use subagents to investigate why login fails'],
+        ['session-how', 'Run subagents to map how authentication works'],
+      ] as const) {
+        const imperative = spawnSync(
+          process.execPath,
+          [CLI, 'hook', 'UserPromptSubmit', '--route', 'delegation'],
+          {
+            cwd: repoRoot,
+            input: JSON.stringify({ session_id: sessionId, prompt }),
+            encoding: 'utf-8',
+            env: { ...process.env, HOOK_HOST: 'codex' },
+          },
+        );
+        expect(imperative.status).toBe(0);
+        const imperativeParsed = JSON.parse(imperative.stdout);
+        expect(imperativeParsed.hookSpecificOutput.hookEventName).toBe('UserPromptSubmit');
+        expect(imperativeParsed.hookSpecificOutput.additionalContext).toContain('[repo-harness:delegation]');
+        const imperativeState = JSON.parse(
+          fs.readFileSync(path.join(repoRoot, '.ai/harness/delegation/latest.json'), 'utf-8'),
+        );
+        expect(imperativeState.explicit).toBe(true);
+        expect(imperativeState.scope_id).toBe(`session-${sessionId}`);
+        fs.rmSync(path.join(repoRoot, '.ai/harness/delegation'), { recursive: true, force: true });
+      }
+
       const explicit = spawnSync(
         process.execPath,
         [CLI, 'hook', 'UserPromptSubmit', '--route', 'delegation'],
@@ -701,7 +744,12 @@ describe('hook command (Phase 1B)', () => {
         [CLI, 'hook', 'SubagentStop', '--route', 'quality'],
         {
           cwd: repoRoot,
-          input: JSON.stringify({ hook_event_name: 'SubagentStop', final_message: 'looks good' }),
+          input: JSON.stringify({
+            hook_event_name: 'SubagentStop',
+            session_id: 'session-a',
+            subagent_id: 'agent-a',
+            final_message: 'looks good',
+          }),
           encoding: 'utf-8',
           env: { ...process.env, HOOK_HOST: 'codex' },
         },
@@ -716,13 +764,54 @@ describe('hook command (Phase 1B)', () => {
         [CLI, 'hook', 'SubagentStop', '--route', 'quality'],
         {
           cwd: repoRoot,
-          input: JSON.stringify({ hook_event_name: 'SubagentStop', final_message: 'looks good' }),
+          input: JSON.stringify({
+            hook_event_name: 'SubagentStop',
+            session_id: 'session-a',
+            subagent_id: 'agent-a',
+            final_message: 'looks good',
+          }),
           encoding: 'utf-8',
           env: { ...process.env, HOOK_HOST: 'codex' },
         },
       );
       expect(repeated.status).toBe(0);
       expect(repeated.stdout).toBe('');
+
+      const differentSubagent = spawnSync(
+        process.execPath,
+        [CLI, 'hook', 'SubagentStop', '--route', 'quality'],
+        {
+          cwd: repoRoot,
+          input: JSON.stringify({
+            hook_event_name: 'SubagentStop',
+            session_id: 'session-a',
+            subagent_id: 'agent-b',
+            final_message: 'looks good',
+          }),
+          encoding: 'utf-8',
+          env: { ...process.env, HOOK_HOST: 'codex' },
+        },
+      );
+      expect(differentSubagent.status).toBe(0);
+      expect(JSON.parse(differentSubagent.stdout).decision).toBe('block');
+
+      const differentSession = spawnSync(
+        process.execPath,
+        [CLI, 'hook', 'SubagentStop', '--route', 'quality'],
+        {
+          cwd: repoRoot,
+          input: JSON.stringify({
+            hook_event_name: 'SubagentStop',
+            session_id: 'session-b',
+            subagent_id: 'agent-a',
+            final_message: 'looks good',
+          }),
+          encoding: 'utf-8',
+          env: { ...process.env, HOOK_HOST: 'codex' },
+        },
+      );
+      expect(differentSession.status).toBe(0);
+      expect(JSON.parse(differentSession.stdout).decision).toBe('block');
 
       const complete = spawnSync(
         process.execPath,

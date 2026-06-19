@@ -3279,6 +3279,46 @@ describe("Workflow helper scripts", () => {
     }
   });
 
+  test("check-task-workflow should accept packaged helpers without root compatibility wrappers", () => {
+    const cwd = tmpWorkspace("helper-check-workflow-package-helpers");
+    try {
+      copyHelpers(cwd);
+      expect(
+        run("bash", ["scripts/ensure-task-workflow.sh", "--slug", "package-helpers", "--title", "Package Helpers"], cwd)
+          .status
+      ).toBe(0);
+      const policyPath = join(cwd, ".ai/harness/policy.json");
+      const policy = JSON.parse(readFileSync(policyPath, "utf-8"));
+      policy.harness.helper_runtime_dir = ".ai/harness/scripts";
+      policy.harness.helper_compat_dir = "scripts";
+      policy.harness.helper_source = "package";
+      writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`);
+      writeWorkflowRequiredSurface(cwd);
+      expect(
+        run(
+          "touch",
+          ["-t", "202601010000.00", "tasks/current.md", ".ai/harness/handoff/current.md"],
+          cwd
+        ).status
+      ).toBe(0);
+      expect(run("touch", ["-t", "202601010001.00", ".ai/harness/handoff/resume.md"], cwd).status).toBe(0);
+
+      rmSync(join(cwd, "scripts"), { recursive: true, force: true });
+      mkdirSync(join(cwd, "scripts"), { recursive: true });
+      rmSync(join(cwd, ".ai/harness/scripts"), { recursive: true, force: true });
+
+      const helperPath = join(HELPER_DIR, "check-task-workflow.sh");
+      const res = run("bash", [helperPath, "--strict"], cwd, {
+        REPO_HARNESS_HELPER_SOURCE_PATH: helperPath,
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).not.toContain("Missing required file: scripts/check-task-workflow.sh");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("check-task-workflow should fail strict mode when no JSON runtime is available", () => {
     const cwd = tmpWorkspace("helper-check-workflow-runtime");
     try {

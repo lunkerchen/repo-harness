@@ -187,6 +187,65 @@ function classifyHelperRuntime(repo: string, fileName: string, helperSourceRepo:
   };
 }
 
+function hasGeneratedWrapperSignature(fileName: string, content: string): boolean {
+  const id = helperId(fileName);
+  if (!content.includes(`repo-harness run ${id}`)) return false;
+  return (
+    content.includes(`Missing repo-harness CLI for helper ${id}`) ||
+    content.includes('REPO_HARNESS_SOURCE_ROOT') ||
+    content.includes('AGENTIC_DEV_ROOT') ||
+    content.includes('AGENTIC_DEV_SKILL_ROOT') ||
+    content.includes(`const helperId = "${id}"`) ||
+    content.includes(`const helperId = '${id}'`)
+  );
+}
+
+function isGeneratedRootHelper(fileName: string, content: string, asset: string | null): boolean {
+  const normalized = asset === null ? null : normalizeHelperAssetForInstalledCopy(fileName, asset);
+  return content === asset || content === normalized || hasGeneratedWrapperSignature(fileName, content);
+}
+
+function classifyRootHelperCompat(repo: string, fileName: string, helperSourceRepo: boolean): RuntimeReclaimFile[] {
+  if (helperSourceRepo) return [];
+  const asset = readIfFile(join(HELPER_ASSETS_DIR, fileName));
+  const entries: RuntimeReclaimFile[] = [];
+  for (const relPath of [`scripts/${fileName}`, `scripts/repo-harness/${fileName}`]) {
+    const path = join(repo, relPath);
+    const current = readIfFile(path);
+    if (current === null) continue;
+    if (isGeneratedRootHelper(fileName, current, asset)) {
+      entries.push({
+        path: relPath,
+        category: 'helper-runtime',
+        classification: 'known-generated',
+        action: 'remove-after-wrapper-and-verify',
+        replacement: `repo-harness run ${helperId(fileName)}`,
+      });
+      continue;
+    }
+
+    if (current.match(/repo-harness|\.ai\/harness|Workflow Contract|Task Contract/)) {
+      entries.push({
+        path: relPath,
+        category: 'helper-runtime',
+        classification: 'managed-modified',
+        action: 'requires-user-review',
+        replacement: `repo-harness run ${helperId(fileName)}`,
+        reason: 'managed-looking root helper differs from packaged source and known wrapper signatures',
+      });
+      continue;
+    }
+
+    entries.push({
+      path: relPath,
+      category: 'helper-runtime',
+      classification: 'custom-unknown',
+      action: 'preserve',
+    });
+  }
+  return entries;
+}
+
 function classifyHookRuntimeDir(repo: string, hookRelDir: string, hookSourceRepo: boolean): RuntimeReclaimFile[] {
   const hooksDir = join(repo, hookRelDir);
   if (!existsSync(hooksDir)) return [];
@@ -349,6 +408,7 @@ function buildPlan(opts: RuntimeReclaimOptions, repo: string): RuntimeReclaimRes
   for (const helper of listHelperFiles()) {
     const entry = classifyHelperRuntime(repo, helper, helperSourceRepo);
     if (entry) files.push(entry);
+    if (opts.compact === true) files.push(...classifyRootHelperCompat(repo, helper, helperSourceRepo));
   }
   files.push(...classifyHookRuntime(repo, hookSourceRepo));
   for (const adapter of ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json']) {
@@ -577,7 +637,7 @@ export function runRuntimeReclaim(opts: RuntimeReclaimOptions = {}): RuntimeRecl
   if (opts.apply !== true) return result;
   if (result.mode === 'self-host') return result;
 
-  const generatedWrappers = writeWrappers(repo);
+  const generatedWrappers = opts.compact === true ? [] : writeWrappers(repo);
   let archive: string | undefined;
   const archivedActions: RuntimeReclaimFile[] = [];
   if (opts.compact === true) {

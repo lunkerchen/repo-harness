@@ -468,6 +468,69 @@ check_required_file() {
   report_issue "Missing required file: $path"
 }
 
+package_helper_dir() {
+  local source_path="${REPO_HARNESS_HELPER_SOURCE_PATH:-}"
+  if [[ -n "$source_path" ]]; then
+    dirname "$source_path"
+    return 0
+  fi
+
+  if [[ -d "assets/templates/helpers" ]]; then
+    printf '%s\n' "assets/templates/helpers"
+    return 0
+  fi
+
+  return 1
+}
+
+check_package_helper_file() {
+  local helper_name="$1"
+  local package_dir
+
+  package_dir="$(package_helper_dir || true)"
+  if [[ -n "$package_dir" && -f "$package_dir/$helper_name" ]]; then
+    return 0
+  fi
+
+  report_issue "Missing packaged helper runtime: $helper_name"
+}
+
+is_contract_helper_path() {
+  local path="$1"
+  local helper_name="${path#scripts/}"
+  local contract_helper
+
+  [[ "$path" == scripts/* ]] || return 1
+
+  if [[ -f "$WORKFLOW_CONTRACT_PATH" ]]; then
+    while IFS= read -r contract_helper; do
+      [[ -n "$contract_helper" ]] || continue
+      if [[ "$contract_helper" == "$helper_name" ]]; then
+        return 0
+      fi
+    done < <(contract_query_lines "helpers.scripts" 2>/dev/null || true)
+  fi
+
+  case "$helper_name" in
+    new-spec.sh|new-sprint.sh|new-plan.sh|capture-plan.sh|plan-to-todo.sh|\
+contract-run.ts|contract-worktree.sh|ship-worktrees.sh|archive-workflow.sh|\
+refresh-current-status.sh|prepare-handoff.sh|verify-contract.sh|summarize-failures.sh|\
+verify-sprint.sh|harness-trace-grade.sh|sprint-backlog.sh|check-task-sync.sh|\
+check-deploy-sql-order.sh|check-architecture-sync.sh|check-agent-tooling.sh|\
+check-context-files.sh|check-brain-manifest.sh|sync-brain-docs.sh|check-skill-version.ts|\
+select-agent-context-blocks.sh|ensure-task-workflow.sh|check-task-workflow.sh|\
+maintenance-triage.sh|heartbeat-triage.sh|switch-plan.sh|workflow-contract.ts|\
+inspect-project-state.ts|migrate-workflow-docs.ts|migrate-project-template.sh|\
+capability-resolver.ts|architecture-event.ts|capability-config.ts|architecture-queue.sh|\
+archive-architecture-request.sh|context-contract-sync.sh|workstream-sync.sh|\
+prepare-codex-handoff.sh|codex-handoff-resume.sh)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 check_reference_config_stub() {
   local path="$1"
   [[ -f "$path" ]] || return 0
@@ -664,14 +727,19 @@ check_helper_runtime_files() {
     )
   fi
 
-  check_required_dir "$helper_compat_dir"
-  if [[ "${helper_source:-package}" != "package" ]]; then
-    check_required_dir "$helper_runtime_dir"
+  if [[ "${helper_source:-package}" == "package" ]]; then
+    for helper_name in "${helper_names[@]}"; do
+      check_package_helper_file "$helper_name"
+    done
+    return
   fi
+
+  check_required_dir "$helper_compat_dir"
+  check_required_dir "$helper_runtime_dir"
 
   for helper_name in "${helper_names[@]}"; do
     check_required_file "$helper_compat_dir/$helper_name"
-    if [[ "${helper_source:-package}" != "package" && "$helper_runtime_dir" != "$helper_compat_dir" ]]; then
+    if [[ "$helper_runtime_dir" != "$helper_compat_dir" ]]; then
       check_required_file "$helper_runtime_dir/$helper_name"
     fi
   done
@@ -780,6 +848,9 @@ else
 
     while IFS= read -r rel_file; do
       [[ -z "$rel_file" ]] && continue
+      if [[ "${helper_source:-package}" == "package" ]] && is_contract_helper_path "$rel_file"; then
+        continue
+      fi
       check_required_file "$rel_file"
     done < <(contract_query_lines "artifacts.requiredFiles")
   fi
