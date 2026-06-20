@@ -1,6 +1,7 @@
 import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "fs";
 import { dirname, join, resolve } from "path";
+import { discoverContextFiles } from "./discover";
 import { fingerprintFiles } from "./fingerprint";
 
 export type ContextAuditStatus = "ok" | "warn" | "fail";
@@ -144,6 +145,14 @@ export function writeContextAuditState(report: ContextAuditReport): void {
   writeJsonAtomic(dirtyFile, dirty);
 }
 
+function discoverCurrentContextPaths(repoRoot: string): { paths: readonly string[] } | { error: string } {
+  try {
+    return { paths: discoverContextFiles(repoRoot).map((file) => file.path).sort() };
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+}
+
 export function runContextStatus(cwd: string = process.cwd()): ContextStatusReport {
   const repoRoot = resolveRepoRoot(cwd);
   const { latestFile, dirtyFile } = contextStatePaths(repoRoot);
@@ -164,24 +173,39 @@ export function runContextStatus(cwd: string = process.cwd()): ContextStatusRepo
     ) {
       cache = { state: "invalid", reason: "latest audit cache does not match this repo or schema" };
     } else {
-      const currentFingerprint = fingerprintFiles(repoRoot, latest.files_scanned.map((file) => file.path));
-      if (currentFingerprint.value !== latest.fingerprint.value) {
-        cache = {
-          state: "stale",
-          reason: "context file fingerprint changed since latest audit",
-          latest_fingerprint: latest.fingerprint.value,
-          current_fingerprint: currentFingerprint.value,
-        };
+      const latestPaths = new Set(latest.files_scanned.map((file) => file.path));
+      const currentPaths = discoverCurrentContextPaths(repoRoot);
+      if ("error" in currentPaths) {
+        cache = { state: "invalid", reason: `could not rediscover context files: ${currentPaths.error}` };
       } else {
-        cache = {
-          state: "hit",
-          reason: "latest audit cache matches repo identity and context fingerprint",
-          latest_fingerprint: latest.fingerprint.value,
-          current_fingerprint: currentFingerprint.value,
-        };
-        if (latest.status === "fail") status = "fail";
-        else if (latest.status === "warn") status = "warn";
-        else status = "clean";
+        const newlyDiscovered = currentPaths.paths.filter((path) => !latestPaths.has(path));
+        if (newlyDiscovered.length > 0) {
+          cache = {
+            state: "stale",
+            reason: `context file discovery changed since latest audit: ${newlyDiscovered.slice(0, 5).join(", ")}`,
+            latest_fingerprint: latest.fingerprint.value,
+          };
+        } else {
+          const currentFingerprint = fingerprintFiles(repoRoot, latest.files_scanned.map((file) => file.path));
+          if (currentFingerprint.value !== latest.fingerprint.value) {
+            cache = {
+              state: "stale",
+              reason: "context file fingerprint changed since latest audit",
+              latest_fingerprint: latest.fingerprint.value,
+              current_fingerprint: currentFingerprint.value,
+            };
+          } else {
+            cache = {
+              state: "hit",
+              reason: "latest audit cache matches repo identity and context fingerprint",
+              latest_fingerprint: latest.fingerprint.value,
+              current_fingerprint: currentFingerprint.value,
+            };
+            if (latest.status === "fail") status = "fail";
+            else if (latest.status === "warn") status = "warn";
+            else status = "clean";
+          }
+        }
       }
     }
   }

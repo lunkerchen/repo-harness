@@ -6,6 +6,8 @@ export type ContextFileKind =
   | "agent-skill"
   | "context-map"
   | "policy"
+  | "hook-runtime"
+  | "ci-workflow"
   | "command-source"
   | "reference-config"
   | "spec"
@@ -28,7 +30,11 @@ const STATIC_CONTEXT_FILES: readonly Array<{ path: string; kind: ContextFileKind
   { path: ".ai/context/context-map.json", kind: "context-map" },
   { path: ".ai/context/capabilities.json", kind: "context-map" },
   { path: ".ai/harness/policy.json", kind: "policy" },
+  { path: ".ai/harness/workflow-contract.json", kind: "policy" },
+  { path: "assets/workflow-contract.v1.json", kind: "policy" },
   { path: "package.json", kind: "command-source" },
+  { path: "bun.lock", kind: "command-source" },
+  { path: "bun.lockb", kind: "command-source" },
   { path: "Makefile", kind: "command-source" },
   { path: "pyproject.toml", kind: "command-source" },
   { path: "Cargo.toml", kind: "command-source" },
@@ -72,6 +78,18 @@ export function discoverContextFiles(repoRoot: string): readonly ContextFile[] {
 
   for (const path of walk(repoRoot, ".agents/skills", (candidate) => candidate.endsWith("/SKILL.md"))) {
     byPath.set(path, contextFileForPath(repoRoot, path, "agent-skill"));
+  }
+  for (const path of walk(repoRoot, ".codex/skills", (candidate) => candidate.endsWith("/SKILL.md"))) {
+    byPath.set(path, contextFileForPath(repoRoot, path, "agent-skill"));
+  }
+  for (const path of walk(repoRoot, ".ai/hooks", (candidate) => candidate.endsWith(".sh") || candidate.endsWith(".json"))) {
+    byPath.set(path, contextFileForPath(repoRoot, path, "hook-runtime"));
+  }
+  for (const path of walk(repoRoot, "assets/hooks", (candidate) => candidate.endsWith(".sh") || candidate.endsWith(".json"))) {
+    byPath.set(path, contextFileForPath(repoRoot, path, "hook-runtime"));
+  }
+  for (const path of walk(repoRoot, ".github/workflows", (candidate) => candidate.endsWith(".yml") || candidate.endsWith(".yaml"))) {
+    byPath.set(path, contextFileForPath(repoRoot, path, "ci-workflow"));
   }
   for (const path of walk(repoRoot, "docs/reference-configs", (candidate) => candidate.endsWith(".md"))) {
     byPath.set(path, contextFileForPath(repoRoot, path, "reference-config"));

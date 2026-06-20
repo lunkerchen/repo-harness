@@ -83,6 +83,20 @@ describe("context audit static checks", () => {
     });
   });
 
+  test("marks cached status stale when new discoverable context files appear under the same HEAD", () => {
+    withRepo((repo) => {
+      runContextAudit({ cwd: repo, writeState: true });
+      mkdirSync(join(repo, ".agents/skills/context-audit"), { recursive: true });
+      writeFileSync(join(repo, ".agents/skills/context-audit/SKILL.md"), "# Context Audit\n");
+
+      const status = runContextStatus(repo);
+      expect(status.status).toBe("stale");
+      expect(status.cache.state).toBe("stale");
+      expect(status.cache.reason).toContain("discovery changed");
+      expect(status.cache.reason).toContain(".agents/skills/context-audit/SKILL.md");
+    });
+  });
+
   test("does not treat corrupt cache JSON as clean", () => {
     withRepo((repo) => {
       runContextAudit({ cwd: repo, writeState: true });
