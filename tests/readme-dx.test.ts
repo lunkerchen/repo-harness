@@ -4,6 +4,7 @@ import { spawnSync } from "child_process";
 import { join } from "path";
 
 const ROOT = join(import.meta.dir, "..");
+const PACKAGE_VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf-8")).version as string;
 const RUNTIME_SCAN_FILES = [
   "SKILL.md",
   "README.md",
@@ -164,9 +165,9 @@ describe("README DX contract", () => {
           : "docs/images/repo-harness-gptpro.png";
 
       expect(localized).toContain(expectedHeroImage);
-      expect(localized).toContain("0.7.3");
-      expect(localized).toContain("repo-harness@0.7.3");
-      expect(localized).toContain("repo-harness@0.7.3+template@0.7.3");
+      expect(localized).toContain(PACKAGE_VERSION);
+      expect(localized).toContain(`repo-harness@${PACKAGE_VERSION}`);
+      expect(localized).toContain(`repo-harness@${PACKAGE_VERSION}+template@${PACKAGE_VERSION}`);
       expect(localized).toContain("repo-harness update");
       expect(localized).toContain("repo-harness adopt");
       expect(localized).toContain("repo-harness docs list");

@@ -4,6 +4,20 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-06-20
+
+### Fixed
+
+- Stopped `repo-harness adopt --compact --dry-run --json` from planning retired
+  root helper compatibility wrappers after helper runtime has moved to the
+  user-level/package surface.
+- Let package-dispatched architecture helpers find their sibling
+  `architecture-event` and `capability-resolver` helpers without requiring
+  repo-local `scripts/*` copies.
+- Kept context scans focused on active repo context by skipping local backup and
+  harness archive directories, while preserving negative safety guidance such as
+  `Never print credentials.`
+
 ## [0.7.3] - 2026-06-20
 
 ### Fixed
