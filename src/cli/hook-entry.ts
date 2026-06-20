@@ -10,6 +10,12 @@
 import { runHook as runHookRuntime, type RunHookOptions, type RunHookResult } from './hook/runtime';
 import { runPromptGuardDecideCli } from './commands/prompt-guard-decision';
 import { runStateSnapshotCli } from './hook/state-snapshot';
+import { runLaneEditDecisionCli, runLaneRecordEditCli, runLaneStopDecisionCli } from './hook/lane-decision';
+import {
+  runSubagentPreToolCli,
+  runSubagentStartContextCli,
+  runSubagentStopQualityCli,
+} from './hook/subagent-lane';
 import type { HookEvent, RouteId } from './hook/route-registry';
 
 export type RunHookEntryOptions = RunHookOptions;
@@ -36,6 +42,48 @@ if (import.meta.main) {
 
   if (argv[0] === 'state-snapshot') {
     const result = runStateSnapshotCli(argv.slice(1));
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'lane-edit-decision') {
+    const result = runLaneEditDecisionCli(argv.slice(1));
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'lane-record-edit') {
+    const result = runLaneRecordEditCli(argv.slice(1));
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'lane-stop-decision') {
+    const result = runLaneStopDecisionCli();
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'subagent-pretool-decision') {
+    const result = runSubagentPreToolCli(await Bun.stdin.text());
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'subagent-start-context') {
+    const result = runSubagentStartContextCli(await Bun.stdin.text());
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'subagent-stop-quality') {
+    const result = runSubagentStopQualityCli(await Bun.stdin.text());
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.exitCode);

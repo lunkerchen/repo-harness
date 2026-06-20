@@ -85,6 +85,52 @@ edit_plan_gate_mode() {
   printf '%s' "$mode"
 }
 
+high_context_write_gate_mode() {
+  local mode="${REPO_HARNESS_HIGH_CONTEXT_WRITE_GATE:-}"
+  if [[ -z "$mode" ]]; then
+    mode="$(workflow_policy_get '.context_audit.high_context_write_gate' 'advice')"
+  fi
+  printf '%s' "$mode"
+}
+
+run_high_context_write_gate() {
+  local mode reason
+  mode="$(high_context_write_gate_mode)"
+  [[ "$mode" == "off" ]] && return 0
+  is_repo_scoped_path "$FILE_PATH" || return 0
+  reason="$(workflow_context_dirty_reason "$FILE_PATH" 2>/dev/null || true)"
+  [[ -n "$reason" ]] || return 0
+
+  echo "[ContextHealthGuard] High-context file edit: $FILE_PATH ($reason)"
+  if [[ "$mode" == "enforce" ]]; then
+    hook_structured_error \
+      "ContextHealthGuard" \
+      "$FILE_PATH is a high-context file. Edit requires a fresh context audit or explicit policy override." \
+      "Run repo-harness context audit --changed --write-state after the edit, or set policy .context_audit.high_context_write_gate to advice/off for this repo." \
+      "state_violation"
+    exit 2
+  fi
+
+  echo "[ContextHealthGuard] Advisory: this edit will make context health stale until repo-harness context audit --changed --write-state runs."
+}
+
+run_lane_scope_gate() {
+  local output status
+  set +e
+  output="$(workflow_hook_entry lane-edit-decision "$FILE_PATH" 2>&1)"
+  status=$?
+  set -e
+  if [[ "$status" -eq 2 ]]; then
+    [[ -n "$output" ]] && printf '%s\n' "$output" >&2
+    exit 2
+  fi
+  if [[ "$status" -ne 0 ]]; then
+    return 0
+  fi
+  [[ -n "$output" ]] && printf '%s\n' "$output"
+  return 0
+}
+
 # Edit-layer plan gate: the deterministic enforcement point for "no
 # implementation edits without an approved plan". The prompt layer only
 # advises (natural-language intent guessing is unreliable); this gate keys
@@ -145,7 +191,9 @@ run_edit_plan_gate() {
   esac
 }
 
+run_high_context_write_gate
 run_edit_plan_gate
+run_lane_scope_gate
 
 if [[ "$FILE_PATH" =~ ^plans/plan-.*\.md$ ]] && [[ -f "$FILE_PATH" || -n "$WRITE_PAYLOAD" ]]; then
   current_status=""

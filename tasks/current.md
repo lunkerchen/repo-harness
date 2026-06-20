@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-20T16:27:16+0800 -->
+<!-- updated_at: 2026-06-21T02:14:09+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Active
-> **Updated At**: 2026-06-20T16:27:16+0800
-> **Source Branch**: main
-> **Source Commit**: ed34dfe
+> **Updated At**: 2026-06-21T02:14:09+0800
+> **Source Branch**: codex/lane-runtime-pr4-pr5
+> **Source Commit**: e60a1d6
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: chatgpt-app-preselect
+> **Reason**: lane-runtime-pr4-pr5-push
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -31,8 +31,8 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Active Work
 
-- /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md: plans/plan-20260606-0245-think-skill-codex-repo-skill-think-hook-agents-md.md
-- /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md: active-worktree owner -> /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md
+- /Users/chris/Projects/agentic-dev-wt-aiphabee-web-frontend: plans/plan-20260621-0036-aiphabee-web-frontend.md
+- /Users/chris/Projects/agentic-dev-wt-aiphabee-web-frontend: active-worktree owner -> /Users/chris/Projects/agentic-dev-wt-aiphabee-web-frontend
 ## Active Sprint
 
 - Sprint: (none)
@@ -41,7 +41,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 - `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`: status=completed, current_slice=todo-01, source_plan=(none)
 ## Handoff
 
-- Exact Next Step: (none)
+- Exact Next Step: Clean up merged contract worktree codex/aiphabee-web-frontend. Command: bash scripts/contract-worktree.sh cleanup --slug aiphabee-web-frontend --target main
 
 ## Checks
 
@@ -49,22 +49,49 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 13 changed/untracked path(s)
+- Summary: 41 changed/untracked path(s)
 
 ```
- M assets/skill-commands/repo-harness-gptpro/SKILL.md
- M docs/CHANGELOG.md
- M docs/repo-harness-chatgpt-browser-engine.md
- M docs/repo-harness-chatgpt-mcp-setup.md
- M src/cli/chatgpt-browser/engine.ts
- M src/cli/chatgpt-browser/oracle-provider.ts
- M src/cli/chatgpt-browser/session-store.ts
- M src/cli/chatgpt-browser/types.ts
- M src/cli/commands/chatgpt.ts
- M src/cli/mcp/tools.ts
+ M .ai/hooks/lib/workflow-state.sh
+ M .ai/hooks/post-edit-guard.sh
+ M .ai/hooks/pre-edit-guard.sh
+ M .ai/hooks/session-start-context.sh
+ M .ai/hooks/stop-orchestrator.sh
+ M .ai/hooks/subagent-return-channel-guard.sh
+ M .ai/hooks/subagent-start-context.sh
+ M .ai/hooks/subagent-stop-quality.sh
+ M .gitignore
+ M assets/hooks/lib/workflow-state.sh
+ M assets/hooks/post-edit-guard.sh
+ M assets/hooks/pre-edit-guard.sh
+ M assets/hooks/session-start-context.sh
+ M assets/hooks/stop-orchestrator.sh
+ M assets/hooks/subagent-return-channel-guard.sh
+ M assets/hooks/subagent-start-context.sh
+ M assets/hooks/subagent-stop-quality.sh
+ M src/cli/hook-entry.ts
+ M src/cli/index.ts
  M tasks/current.md
- M tests/cli/chatgpt-browser.test.ts
- M tests/cli/mcp-tools.test.ts
+?? .ai/harness/context-health/
+?? .ai/harness/orchestration/
+?? "docs/researches/20260620-repo-harness hook runtime lane report.md"
+?? plans/sprints/20260620-lane-sprint.md
+?? src/cli/commands/context.ts
+?? src/cli/commands/lanes.ts
+?? src/cli/commands/review.ts
+?? src/cli/hook/lane-decision.ts
+?? src/cli/hook/subagent-lane.ts
+?? src/core/context-audit/
+?? src/core/lanes/
+?? src/core/review/
+?? tests/cli/context-lanes.test.ts
+?? tests/cli/review-merge-check.test.ts
+?? tests/context-hook-contracts.test.ts
+?? tests/lane-hook-contracts.test.ts
+?? tests/subagent-lane-contracts.test.ts
+?? tests/unit/context-audit-static.test.ts
+?? tests/unit/lane-ownership-resolver.test.ts
+?? tests/unit/lane-schema.test.ts
 ```
 
 ## Source Artifacts

@@ -246,6 +246,61 @@ tooling_update_advisory_context() {
   fi
 }
 
+context_health_context() {
+  local enabled status_json marker_file js
+
+  enabled="$(workflow_policy_get '.context_audit.enabled' 'true')"
+  [[ "$enabled" != "false" && "$enabled" != "0" ]] || return 1
+  [[ -f "$(workflow_context_dirty_file)" || -f "$(workflow_context_latest_file)" ]] || return 1
+
+  status_json="$(workflow_context_status_json 2>/dev/null || true)"
+  [[ -n "$status_json" ]] || return 1
+
+  marker_file="$(workflow_context_session_rendered_file)"
+  js='
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+const report = JSON.parse(process.env.CONTEXT_STATUS_JSON || "{}");
+if (!["stale", "warn", "fail"].includes(report.status)) process.exit(0);
+const markerFile = process.env.CONTEXT_RENDERED_FILE;
+const signature = crypto.createHash("sha256").update(JSON.stringify({
+  status: report.status,
+  latest: report.latest_audit || null,
+  dirty: report.dirty || null,
+})).digest("hex");
+try {
+  if (fs.readFileSync(markerFile, "utf8").trim() === signature) process.exit(0);
+} catch {}
+fs.mkdirSync(path.dirname(markerFile), { recursive: true });
+fs.writeFileSync(markerFile, `${signature}\n`, "utf8");
+const triggers = Array.isArray(report.dirty?.triggers) ? report.dirty.triggers : [];
+const lines = ["# Context Health", "", `- State: ${report.status}`];
+if (triggers.length > 0) {
+  const first = triggers[0];
+  lines.push(`- Reason: ${first.path}: ${first.reason}`);
+  for (const trigger of triggers.slice(1, 3)) lines.push(`- Also: ${trigger.path}: ${trigger.reason}`);
+  if (triggers.length > 3) lines.push(`- Also: ${triggers.length - 3} more trigger(s)`);
+  lines.push("- Action: repo-harness context audit --changed --write-state");
+} else if (report.latest_audit?.exists) {
+  lines.push(`- Reason: latest audit ${report.latest_audit.status || "unknown"} at head ${report.latest_audit.head_sha || "unknown"}, current head ${report.head_sha || "unknown"}`);
+  lines.push("- Action: repo-harness context audit --static --write-state");
+} else {
+  lines.push("- Reason: no cached context audit is available");
+  lines.push("- Action: repo-harness context audit --static --write-state");
+}
+process.stdout.write(lines.join("\n"));
+'
+
+  if command -v node >/dev/null 2>&1; then
+    CONTEXT_STATUS_JSON="$status_json" CONTEXT_RENDERED_FILE="$marker_file" node -e "$js"
+  elif command -v bun >/dev/null 2>&1; then
+    CONTEXT_STATUS_JSON="$status_json" CONTEXT_RENDERED_FILE="$marker_file" bun -e "$js"
+  else
+    return 1
+  fi
+}
+
 handoff_section_has_signal() {
   local header="$1"
   local handoff_file
@@ -545,6 +600,15 @@ if [[ -n "$current_status_context" ]]; then
     context="${context}"$'\n'"${current_status_context}"
   else
     context="$current_status_context"
+  fi
+fi
+
+context_health_status_context="$(context_health_context || true)"
+if [[ -n "$context_health_status_context" ]]; then
+  if [[ -n "$context" ]]; then
+    context="${context}"$'\n'"${context_health_status_context}"
+  else
+    context="$context_health_status_context"
   fi
 fi
 

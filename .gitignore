@@ -41,6 +41,10 @@ tasks/.current.md.tmp.*
 .ai/harness/handoff/current.md
 .ai/harness/handoff/resume.md
 .ai/harness/capability-context/
+.ai/harness/context-health/*
+!.ai/harness/context-health/.gitkeep
+.ai/harness/orchestration/*
+!.ai/harness/orchestration/.gitkeep
 .ai/harness/security/*
 !.ai/harness/security/.gitkeep
 .ai/harness/planning/*

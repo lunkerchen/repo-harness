@@ -21,6 +21,9 @@ import { buildDocsCommand } from './commands/docs';
 import { buildMcpCommand } from './commands/mcp';
 import { buildChatgptCommand } from './commands/chatgpt';
 import { buildRunCommand } from './commands/run';
+import { buildContextCommand } from './commands/context';
+import { buildLanesCommand } from './commands/lanes';
+import { buildReviewCommand } from './commands/review';
 import { formatSecurityScan, runSecurityScan } from './commands/security';
 import { runGlobalRuntimeSetup } from './commands/global-runtime';
 import { runPromptGuardDecideCli } from './commands/prompt-guard-decision';
@@ -48,6 +51,9 @@ export const SUBCOMMANDS = [
   'tools',
   'brain',
   'capability-context',
+  'context',
+  'lanes',
+  'review',
   'docs',
   'mcp',
   'chatgpt',
@@ -518,6 +524,9 @@ export function buildProgram(): Command {
   program.addCommand(buildToolsCommand());
   program.addCommand(buildBrainCommand());
   program.addCommand(buildCapabilityContextCommand());
+  program.addCommand(buildContextCommand());
+  program.addCommand(buildLanesCommand());
+  program.addCommand(buildReviewCommand());
   program.addCommand(buildDocsCommand());
   program.addCommand(buildMcpCommand());
   program.addCommand(buildChatgptCommand());

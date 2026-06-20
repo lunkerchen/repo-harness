@@ -99,6 +99,9 @@ run_brain_doc_sync() {
 FILE_PATH="$(hook_get_file_path "${1:-}")"
 [[ -z "$FILE_PATH" ]] && exit 0
 
+workflow_context_mark_dirty "$FILE_PATH" || true
+workflow_hook_entry lane-record-edit "$FILE_PATH" >/dev/null 2>&1 || true
+
 BASENAME=$(basename "$FILE_PATH")
 DIRNAME=$(dirname "$FILE_PATH")
 

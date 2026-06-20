@@ -131,6 +131,53 @@ emit_stop_block_json() {
   printf '{"decision":"block","reason":"%s"}\n' "$(workflow_json_escape "$reason")"
 }
 
+context_health_stop_reason() {
+  local enabled status_json marker_file js
+
+  enabled="$(workflow_policy_get '.context_audit.enabled' 'true')"
+  [[ "$enabled" != "false" && "$enabled" != "0" ]] || return 1
+  [[ -f "$(workflow_context_dirty_file)" || -f "$(workflow_context_latest_file)" ]] || return 1
+
+  status_json="$(workflow_context_status_json 2>/dev/null || true)"
+  [[ -n "$status_json" ]] || return 1
+
+  marker_file="$(workflow_context_stop_rendered_file)"
+  js='
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+const report = JSON.parse(process.env.CONTEXT_STATUS_JSON || "{}");
+const triggers = Array.isArray(report.dirty?.triggers) ? report.dirty.triggers : [];
+if (report.status !== "stale" || triggers.length === 0) process.exit(0);
+const markerFile = process.env.CONTEXT_RENDERED_FILE;
+const signature = crypto.createHash("sha256").update(JSON.stringify({
+  status: report.status,
+  dirty: report.dirty || null,
+  latest: report.latest_audit || null,
+})).digest("hex");
+try {
+  if (fs.readFileSync(markerFile, "utf8").trim() === signature) process.exit(0);
+} catch {}
+fs.mkdirSync(path.dirname(markerFile), { recursive: true });
+fs.writeFileSync(markerFile, `${signature}\n`, "utf8");
+const first = triggers[0];
+const suffix = triggers.length > 1 ? ` and ${triggers.length - 1} more trigger(s)` : "";
+process.stdout.write(`[ContextHealthGate] High-context files changed since the last context audit: ${first.path} (${first.reason})${suffix}. Run repo-harness context audit --changed --write-state before finalizing. This reminder is one-shot for this dirty state.`);
+'
+
+  if command -v node >/dev/null 2>&1; then
+    CONTEXT_STATUS_JSON="$status_json" CONTEXT_RENDERED_FILE="$marker_file" node -e "$js"
+  elif command -v bun >/dev/null 2>&1; then
+    CONTEXT_STATUS_JSON="$status_json" CONTEXT_RENDERED_FILE="$marker_file" bun -e "$js"
+  else
+    return 1
+  fi
+}
+
+lane_stop_reason() {
+  workflow_hook_entry lane-stop-decision 2>/dev/null || true
+}
+
 delegation_state_paths_json() {
   local state_dir
 
@@ -283,4 +330,16 @@ fi
 if delegation_should_block "$stop_hook_active"; then
   delegation_mark_fallback_used
   emit_stop_block_json "[DelegationFallback] This turn explicitly requested bounded delegation, but no SubagentStart event was observed. Continue the task now by spawning the independent explorer/reviewer or isolated worker workstreams first when at least two independent workstreams exist, wait for them, reconcile their findings in the parent, then complete the response. Do not spawn for a trivial or strictly sequential task."
+  exit 0
+fi
+
+context_health_reason="$(context_health_stop_reason || true)"
+if [[ -n "$context_health_reason" ]]; then
+  emit_stop_block_json "$context_health_reason"
+  exit 0
+fi
+
+lane_evidence_reason="$(lane_stop_reason || true)"
+if [[ -n "$lane_evidence_reason" ]]; then
+  emit_stop_block_json "$lane_evidence_reason"
 fi

@@ -14,6 +14,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 hook_read_stdin_once
 
+if type workflow_hook_entry >/dev/null 2>&1; then
+  printf '%s' "$HOOK_STDIN_JSON" | workflow_hook_entry subagent-start-context || true
+  exit 0
+fi
+
 JSON_INPUT="$HOOK_STDIN_JSON" REPO_ROOT="${HOOK_REPO_ROOT:-$(pwd)}" bun -e '
   const fs = require("fs");
   const path = require("path");

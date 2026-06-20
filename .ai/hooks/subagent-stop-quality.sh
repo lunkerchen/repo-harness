@@ -15,6 +15,11 @@ input="$HOOK_STDIN_JSON"
 [[ -n "$input" ]] || exit 0
 command -v bun >/dev/null 2>&1 || exit 0
 
+if type workflow_hook_entry >/dev/null 2>&1; then
+  printf '%s' "$input" | workflow_hook_entry subagent-stop-quality || true
+  exit 0
+fi
+
 JSON_INPUT="$input" REPO_ROOT="${HOOK_REPO_ROOT:-$(pwd)}" bun -e '
   const fs = require("fs");
   const path = require("path");
