@@ -326,6 +326,8 @@ export function buildProgram(): Command {
           mode,
           json: rawOpts.json === true,
           explicitRepo: rawOpts.repo !== undefined,
+          reclaimRuntime: rawOpts.reclaimRuntime === true,
+          compact: rawOpts.compact === true,
         });
         process.stdout.write(plan.output);
         process.exit(plan.exitCode);

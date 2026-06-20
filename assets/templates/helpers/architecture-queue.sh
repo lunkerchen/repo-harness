@@ -71,24 +71,57 @@ index_file="docs/architecture/index.md"
 requests_dir="docs/architecture/requests"
 event_file=".ai/harness/architecture/events.jsonl"
 
+helper_sibling() {
+  local helper_name="$1"
+  local helper_dir=""
+  if [[ -n "${REPO_HARNESS_HELPER_SOURCE_PATH:-}" ]]; then
+    helper_dir="$(dirname "$REPO_HARNESS_HELPER_SOURCE_PATH")"
+  fi
+  if [[ -n "$helper_dir" && -f "$helper_dir/$helper_name" ]]; then
+    printf '%s\n' "$helper_dir/$helper_name"
+    return 0
+  fi
+  return 1
+}
+
 architecture_event() {
+  local sibling=""
   if command -v bun >/dev/null 2>&1 && [[ -f "scripts/architecture-event.ts" ]]; then
     bun scripts/architecture-event.ts "$@"
+    return $?
+  fi
+  sibling="$(helper_sibling architecture-event.ts || true)"
+  if command -v bun >/dev/null 2>&1 && [[ -n "$sibling" ]]; then
+    bun "$sibling" "$@"
     return $?
   fi
   return 127
 }
 
 architecture_event_required() {
-  if ! command -v bun >/dev/null 2>&1; then
-    echo "architecture-queue: bun is required for $command_name" >&2
-    return 127
-  fi
-  if [[ ! -f "scripts/architecture-event.ts" ]]; then
-    echo "architecture-queue: missing scripts/architecture-event.ts" >&2
+  if ! architecture_event safe-token --value probe >/dev/null 2>&1; then
+    echo "architecture-queue: missing architecture-event helper" >&2
     return 127
   fi
   return 0
+}
+
+capability_resolver() {
+  local sibling=""
+  if command -v bun >/dev/null 2>&1 && [[ -f "scripts/capability-resolver.ts" ]]; then
+    bun scripts/capability-resolver.ts "$@"
+    return $?
+  fi
+  sibling="$(helper_sibling capability-resolver.ts || true)"
+  if command -v bun >/dev/null 2>&1 && [[ -n "$sibling" ]]; then
+    bun "$sibling" "$@"
+    return $?
+  fi
+  return 127
+}
+
+capability_resolver_available() {
+  capability_resolver list --format json >/dev/null 2>&1
 }
 
 json_escape() {
@@ -404,7 +437,7 @@ status_command() {
       return 0
       ;;
     strict)
-      if ! command -v bun >/dev/null 2>&1 || [[ ! -f "scripts/architecture-event.ts" || ! -f "scripts/capability-resolver.ts" ]]; then
+      if ! architecture_event_required >/dev/null 2>&1 || ! capability_resolver_available; then
         echo "[ArchitectureQueue] strict gate failed: missing queue dependencies" >&2
         return 1
       fi
@@ -440,15 +473,15 @@ record_command() {
     exit 0
   fi
 
-  if ! command -v bun >/dev/null 2>&1 || [[ ! -f "scripts/architecture-event.ts" ]]; then
-    echo "[ArchitectureQueue] WARN: bun and scripts/architecture-event.ts are required to record $rel_path; skipping advisory queue update"
+  if ! architecture_event_required >/dev/null 2>&1; then
+    echo "[ArchitectureQueue] WARN: architecture-event helper is required to record $rel_path; skipping advisory queue update"
     exit 0
   fi
 
   capability_match=""
-  if [[ -f "scripts/capability-resolver.ts" ]]; then
+  if capability_resolver_available; then
     resolver_stderr="$(mktemp)"
-    if ! capability_match="$(bun scripts/capability-resolver.ts match --path "$rel_path" --format json 2>"$resolver_stderr")"; then
+    if ! capability_match="$(capability_resolver match --path "$rel_path" --format json 2>"$resolver_stderr")"; then
       [[ -n "$capability_match" ]] && echo "$capability_match" >&2
       cat "$resolver_stderr" >&2
       rm -f "$resolver_stderr"
@@ -475,7 +508,7 @@ record_command() {
     matched_prefix="$(json_get "$capability_match" "matched_prefix")"
     capability_id="$(json_get "$capability_match" "capability_id")"
     capability_resolved="true"
-  elif [[ ! -f "scripts/capability-resolver.ts" ]]; then
+  elif ! capability_resolver_available; then
     functional_block="$(match_functional_block "$rel_path")"
     matched_prefix="$functional_block"
     capability_id="$(safe_token "$functional_block")"

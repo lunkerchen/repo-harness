@@ -90,6 +90,19 @@ try {
   printf '%s' "${value:-$default_value}"
 }
 
+helper_sibling() {
+  local helper_name="$1"
+  local helper_dir=""
+  if [[ -n "${REPO_HARNESS_HELPER_SOURCE_PATH:-}" ]]; then
+    helper_dir="$(dirname "$REPO_HARNESS_HELPER_SOURCE_PATH")"
+  fi
+  if [[ -n "$helper_dir" && -f "$helper_dir/$helper_name" ]]; then
+    printf '%s\n' "$helper_dir/$helper_name"
+    return 0
+  fi
+  return 1
+}
+
 severity_rank() {
   case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
     critical) printf '4' ;;
@@ -198,17 +211,51 @@ case "$mode" in
     ;;
 esac
 
-if [[ ! -x "scripts/architecture-queue.sh" ]]; then
+run_architecture_queue() {
+  local sibling=""
+  if [[ -x "scripts/architecture-queue.sh" ]]; then
+    bash scripts/architecture-queue.sh "$@"
+    return $?
+  fi
+  sibling="$(helper_sibling architecture-queue.sh || true)"
+  if [[ -n "$sibling" ]]; then
+    bash "$sibling" "$@"
+    return $?
+  fi
+  return 127
+}
+
+architecture_queue_available() {
+  [[ -x "scripts/architecture-queue.sh" ]] && return 0
+  helper_sibling architecture-queue.sh >/dev/null 2>&1 && return 0
+  return 1
+}
+
+run_capability_resolver() {
+  local sibling=""
+  if command -v bun >/dev/null 2>&1 && [[ -f "scripts/capability-resolver.ts" ]]; then
+    bun scripts/capability-resolver.ts "$@"
+    return $?
+  fi
+  sibling="$(helper_sibling capability-resolver.ts || true)"
+  if command -v bun >/dev/null 2>&1 && [[ -n "$sibling" ]]; then
+    bun "$sibling" "$@"
+    return $?
+  fi
+  return 127
+}
+
+if ! architecture_queue_available; then
   if [[ "$mode" == "strict" ]]; then
-    echo "[ArchitectureSync] strict gate failed: missing scripts/architecture-queue.sh" >&2
+    echo "[ArchitectureSync] strict gate failed: missing architecture-queue helper" >&2
     exit 1
   fi
-  echo "[ArchitectureSync] WARN: missing scripts/architecture-queue.sh; skipping advisory freshness gate" >&2
+  echo "[ArchitectureSync] WARN: missing architecture-queue helper; skipping advisory freshness gate" >&2
   exit 0
 fi
 
-if ! bash scripts/architecture-queue.sh reindex --check >/dev/null; then
-  echo "[ArchitectureSync] architecture request index is stale; run bash scripts/architecture-queue.sh reindex" >&2
+if ! run_architecture_queue reindex --check >/dev/null; then
+  echo "[ArchitectureSync] architecture request index is stale; run repo-harness run architecture-queue reindex" >&2
   exit 1
 fi
 
@@ -221,12 +268,12 @@ if [[ "$mode" == "off" ]]; then
   exit 0
 fi
 
-if ! command -v bun >/dev/null 2>&1 || [[ ! -f "scripts/capability-resolver.ts" ]]; then
+if ! run_capability_resolver list --format json >/dev/null 2>&1; then
   if [[ "$mode" == "strict" ]]; then
-    echo "[ArchitectureSync] strict gate failed: missing bun or scripts/capability-resolver.ts" >&2
+    echo "[ArchitectureSync] strict gate failed: missing capability-resolver helper" >&2
     exit 1
   fi
-  echo "[ArchitectureSync] WARN: missing bun or scripts/capability-resolver.ts; skipping advisory freshness gate" >&2
+  echo "[ArchitectureSync] WARN: missing capability-resolver helper; skipping advisory freshness gate" >&2
   exit 0
 fi
 
@@ -240,7 +287,7 @@ if [[ -z "$changed_files" ]]; then
   exit 0
 fi
 
-matches_json="$(printf '%s\n' "$changed_files" | bun scripts/capability-resolver.ts match --paths-from - --format json)"
+matches_json="$(printf '%s\n' "$changed_files" | run_capability_resolver match --paths-from - --format json)"
 capabilities="$(
   MATCHES_JSON="$matches_json" node -e '
 const matches = JSON.parse(process.env.MATCHES_JSON || "[]");

@@ -484,6 +484,29 @@ describe("repo-harness adopt dry-run planner output", () => {
     }
   });
 
+  test("compact JSON dry-run does not plan helper compatibility wrappers", () => {
+    const repo = tempRepo();
+    try {
+      const result = spawnSync("bun", [CLI, "adopt", "--repo", repo, "--compact", "--dry-run", "--json"], {
+        cwd: ROOT,
+        encoding: "utf-8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      const output = JSON.parse(result.stdout);
+      expect(output.protocol).toBe(1);
+      expect(output.command).toBe("adopt");
+      expect(output.operations.some((operation: { id: string }) => operation.id.endsWith(":helper-wrapper"))).toBe(false);
+      expect(output.operations.some((operation: { path?: string }) => operation.path === "scripts/new-plan.sh")).toBe(false);
+      expect(result.stdout).not.toContain("Install repo-harness helper compatibility wrapper");
+      expect(existsSync(join(repo, "scripts", "new-plan.sh"))).toBe(false);
+      expect(existsSync(join(repo, ".gitignore"))).toBe(false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   test("refuses non-standard default apply while shell migrator mode parity is incomplete", () => {
     const repo = tempRepo();
     try {

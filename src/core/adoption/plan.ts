@@ -15,6 +15,7 @@ export interface PlanAdoptionOptions {
   readonly repoRoot: string;
   readonly mode?: AdoptionMode;
   readonly apply?: boolean;
+  readonly helperCompatibilityWrappers?: boolean;
 }
 
 const MINIMAL_DIRS = [
@@ -105,6 +106,7 @@ function selfHostWarnings(mode: AdoptionMode): AdoptionWarning[] {
 export function planAdoption(opts: PlanAdoptionOptions): AdoptionPlan {
   const repoRoot = resolve(opts.repoRoot);
   const mode = opts.mode ?? "standard";
+  const helperCompatibilityWrappers = opts.helperCompatibilityWrappers !== false;
   const operations: AdoptionOperation[] = [
     ...directoryPaths(mode).map((path) => ({
       id: makeOperationId("mkdir", path),
@@ -116,11 +118,11 @@ export function planAdoption(opts: PlanAdoptionOptions): AdoptionPlan {
     })),
     ...writeIfMissingOperations(repoRoot),
     ...workflowContractOperations(repoRoot),
-    ...helperWrapperOperations(repoRoot, mode),
+    ...(helperCompatibilityWrappers ? helperWrapperOperations(repoRoot, mode) : []),
   ];
 
   const gitignorePath = resolve(repoRoot, ".gitignore");
-  const gitignoreExtraContent = helperWrapperGitignoreContent(repoRoot, mode);
+  const gitignoreExtraContent = helperCompatibilityWrappers ? helperWrapperGitignoreContent(repoRoot, mode) : "";
   const plannedGitignoreOperation = gitignoreManagedBlockOperation("planned", gitignoreExtraContent);
   const gitignoreOperation = gitignoreManagedBlockOperation(
     managedBlockNeedsUpdate(existsSync(gitignorePath) ? readFileSync(gitignorePath, "utf-8") : "", plannedGitignoreOperation)

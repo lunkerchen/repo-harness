@@ -15,7 +15,7 @@ fi
 issues=0
 files="$(
   find . \
-    \( -path './.git' -o -path './node_modules' -o -path './_ref' -o -path './_ops' -o -path './.worktrees' \) -prune -o \
+    \( -path './.git' -o -path './node_modules' -o -path './_ref' -o -path './_ops' -o -path './.worktrees' -o -path './.video-agent-refactor-backup' -o -path './.ai/harness/archive' -o -path './.ai/harness/backups' -o -path './.repo-harness' \) -prune -o \
     -type f \( -name 'AGENTS.md' -o -name 'CLAUDE.md' \) -print \
     | sort
 )"
@@ -29,8 +29,9 @@ scan_pattern() {
   local label="$1"
   local regex="$2"
   local match
+  local benign_negative='(never|do not|don'\''t|must not|should not)[^:;.!?]*(print|show|copy|upload|send|read|cat)'
 
-  match="$(printf '%s\n' "$files" | xargs grep -Eni "$regex" 2>/dev/null | head -1 || true)"
+  match="$(printf '%s\n' "$files" | xargs grep -Eni "$regex" 2>/dev/null | grep -Eiv "$benign_negative" | head -1 || true)"
   if [[ -n "$match" ]]; then
     echo "[ContextScan] ${label}: ${match}"
     issues=$((issues + 1))

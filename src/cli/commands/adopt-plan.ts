@@ -11,6 +11,8 @@ export interface RunAdoptionPlanOptions {
   readonly mode: AdoptionMode;
   readonly json?: boolean;
   readonly explicitRepo?: boolean;
+  readonly reclaimRuntime?: boolean;
+  readonly compact?: boolean;
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -93,6 +95,7 @@ export function runAdoptionPlan(opts: RunAdoptionPlanOptions): RunAdoptionPlanRe
     repoRoot,
     mode: opts.mode,
     apply: false,
+    helperCompatibilityWrappers: opts.reclaimRuntime !== true && opts.compact !== true,
   });
 
   return {
