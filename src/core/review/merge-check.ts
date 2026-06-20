@@ -32,6 +32,7 @@ export interface MergeCheckGithubData {
   readonly unresolved_actionable_threads?: number;
   readonly unresolved_actionable_thread_ids?: readonly string[];
   readonly review_threads_complete?: boolean;
+  readonly final_head_sha?: string;
   readonly errors?: readonly string[];
 }
 
@@ -56,6 +57,7 @@ export interface MergeCheckReport {
   readonly local_head_sha?: string;
   readonly origin_main_sha?: string;
   readonly head_sha?: string;
+  readonly final_head_sha?: string;
   readonly merge_state: string;
   readonly checks: 'passed' | 'failed' | 'pending' | 'unknown';
   readonly review_threads: {
@@ -68,6 +70,9 @@ export interface MergeCheckReport {
   readonly independent_review: 'passed' | 'failed' | 'missing';
   readonly merge_authorized: boolean;
   readonly authorization_source?: 'file' | 'legacy_cli_flag';
+  readonly authorization_actor?: string;
+  readonly authorized_at?: string;
+  readonly authorization_expires_at?: string;
   readonly merge_allowed: boolean;
   readonly decision: MergeCheckDecision;
   readonly blockers: readonly string[];
@@ -162,7 +167,12 @@ function authorizationPassed(
   if (evidence.schema_version !== 1 || evidence.authorized !== true) return false;
   if (!repo || evidence.repo !== repo || evidence.pr !== pr) return false;
   if (!isFullSha(headSha) || evidence.head_sha !== headSha) return false;
-  if (evidence.expires_at && Date.parse(evidence.expires_at) <= Date.now()) return false;
+  if (typeof evidence.actor !== 'string' || evidence.actor.trim() === '') return false;
+  if (typeof evidence.authorized_at !== 'string' || Number.isNaN(Date.parse(evidence.authorized_at))) return false;
+  if (evidence.expires_at) {
+    const expiresAt = Date.parse(evidence.expires_at);
+    if (Number.isNaN(expiresAt) || expiresAt <= Date.now()) return false;
+  }
   return true;
 }
 
@@ -185,6 +195,9 @@ function decide(report: Omit<MergeCheckReport, 'decision' | 'blockers'>): { deci
   if (report.local_head_sha && report.head_sha && report.local_head_sha !== report.head_sha) {
     blockers.push(`local HEAD ${report.local_head_sha} does not match PR head ${report.head_sha}`);
   }
+  if (report.final_head_sha && report.head_sha && report.final_head_sha !== report.head_sha) {
+    blockers.push(`PR head changed during merge-check: ${report.head_sha} -> ${report.final_head_sha}`);
+  }
   if (report.merge_state && !['clean', 'CLEAN', 'has_hooks', 'HAS_HOOKS'].includes(report.merge_state)) {
     blockers.push(`merge state is ${report.merge_state}`);
   }
@@ -196,7 +209,9 @@ function decide(report: Omit<MergeCheckReport, 'decision' | 'blockers'>): { deci
   }
   if (report.independent_review !== 'passed') blockers.push('independent reviewer evidence is missing or failed');
 
-  if (blockers.some((entry) => entry.startsWith('local HEAD'))) return { decision: 'blocked_head_mismatch', blockers };
+  if (blockers.some((entry) => entry.startsWith('local HEAD') || entry.startsWith('PR head changed'))) {
+    return { decision: 'blocked_head_mismatch', blockers };
+  }
   if (blockers.some((entry) => entry.includes('incomplete') || entry.startsWith('truth level'))) {
     return { decision: 'evidence_incomplete', blockers };
   }
@@ -249,6 +264,7 @@ export function runMergeCheck(options: RunMergeCheckOptions): MergeCheckReport {
     local_head_sha: localHead,
     origin_main_sha: originMain,
     head_sha: data.head_sha,
+    final_head_sha: data.final_head_sha,
     merge_state: data.is_draft === true ? 'draft' : data.merge_state ?? 'unknown',
     checks: data.checks ?? 'unknown',
     review_threads: {
@@ -268,6 +284,9 @@ export function runMergeCheck(options: RunMergeCheckOptions): MergeCheckReport {
     independent_review: independentReview,
     merge_authorized: mergeAuthorized,
     authorization_source: mergeAuthorized ? 'file' : options.authorized === true ? 'legacy_cli_flag' : undefined,
+    authorization_actor: typeof authEvidence.actor === 'string' ? authEvidence.actor : undefined,
+    authorized_at: typeof authEvidence.authorized_at === 'string' ? authEvidence.authorized_at : undefined,
+    authorization_expires_at: typeof authEvidence.expires_at === 'string' ? authEvidence.expires_at : undefined,
     merge_allowed: false,
   };
   if (data.is_draft === true) {

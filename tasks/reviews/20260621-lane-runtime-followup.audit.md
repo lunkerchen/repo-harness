@@ -1,9 +1,10 @@
 # Lane Runtime Follow-up Audit
 
-> Status: locally validated; ready for GitHub review push
+> Status: second hardening pass locally validated; ready for GitHub review push
 > Branch: `codex/lane-runtime-pr4-pr5`
 > Base: `e60a1d6fc4cd9afda6c5cd9b42d56c0cd5363b86` (`origin/main`)
 > Initial reviewed head: `5a8bd646de9d3c2465fb1e58052871db4866fe04`
+> Current local head before this audit update: `03caa191b1a0934acbf3a8c30dcd1beff4f00c72`
 > Source review: `tasks/reviews/20260621-lane runtime sprint.review.md`
 > Follow-up sprint: `plans/sprints/20260621-lane-runtime-followup.sprint.md`
 
@@ -23,9 +24,9 @@ Current branch adds the lane runtime, context audit/status, subagent lane eviden
 | --- | --- | --- | --- | --- |
 | PR1 | Context audit/status must be explicit CLI, cache must not promote stale/unknown to clean. | `src/cli/commands/context.ts`, `src/core/context-audit/*`; `runContextStatus` re-checks repo identity and fingerprint. | `tests/unit/context-audit-static.test.ts`, `tests/cli/context-lanes.test.ts`. | Strengthened: same-HEAD context edits now mark status stale; corrupt cache is not clean. |
 | PR2 | Context hook sentinel must be changed-only, isolated, and not expand public hook routes. | `.ai/hooks/lib/workflow-state.sh`, `assets/hooks/lib/workflow-state.sh`, `session-start-context.sh`, `stop-orchestrator.sh`; hook entry still uses existing route registry. | `tests/context-hook-contracts.test.ts`, route registry tests. | Strengthened: dirty marker writes are lock-protected and concurrent triggers merge. |
-| PR3 | Lane scope enforcement must protect write/forbidden/high-context boundaries. | `src/cli/hook/lane-decision.ts`, `src/core/lanes/ownership-resolver.ts`, `src/core/lanes/schema.ts`, `src/core/lanes/state.ts`. | `tests/lane-hook-contracts.test.ts`, `tests/unit/lane-ownership-resolver.test.ts`, `tests/unit/lane-schema.test.ts`. | Main path covered; broader shell/symlink/rename matrix remains a follow-up risk unless fully added before merge. |
-| PR4 | Subagent/reviewer evidence must require independent reviewer and concrete reviewed head SHA. | `src/cli/hook/subagent-lane.ts`, `src/core/lanes/state.ts`; reviewer lanes implicitly require `reviewed_head_sha` on merge, stop, and close. | `tests/subagent-lane-contracts.test.ts`, `tests/unit/lane-state.test.ts`, `tests/cli/context-lanes.test.ts`. | Strengthened: reviewer stop/close paths reject missing or non-full `reviewed_head_sha`; concurrent evidence merges preserve fields. |
-| PR5 | `review merge-check` must be explicit CLI only, gather complete GitHub evidence, be conservative on incomplete evidence, and require explicit authorization. | `src/cli/commands/review.ts`, `src/core/review/merge-check.ts`; no hook route registration. | `tests/cli/review-merge-check.test.ts`, `tests/cli/route-registry.test.ts`. | Strengthened: only `merge_allowed=true` exits 0; ready-but-unauthorized exits 3; incomplete evidence exits 4; GraphQL review threads page through all pages. |
+| PR3 | Lane scope enforcement must protect write/forbidden/high-context boundaries. | `src/cli/hook/lane-decision.ts`, `src/core/lanes/ownership-resolver.ts`, `src/core/lanes/schema.ts`, `src/core/lanes/state.ts`; shell write analysis is recorded through existing `PostToolUse.bash` without changing public routes. | `tests/lane-hook-contracts.test.ts`, `tests/unit/lane-state.test.ts`, `tests/unit/lane-ownership-resolver.test.ts`, `tests/unit/lane-schema.test.ts`. | Strengthened: `..` traversal and symlink parent escapes block edit decisions; shell `tee`/`sed -i`/`mv`/opaque script writes are recorded as unauthorized and block Stop/close. |
+| PR4 | Subagent/reviewer evidence must require independent reviewer and concrete reviewed head SHA. | `src/cli/hook/subagent-lane.ts`, `src/core/lanes/state.ts`; reviewer lanes implicitly require `reviewed_head_sha` on merge, stop, and close. | `tests/subagent-lane-contracts.test.ts`, `tests/unit/lane-state.test.ts`, `tests/cli/context-lanes.test.ts`. | Strengthened: SubagentStart injects schema/head/parent identity; SubagentStop overwrites evidence with runtime reviewer identity, reviewer/worker lane ids, and schema version. |
+| PR5 | `review merge-check` must be explicit CLI only, gather complete GitHub evidence, be conservative on incomplete evidence, and require explicit authorization. | `src/cli/commands/review.ts`, `src/core/review/merge-check.ts`; no hook route registration. | `tests/cli/review-merge-check.test.ts`, `tests/cli/route-registry.test.ts`. | Strengthened: only `merge_allowed=true` exits 0; ready-but-unauthorized exits 3; incomplete evidence exits 4; review threads paginate; authorization requires actor/time and current head; live checks re-fetch PR head to catch TOCTOU updates. |
 
 ## Verification Snapshot
 
@@ -35,6 +36,7 @@ Commands run after the follow-up changes:
 bun run check:type
 bun test tests/cli/review-merge-check.test.ts tests/unit/lane-state.test.ts tests/unit/context-audit-static.test.ts tests/context-hook-contracts.test.ts tests/cli/context-lanes.test.ts
 bun test tests/cli/route-registry.test.ts tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/hook-protocol.test.ts tests/cli/hook.test.ts tests/lane-hook-contracts.test.ts tests/subagent-lane-contracts.test.ts tests/cli/review-merge-check.test.ts tests/unit/lane-state.test.ts tests/unit/context-audit-static.test.ts tests/context-hook-contracts.test.ts tests/cli/context-lanes.test.ts
+bun test tests/cli/route-registry.test.ts tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/hook-protocol.test.ts tests/cli/hook.test.ts tests/lane-hook-contracts.test.ts tests/subagent-lane-contracts.test.ts tests/cli/review-merge-check.test.ts tests/unit/lane-state.test.ts tests/unit/lane-ownership-resolver.test.ts tests/unit/lane-schema.test.ts
 bun test
 bun src/cli/index.ts context audit --static --write-state --json
 bun src/cli/index.ts context status --json
@@ -51,7 +53,8 @@ Result:
 - `bun run check:type`: passed
 - Targeted follow-up suite: `21 pass / 0 fail`
 - Hook/runtime review suite: `202 pass / 0 fail`
-- Full `bun test`: `918 pass / 0 fail`
+- Second hardening hook/lane/review suite: `201 pass / 0 fail`
+- Full `bun test`: `923 pass / 0 fail`
 - `context audit --static --write-state` plus `context status`: `status=clean`, cache `state=hit`
 - `check-deploy-sql-order`: passed
 - `check-architecture-sync`: advisory check passed with `blocking=0`
@@ -62,5 +65,6 @@ Result:
 
 ## Remaining Risk To Verify Before Merge
 
-- PR3 shell/symlink/rename bypass coverage remains broader than the regression set added in this follow-up. Existing lane tests cover the main enforcement path; a dedicated bypass-matrix expansion should be treated as a separate review slice before broadening lane trust.
+- Shell writes are still observed through the existing `PostToolUse.bash` route because the source sprint forbids adding a new public `PreToolUse.Bash` tuple in this phase. The current fail-closed behavior is lane completion safety: unsafe shell writes become `unauthorized_changes` and block Stop/close. True pre-execution Bash blocking requires an explicitly approved public route-contract change.
+- PR5 still uses `statusCheckRollup` as the available check rollup. It now catches pending/failure/cancelled states and TOCTOU head changes, but it does not yet fetch GitHub branch protection/ruleset required-check definitions as a separate evidence source.
 - The follow-up sprint requested repeated migration loops; this patch ran the required migration dry-run once after edits. Repeat-loop soak remains useful but was not required to make the current GitHub review branch visible.

@@ -1,4 +1,5 @@
 import { execFileSync } from "child_process";
+import { createHash } from "crypto";
 import {
   existsSync,
   mkdirSync,
@@ -92,6 +93,11 @@ export interface LaneRecordEditResult {
   readonly unauthorized?: boolean;
 }
 
+export interface LaneShellRecordResult extends LaneRecordEditResult {
+  readonly targets?: readonly string[];
+  readonly opaque?: boolean;
+}
+
 export interface LaneStopDecision {
   readonly schema_version: 1;
   readonly action: LaneDecisionAction;
@@ -100,6 +106,12 @@ export interface LaneStopDecision {
   readonly reason?: string;
   readonly lane_id?: string;
   readonly missing?: readonly string[];
+}
+
+interface ShellWriteAnalysis {
+  readonly targets: readonly string[];
+  readonly opaque: boolean;
+  readonly reasons: readonly string[];
 }
 
 export interface LaneEvidenceMergeResult {
@@ -468,6 +480,10 @@ export function closeLane(
       updated_at: closedAt,
       closed_at: closedAt,
     };
+    const unauthorized = blockingUnauthorizedChanges(nextEntry);
+    if (unauthorized.length > 0) {
+      throw new Error(`lane ${laneId} has unauthorized changes: ${unauthorized.join(", ")}`);
+    }
     const missing = missingEvidence({ ...lane, required_evidence: effectiveRequiredEvidence(lane) }, nextEntry, repoRoot);
     if (missing.length > 0) {
       throw new Error(`lane ${laneId} is missing closure evidence: ${missing.join(", ")}`);
@@ -503,6 +519,30 @@ function decisionFromMode(mode: LaneGateMode): LaneDecisionAction {
   return mode === "enforce" ? "block" : "advise";
 }
 
+function nearestExistingPath(repoRoot: string, repoRelativePath: string): string {
+  const fullTarget = join(repoRoot, repoRelativePath);
+  if (existsSync(fullTarget)) return fullTarget;
+  const parts = repoRelativePath.split("/").filter(Boolean);
+  for (let length = parts.length - 1; length >= 0; length -= 1) {
+    const candidate = join(repoRoot, ...parts.slice(0, length));
+    if (existsSync(candidate)) return candidate;
+  }
+  return repoRoot;
+}
+
+function realpathEscapeReason(repoRoot: string, repoRelativePath: string): string | undefined {
+  const root = realpathSync(repoRoot);
+  const candidate = nearestExistingPath(repoRoot, repoRelativePath);
+  try {
+    const real = realpathSync(candidate);
+    const rel = relative(root, real);
+    if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return undefined;
+    return `path resolves outside repo through symlink: ${repoRelativePath}`;
+  } catch {
+    return undefined;
+  }
+}
+
 function missingEvidence(lane: LaneDefinition, entry: LaneRuntimeEntry | undefined, cwd: string): string[] {
   const missing: string[] = [];
   const evidence = entry?.evidence ?? {};
@@ -536,6 +576,10 @@ function missingEvidence(lane: LaneDefinition, entry: LaneRuntimeEntry | undefin
   return missing;
 }
 
+function blockingUnauthorizedChanges(entry: LaneRuntimeEntry | undefined): readonly string[] {
+  return (entry?.unauthorized_changes ?? []).filter((path) => path.trim() !== "");
+}
+
 function effectiveRequiredEvidence(lane: LaneDefinition): readonly string[] {
   const required = new Set(lane.required_evidence ?? []);
   if (lane.role === "reviewer") {
@@ -567,6 +611,170 @@ function loadActiveLaneContext(cwd: string): {
   };
 }
 
+function shellOpaqueMarker(command: string): string {
+  return `opaque-shell-command:${createHash("sha256").update(command).digest("hex").slice(0, 12)}`;
+}
+
+function tokenizeShellCommand(command: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | undefined;
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index];
+    if (quote) {
+      if (char === quote) {
+        quote = undefined;
+        continue;
+      }
+      if (char === "\\" && quote === '"' && index + 1 < command.length) {
+        current += command[index + 1];
+        index += 1;
+        continue;
+      }
+      current += char;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    if (char === ";" || char === "|" || char === "&") {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      if ((char === "|" || char === "&") && command[index + 1] === char) {
+        tokens.push(`${char}${char}`);
+        index += 1;
+      } else {
+        tokens.push(char);
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function isShellOperator(token: string): boolean {
+  return token === ";" || token === "|" || token === "||" || token === "&&" || token === "&";
+}
+
+function shellCommandArgs(tokens: readonly string[], commandIndex: number): string[] {
+  const args: string[] = [];
+  for (let index = commandIndex + 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (isShellOperator(token)) break;
+    args.push(token);
+  }
+  return args;
+}
+
+function shellPathCandidate(token: string): { path?: string; opaque?: boolean } {
+  const trimmed = token.trim();
+  if (!trimmed || trimmed === "--" || trimmed.startsWith("-")) return {};
+  if (trimmed === "/dev/null" || trimmed === "&1" || trimmed === "&2") return {};
+  if (/[$`*?[\]{}]/.test(trimmed)) return { opaque: true };
+  if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(trimmed) && !trimmed.includes("/")) return {};
+  return { path: trimmed };
+}
+
+function addShellTarget(targets: Set<string>, reasons: Set<string>, token: string): void {
+  const candidate = shellPathCandidate(token);
+  if (candidate.opaque) {
+    reasons.add(`dynamic target: ${token}`);
+  } else if (candidate.path) {
+    targets.add(candidate.path);
+  }
+}
+
+function addLastShellTarget(targets: Set<string>, reasons: Set<string>, args: readonly string[]): void {
+  for (let index = args.length - 1; index >= 0; index -= 1) {
+    const token = args[index];
+    if (token === "--") continue;
+    const candidate = shellPathCandidate(token);
+    if (candidate.opaque) {
+      reasons.add(`dynamic target: ${token}`);
+      return;
+    }
+    if (candidate.path) {
+      targets.add(candidate.path);
+      return;
+    }
+  }
+  reasons.add("missing target");
+}
+
+function commandHasProgram(command: string, program: string): boolean {
+  return new RegExp(`(^|[\\s;&|])${program.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([\\s;&|]|$)`).test(command);
+}
+
+function extractShellWriteTargets(command: string): ShellWriteAnalysis {
+  const targets = new Set<string>();
+  const reasons = new Set<string>();
+
+  const redirection = /(?:^|[\s;&|])(?:\d*|&)?>>?\s*(["']?)([^"'\s;&|]+)\1/g;
+  let match: RegExpExecArray | null;
+  while ((match = redirection.exec(command)) !== null) {
+    addShellTarget(targets, reasons, match[2]);
+  }
+
+  const tokens = tokenizeShellCommand(command);
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (isShellOperator(token)) continue;
+    const args = shellCommandArgs(tokens, index);
+
+    if (token === "tee") {
+      for (const arg of args) addShellTarget(targets, reasons, arg);
+    } else if (token === "cp" || token === "install") {
+      addLastShellTarget(targets, reasons, args);
+    } else if (token === "mv" || token === "rm" || token === "touch" || token === "mkdir") {
+      for (const arg of args) addShellTarget(targets, reasons, arg);
+    } else if (token === "sed" && args.some((arg) => /^-.*i/.test(arg))) {
+      addLastShellTarget(targets, reasons, args);
+    } else if (token === "perl" && args.some((arg) => /^-.*i/.test(arg))) {
+      addLastShellTarget(targets, reasons, args);
+    } else if (token === "git" && args[0] === "apply") {
+      reasons.add("git apply writes paths declared inside a patch");
+    } else if (token === "patch") {
+      reasons.add("patch writes paths declared inside a patch");
+    } else if (token === "git" && (args[0] === "checkout" || args[0] === "restore")) {
+      const separator = args.indexOf("--");
+      if (separator >= 0 && separator < args.length - 1) {
+        for (const arg of args.slice(separator + 1)) addShellTarget(targets, reasons, arg);
+      } else {
+        reasons.add(`git ${args[0]} target is not explicit`);
+      }
+    }
+  }
+
+  if (
+    /\b(fs\.writeFile|writeFileSync|rmSync|renameSync|cpSync|mkdirSync|Path\([^)]*\)\.write_text|open\([^)]*["']w|File\.write|Deno\.write)/.test(command) &&
+    (commandHasProgram(command, "python") ||
+      commandHasProgram(command, "python3") ||
+      commandHasProgram(command, "node") ||
+      commandHasProgram(command, "bun") ||
+      commandHasProgram(command, "deno"))
+  ) {
+    reasons.add("script command contains write-capable code");
+  }
+
+  return {
+    targets: [...targets].sort(),
+    opaque: reasons.size > 0,
+    reasons: [...reasons].sort(),
+  };
+}
+
 export function decideLaneEdit(
   targetPath: string,
   options: { cwd?: string; mode?: LaneGateMode; highContext?: (path: string) => boolean } = {},
@@ -574,7 +782,7 @@ export function decideLaneEdit(
   const mode = options.mode ?? "advice";
   const cwd = options.cwd ?? process.cwd();
   if (mode === "off") return { schema_version: 1, action: "allow", guard: "LaneScopeGuard", mode };
-  const { contract, binding } = loadActiveLaneContext(cwd);
+  const { repoRoot, contract, binding } = loadActiveLaneContext(cwd);
   if (!contract) return { schema_version: 1, action: "allow", guard: "LaneScopeGuard", mode };
 
   const target = ensureRepoRelativePath(targetPath);
@@ -586,6 +794,18 @@ export function decideLaneEdit(
       mode,
       reason: target.error ?? "invalid target path",
       recommendation: "Use repo-relative paths inside the active lane worktree.",
+    };
+  }
+  const realpathEscape = realpathEscapeReason(repoRoot, target.path);
+  if (realpathEscape) {
+    return {
+      schema_version: 1,
+      action: decisionFromMode(mode),
+      guard: "LaneScopeGuard",
+      mode,
+      target_path: target.path,
+      reason: realpathEscape,
+      recommendation: "Remove the symlink escape or route this change through an explicit out-of-repo operation.",
     };
   }
 
@@ -740,6 +960,78 @@ export function recordLaneEdit(
   };
 }
 
+export function recordLaneShellCommand(
+  command: string,
+  options: { cwd?: string; highContext?: (path: string) => boolean } = {},
+): LaneShellRecordResult {
+  const cwd = options.cwd ?? process.cwd();
+  const context = loadActiveLaneContext(cwd);
+  if (!context.contract || !context.active || !context.binding) {
+    return { schema_version: 1, status: "skipped", reason: "no active bound lane" };
+  }
+  const lane = context.contract.lanes.find((entry) => entry.id === context.binding?.lane_id);
+  if (!lane) return { schema_version: 1, status: "skipped", reason: "bound lane missing" };
+
+  const analysis = extractShellWriteTargets(command);
+  if (analysis.targets.length === 0 && !analysis.opaque) {
+    return { schema_version: 1, status: "skipped", reason: "no shell write targets detected", lane_id: lane.id };
+  }
+
+  const touched = new Set<string>();
+  const unauthorized = new Set<string>();
+  for (const rawTarget of analysis.targets) {
+    const target = ensureRepoRelativePath(rawTarget);
+    if (!target.ok || !target.path) {
+      unauthorized.add(rawTarget);
+      continue;
+    }
+    touched.add(target.path);
+    const decision = decideLaneEdit(target.path, { cwd, mode: "enforce", highContext: options.highContext });
+    if (decision.action === "block") unauthorized.add(target.path);
+  }
+  if (analysis.opaque) unauthorized.add(shellOpaqueMarker(command));
+
+  mutateLaneRuntimeState(context.repoRoot, context.active.run_id, () => initialRuntimeState(context.contract!, context.active!.contract_file), (runtime) => {
+    const current = runtime.lanes[lane.id] ?? {
+      status: "active",
+      touched_files: [],
+      unauthorized_changes: [],
+      evidence: {},
+    };
+    const nextTouched = new Set(current.touched_files);
+    for (const target of touched) nextTouched.add(target);
+    const nextUnauthorized = new Set(current.unauthorized_changes);
+    for (const target of unauthorized) nextUnauthorized.add(target);
+    const updatedAt = nowIso();
+    return {
+      state: {
+        ...runtime,
+        updated_at: updatedAt,
+        lanes: {
+          ...runtime.lanes,
+          [lane.id]: {
+            ...current,
+            status: current.status === "closed" ? "closed" : "active",
+            touched_files: [...nextTouched].sort(),
+            unauthorized_changes: [...nextUnauthorized].sort(),
+            updated_at: updatedAt,
+          },
+        },
+      },
+      result: undefined,
+    };
+  });
+
+  return {
+    schema_version: 1,
+    status: "recorded",
+    lane_id: lane.id,
+    targets: analysis.targets,
+    opaque: analysis.opaque,
+    unauthorized: unauthorized.size > 0,
+  };
+}
+
 export function mergeLaneEvidence(
   laneId: string,
   evidence: Record<string, unknown>,
@@ -835,6 +1127,17 @@ export function decideLaneStop(options: { cwd?: string; mode?: LaneGateMode } = 
   const entry = context.runtime?.lanes[lane.id];
   if (entry?.status === "closed") {
     return { schema_version: 1, action: "allow", guard: "LaneEvidenceGate", mode, lane_id: lane.id };
+  }
+  const unauthorized = blockingUnauthorizedChanges(entry);
+  if (unauthorized.length > 0) {
+    return {
+      schema_version: 1,
+      action: decisionFromMode(mode),
+      guard: "LaneEvidenceGate",
+      mode,
+      lane_id: lane.id,
+      reason: `Lane ${lane.id} has unauthorized changes: ${unauthorized.join(", ")}. Revert or move these changes before finalizing.`,
+    };
   }
   const missing = missingEvidence({ ...lane, required_evidence: effectiveRequiredEvidence(lane) }, entry, cwd);
   if (missing.length === 0) {

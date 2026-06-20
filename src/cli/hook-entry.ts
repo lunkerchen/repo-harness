@@ -10,7 +10,12 @@
 import { runHook as runHookRuntime, type RunHookOptions, type RunHookResult } from './hook/runtime';
 import { runPromptGuardDecideCli } from './commands/prompt-guard-decision';
 import { runStateSnapshotCli } from './hook/state-snapshot';
-import { runLaneEditDecisionCli, runLaneRecordEditCli, runLaneStopDecisionCli } from './hook/lane-decision';
+import {
+  runLaneEditDecisionCli,
+  runLaneRecordEditCli,
+  runLaneRecordShellCli,
+  runLaneStopDecisionCli,
+} from './hook/lane-decision';
 import {
   runSubagentPreToolCli,
   runSubagentStartContextCli,
@@ -56,6 +61,13 @@ if (import.meta.main) {
 
   if (argv[0] === 'lane-record-edit') {
     const result = runLaneRecordEditCli(argv.slice(1));
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'lane-record-shell') {
+    const result = runLaneRecordShellCli(argv.slice(1));
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.exitCode);

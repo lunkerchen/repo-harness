@@ -74,6 +74,7 @@ describe("review merge-check CLI", () => {
       expect(report.decision).toBe("ready");
       expect(report.independent_review).toBe("passed");
       expect(report.merge_authorized).toBe(true);
+      expect(report.authorization_actor).toBe("reviewer");
       expect(report.merge_allowed).toBe(true);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
@@ -116,6 +117,85 @@ describe("review merge-check CLI", () => {
       const report = JSON.parse(res.stdout);
       expect(report.decision).toBe("ready_but_not_authorized");
       expect(report.merge_allowed).toBe(false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("requires authorization actor and unexpired authorization time", () => {
+    const { cwd, head } = tmpRepo("merge-check-auth-binding");
+    try {
+      const fixture = join(cwd, "github.json");
+      const evidence = join(cwd, "review.json");
+      const authorization = join(cwd, "authorization.json");
+      writeFileSync(fixture, JSON.stringify({
+        head_sha: head,
+        merge_state: "clean",
+        checks: "passed",
+        unresolved_actionable_threads: 0,
+        review_threads_complete: true,
+      }));
+      writeFileSync(evidence, JSON.stringify({
+        schema_version: 1,
+        independent_review: "passed",
+        reviewer_lane_id: "reviewer-api",
+        worker_lane_id: "worker-api",
+        reviewed_head_sha: head,
+      }));
+
+      writeFileSync(authorization, JSON.stringify({
+        schema_version: 1,
+        authorized: true,
+        repo: "Ancienttwo/agentic-dev",
+        pr: 12,
+        head_sha: head,
+        authorized_at: "2026-06-21T00:00:00.000Z",
+      }));
+      const missingActor = run(cwd, [
+        "review",
+        "merge-check",
+        "--pr",
+        "12",
+        "--repo",
+        "Ancienttwo/agentic-dev",
+        "--github-fixture",
+        fixture,
+        "--review-evidence",
+        evidence,
+        "--authorization",
+        authorization,
+        "--json",
+      ]);
+      expect(missingActor.status).toBe(3);
+      expect(JSON.parse(missingActor.stdout).decision).toBe("ready_but_not_authorized");
+
+      writeFileSync(authorization, JSON.stringify({
+        schema_version: 1,
+        authorized: true,
+        repo: "Ancienttwo/agentic-dev",
+        pr: 12,
+        head_sha: head,
+        actor: "reviewer",
+        authorized_at: "2026-06-21T00:00:00.000Z",
+        expires_at: "2020-01-01T00:00:00.000Z",
+      }));
+      const expired = run(cwd, [
+        "review",
+        "merge-check",
+        "--pr",
+        "12",
+        "--repo",
+        "Ancienttwo/agentic-dev",
+        "--github-fixture",
+        fixture,
+        "--review-evidence",
+        evidence,
+        "--authorization",
+        authorization,
+        "--json",
+      ]);
+      expect(expired.status).toBe(3);
+      expect(JSON.parse(expired.stdout).merge_allowed).toBe(false);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -332,6 +412,85 @@ process.exit(1);
         args.includes("owner=Ancienttwo") &&
         args.includes("name=agentic-dev")
       ))).toBe(true);
+      expect(calls.some((args: string[]) => args[0] === "pr" && args[1] === "merge")).toBe(false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("blocks when PR head changes during live merge-check", () => {
+    const { cwd, head } = tmpRepo("merge-check-toctou");
+    try {
+      const bin = join(cwd, "bin");
+      mkdirSync(bin, { recursive: true });
+      const log = join(cwd, "gh-calls.jsonl");
+      const gh = join(bin, "gh");
+      const nextHead = "1111111111111111111111111111111111111111";
+      writeFileSync(gh, `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.GH_CALL_LOG, JSON.stringify(args) + "\\n");
+if (args[0] === "pr" && args[1] === "view") {
+  const calls = fs.readFileSync(process.env.GH_CALL_LOG, "utf8")
+    .trim()
+    .split("\\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line))
+    .filter((entry) => entry[0] === "pr" && entry[1] === "view").length;
+  console.log(JSON.stringify({
+    url: "https://github.com/Ancienttwo/agentic-dev/pull/12",
+    headRefOid: calls === 1 ? process.env.MERGE_CHECK_HEAD : process.env.MERGE_CHECK_NEXT_HEAD,
+    mergeStateStatus: "CLEAN",
+    isDraft: false,
+    statusCheckRollup: [{ conclusion: "SUCCESS", status: "COMPLETED" }],
+  }));
+  process.exit(0);
+}
+if (args[0] === "api" && args[1] === "graphql") {
+  console.log(JSON.stringify({
+    repository: {
+      pullRequest: {
+        reviewThreads: {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }));
+  process.exit(0);
+}
+process.exit(1);
+`);
+      chmodSync(gh, 0o755);
+      const evidence = join(cwd, "review.json");
+      writeFileSync(evidence, JSON.stringify({
+        schema_version: 1,
+        independent_review: "passed",
+        reviewer_lane_id: "reviewer-api",
+        worker_lane_id: "worker-api",
+        reviewed_head_sha: head,
+      }));
+
+      const res = run(cwd, [
+        "review",
+        "merge-check",
+        "--pr",
+        "12",
+        "--review-evidence",
+        evidence,
+        "--json",
+      ], {
+        GH_CALL_LOG: log,
+        MERGE_CHECK_HEAD: head,
+        MERGE_CHECK_NEXT_HEAD: nextHead,
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+      });
+
+      expect(res.status).toBe(2);
+      const report = JSON.parse(res.stdout);
+      expect(report.decision).toBe("blocked_head_mismatch");
+      expect(report.final_head_sha).toBe(nextHead);
+      expect(report.blockers.join("\n")).toContain("PR head changed");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

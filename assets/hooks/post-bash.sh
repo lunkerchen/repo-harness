@@ -46,6 +46,17 @@ TOOL_OUTPUT="${1:-${TOOL_OUTPUT:-}}"
 EXIT_CODE="${2:-${EXIT_CODE:-}}"
 COMMAND_TEXT="$(hook_json_get '.tool_input.command' '')"
 
+post_bash_record_lane_shell_scope() {
+  local output status
+  [[ -n "$COMMAND_TEXT" ]] || return 0
+  set +e
+  output="$(workflow_hook_entry lane-record-shell "$COMMAND_TEXT" 2>&1)"
+  status=$?
+  set -e
+  [[ "$status" -eq 0 && -n "$output" ]] && printf '%s\n' "$output"
+  return 0
+}
+
 if [[ -z "$TOOL_OUTPUT" ]]; then
   post_bash_set_tool_output_from_stdin || TOOL_OUTPUT="$(hook_json_get '.tool_output' '')"
 fi
@@ -129,6 +140,7 @@ failure_signal=false
 if post_bash_failure_signal "$TOOL_OUTPUT"; then
   failure_signal=true
 fi
+post_bash_record_lane_shell_scope
 rtk_available=false
 if command -v rtk >/dev/null 2>&1; then
   rtk_available=true

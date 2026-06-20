@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { isHighContextLanePath } from './lane-decision';
@@ -30,6 +31,8 @@ interface SubagentSpec {
   readonly reviewed_lane_id?: string;
   readonly worker_lane_id?: string;
 }
+
+const FULL_SHA = /^[0-9a-f]{40}$/;
 
 function parseJson(raw: string): Record<string, unknown> {
   if (!raw.trim()) return {};
@@ -69,6 +72,31 @@ function listValue(value: unknown): readonly string[] {
 
 function normalizeEvidenceKey(key: string): string {
   return key.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function currentHead(cwd = process.cwd()): string {
+  try {
+    return execFileSync('git', ['-C', cwd, 'rev-parse', 'HEAD'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function runtimeIdentity(input: Record<string, unknown>, fallback: string): string {
+  return firstString(input, ['subagent_id', 'agent_id', 'task_id', 'thread_id', 'name']) ||
+    process.env.CODEX_AGENT_ID ||
+    process.env.CLAUDE_AGENT_ID ||
+    fallback;
+}
+
+function parentIdentity(input: Record<string, unknown>): string {
+  return firstString(input, ['parent_agent_id', 'parent_run_id', 'run_id', 'session_id', 'transcript_path']) ||
+    process.env.CODEX_SESSION_ID ||
+    process.env.CLAUDE_SESSION_ID ||
+    '';
 }
 
 function parseInlineFields(text: string): Record<string, unknown> {
@@ -159,11 +187,17 @@ function validateSubagentSpec(report: LaneStatusReport, spec: SubagentSpec, prom
   }
   if (lane.role === 'reviewer') {
     const reviewedLane = spec.reviewed_lane_id || spec.worker_lane_id;
+    if (!reviewedLane) {
+      return `[LaneSubagentGuard] reviewer lane ${lane.id} must name the worker lane under review`;
+    }
     if (reviewedLane === lane.id) {
       return `[LaneSubagentGuard] reviewer lane ${lane.id} cannot review itself`;
     }
     if (!spec.reviewed_head_sha) {
       return `[LaneSubagentGuard] reviewer lane ${lane.id} must name the worker reviewed_head_sha`;
+    }
+    if (!FULL_SHA.test(spec.reviewed_head_sha)) {
+      return `[LaneSubagentGuard] reviewer lane ${lane.id} must use a full lowercase reviewed_head_sha`;
     }
   }
   for (const scope of spec.write_scopes) {
@@ -189,6 +223,7 @@ function laneContractText(report: LaneStatusReport, spec: SubagentSpec): string 
     '[repo-harness:lane-contract]',
     'An active lane contract exists. Spawned subagents must keep their final report structured.',
     'Include: lane_id, role, target, write_scope, forbidden_scope, expected_output, required_evidence.',
+    'Evidence schema_version: 1.',
   ];
   if (lane) {
     lines.push(
@@ -197,6 +232,7 @@ function laneContractText(report: LaneStatusReport, spec: SubagentSpec): string 
       `Writable: ${(lane.write_scopes ?? []).join(', ') || '(read-only)'}`,
       `Forbidden: ${(lane.forbidden_scopes ?? []).join(', ') || '(none)'}`,
       `Required evidence: ${(lane.required_evidence ?? []).join(', ') || '(contract default)'}`,
+      `Implementation head SHA: ${currentHead() || '(unknown)'}`,
     );
     if (lane.role === 'reviewer') {
       lines.push('Reviewer requirement: cite the worker reviewed_head_sha and do not review your own worker lane.');
@@ -300,6 +336,8 @@ export function runSubagentStartContextCli(stdin: string): HookCliResult {
     // Context injection remains useful without delegation state.
   }
   const status = laneStatus(process.cwd());
+  const head = currentHead(process.cwd());
+  const parent = parentIdentity(input);
   const lane = status.contract && status.current_lane
     ? status.contract.lanes.find((entry) => entry.id === status.current_lane?.lane_id)
     : undefined;
@@ -312,6 +350,9 @@ export function runSubagentStartContextCli(stdin: string): HookCliResult {
     `- Writable: ${(lane.write_scopes ?? []).join(', ') || '(read-only)'}`,
     `- Forbidden: ${(lane.forbidden_scopes ?? []).join(', ') || '(none)'}`,
     `- Required evidence: ${(lane.required_evidence ?? []).join(', ') || '(contract default)'}`,
+    '- Evidence schema_version: 1',
+    `- Implementation head SHA: ${head || '(unknown)'}`,
+    `- Parent identity: ${parent || '(unknown)'}`,
     ...(lane.role === 'reviewer' ? ['- Reviewer evidence must include reviewed_head_sha for the worker head under review.'] : []),
   ] : [];
   const context = [
@@ -433,10 +474,34 @@ export function runSubagentStopQualityCli(stdin: string): HookCliResult {
         : undefined;
     if (lane) {
       const reviewedLane = firstString(evidence, ['reviewed_lane_id', 'reviewer_for', 'worker_lane_id']);
-      if (lane.role === 'reviewer' && reviewedLane === lane.id) {
-        return blockOnce(input, `[SubagentEvidenceGate] Reviewer lane ${lane.id} cannot review itself.`);
+      if (lane.role === 'reviewer') {
+        if (!reviewedLane) {
+          return blockOnce(input, `[SubagentEvidenceGate] Reviewer lane ${lane.id} must name the worker lane under review.`);
+        }
+        if (reviewedLane === lane.id) {
+          return blockOnce(input, `[SubagentEvidenceGate] Reviewer lane ${lane.id} cannot review itself.`);
+        }
+        if (!runtimeIdentity(input, '')) {
+          return blockOnce(input, `[SubagentEvidenceGate] Reviewer lane ${lane.id} is missing runtime reviewer identity.`);
+        }
       }
-      const merged = mergeLaneEvidence(lane.id, evidence);
+      const runtimeEvidence: Record<string, unknown> = {
+        ...evidence,
+        schema_version: 1,
+        lane_id: lane.id,
+        role: lane.role,
+        completed_at: new Date().toISOString(),
+        evidence_source: 'SubagentStop',
+      };
+      if (lane.role === 'reviewer') {
+        runtimeEvidence.reviewer_lane_id = lane.id;
+        runtimeEvidence.worker_lane_id = reviewedLane;
+        runtimeEvidence.reviewer_id = runtimeIdentity(input, lane.id);
+      } else {
+        runtimeEvidence.implementer_lane_id = lane.id;
+        runtimeEvidence.implementer_id = runtimeIdentity(input, lane.id);
+      }
+      const merged = mergeLaneEvidence(lane.id, runtimeEvidence);
       if ((merged.missing?.length ?? 0) > 0) {
         return blockOnce(
           input,

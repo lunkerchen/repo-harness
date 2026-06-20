@@ -7,6 +7,7 @@ import {
   formatLaneStopDecision,
   normalizeGateMode,
   recordLaneEdit,
+  recordLaneShellCommand,
   type LaneGateMode,
 } from "../../core/lanes/state";
 
@@ -97,6 +98,24 @@ export function runLaneRecordEditCli(argv: readonly string[]): LaneHookCliResult
     recordLaneEdit(target, { highContext: isHighContextLanePath });
   } catch {
     // PostEdit state capture is advisory; never break the edit path.
+  }
+  return { stdout: "", stderr: "", exitCode: 0 };
+}
+
+export function runLaneRecordShellCli(argv: readonly string[]): LaneHookCliResult {
+  const command = argv[0];
+  if (!command) return { stdout: "", stderr: "", exitCode: 0 };
+  try {
+    const result = recordLaneShellCommand(command, { highContext: isHighContextLanePath });
+    if (result.status === "recorded" && result.unauthorized) {
+      return {
+        stdout: `[LaneScopeGuard] Recorded unauthorized shell write for lane ${result.lane_id}: ${(result.targets ?? []).join(", ") || "opaque shell command"}\n`,
+        stderr: "",
+        exitCode: 0,
+      };
+    }
+  } catch {
+    // Post-Bash lane state capture is advisory; never break the Bash hook path.
   }
   return { stdout: "", stderr: "", exitCode: 0 };
 }

@@ -137,9 +137,12 @@ function ghGithubData(pr: number, repo: string | undefined): MergeCheckGithubDat
   } else {
     errors.push('GitHub repository slug is unavailable for review thread query');
   }
+  const finalPrView = ghJson(repo ? [...baseArgs, '--repo', repo] : baseArgs);
+  if (!finalPrView) errors.push('final PR head fetch failed');
   return {
     url: typeof prView.url === 'string' ? prView.url : undefined,
     head_sha: typeof prView.headRefOid === 'string' ? prView.headRefOid : undefined,
+    final_head_sha: typeof finalPrView?.headRefOid === 'string' ? finalPrView.headRefOid : undefined,
     merge_state: typeof prView.mergeStateStatus === 'string' ? prView.mergeStateStatus.toLowerCase() : undefined,
     is_draft: typeof prView.isDraft === 'boolean' ? prView.isDraft : undefined,
     checks: checksFromRollup(prView.statusCheckRollup),

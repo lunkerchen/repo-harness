@@ -135,6 +135,14 @@ describe("subagent lane contracts", () => {
         },
       });
       expect(JSON.parse(reviewerSelf.stdout).hookSpecificOutput.permissionDecisionReason).toContain("cannot review itself");
+
+      const reviewerShortHead = runHook("subagent-return-channel-guard.sh", cwd, {
+        tool_name: "Task",
+        tool_input: {
+          prompt: "lane_id: reviewer-api\nrole: reviewer\nreviewer_for: worker-api\nreviewed_head_sha: abc123\nreview the worker output",
+        },
+      });
+      expect(JSON.parse(reviewerShortHead.stdout).hookSpecificOutput.permissionDecisionReason).toContain("full lowercase");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -153,6 +161,9 @@ describe("subagent lane contracts", () => {
       const startOutput = JSON.parse(start.stdout);
       expect(startOutput.hookSpecificOutput.additionalContext).toContain("Lane: reviewer-api");
       expect(startOutput.hookSpecificOutput.additionalContext).toContain("reviewed_head_sha");
+      expect(startOutput.hookSpecificOutput.additionalContext).toContain("Evidence schema_version: 1");
+      expect(startOutput.hookSpecificOutput.additionalContext).toContain(`Implementation head SHA: ${head}`);
+      expect(startOutput.hookSpecificOutput.additionalContext).toContain("Parent identity: s1");
 
       const missingEvidence = runHook("subagent-stop-quality.sh", cwd, {
         session_id: "s1",
@@ -188,7 +199,12 @@ describe("subagent lane contracts", () => {
       });
       expect(completeEvidence.stdout).toBe("");
       const state = JSON.parse(readFileSync(join(cwd, ".ai/harness/runs/demo-run/lane-state.json"), "utf-8"));
+      expect(state.lanes["reviewer-api"].evidence.schema_version).toBe(1);
       expect(state.lanes["reviewer-api"].evidence.reviewed_head_sha).toBe(head);
+      expect(state.lanes["reviewer-api"].evidence.reviewer_lane_id).toBe("reviewer-api");
+      expect(state.lanes["reviewer-api"].evidence.worker_lane_id).toBe("worker-api");
+      expect(state.lanes["reviewer-api"].evidence.reviewer_id).toBe("reviewer-api-2");
+      expect(state.lanes["reviewer-api"].evidence.evidence_source).toBe("SubagentStop");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

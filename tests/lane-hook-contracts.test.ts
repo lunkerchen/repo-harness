@@ -90,6 +90,26 @@ function runHook(
   });
 }
 
+function runHookPayload(
+  script: string,
+  cwd: string,
+  payload: Record<string, unknown>,
+  env?: Record<string, string>,
+) {
+  return spawnSync("bash", [join(cwd, ".ai/hooks", script)], {
+    cwd,
+    input: JSON.stringify(payload),
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      REPO_HARNESS_CLI: CLI,
+      REPO_HARNESS_HOOK_CLI: HOOK_ENTRY,
+      REPO_HARNESS_EDIT_PLAN_GATE: "off",
+      ...(env ?? {}),
+    },
+  });
+}
+
 function cli(cwd: string, args: string[]) {
   return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: "utf-8" });
 }
@@ -172,6 +192,45 @@ describe("lane hook contracts", () => {
       const afterClose = runHook("stop-orchestrator.sh", cwd, undefined, { HOOK_HOST: "codex" });
       expect(afterClose.status).toBe(0);
       expect(afterClose.stdout).toBe("");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("PostBash records shell write bypasses and Stop blocks unauthorized lane state", () => {
+    const cwd = tmpWorkspace("lane-hook-shell-bypass");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeLaneContract(cwd);
+      expect(cli(cwd, ["lanes", "activate", "tasks/contracts/demo.lanes.json", "--json"]).status).toBe(0);
+      expect(cli(cwd, ["lanes", "bind", "worker-api", "--json"]).status).toBe(0);
+
+      const post = runHookPayload("post-bash.sh", cwd, {
+        tool_input: { command: "printf x | tee src/ui/button.ts" },
+        tool_output: "x\n",
+        exit_code: 0,
+      });
+      expect(post.status).toBe(0);
+      expect(post.stdout).toContain("Recorded unauthorized shell write");
+
+      const state = JSON.parse(readFileSync(join(cwd, ".ai/harness/runs/demo-run/lane-state.json"), "utf-8"));
+      expect(state.lanes["worker-api"].touched_files).toContain("src/ui/button.ts");
+      expect(state.lanes["worker-api"].unauthorized_changes).toContain("src/ui/button.ts");
+
+      const stop = runHook("stop-orchestrator.sh", cwd, undefined, {
+        HOOK_HOST: "codex",
+        REPO_HARNESS_LANE_CLOSURE_GATE: "enforce",
+      });
+      expect(stop.status).toBe(0);
+      const decision = JSON.parse(stop.stdout);
+      expect(decision.decision).toBe("block");
+      expect(decision.reason).toContain("unauthorized changes");
+
+      writeFileSync(join(cwd, "lane-evidence.json"), JSON.stringify({ commands_run: ["bun test"] }, null, 2));
+      const close = cli(cwd, ["lanes", "close", "worker-api", "--evidence", "lane-evidence.json", "--json"]);
+      expect(close.status).toBe(1);
+      expect(JSON.parse(close.stdout).error).toContain("unauthorized changes");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
