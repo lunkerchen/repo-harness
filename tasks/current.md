@@ -1,27 +1,27 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-21T03:42:59+0800 -->
+<!-- updated_at: 2026-06-21T04:09:30+0800 -->
 <!-- stale_after: 24h -->
 
-> **Status**: Active
-> **Updated At**: 2026-06-21T03:42:59+0800
+> **Status**: ManualClearedWithActiveWork
+> **Updated At**: 2026-06-21T04:09:30+0800
 > **Source Branch**: codex/lane-runtime-pr4-pr5
-> **Source Commit**: 03caa19
+> **Source Commit**: e59f403
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: lane-runtime-followup-pr3-pr4-pr5
+> **Reason**: ensure-task-workflow
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
 
 ## Current Focus
 
-- Status: Active
+- Status: ManualClearedWithActiveWork
 - Active Plan: (none)
 - Plan Status: (none)
 - Next Task: inspect active worktree marker(s)
-- Clear Note: (none)
+- Clear Note: Manual clear requested, but active work markers still exist. Idle was not written.
 
 ## Mainline Snapshot Reading
 
@@ -49,22 +49,14 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 13 changed/untracked path(s)
+- Summary: 5 changed/untracked path(s)
 
 ```
- M .ai/hooks/post-bash.sh
- M assets/hooks/post-bash.sh
  M src/cli/commands/review.ts
- M src/cli/hook-entry.ts
- M src/cli/hook/lane-decision.ts
- M src/cli/hook/subagent-lane.ts
- M src/core/lanes/state.ts
  M src/core/review/merge-check.ts
  M tasks/current.md
+ M tasks/reviews/20260621-lane-runtime-followup.audit.md
  M tests/cli/review-merge-check.test.ts
- M tests/lane-hook-contracts.test.ts
- M tests/subagent-lane-contracts.test.ts
- M tests/unit/lane-state.test.ts
 ```
 
 ## Source Artifacts

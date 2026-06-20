@@ -13,6 +13,8 @@ export type MergeCheckDecision =
   | 'blocked_merge_state'
   | 'blocked_independent_review'
   | 'unknown';
+export type MergeCheckCheckState = 'passed' | 'failed' | 'pending' | 'unknown';
+export type MergeCheckRequiredCheckState = MergeCheckCheckState | 'missing';
 
 export interface MergeCheckReviewEvidence {
   readonly schema_version?: number;
@@ -28,7 +30,15 @@ export interface MergeCheckGithubData {
   readonly head_sha?: string;
   readonly merge_state?: string;
   readonly is_draft?: boolean;
-  readonly checks?: 'passed' | 'failed' | 'pending' | 'unknown';
+  readonly checks?: MergeCheckCheckState;
+  readonly required_checks?: {
+    readonly complete?: boolean;
+    readonly contexts?: readonly string[];
+    readonly statuses?: Readonly<Record<string, MergeCheckRequiredCheckState>>;
+    readonly missing?: readonly string[];
+    readonly source?: string;
+    readonly errors?: readonly string[];
+  };
   readonly unresolved_actionable_threads?: number;
   readonly unresolved_actionable_thread_ids?: readonly string[];
   readonly review_threads_complete?: boolean;
@@ -59,7 +69,16 @@ export interface MergeCheckReport {
   readonly head_sha?: string;
   readonly final_head_sha?: string;
   readonly merge_state: string;
-  readonly checks: 'passed' | 'failed' | 'pending' | 'unknown';
+  readonly checks: MergeCheckCheckState;
+  readonly required_checks: {
+    readonly state: MergeCheckRequiredCheckState;
+    readonly complete: boolean;
+    readonly contexts: readonly string[];
+    readonly statuses: Readonly<Record<string, MergeCheckRequiredCheckState>>;
+    readonly missing: readonly string[];
+    readonly source?: string;
+    readonly errors: readonly string[];
+  };
   readonly review_threads: {
     readonly unresolved_actionable: number | null;
     readonly unresolved_actionable_ids: readonly string[];
@@ -176,11 +195,65 @@ function authorizationPassed(
   return true;
 }
 
+function normalizedCheckState(value: unknown): MergeCheckRequiredCheckState {
+  return value === 'passed' || value === 'failed' || value === 'pending' || value === 'missing' || value === 'unknown'
+    ? value
+    : 'unknown';
+}
+
+function uniqueStrings(values: readonly string[] | undefined): string[] {
+  return Array.from(new Set((values ?? []).map((entry) => entry.trim()).filter(Boolean))).sort();
+}
+
+function requiredCheckEvidence(data: MergeCheckGithubData | undefined): MergeCheckReport['required_checks'] {
+  const evidence = data?.required_checks;
+  const contexts = uniqueStrings(evidence?.contexts);
+  const sourceStatuses = evidence?.statuses ?? {};
+  const statuses: Record<string, MergeCheckRequiredCheckState> = {};
+  const missing = new Set(uniqueStrings(evidence?.missing));
+  const errors = uniqueStrings(evidence?.errors);
+  const complete = evidence?.complete === true && errors.length === 0;
+
+  for (const context of contexts) {
+    const state = normalizedCheckState(sourceStatuses[context]);
+    statuses[context] = state;
+    if (state === 'missing') missing.add(context);
+  }
+
+  let state: MergeCheckRequiredCheckState = 'unknown';
+  if (complete) {
+    if (contexts.length === 0) {
+      state = 'passed';
+    } else if (Array.from(missing).length > 0) {
+      state = 'missing';
+    } else if (contexts.some((context) => statuses[context] === 'failed')) {
+      state = 'failed';
+    } else if (contexts.some((context) => statuses[context] === 'pending')) {
+      state = 'pending';
+    } else if (contexts.some((context) => statuses[context] === 'unknown')) {
+      state = 'unknown';
+    } else {
+      state = 'passed';
+    }
+  }
+
+  return {
+    state,
+    complete,
+    contexts,
+    statuses,
+    missing: Array.from(missing).sort(),
+    source: typeof evidence?.source === 'string' && evidence.source.trim() ? evidence.source.trim() : undefined,
+    errors,
+  };
+}
+
 function githubComplete(data: MergeCheckGithubData | undefined): boolean {
+  const requiredChecks = requiredCheckEvidence(data);
   return Boolean(
     data?.head_sha &&
     data.merge_state &&
-    data.checks &&
+    requiredChecks.complete &&
     typeof data.unresolved_actionable_threads === 'number' &&
     data.review_threads_complete !== false &&
     (!data.errors || data.errors.length === 0),
@@ -201,7 +274,14 @@ function decide(report: Omit<MergeCheckReport, 'decision' | 'blockers'>): { deci
   if (report.merge_state && !['clean', 'CLEAN', 'has_hooks', 'HAS_HOOKS'].includes(report.merge_state)) {
     blockers.push(`merge state is ${report.merge_state}`);
   }
-  if (report.checks !== 'passed') blockers.push(`checks are ${report.checks}`);
+  if (!report.required_checks.complete) {
+    blockers.push('required check evidence is incomplete');
+  } else if (report.required_checks.state !== 'passed') {
+    const suffix = report.required_checks.missing.length > 0
+      ? ` (${report.required_checks.missing.join(', ')})`
+      : '';
+    blockers.push(`required checks are ${report.required_checks.state}${suffix}`);
+  }
   if (!report.review_threads.complete) {
     blockers.push('review thread evidence is incomplete');
   } else if ((report.review_threads.unresolved_actionable ?? 0) > 0) {
@@ -215,7 +295,7 @@ function decide(report: Omit<MergeCheckReport, 'decision' | 'blockers'>): { deci
   if (blockers.some((entry) => entry.includes('incomplete') || entry.startsWith('truth level'))) {
     return { decision: 'evidence_incomplete', blockers };
   }
-  if (blockers.some((entry) => entry.startsWith('checks'))) return { decision: 'blocked_checks', blockers };
+  if (blockers.some((entry) => entry.startsWith('required checks'))) return { decision: 'blocked_checks', blockers };
   if (blockers.some((entry) => entry.includes('review thread'))) return { decision: 'blocked_review_threads', blockers };
   if (blockers.some((entry) => entry.startsWith('merge state'))) return { decision: 'blocked_merge_state', blockers };
   if (blockers.some((entry) => entry.startsWith('independent reviewer'))) return { decision: 'blocked_independent_review', blockers };
@@ -246,6 +326,7 @@ export function runMergeCheck(options: RunMergeCheckOptions): MergeCheckReport {
   const threadEvidenceComplete = typeof data.unresolved_actionable_threads === 'number'
     && data.review_threads_complete !== false
     && (!data.errors || data.errors.length === 0);
+  const requiredChecks = requiredCheckEvidence(data);
   const truthLevel: MergeCheckTruthLevel = githubComplete(data)
     ? fetch.ok
       ? 'A'
@@ -267,6 +348,7 @@ export function runMergeCheck(options: RunMergeCheckOptions): MergeCheckReport {
     final_head_sha: data.final_head_sha,
     merge_state: data.is_draft === true ? 'draft' : data.merge_state ?? 'unknown',
     checks: data.checks ?? 'unknown',
+    required_checks: requiredChecks,
     review_threads: {
       unresolved_actionable: typeof data.unresolved_actionable_threads === 'number'
         ? data.unresolved_actionable_threads
@@ -278,7 +360,7 @@ export function runMergeCheck(options: RunMergeCheckOptions): MergeCheckReport {
     evidence_complete: Boolean(
       isFullSha(data.head_sha) &&
       data.merge_state &&
-      data.checks &&
+      requiredChecks.complete &&
       threadEvidenceComplete,
     ),
     independent_review: independentReview,
@@ -309,6 +391,7 @@ export function formatMergeCheck(report: MergeCheckReport, asJson = false): stri
     `PR: ${report.repo ? `${report.repo}#${report.pr}` : `#${report.pr}`}`,
     `Head: ${report.head_sha ?? '(unknown)'}`,
     `Checks: ${report.checks}`,
+    `Required checks: ${report.required_checks.state}`,
     `Review threads unresolved: ${report.review_threads.unresolved_actionable ?? 'unknown'}`,
     `Independent review: ${report.independent_review}`,
     `Merge authorized: ${report.merge_authorized ? 'yes' : 'no'}`,

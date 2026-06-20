@@ -24,6 +24,28 @@ function run(cwd: string, args: string[], env?: NodeJS.ProcessEnv) {
   return spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: "utf-8", env: env ? { ...process.env, ...env } : process.env });
 }
 
+function requiredChecksFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    complete: true,
+    contexts: ["required-ci"],
+    statuses: { "required-ci": "passed" },
+    source: "fixture",
+    ...overrides,
+  };
+}
+
+function githubFixture(head: string, overrides: Record<string, unknown> = {}) {
+  return {
+    head_sha: head,
+    merge_state: "clean",
+    checks: "passed",
+    required_checks: requiredChecksFixture(),
+    unresolved_actionable_threads: 0,
+    review_threads_complete: true,
+    ...overrides,
+  };
+}
+
 describe("review merge-check CLI", () => {
   test("allows merge only with complete evidence and head-bound authorization", () => {
     const { cwd, head } = tmpRepo("merge-check-ready");
@@ -31,13 +53,7 @@ describe("review merge-check CLI", () => {
       const fixture = join(cwd, "github.json");
       const evidence = join(cwd, "review.json");
       const authorization = join(cwd, "authorization.json");
-      writeFileSync(fixture, JSON.stringify({
-        head_sha: head,
-        merge_state: "clean",
-        checks: "passed",
-        unresolved_actionable_threads: 0,
-        review_threads_complete: true,
-      }));
+      writeFileSync(fixture, JSON.stringify(githubFixture(head)));
       writeFileSync(evidence, JSON.stringify({
         schema_version: 1,
         independent_review: "passed",
@@ -86,13 +102,7 @@ describe("review merge-check CLI", () => {
     try {
       const fixture = join(cwd, "github.json");
       const evidence = join(cwd, "review.json");
-      writeFileSync(fixture, JSON.stringify({
-        head_sha: head,
-        merge_state: "clean",
-        checks: "passed",
-        unresolved_actionable_threads: 0,
-        review_threads_complete: true,
-      }));
+      writeFileSync(fixture, JSON.stringify(githubFixture(head)));
       writeFileSync(evidence, JSON.stringify({
         schema_version: 1,
         independent_review: "passed",
@@ -128,13 +138,7 @@ describe("review merge-check CLI", () => {
       const fixture = join(cwd, "github.json");
       const evidence = join(cwd, "review.json");
       const authorization = join(cwd, "authorization.json");
-      writeFileSync(fixture, JSON.stringify({
-        head_sha: head,
-        merge_state: "clean",
-        checks: "passed",
-        unresolved_actionable_threads: 0,
-        review_threads_complete: true,
-      }));
+      writeFileSync(fixture, JSON.stringify(githubFixture(head)));
       writeFileSync(evidence, JSON.stringify({
         schema_version: 1,
         independent_review: "passed",
@@ -205,13 +209,7 @@ describe("review merge-check CLI", () => {
     const { cwd, head } = tmpRepo("merge-check-blocked");
     try {
       const fixture = join(cwd, "github.json");
-      writeFileSync(fixture, JSON.stringify({
-        head_sha: head,
-        merge_state: "clean",
-        checks: "passed",
-        unresolved_actionable_threads: 0,
-        review_threads_complete: true,
-      }));
+      writeFileSync(fixture, JSON.stringify(githubFixture(head)));
       const missingReview = run(cwd, [
         "review",
         "merge-check",
@@ -228,13 +226,7 @@ describe("review merge-check CLI", () => {
 
       const staleFixture = join(cwd, "github-stale.json");
       const evidence = join(cwd, "review.json");
-      writeFileSync(staleFixture, JSON.stringify({
-        head_sha: "0000000000000000000000000000000000000000",
-        merge_state: "clean",
-        checks: "passed",
-        unresolved_actionable_threads: 0,
-        review_threads_complete: true,
-      }));
+      writeFileSync(staleFixture, JSON.stringify(githubFixture("0000000000000000000000000000000000000000")));
       writeFileSync(evidence, JSON.stringify({
         schema_version: 1,
         independent_review: "passed",
@@ -271,6 +263,7 @@ describe("review merge-check CLI", () => {
         head_sha: head,
         merge_state: "clean",
         checks: "passed",
+        required_checks: requiredChecksFixture(),
       }));
       writeFileSync(evidence, JSON.stringify({
         schema_version: 1,
@@ -295,13 +288,7 @@ describe("review merge-check CLI", () => {
       expect(incompleteThreads.status).toBe(4);
       expect(JSON.parse(incompleteThreads.stdout).decision).toBe("evidence_incomplete");
 
-      writeFileSync(fixture, JSON.stringify({
-        head_sha: head,
-        merge_state: "clean",
-        checks: "passed",
-        unresolved_actionable_threads: 0,
-        review_threads_complete: true,
-      }));
+      writeFileSync(fixture, JSON.stringify(githubFixture(head)));
       writeFileSync(evidence, JSON.stringify({
         schema_version: 1,
         independent_review: "passed",
@@ -326,6 +313,116 @@ describe("review merge-check CLI", () => {
     }
   });
 
+  test("requires complete required-check evidence", () => {
+    const { cwd, head } = tmpRepo("merge-check-required-evidence");
+    try {
+      const fixture = join(cwd, "github.json");
+      const evidence = join(cwd, "review.json");
+      writeFileSync(fixture, JSON.stringify({
+        head_sha: head,
+        merge_state: "clean",
+        checks: "passed",
+        unresolved_actionable_threads: 0,
+        review_threads_complete: true,
+      }));
+      writeFileSync(evidence, JSON.stringify({
+        schema_version: 1,
+        independent_review: "passed",
+        reviewer_lane_id: "reviewer-api",
+        worker_lane_id: "worker-api",
+        reviewed_head_sha: head,
+      }));
+
+      const res = run(cwd, [
+        "review",
+        "merge-check",
+        "--pr",
+        "12",
+        "--repo",
+        "Ancienttwo/agentic-dev",
+        "--github-fixture",
+        fixture,
+        "--review-evidence",
+        evidence,
+        "--json",
+      ]);
+      expect(res.status).toBe(4);
+      const report = JSON.parse(res.stdout);
+      expect(report.decision).toBe("evidence_incomplete");
+      expect(report.required_checks.complete).toBe(false);
+      expect(report.blockers.join("\n")).toContain("required check evidence is incomplete");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("gates required checks without treating optional failures as blockers", () => {
+    const { cwd, head } = tmpRepo("merge-check-required-statuses");
+    try {
+      const fixture = join(cwd, "github.json");
+      const evidence = join(cwd, "review.json");
+      writeFileSync(evidence, JSON.stringify({
+        schema_version: 1,
+        independent_review: "passed",
+        reviewer_lane_id: "reviewer-api",
+        worker_lane_id: "worker-api",
+        reviewed_head_sha: head,
+      }));
+
+      writeFileSync(fixture, JSON.stringify(githubFixture(head, {
+        checks: "failed",
+        required_checks: requiredChecksFixture(),
+      })));
+      const optionalFailure = run(cwd, [
+        "review",
+        "merge-check",
+        "--pr",
+        "12",
+        "--repo",
+        "Ancienttwo/agentic-dev",
+        "--github-fixture",
+        fixture,
+        "--review-evidence",
+        evidence,
+        "--json",
+      ]);
+      expect(optionalFailure.status).toBe(3);
+      const optionalReport = JSON.parse(optionalFailure.stdout);
+      expect(optionalReport.checks).toBe("failed");
+      expect(optionalReport.required_checks.state).toBe("passed");
+      expect(optionalReport.decision).toBe("ready_but_not_authorized");
+
+      writeFileSync(fixture, JSON.stringify(githubFixture(head, {
+        checks: "passed",
+        required_checks: requiredChecksFixture({
+          contexts: ["missing-ci", "required-ci"],
+          statuses: { "required-ci": "passed", "missing-ci": "missing" },
+          missing: ["missing-ci"],
+        }),
+      })));
+      const missingRequired = run(cwd, [
+        "review",
+        "merge-check",
+        "--pr",
+        "12",
+        "--repo",
+        "Ancienttwo/agentic-dev",
+        "--github-fixture",
+        fixture,
+        "--review-evidence",
+        evidence,
+        "--json",
+      ]);
+      expect(missingRequired.status).toBe(2);
+      const missingReport = JSON.parse(missingRequired.stdout);
+      expect(missingReport.decision).toBe("blocked_checks");
+      expect(missingReport.required_checks.state).toBe("missing");
+      expect(missingReport.required_checks.missing).toEqual(["missing-ci"]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("infers repo slug for live gh review thread checks", () => {
     const { cwd, head } = tmpRepo("merge-check-gh");
     try {
@@ -340,15 +437,36 @@ fs.appendFileSync(process.env.GH_CALL_LOG, JSON.stringify(args) + "\\n");
 if (args[0] === "pr" && args[1] === "view") {
   console.log(JSON.stringify({
     url: "https://github.com/Ancienttwo/agentic-dev/pull/12",
-    headRefOid: process.env.MERGE_CHECK_HEAD,
-    mergeStateStatus: "CLEAN",
-    isDraft: false,
-    statusCheckRollup: [{ conclusion: "SUCCESS", status: "COMPLETED" }],
-  }));
-  process.exit(0);
-}
-if (args[0] === "api" && args[1] === "graphql") {
-  const cursorArg = args.find((arg) => arg.startsWith("cursor="));
+	    headRefOid: process.env.MERGE_CHECK_HEAD,
+	    baseRefName: "main",
+	    mergeStateStatus: "CLEAN",
+	    isDraft: false,
+	    statusCheckRollup: [{ context: "required-ci", state: "SUCCESS" }],
+	  }));
+	  process.exit(0);
+	}
+	if (args[0] === "api" && args[1] === "/repos/Ancienttwo/agentic-dev/rules/branches/main?per_page=100") {
+	  console.log(JSON.stringify([
+	    { type: "required_status_checks", parameters: { required_status_checks: [{ context: "required-ci" }] } },
+	  ]));
+	  process.exit(0);
+	}
+	if (args[0] === "api" && args[1] === "graphql") {
+	  const queryArg = args.find((arg) => arg.startsWith("query=")) || "";
+	  if (queryArg.includes("branchProtectionRule")) {
+	    console.log(JSON.stringify({
+	      repository: {
+	        ref: {
+	          branchProtectionRule: {
+	            requiredStatusCheckContexts: ["required-ci"],
+	            requiredStatusChecks: [],
+	          },
+	        },
+	      },
+	    }));
+	    process.exit(0);
+	  }
+	  const cursorArg = args.find((arg) => arg.startsWith("cursor="));
   if (!cursorArg) {
     console.log(JSON.stringify({
       repository: {
@@ -403,12 +521,24 @@ process.exit(1);
       expect(res.status).toBe(3);
       const report = JSON.parse(res.stdout);
       expect(report.repo).toBe("Ancienttwo/agentic-dev");
+      expect(report.required_checks.state).toBe("passed");
       expect(report.review_threads.unresolved_actionable).toBe(0);
       expect(report.review_threads.complete).toBe(true);
       const calls = readFileSync(log, "utf-8").trim().split("\n").map((line) => JSON.parse(line));
       expect(calls.some((args: string[]) => (
         args[0] === "api" &&
         args[1] === "graphql" &&
+        args.some((arg) => typeof arg === "string" && arg.includes("branchProtectionRule")) &&
+        args.includes("qualifiedName=main")
+      ))).toBe(true);
+      expect(calls.some((args: string[]) => (
+        args[0] === "api" &&
+        args[1] === "/repos/Ancienttwo/agentic-dev/rules/branches/main?per_page=100"
+      ))).toBe(true);
+      expect(calls.some((args: string[]) => (
+        args[0] === "api" &&
+        args[1] === "graphql" &&
+        args.some((arg) => typeof arg === "string" && arg.includes("reviewThreads")) &&
         args.includes("owner=Ancienttwo") &&
         args.includes("name=agentic-dev")
       ))).toBe(true);
@@ -438,16 +568,37 @@ if (args[0] === "pr" && args[1] === "view") {
     .map((line) => JSON.parse(line))
     .filter((entry) => entry[0] === "pr" && entry[1] === "view").length;
   console.log(JSON.stringify({
-    url: "https://github.com/Ancienttwo/agentic-dev/pull/12",
-    headRefOid: calls === 1 ? process.env.MERGE_CHECK_HEAD : process.env.MERGE_CHECK_NEXT_HEAD,
-    mergeStateStatus: "CLEAN",
-    isDraft: false,
-    statusCheckRollup: [{ conclusion: "SUCCESS", status: "COMPLETED" }],
-  }));
-  process.exit(0);
-}
-if (args[0] === "api" && args[1] === "graphql") {
-  console.log(JSON.stringify({
+	    url: "https://github.com/Ancienttwo/agentic-dev/pull/12",
+	    headRefOid: calls === 1 ? process.env.MERGE_CHECK_HEAD : process.env.MERGE_CHECK_NEXT_HEAD,
+	    baseRefName: "main",
+	    mergeStateStatus: "CLEAN",
+	    isDraft: false,
+	    statusCheckRollup: [{ context: "required-ci", state: "SUCCESS" }],
+	  }));
+	  process.exit(0);
+	}
+	if (args[0] === "api" && args[1] === "/repos/Ancienttwo/agentic-dev/rules/branches/main?per_page=100") {
+	  console.log(JSON.stringify([
+	    { type: "required_status_checks", parameters: { required_status_checks: [{ context: "required-ci" }] } },
+	  ]));
+	  process.exit(0);
+	}
+	if (args[0] === "api" && args[1] === "graphql") {
+	  const queryArg = args.find((arg) => arg.startsWith("query=")) || "";
+	  if (queryArg.includes("branchProtectionRule")) {
+	    console.log(JSON.stringify({
+	      repository: {
+	        ref: {
+	          branchProtectionRule: {
+	            requiredStatusCheckContexts: ["required-ci"],
+	            requiredStatusChecks: [],
+	          },
+	        },
+	      },
+	    }));
+	    process.exit(0);
+	  }
+	  console.log(JSON.stringify({
     repository: {
       pullRequest: {
         reviewThreads: {
