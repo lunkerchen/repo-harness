@@ -1,5 +1,5 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-import { spawnSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import {
   cpSync,
   existsSync,
@@ -62,6 +62,27 @@ function runHook(
   });
 }
 
+function runHookAsync(script: string, cwd: string, stdin: string): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn("bash", [join(cwd, ".ai/hooks", script)], {
+      cwd,
+      env: {
+        ...process.env,
+        REPO_HARNESS_CLI: CLI,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf-8");
+    child.stderr.setEncoding("utf-8");
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("close", (status) => resolve({ status, stdout, stderr }));
+    child.stdin.end(stdin);
+  });
+}
+
 function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(file, "utf-8")) as T;
 }
@@ -111,6 +132,37 @@ describe("context hook contracts", () => {
         path: "package.json",
         reason: "command_source_changed",
       });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("PostEdit dirty markers merge concurrent high-context triggers", async () => {
+    const cwd = tmpWorkspace("context-hook-post-edit-concurrent");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+
+      const inputs = [
+        "package.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".ai/context/context-map.json",
+      ].map((file_path) => JSON.stringify({ tool_input: { file_path } }));
+
+      const results = await Promise.all(inputs.map((stdin) => runHookAsync("post-edit-guard.sh", cwd, stdin)));
+      expect(results.every((result) => result.status === 0)).toBe(true);
+
+      const dirty = readJson<{
+        status: string;
+        triggers: Array<{ path: string; reason: string }>;
+      }>(join(cwd, ".ai/harness/context-health/dirty.json"));
+      expect(dirty.status).toBe("dirty");
+      const paths = dirty.triggers.map((trigger) => trigger.path);
+      expect(paths).toContain("package.json");
+      expect(paths).toContain("AGENTS.md");
+      expect(paths).toContain("CLAUDE.md");
+      expect(paths).toContain(".ai/context/context-map.json");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

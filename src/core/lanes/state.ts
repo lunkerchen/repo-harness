@@ -5,6 +5,7 @@ import {
   realpathSync,
   readFileSync,
   renameSync,
+  rmSync,
   writeFileSync,
 } from "fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
@@ -173,6 +174,30 @@ function writeJsonAtomic(file: string, value: unknown): void {
   renameSync(tmp, file);
 }
 
+function sleepMs(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function withFileLock<T>(file: string, fn: () => T): T {
+  const lockDir = `${file}.lock`;
+  mkdirSync(dirname(file), { recursive: true });
+  for (let attempt = 0; attempt < 250; attempt += 1) {
+    try {
+      mkdirSync(lockDir);
+      try {
+        return fn();
+      } finally {
+        rmSync(lockDir, { recursive: true, force: true });
+      }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") throw error;
+      sleepMs(10);
+    }
+  }
+  throw new Error(`timed out acquiring lock: ${lockDir}`);
+}
+
 function repoRelativeFile(repoRoot: string, file: string): string {
   const absolute = isAbsolute(file) ? resolve(file) : resolve(repoRoot, file);
   const rel = relative(repoRoot, absolute).replace(/\\/g, "/");
@@ -229,6 +254,22 @@ function writeLaneRuntimeState(repoRoot: string, state: LaneRuntimeState): void 
   const file = laneStatePaths(repoRoot, state.run_id).laneStateFile;
   if (!file) throw new Error("missing lane state path");
   writeJsonAtomic(file, state);
+}
+
+function mutateLaneRuntimeState<T>(
+  repoRoot: string,
+  runId: string,
+  initial: () => LaneRuntimeState,
+  mutator: (runtime: LaneRuntimeState) => { state: LaneRuntimeState; result: T },
+): T {
+  const file = laneStatePaths(repoRoot, runId).laneStateFile;
+  if (!file) throw new Error("missing lane state path");
+  return withFileLock(file, () => {
+    const runtime = readJsonFile<LaneRuntimeState>(file) ?? initial();
+    const { state, result } = mutator(runtime);
+    writeLaneRuntimeState(repoRoot, state);
+    return result;
+  });
 }
 
 function loadActiveContract(repoRoot: string): {
@@ -406,35 +447,44 @@ export function closeLane(
   const repoRoot = resolveRepoRoot(options.cwd ?? process.cwd());
   const { active, contract } = loadActiveContract(repoRoot);
   if (!active || !contract) throw new Error("no active lane run");
-  if (!contract.lanes.some((lane) => lane.id === laneId)) throw new Error(`unknown lane id: ${laneId}`);
+  const lane = contract.lanes.find((entry) => entry.id === laneId);
+  if (!lane) throw new Error(`unknown lane id: ${laneId}`);
 
-  const runtime = readLaneRuntimeState(repoRoot, active.run_id) ?? initialRuntimeState(contract, active.contract_file);
-  const laneState = runtime.lanes[laneId] ?? {
-    status: "ready",
-    touched_files: [],
-    unauthorized_changes: [],
-    evidence: {},
-  };
-  const evidence = options.evidenceFile
-    ? { ...laneState.evidence, ...evidenceFromFile(repoRoot, options.evidenceFile) }
-    : laneState.evidence;
-  const closedAt = nowIso();
-  const nextLanes: Record<string, LaneRuntimeEntry> = {
-    ...runtime.lanes,
-    [laneId]: {
+  const nextLanes = mutateLaneRuntimeState(repoRoot, active.run_id, () => initialRuntimeState(contract, active.contract_file), (runtime) => {
+    const laneState = runtime.lanes[laneId] ?? {
+      status: "ready",
+      touched_files: [],
+      unauthorized_changes: [],
+      evidence: {},
+    };
+    const evidence = options.evidenceFile
+      ? { ...laneState.evidence, ...evidenceFromFile(repoRoot, options.evidenceFile) }
+      : laneState.evidence;
+    const closedAt = nowIso();
+    const nextEntry: LaneRuntimeEntry = {
       ...laneState,
       status: "closed",
       evidence,
       updated_at: closedAt,
       closed_at: closedAt,
-    },
-  };
-  const nextRuntime: LaneRuntimeState = {
-    ...runtime,
-    updated_at: closedAt,
-    lanes: nextLanes,
-  };
-  writeLaneRuntimeState(repoRoot, nextRuntime);
+    };
+    const missing = missingEvidence({ ...lane, required_evidence: effectiveRequiredEvidence(lane) }, nextEntry, repoRoot);
+    if (missing.length > 0) {
+      throw new Error(`lane ${laneId} is missing closure evidence: ${missing.join(", ")}`);
+    }
+    const lanes: Record<string, LaneRuntimeEntry> = {
+      ...runtime.lanes,
+      [laneId]: nextEntry,
+    };
+    return {
+      state: {
+        ...runtime,
+        updated_at: closedAt,
+        lanes,
+      },
+      result: lanes,
+    };
+  });
 
   if (contract.lanes.every((lane) => nextLanes[lane.id]?.status === "closed")) {
     const closed: ActiveLaneRun = { ...active, status: "closed" };
@@ -466,7 +516,17 @@ function missingEvidence(lane: LaneDefinition, entry: LaneRuntimeEntry | undefin
       continue;
     }
     if (field === "head_sha") {
-      if (evidence[field] === undefined && !currentHead(cwd)) missing.push(field);
+      const value = evidence[field];
+      if (value === undefined) {
+        if (!currentHead(cwd)) missing.push(field);
+      } else if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) {
+        missing.push(field);
+      }
+      continue;
+    }
+    if (field === "reviewed_head_sha") {
+      const value = evidence[field];
+      if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) missing.push(field);
       continue;
     }
     if (evidence[field] === undefined || evidence[field] === null || evidence[field] === "") {
@@ -645,32 +705,33 @@ export function recordLaneEdit(
 
   const decision = decideLaneEdit(target.path, { cwd, mode: "enforce", highContext: options.highContext });
   const unauthorized = decision.action === "block";
-  const runtime = context.runtime ?? initialRuntimeState(context.contract, context.active.contract_file);
-  const current = runtime.lanes[lane.id] ?? {
-    status: "active",
-    touched_files: [],
-    unauthorized_changes: [],
-    evidence: {},
-  };
-  const touched = new Set(current.touched_files);
-  touched.add(target.path);
-  const unauthorizedChanges = new Set(current.unauthorized_changes);
-  if (unauthorized) unauthorizedChanges.add(target.path);
-  const nextRuntime: LaneRuntimeState = {
-    ...runtime,
-    updated_at: nowIso(),
-    lanes: {
-      ...runtime.lanes,
-      [lane.id]: {
-        ...current,
-        status: current.status === "closed" ? "closed" : "active",
-        touched_files: [...touched].sort(),
-        unauthorized_changes: [...unauthorizedChanges].sort(),
-        updated_at: nowIso(),
+  mutateLaneRuntimeState(context.repoRoot, context.active.run_id, () => initialRuntimeState(context.contract!, context.active!.contract_file), (runtime) => {
+    const current = runtime.lanes[lane.id] ?? {
+      status: "active",
+      touched_files: [],
+      unauthorized_changes: [],
+      evidence: {},
+    };
+    const touched = new Set(current.touched_files);
+    touched.add(target.path);
+    const unauthorizedChanges = new Set(current.unauthorized_changes);
+    if (unauthorized) unauthorizedChanges.add(target.path);
+    const nextRuntime: LaneRuntimeState = {
+      ...runtime,
+      updated_at: nowIso(),
+      lanes: {
+        ...runtime.lanes,
+        [lane.id]: {
+          ...current,
+          status: current.status === "closed" ? "closed" : "active",
+          touched_files: [...touched].sort(),
+          unauthorized_changes: [...unauthorizedChanges].sort(),
+          updated_at: nowIso(),
+        },
       },
-    },
-  };
-  writeLaneRuntimeState(context.repoRoot, nextRuntime);
+    };
+    return { state: nextRuntime, result: undefined };
+  });
   return {
     schema_version: 1,
     status: "recorded",
@@ -694,33 +755,36 @@ export function mergeLaneEvidence(
     return { schema_version: 1, status: "skipped", reason: `unknown lane id: ${laneId}` };
   }
 
-  const runtime = context.runtime ?? initialRuntimeState(context.contract, context.active.contract_file);
-  const current = runtime.lanes[laneId] ?? {
-    status: "ready",
-    touched_files: [],
-    unauthorized_changes: [],
-    evidence: {},
-  };
-  const nextEntry: LaneRuntimeEntry = {
-    ...current,
-    evidence: { ...current.evidence, ...evidence },
-    updated_at: nowIso(),
-  };
-  const nextRuntime: LaneRuntimeState = {
-    ...runtime,
-    updated_at: nowIso(),
-    lanes: {
-      ...runtime.lanes,
-      [laneId]: nextEntry,
-    },
-  };
-  writeLaneRuntimeState(context.repoRoot, nextRuntime);
-  return {
-    schema_version: 1,
-    status: "recorded",
-    lane_id: laneId,
-    missing: missingEvidence({ ...lane, required_evidence: effectiveRequiredEvidence(lane) }, nextEntry, cwd),
-  };
+  return mutateLaneRuntimeState(context.repoRoot, context.active.run_id, () => initialRuntimeState(context.contract!, context.active!.contract_file), (runtime) => {
+    const current = runtime.lanes[laneId] ?? {
+      status: "ready",
+      touched_files: [],
+      unauthorized_changes: [],
+      evidence: {},
+    };
+    const nextEntry: LaneRuntimeEntry = {
+      ...current,
+      evidence: { ...current.evidence, ...evidence },
+      updated_at: nowIso(),
+    };
+    const nextRuntime: LaneRuntimeState = {
+      ...runtime,
+      updated_at: nowIso(),
+      lanes: {
+        ...runtime.lanes,
+        [laneId]: nextEntry,
+      },
+    };
+    return {
+      state: nextRuntime,
+      result: {
+        schema_version: 1,
+        status: "recorded",
+        lane_id: laneId,
+        missing: missingEvidence({ ...lane, required_evidence: effectiveRequiredEvidence(lane) }, nextEntry, cwd),
+      },
+    };
+  });
 }
 
 export function laneEvidenceStatus(
@@ -772,7 +836,7 @@ export function decideLaneStop(options: { cwd?: string; mode?: LaneGateMode } = 
   if (entry?.status === "closed") {
     return { schema_version: 1, action: "allow", guard: "LaneEvidenceGate", mode, lane_id: lane.id };
   }
-  const missing = missingEvidence(lane, entry, cwd);
+  const missing = missingEvidence({ ...lane, required_evidence: effectiveRequiredEvidence(lane) }, entry, cwd);
   if (missing.length === 0) {
     return { schema_version: 1, action: "allow", guard: "LaneEvidenceGate", mode, lane_id: lane.id };
   }

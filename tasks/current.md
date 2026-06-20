@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-21T02:14:09+0800 -->
+<!-- updated_at: 2026-06-21T03:04:22+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Active
-> **Updated At**: 2026-06-21T02:14:09+0800
+> **Updated At**: 2026-06-21T03:04:22+0800
 > **Source Branch**: codex/lane-runtime-pr4-pr5
-> **Source Commit**: e60a1d6
+> **Source Commit**: 5a8bd64
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: lane-runtime-pr4-pr5-push
+> **Reason**: lane-runtime-followup
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -49,49 +49,25 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 41 changed/untracked path(s)
+- Summary: 16 changed/untracked path(s)
 
 ```
  M .ai/hooks/lib/workflow-state.sh
- M .ai/hooks/post-edit-guard.sh
- M .ai/hooks/pre-edit-guard.sh
- M .ai/hooks/session-start-context.sh
- M .ai/hooks/stop-orchestrator.sh
- M .ai/hooks/subagent-return-channel-guard.sh
- M .ai/hooks/subagent-start-context.sh
- M .ai/hooks/subagent-stop-quality.sh
- M .gitignore
  M assets/hooks/lib/workflow-state.sh
- M assets/hooks/post-edit-guard.sh
- M assets/hooks/pre-edit-guard.sh
- M assets/hooks/session-start-context.sh
- M assets/hooks/stop-orchestrator.sh
- M assets/hooks/subagent-return-channel-guard.sh
- M assets/hooks/subagent-start-context.sh
- M assets/hooks/subagent-stop-quality.sh
- M src/cli/hook-entry.ts
- M src/cli/index.ts
+ M src/cli/commands/review.ts
+ M src/core/context-audit/report.ts
+ M src/core/context-audit/static-checks.ts
+ M src/core/lanes/state.ts
+ M src/core/review/merge-check.ts
  M tasks/current.md
-?? .ai/harness/context-health/
-?? .ai/harness/orchestration/
-?? "docs/researches/20260620-repo-harness hook runtime lane report.md"
-?? plans/sprints/20260620-lane-sprint.md
-?? src/cli/commands/context.ts
-?? src/cli/commands/lanes.ts
-?? src/cli/commands/review.ts
-?? src/cli/hook/lane-decision.ts
-?? src/cli/hook/subagent-lane.ts
-?? src/core/context-audit/
-?? src/core/lanes/
-?? src/core/review/
-?? tests/cli/context-lanes.test.ts
-?? tests/cli/review-merge-check.test.ts
-?? tests/context-hook-contracts.test.ts
-?? tests/lane-hook-contracts.test.ts
-?? tests/subagent-lane-contracts.test.ts
-?? tests/unit/context-audit-static.test.ts
-?? tests/unit/lane-ownership-resolver.test.ts
-?? tests/unit/lane-schema.test.ts
+ M tests/cli/context-lanes.test.ts
+ M tests/cli/review-merge-check.test.ts
+ M tests/context-hook-contracts.test.ts
+ M tests/unit/context-audit-static.test.ts
+ M tests/unit/lane-state.test.ts
+?? plans/sprints/20260621-lane-runtime-followup.sprint.md
+?? "tasks/reviews/20260621-lane runtime sprint.review.md"
+?? tasks/reviews/20260621-lane-runtime-followup.audit.md
 ```
 
 ## Source Artifacts

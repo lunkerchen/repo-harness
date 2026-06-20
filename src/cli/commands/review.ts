@@ -46,41 +46,96 @@ function ghJson(args: readonly string[]): Record<string, unknown> | undefined {
 }
 
 function inferRepoFromOrigin(): string | undefined {
+  for (const remoteName of ['origin', 'upstream']) {
+    try {
+      const remote = execFileSync('git', ['remote', 'get-url', remoteName], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }).trim();
+      const slug = inferRepoSlug(remote);
+      if (slug) return slug;
+    } catch {
+      // Try the next remote source.
+    }
+  }
   try {
-    const remote = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
+    const remotes = execFileSync('git', ['remote', '-v'], {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-    return inferRepoSlug(remote);
+    });
+    for (const line of remotes.split('\n')) {
+      const slug = inferRepoSlug(line);
+      if (slug) return slug;
+    }
   } catch {
     return undefined;
   }
+  return undefined;
 }
 
 function ghGithubData(pr: number, repo: string | undefined): MergeCheckGithubData | undefined {
   const baseArgs = ['pr', 'view', String(pr), '--json', 'url,headRefOid,mergeStateStatus,isDraft,statusCheckRollup'];
   const prView = ghJson(repo ? [...baseArgs, '--repo', repo] : baseArgs);
   if (!prView) return undefined;
+  const prRepo = repo ?? (typeof prView.url === 'string' ? inferRepoSlug(prView.url) : undefined);
   let unresolved: number | undefined;
-  if (repo?.includes('/')) {
-    const [owner, name] = repo.split('/');
-    const query = 'query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}}}}}';
-    const threadData = ghJson([
-      'api',
-      'graphql',
-      '-f',
-      `query=${query}`,
-      '-F',
-      `owner=${owner}`,
-      '-F',
-      `name=${name}`,
-      '-F',
-      `number=${pr}`,
-    ]);
-    const nodes = (((threadData?.repository as Record<string, unknown> | undefined)?.pullRequest as Record<string, unknown> | undefined)?.reviewThreads as Record<string, unknown> | undefined)?.nodes;
-    if (Array.isArray(nodes)) {
-      unresolved = nodes.filter((node) => (node as { isResolved?: unknown }).isResolved !== true).length;
+  const unresolvedIds: string[] = [];
+  let reviewThreadsComplete = false;
+  const errors: string[] = [];
+  if (prRepo?.includes('/')) {
+    const [owner, name] = prRepo.split('/');
+    const query = 'query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){nodes{id isResolved} pageInfo{hasNextPage endCursor}}}}}';
+    let cursor: string | undefined;
+    unresolved = 0;
+    for (let page = 0; page < 50; page += 1) {
+      const args = [
+        'api',
+        'graphql',
+        '-f',
+        `query=${query}`,
+        '-F',
+        `owner=${owner}`,
+        '-F',
+        `name=${name}`,
+        '-F',
+        `number=${pr}`,
+      ];
+      if (cursor) args.push('-F', `cursor=${cursor}`);
+      const threadData = ghJson(args);
+      const rawErrors = (threadData as { errors?: unknown } | undefined)?.errors;
+      if (!threadData || (Array.isArray(rawErrors) && rawErrors.length > 0)) {
+        errors.push('review thread GraphQL query failed');
+        unresolved = undefined;
+        break;
+      }
+      const threads = (((threadData.repository as Record<string, unknown> | undefined)?.pullRequest as Record<string, unknown> | undefined)?.reviewThreads as Record<string, unknown> | undefined);
+      const nodes = threads?.nodes;
+      const pageInfo = threads?.pageInfo as { hasNextPage?: unknown; endCursor?: unknown } | undefined;
+      if (!Array.isArray(nodes) || !pageInfo || typeof pageInfo.hasNextPage !== 'boolean') {
+        errors.push('review thread GraphQL response is incomplete');
+        unresolved = undefined;
+        break;
+      }
+      for (const node of nodes) {
+        const entry = node as { id?: unknown; isResolved?: unknown };
+        if (entry.isResolved !== true) {
+          unresolved += 1;
+          if (typeof entry.id === 'string') unresolvedIds.push(entry.id);
+        }
+      }
+      if (pageInfo.hasNextPage !== true) {
+        reviewThreadsComplete = true;
+        break;
+      }
+      if (typeof pageInfo.endCursor !== 'string' || pageInfo.endCursor.trim() === '') {
+        errors.push('review thread pagination cursor is missing');
+        unresolved = undefined;
+        break;
+      }
+      cursor = pageInfo.endCursor;
     }
+  } else {
+    errors.push('GitHub repository slug is unavailable for review thread query');
   }
   return {
     url: typeof prView.url === 'string' ? prView.url : undefined,
@@ -89,6 +144,9 @@ function ghGithubData(pr: number, repo: string | undefined): MergeCheckGithubDat
     is_draft: typeof prView.isDraft === 'boolean' ? prView.isDraft : undefined,
     checks: checksFromRollup(prView.statusCheckRollup),
     unresolved_actionable_threads: unresolved,
+    unresolved_actionable_thread_ids: unresolvedIds,
+    review_threads_complete: reviewThreadsComplete,
+    errors,
   };
 }
 
@@ -102,7 +160,8 @@ export function buildReviewCommand(): Command {
     .requiredOption('--pr <number>', 'Pull request number')
     .option('--repo <owner/name>', 'GitHub repository slug; defaults to origin when possible')
     .option('--review-evidence <file>', 'Independent reviewer evidence JSON')
-    .option('--authorized', 'Record explicit merge authorization in the decision report')
+    .option('--authorization <file>', 'Head-bound merge authorization JSON')
+    .option('--authorized', 'Legacy explicit authorization marker; does not allow merge without --authorization')
     .option('--no-fetch', 'Skip git fetch --prune')
     .option('--github-fixture <file>', 'Read GitHub PR evidence from a local JSON fixture')
     .option('--json', 'Output JSON instead of human-readable text')
@@ -110,6 +169,7 @@ export function buildReviewCommand(): Command {
       pr: string;
       repo?: string;
       reviewEvidence?: string;
+      authorization?: string;
       authorized?: boolean;
       fetch?: boolean;
       githubFixture?: string;
@@ -128,17 +188,21 @@ export function buildReviewCommand(): Command {
           repo,
           fetch: rawOpts.fetch !== false,
           authorized: rawOpts.authorized === true,
+          authorizationFile: rawOpts.authorization,
           reviewEvidenceFile: rawOpts.reviewEvidence,
           githubData: fixture ?? ghGithubData(pr, repo),
         });
         console.log(formatMergeCheck(report, rawOpts.json === true));
-        process.exit(report.decision === 'ready' || report.decision === 'ready_but_not_authorized' ? 0 : 1);
+        if (report.merge_allowed) process.exit(0);
+        if (report.decision === 'ready_but_not_authorized') process.exit(3);
+        if (report.decision === 'evidence_incomplete') process.exit(4);
+        process.exit(2);
       } catch (error) {
         const message = (error as Error).message;
         console.log(rawOpts.json === true
           ? JSON.stringify({ schema_version: 1, status: 'fail', error: message }, null, 2)
           : `Merge check failed: ${message}`);
-        process.exit(1);
+        process.exit(5);
       }
     });
 

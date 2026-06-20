@@ -8,6 +8,7 @@ import {
   type ContextAuditFinding,
   type ContextAuditReport,
   resolveRepoRoot,
+  stablePathIdentity,
   writeContextAuditState,
 } from "./report";
 
@@ -267,6 +268,8 @@ export function runContextAudit(opts: RunContextAuditOptions = {}): ContextAudit
     schema_version: 1,
     generated_at: new Date().toISOString(),
     repo_root: repoRoot,
+    repo_identity: stablePathIdentity(repoRoot),
+    worktree_identity: stablePathIdentity(repoRoot),
     head_sha: currentHead(repoRoot),
     mode: opts.mode ?? "static",
     status,

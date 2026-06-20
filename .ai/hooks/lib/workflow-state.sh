@@ -139,6 +139,28 @@ const path = require("path");
 const file = process.env.CONTEXT_DIRTY_FILE;
 const changedPath = process.env.CONTEXT_CHANGED_PATH;
 const reason = process.env.CONTEXT_DIRTY_REASON;
+const lockDir = `${file}.lock`;
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+function acquireLock() {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  for (let attempt = 0; attempt < 250; attempt += 1) {
+    try {
+      fs.mkdirSync(lockDir);
+      return;
+    } catch (error) {
+      if (error && error.code === "EEXIST") {
+        sleep(10);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error(`timed out acquiring lock: ${lockDir}`);
+}
+acquireLock();
+try {
 let current = {};
 try {
   current = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -166,6 +188,9 @@ fs.mkdirSync(path.dirname(file), { recursive: true });
 const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
 fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, "utf8");
 fs.renameSync(tmp, file);
+} finally {
+  fs.rmSync(lockDir, { recursive: true, force: true });
+}
 '
     if command -v node >/dev/null 2>&1; then
       CONTEXT_DIRTY_FILE="$dirty_file" CONTEXT_CHANGED_PATH="$path" CONTEXT_DIRTY_REASON="$reason" node -e "$js" >/dev/null 2>&1 && return 0

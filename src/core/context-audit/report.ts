@@ -1,6 +1,7 @@
 import { execFileSync } from "child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "fs";
 import { dirname, join, resolve } from "path";
+import { fingerprintFiles } from "./fingerprint";
 
 export type ContextAuditStatus = "ok" | "warn" | "fail";
 export type ContextAuditSeverity = "warn" | "fail";
@@ -17,6 +18,8 @@ export interface ContextAuditReport {
   readonly schema_version: 1;
   readonly generated_at: string;
   readonly repo_root: string;
+  readonly repo_identity: string;
+  readonly worktree_identity: string;
   readonly head_sha?: string;
   readonly mode: "static" | "changed";
   readonly status: ContextAuditStatus;
@@ -54,7 +57,14 @@ export interface ContextStatusReport {
     readonly exists: boolean;
     readonly status?: ContextAuditStatus;
     readonly head_sha?: string;
+    readonly fingerprint?: string;
     readonly generated_at?: string;
+  };
+  readonly cache: {
+    readonly state: "hit" | "miss" | "stale" | "invalid";
+    readonly reason: string;
+    readonly latest_fingerprint?: string;
+    readonly current_fingerprint?: string;
   };
   readonly dirty?: {
     readonly exists: boolean;
@@ -90,9 +100,21 @@ export function currentHead(repoRoot: string): string | undefined {
   }
 }
 
+export function stablePathIdentity(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
 export function readJsonFile<T>(file: string): T | undefined {
   if (!existsSync(file)) return undefined;
-  return JSON.parse(readFileSync(file, "utf-8")) as T;
+  try {
+    return JSON.parse(readFileSync(file, "utf-8")) as T;
+  } catch {
+    return undefined;
+  }
 }
 
 export function writeJsonAtomic(file: string, value: unknown): void {
@@ -128,14 +150,43 @@ export function runContextStatus(cwd: string = process.cwd()): ContextStatusRepo
   const latest = readJsonFile<ContextAuditReport>(latestFile);
   const dirty = readJsonFile<ContextDirtyState>(dirtyFile);
   const head = currentHead(repoRoot);
+  const repoIdentity = stablePathIdentity(repoRoot);
+  let cache: ContextStatusReport["cache"] = { state: "miss", reason: "latest audit cache is missing" };
 
   let status: ContextStatusReport["status"] = "unknown";
   if (latest) {
-    if (latest.status === "fail") status = "fail";
-    else if (latest.status === "warn") status = "warn";
-    else status = "clean";
+    if (
+      latest.schema_version !== 1 ||
+      latest.repo_root !== repoRoot ||
+      latest.repo_identity !== repoIdentity ||
+      !Array.isArray(latest.files_scanned) ||
+      !latest.fingerprint?.value
+    ) {
+      cache = { state: "invalid", reason: "latest audit cache does not match this repo or schema" };
+    } else {
+      const currentFingerprint = fingerprintFiles(repoRoot, latest.files_scanned.map((file) => file.path));
+      if (currentFingerprint.value !== latest.fingerprint.value) {
+        cache = {
+          state: "stale",
+          reason: "context file fingerprint changed since latest audit",
+          latest_fingerprint: latest.fingerprint.value,
+          current_fingerprint: currentFingerprint.value,
+        };
+      } else {
+        cache = {
+          state: "hit",
+          reason: "latest audit cache matches repo identity and context fingerprint",
+          latest_fingerprint: latest.fingerprint.value,
+          current_fingerprint: currentFingerprint.value,
+        };
+        if (latest.status === "fail") status = "fail";
+        else if (latest.status === "warn") status = "warn";
+        else status = "clean";
+      }
+    }
   }
   if (latest && head && latest.head_sha && latest.head_sha !== head) status = "stale";
+  if (cache.state === "stale" || cache.state === "invalid") status = "stale";
   if (dirty?.status === "dirty" && dirty.triggers.length > 0) status = "stale";
 
   return {
@@ -150,8 +201,10 @@ export function runContextStatus(cwd: string = process.cwd()): ContextStatusRepo
       exists: Boolean(latest),
       status: latest?.status,
       head_sha: latest?.head_sha,
+      fingerprint: latest?.fingerprint?.value,
       generated_at: latest?.generated_at,
     },
+    cache,
     dirty: {
       exists: Boolean(dirty),
       status: dirty?.status,

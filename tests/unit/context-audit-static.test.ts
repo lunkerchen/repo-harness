@@ -65,7 +65,32 @@ describe("context audit static checks", () => {
 
       const latest = JSON.parse(readFileSync(join(repo, ".ai/harness/context-health/latest.json"), "utf-8"));
       expect(latest.fingerprint.value).toBe(report.fingerprint.value);
-      expect(runContextStatus(repo).status).toBe("clean");
+      const status = runContextStatus(repo);
+      expect(status.status).toBe("clean");
+      expect(status.cache.state).toBe("hit");
+    });
+  });
+
+  test("marks cached status stale when audited files change under the same HEAD", () => {
+    withRepo((repo) => {
+      runContextAudit({ cwd: repo, writeState: true });
+      writeFileSync(join(repo, "AGENTS.md"), "# Agents\n\nchanged under same head\n");
+
+      const status = runContextStatus(repo);
+      expect(status.status).toBe("stale");
+      expect(status.cache.state).toBe("stale");
+      expect(status.cache.reason).toContain("fingerprint");
+    });
+  });
+
+  test("does not treat corrupt cache JSON as clean", () => {
+    withRepo((repo) => {
+      runContextAudit({ cwd: repo, writeState: true });
+      writeFileSync(join(repo, ".ai/harness/context-health/latest.json"), "{");
+
+      const status = runContextStatus(repo);
+      expect(status.status).toBe("unknown");
+      expect(status.cache.state).toBe("miss");
     });
   });
 

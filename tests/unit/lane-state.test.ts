@@ -80,4 +80,26 @@ describe("lane runtime state", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test("requires reviewer reviewed_head_sha on stop and close paths", () => {
+    const repo = tmpRepo();
+    try {
+      activateLaneContract("tasks/contracts/demo.lanes.json", repo);
+      bindLaneWorktree("reviewer", { cwd: repo, worktree: repo });
+
+      const stop = decideLaneStop({ cwd: repo, mode: "enforce" });
+      expect(stop.action).toBe("block");
+      expect(stop.missing).toContain("reviewed_head_sha");
+
+      writeFileSync(join(repo, "bad-review.json"), JSON.stringify({ findings: [] }, null, 2));
+      expect(() => closeLane("reviewer", { cwd: repo, evidenceFile: "bad-review.json" })).toThrow(/reviewed_head_sha/);
+
+      const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf-8" }).stdout.trim();
+      writeFileSync(join(repo, "review.json"), JSON.stringify({ reviewed_head_sha: head, findings: [] }, null, 2));
+      const closed = closeLane("reviewer", { cwd: repo, evidenceFile: "review.json" });
+      expect(closed.runtime?.lanes.reviewer.status).toBe("closed");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
