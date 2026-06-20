@@ -44,6 +44,7 @@ bun test tests/cli/route-registry.test.ts tests/hook-contracts.test.ts tests/hoo
 bun test tests/cli/route-registry.test.ts tests/hook-contracts.test.ts tests/hook-runtime.test.ts tests/hook-protocol.test.ts tests/cli/hook.test.ts tests/lane-hook-contracts.test.ts tests/subagent-lane-contracts.test.ts tests/cli/review-merge-check.test.ts tests/unit/lane-state.test.ts tests/unit/lane-ownership-resolver.test.ts tests/unit/lane-schema.test.ts
 bun test
 bun test tests/migration-script.test.ts
+for i in $(seq 1 20); do bash scripts/migrate-project-template.sh --repo . --dry-run >"/tmp/lane-migrate-dry-run-$i.log" || exit 1; done
 bun src/cli/index.ts context audit --static --write-state --json
 bun src/cli/index.ts context status --json
 bash scripts/check-deploy-sql-order.sh
@@ -66,6 +67,7 @@ Result:
 - Second hardening hook/lane/review suite: `201 pass / 0 fail`
 - Full `bun test`: `926 pass / 0 fail`
 - Migration suite: `28 pass / 0 fail`
+- Migration dry-run soak: `20/20 passed`
 - `context audit --static --write-state` plus `context status`: `status=clean`, cache `state=hit`
 - `check-deploy-sql-order`: passed
 - `check-architecture-sync`: advisory check passed with `blocking=0`
@@ -77,4 +79,3 @@ Result:
 ## Remaining Risk To Verify Before Merge
 
 - Shell writes are still observed through the existing `PostToolUse.bash` route because the source sprint forbids adding a new public `PreToolUse.Bash` tuple in this phase. The current fail-closed behavior is lane completion safety: unsafe shell writes become `unauthorized_changes` and block Stop/close. True pre-execution Bash blocking requires an explicitly approved public route-contract change.
-- The follow-up sprint requested repeated migration loops; this patch ran the required migration dry-run once after edits. Repeat-loop soak remains useful but was not required to make the current GitHub review branch visible.
