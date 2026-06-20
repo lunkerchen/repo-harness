@@ -312,6 +312,9 @@ describe("repo-harness action command skills", () => {
     expect(gptpro).toContain("chatgpt.serverName");
     expect(gptpro).toContain(".repo-harness/mcp.local.json");
     expect(gptpro).toContain("MCP Read Evidence");
+    expect(gptpro).toContain("Deep research");
+    expect(gptpro).toContain("GitHub repo evidence");
+    expect(gptpro).toContain("github_repo_evidence");
     expect(gptpro).toContain("right-side process pane");
     expect(gptpro).toContain("Called tool");
     expect(gptpro).toContain("sandbox/process flow");

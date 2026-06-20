@@ -4,6 +4,18 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Documented the GPT Pro MCP activation rule that the ChatGPT composer must have
+  **Deep research** enabled and the recorded Connector selected before treating a
+  Pro read-back run as MCP-capable.
+- Documented the parallel GitHub app repo-selection lane for GPT Pro reviews,
+  keeping GitHub-backed remote repo evidence distinct from local MCP read-back
+  evidence.
+- Allowed full-disk authorized MCP reads to resolve repo-like aliases such as
+  `my-app/` through `discover_harness_repos` instead of requiring GPT Pro to
+  know the exact local absolute path.
+
 ## [0.7.4] - 2026-06-20
 
 ### Added

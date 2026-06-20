@@ -1341,6 +1341,9 @@ describe('chatgpt browser command', () => {
     expect(gptproSkillText).toContain('--chatgpt-app "$serverName"');
     expect(gptproSkillText).toContain('.repo-harness/mcp.local.json');
     expect(gptproSkillText).toContain('MCP Read Evidence');
+    expect(gptproSkillText).toContain('Deep research');
+    expect(gptproSkillText).toContain('GitHub repo evidence');
+    expect(gptproSkillText).toContain('github_repo_evidence');
     expect(gptproSkillText).toContain('right-side process pane');
     expect(gptproSkillText).toContain('Called tool');
     expect(gptproSkillText).toContain('sandbox/process flow');

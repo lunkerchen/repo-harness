@@ -117,18 +117,30 @@ describe('mcp tools', () => {
   test('discovers adopted repos under full-disk authorization and reads a target repo', async () => {
     const scanRoot = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-discovery-'));
     const repoRoot = join(scanRoot, 'workspace', 'agentic-dev');
+    const sampleAppRoot = join(scanRoot, 'workspace', 'SampleApp');
     try {
       mkdirSync(join(repoRoot, '.ai/harness/handoff'), { recursive: true });
       mkdirSync(join(repoRoot, 'tasks'), { recursive: true });
       writeFileSync(join(repoRoot, '.ai/harness/policy.json'), '{}\n');
       writeFileSync(join(repoRoot, '.ai/harness/handoff/resume.md'), '# Resume\n\nready\n');
       writeFileSync(join(repoRoot, 'tasks/current.md'), 'status=Active\n');
+      mkdirSync(join(sampleAppRoot, '.ai/harness/handoff'), { recursive: true });
+      mkdirSync(join(sampleAppRoot, 'tasks'), { recursive: true });
+      writeFileSync(join(sampleAppRoot, '.ai/harness/policy.json'), '{}\n');
+      writeFileSync(join(sampleAppRoot, '.ai/harness/handoff/resume.md'), '# SampleApp Resume\n\nready\n');
+      writeFileSync(join(sampleAppRoot, 'tasks/current.md'), 'status=SampleApp\n');
 
       const fullDiskCtx = { repoRoot: scanRoot, policy: getMcpPolicy('planner', { fullDiskRead: true }) };
       expect(buildMcpToolDefinitions(fullDiskCtx.policy).some((tool) => tool.name === 'discover_harness_repos')).toBe(true);
 
       const discovered = await jsonTool(fullDiskCtx, 'discover_harness_repos', { roots: [scanRoot], max_depth: 4 });
       expect(discovered.repos.some((entry: { repoRoot: string }) => entry.repoRoot === repoRoot)).toBe(true);
+      expect(discovered.repos.some((entry: { repoRoot: string }) => entry.repoRoot === sampleAppRoot)).toBe(true);
+
+      const queried = await jsonTool(fullDiskCtx, 'discover_harness_repos', { roots: [scanRoot], query: 'sampleapp/', limit: 1 });
+      expect(queried.query).toBe('sampleapp');
+      expect(queried.repos).toHaveLength(1);
+      expect(queried.repos[0].repoRoot).toBe(sampleAppRoot);
 
       const status = await jsonTool(fullDiskCtx, 'harness_status');
       expect(status.repoRoot).toBe(scanRoot);
@@ -145,6 +157,9 @@ describe('mcp tools', () => {
 
       const current = await jsonTool(fullDiskCtx, 'read_workflow_file', { repo_path: repoRoot, path: 'tasks/current.md' });
       expect(current.content).toContain('status=Active');
+
+      const namedCurrent = await jsonTool(fullDiskCtx, 'read_workflow_file', { repo_path: 'sampleapp/', path: 'tasks/current.md' });
+      expect(namedCurrent.content).toContain('status=SampleApp');
 
       const absoluteCurrent = await jsonTool(fullDiskCtx, 'read_workflow_file', { path: join(repoRoot, 'tasks/current.md') });
       expect(absoluteCurrent.content).toContain('status=Active');

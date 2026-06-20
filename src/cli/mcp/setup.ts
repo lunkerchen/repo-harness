@@ -173,6 +173,16 @@ repo-harness mcp setup chatgpt --scope user --repo / --allow-full-disk-read --en
 repo-harness mcp serve --repo / --transport http --host 127.0.0.1 --port 8765 --profile planner
 \`\`\`
 
+In user-scope mode, ChatGPT should first call \`discover_harness_repos\` to find
+adopted repositories, then pass the selected \`repoRoot\` as \`repo_path\` to
+\`harness_status\`, \`latest_handoff\`, \`latest_checks\`, and other read tools. If
+the user gives a repo-like name such as \`my-app/\`, call
+\`discover_harness_repos\` with \`query: "my-app/"\` or pass \`repo_path:
+"my-app/"\`; full-disk authorized read tools resolve that name against
+discovered repo roots instead of requiring the exact \`<home>/Projects/...\` path. Read
+tools without \`repo_path\` report the configured server root; they do not
+auto-select a discovered repo.
+
 Health check:
 
 \`\`\`bash
@@ -331,8 +341,21 @@ repo-harness mcp prepare-goal --repo . --prd plans/prds/<feature>.prd.md --sprin
 ## Test Prompt
 
 \`\`\`text
-Use repo-harness to inspect this repo. Call harness_status, latest_handoff, and list_workflow_files. Do not write files.
+Use repo-harness to inspect my local development repos. First call discover_harness_repos with query set to the repo-like name the user gave, such as "my-app/". Pick the repoRoot that matches the user's target, then call harness_status, latest_handoff, and list_workflow_files with repo_path set to that repoRoot or the same repo-like name. Do not write files.
 \`\`\`
+
+For GPT Pro read-back in ChatGPT Web, treat the composer surface as part of the
+activation contract: start a fresh chat, enable **Deep research**, then select
+the recorded Connector chip in the composer. Selecting Pro Extended alone, or
+mentioning the Connector name in prompt text, does not reliably expose MCP tools
+to the Pro sandbox.
+
+ChatGPT can also expose a GitHub app surface in the same composer picker. For
+remote repository or PR review, enable **Deep research**, select GitHub, then
+select the exact \`<owner>/<repo>\` entry before submitting. Treat that as a
+GitHub-backed repo evidence lane, not as local MCP evidence: it can inspect the
+indexed GitHub repository, but it does not prove access to local uncommitted
+files, ignored operations state, or the repo-harness MCP sidecar.
 
 ## Connector Invocation Evidence
 
@@ -340,8 +363,15 @@ Treat Connector readiness as four independent checks:
 
 1. Endpoint: the sidecar and public HTTPS \`/mcp\` endpoint respond.
 2. Schema: ChatGPT Connector settings show the expected Action after Refresh.
-3. Selection: a fresh chat has the recorded Connector selected from \`+\` -> More.
+3. Selection: a fresh Pro chat has **Deep research** enabled and the recorded
+   Connector selected from \`+\` -> More.
 4. Invocation: the current model surface emits a real tool call.
+
+For GitHub-backed reviews, use a parallel evidence contract: **Deep research**
+enabled, GitHub selected, exact \`<owner>/<repo>\` selected, and the answer names
+the repo/PR/files it inspected. GitHub selection is acceptable evidence for
+remote repository state, but it is not a substitute for MCP invocation when the
+review must cover local workflow files or uncommitted changes.
 
 Only a visible \`Called tool\` event with the selected Action/result, or an
 equivalent captured tool-call transcript, proves MCP invocation. Connector
