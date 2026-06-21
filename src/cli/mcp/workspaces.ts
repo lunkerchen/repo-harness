@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'fs';
 import { basename, isAbsolute, relative, resolve, sep } from 'path';
 import { globMatches, isPathInside } from './paths';
+import { sensitiveAllowedRootReason } from './policy';
 import type { McpPolicy } from './types';
 
 export interface McpAllowedRoot {
@@ -136,6 +137,9 @@ export class WorkspaceManager {
   ensureAllowedRoot(path: string): McpAllowedRoot {
     const [root] = this.canonicalizeRoots([path]);
     if (!root) throw new WorkspaceError('ROOT_NOT_FOUND', 'allowed root is not readable', { path });
+    if (!root.readable || sensitiveAllowedRootReason(root.canonicalPath, this.policy.denyGlobs, path)) {
+      throw new WorkspaceError('ROOT_DENIED', 'allowed root is denied by MCP policy', { path });
+    }
     const existing = this.roots.find((entry) => entry.canonicalPath === root.canonicalPath);
     if (existing) return { ...existing };
     this.roots.push(root);
@@ -153,6 +157,9 @@ export class WorkspaceManager {
   openWorkspace(rootId: string, relativeSubpath = '.'): McpWorkspace {
     const root = this.roots.find((entry) => entry.id === rootId);
     if (!root) throw new WorkspaceError('ROOT_NOT_FOUND', 'allowed root is unknown', { root_id: rootId });
+    if (!root.readable || sensitiveAllowedRootReason(root.canonicalPath, this.policy.denyGlobs)) {
+      throw new WorkspaceError('ROOT_DENIED', 'allowed root is denied by MCP policy', { root_id: rootId });
+    }
 
     const relativePath = normalizeWorkspaceRelativePath(relativeSubpath);
     const candidate = relativePath === '.' ? root.canonicalPath : resolve(root.canonicalPath, relativePath);
@@ -208,6 +215,15 @@ export class WorkspaceManager {
         const canonicalPath = realpathSync(absoluteRoot);
         if (seen.has(canonicalPath)) continue;
         seen.add(canonicalPath);
+        if (sensitiveAllowedRootReason(canonicalPath, this.policy.denyGlobs, rawRoot)) {
+          roots.push({
+            id: rootIdFor(canonicalPath),
+            canonicalPath,
+            displayName: stableDisplayName(canonicalPath),
+            readable: false,
+          });
+          continue;
+        }
         this.ignoreRulesByRoot.set(canonicalPath, readIgnoreRules(canonicalPath));
         roots.push({
           id: rootIdFor(canonicalPath),
@@ -234,6 +250,9 @@ export class WorkspaceManager {
     options: { requireFile?: boolean; requireDirectory?: boolean },
     workspace?: McpWorkspace,
   ): WorkspaceResolvedPath {
+    if (sensitiveAllowedRootReason(root, this.policy.denyGlobs)) {
+      throw new WorkspaceError('ROOT_DENIED', 'allowed root is denied by MCP policy', { path: logicalRelativePath });
+    }
     if (logicalRelativePath !== '.' && anyDenyGlobMatches(this.policy.denyGlobs, logicalRelativePath)) {
       throw new WorkspaceError('PATH_DENIED', 'path is denied by MCP policy', { path: logicalRelativePath });
     }

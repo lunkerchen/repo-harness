@@ -63,6 +63,52 @@ describe('MCP WorkspaceManager', () => {
     });
   });
 
+  test('marks sensitive allowed roots unreadable and refuses to open them', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-sensitive-root-'));
+    try {
+      const deniedRootCases = [
+        '.git',
+        '.ssh',
+        'secrets',
+        'credentials',
+        'private/subdir',
+        '.cache',
+        'node_modules/pkg',
+        'dist',
+        'build',
+        'coverage',
+      ];
+
+      for (const relativeRoot of deniedRootCases) {
+        const sensitive = join(parent, ...relativeRoot.split('/'));
+        mkdirSync(sensitive, { recursive: true });
+        writeFileSync(join(sensitive, 'note.txt'), 'private data\n');
+
+        const policy = getMcpPolicy('planner', { enableReader: true, allowedRoots: [sensitive] });
+        const manager = new WorkspaceManager({ allowedRoots: [sensitive], policy });
+        const [allowedRoot] = manager.listAllowedRoots();
+        expect(allowedRoot?.canonicalPath).toBe(realpathSync(sensitive));
+        expect(allowedRoot?.readable).toBe(false);
+        expectWorkspaceError(() => manager.openWorkspace(allowedRoot.id), 'ROOT_DENIED');
+
+        const repoManager = new WorkspaceManager({ allowedRoots: [parent], policy });
+        expectWorkspaceError(() => repoManager.ensureAllowedRoot(sensitive), 'ROOT_DENIED');
+      }
+
+      const symlinkTarget = join(parent, '.cache', 'via-link');
+      const symlinkRoot = join(parent, 'linked-cache');
+      mkdirSync(symlinkTarget, { recursive: true });
+      symlinkSync(symlinkTarget, symlinkRoot, platform() === 'win32' ? 'junction' : 'dir');
+      const policy = getMcpPolicy('planner', { enableReader: true, allowedRoots: [symlinkRoot] });
+      const manager = new WorkspaceManager({ allowedRoots: [symlinkRoot], policy });
+      const [allowedRoot] = manager.listAllowedRoots();
+      expect(allowedRoot?.canonicalPath).toBe(realpathSync(symlinkTarget));
+      expect(allowedRoot?.readable).toBe(false);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
   test('revalidates roots and blocks symlink escapes, denied targets, and removed workspaces', () => {
     withWorkspaceRoot((root, outside) => {
       const policy = getMcpPolicy('planner', { enableReader: true, allowedRoots: [root] });

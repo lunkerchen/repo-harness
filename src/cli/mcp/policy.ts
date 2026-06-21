@@ -20,6 +20,44 @@ const COMMON_DENY_GLOBS = [
   '.DS_Store',
 ];
 
+function pathParts(value: string): string[] {
+  return value.replace(/\\+/g, '/').split('/').filter(Boolean).map((part) => part.toLowerCase());
+}
+
+function directoryDenyGlobParts(pattern: string): string[] | undefined {
+  if (!pattern.endsWith('/**')) return undefined;
+  const directoryPattern = pattern.slice(0, -3);
+  if (directoryPattern.length === 0 || /[*?[\]{}]/.test(directoryPattern)) return undefined;
+  return directoryPattern.split('/').filter(Boolean).map((part) => part.toLowerCase());
+}
+
+function partsContainDeniedRoot(parts: string[], deniedParts: string[]): boolean {
+  for (let index = 0; index <= parts.length - deniedParts.length; index += 1) {
+    if (deniedParts.length === 1 && deniedParts[0] === 'private' && index === 0 && parts[1] === 'var') {
+      continue;
+    }
+    const matches = deniedParts.every((part, offset) => parts[index + offset] === part);
+    if (matches) return true;
+  }
+  return false;
+}
+
+export function sensitiveAllowedRootReason(canonicalPath: string, denyGlobs = COMMON_DENY_GLOBS, rawPath?: string): string | undefined {
+  const candidateParts = Array.from(new Set([rawPath, canonicalPath]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => pathParts(value))));
+
+  for (const pattern of denyGlobs) {
+    const deniedParts = directoryDenyGlobParts(pattern);
+    if (!deniedParts) continue;
+    if (candidateParts.some((parts) => partsContainDeniedRoot(parts, deniedParts))) {
+      return pattern;
+    }
+  }
+
+  return undefined;
+}
+
 export const PLANNER_READ_GLOBS = [
   'AGENTS.md',
   'CLAUDE.md',

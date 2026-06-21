@@ -5,7 +5,7 @@ import { resolve } from 'path';
 import { registeredRepoHarnessRoots } from '../../effects/repo-registry';
 import { loadMcpLocalConfig } from './auth';
 import { buildMcpServerInstructions } from './instructions';
-import { getMcpPolicy, parseMcpProfile } from './policy';
+import { getMcpPolicy, parseMcpProfile, sensitiveAllowedRootReason } from './policy';
 import { isRepoHarnessAdopted, resolveMcpRepoRoot } from './repo';
 import { buildMcpToolDefinitions, callMcpTool, type McpToolContext } from './tools';
 import type { McpAgentRunnerName } from './types';
@@ -57,6 +57,10 @@ function normalizeAllowedRoots(rawRoots: string[]): string[] {
       normalized = realpathSync(absoluteRoot);
     } catch (_error) {
       normalized = absoluteRoot;
+    }
+    const sensitiveReason = sensitiveAllowedRootReason(normalized, undefined, rawRoot);
+    if (sensitiveReason) {
+      throw new Error(`MCP allowed root is denied by policy: ${rawRoot} (${sensitiveReason})`);
     }
     if (seen.has(normalized)) continue;
     seen.add(normalized);

@@ -13,6 +13,7 @@ import {
   resolveMcpConfigScope,
   type McpConfigScope,
 } from './auth';
+import { sensitiveAllowedRootReason } from './policy';
 import { isRepoHarnessAdopted, resolveMcpRepoRoot } from './repo';
 import { repoHarnessPackageVersion } from './version';
 
@@ -161,6 +162,10 @@ function normalizeAllowedRoots(rawRoots: string[]): string[] {
       throw new Error(`--allow-root must point to a readable directory: ${rawRoot}`);
     }
     const canonical = realpathSync(absoluteRoot);
+    const sensitiveReason = sensitiveAllowedRootReason(canonical, undefined, rawRoot);
+    if (sensitiveReason) {
+      throw new Error(`--allow-root points at a sensitive directory denied by MCP policy: ${rawRoot} (${sensitiveReason})`);
+    }
     if (seen.has(canonical)) continue;
     seen.add(canonical);
     roots.push(canonical);
@@ -997,7 +1002,9 @@ export function runMcpDoctor(opts: { repo?: string; json?: boolean }): McpSetupR
   });
   const home = realpathSync(homedir());
   const unsafeAllowedRoots = allowedRootReports
-    .filter((entry) => entry.canonicalPath === '/' || entry.canonicalPath === home)
+    .filter((entry) => entry.canonicalPath === '/' || entry.canonicalPath === home || (
+      entry.canonicalPath !== undefined && sensitiveAllowedRootReason(entry.canonicalPath) !== undefined
+    ))
     .map((entry) => entry.path);
   const codexConfigPath = join(repoRoot, '.codex', 'config.toml');
   const codexConfig = existsSync(codexConfigPath) ? readFileSync(codexConfigPath, 'utf-8') : '';

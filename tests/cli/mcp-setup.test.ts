@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import {
   chatgptGuideMarkdown,
   patchCodexConfigToml,
@@ -188,6 +188,28 @@ describe('mcp setup', () => {
     });
   });
 
+  test('rejects explicit allowed roots that target sensitive directories', () => {
+    withTmpRepo((repoRoot) => {
+      for (const relativeRoot of ['.ssh', '.cache', 'node_modules/pkg', 'private/subdir']) {
+        const sensitiveRoot = join(repoRoot, ...relativeRoot.split('/'));
+        mkdirSync(sensitiveRoot, { recursive: true });
+        expect(() => runMcpSetupChatgpt({ repo: repoRoot, allowRoot: [sensitiveRoot] })).toThrow(
+          '--allow-root points at a sensitive directory denied by MCP policy',
+        );
+      }
+    });
+  });
+
+  test('server context rejects configured allowed roots that rebase denied directory globs', () => {
+    withTmpRepo((repoRoot) => {
+      const sensitiveRoot = join(repoRoot, 'node_modules/pkg');
+      mkdirSync(sensitiveRoot, { recursive: true });
+      expect(() => createMcpToolContext({ repo: repoRoot, enableReader: true, allowedRoots: [sensitiveRoot] })).toThrow(
+        'MCP allowed root is denied by policy',
+      );
+    });
+  });
+
   test('doctor reports config version and explicit allowed-root diagnostics', () => {
     withTmpRepo((repoRoot) => {
       const externalRoot = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-allowed-root-'));
@@ -220,6 +242,23 @@ describe('mcp setup', () => {
       } finally {
         rmSync(externalRoot, { recursive: true, force: true });
       }
+    });
+  });
+
+  test('doctor reports sensitive configured allowed roots as unsafe', () => {
+    withTmpRepo((repoRoot) => {
+      runMcpSetupChatgpt({ repo: repoRoot });
+      const sensitiveRoot = join(repoRoot, 'credentials');
+      mkdirSync(sensitiveRoot);
+      const configPath = join(repoRoot, '.repo-harness/mcp.local.json');
+      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+      config.permissions.allowedRoots = [sensitiveRoot];
+      writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+
+      const doctor = JSON.parse(runMcpDoctor({ repo: repoRoot, json: true }).lines[0]);
+      expect(doctor.mcp.permissions.unsafeAllowedRoots).toEqual([resolve(sensitiveRoot)]);
+      const human = runMcpDoctor({ repo: repoRoot }).lines.join('\n');
+      expect(human).toContain('Unsafe allowed roots:');
     });
   });
 
