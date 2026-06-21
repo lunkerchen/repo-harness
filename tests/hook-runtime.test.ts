@@ -2103,6 +2103,43 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("prompt-guard: skips automatic Draft plan workflow for prompts that target another git repo", () => {
+    const cwd = tmpWorkspace("prompt-guard-foreign-repo");
+    const foreign = tmpWorkspace("prompt-guard-foreign-target");
+    try {
+      initGitRepo(cwd);
+      initGitRepo(foreign);
+      installHooks(cwd);
+      installPlanWorkflowHelpers(cwd);
+      mkdirSync(join(foreign, "docs/researches"), { recursive: true });
+      mkdirSync(join(foreign, "plans/sprints"), { recursive: true });
+      writeFileSync(join(foreign, "docs/researches/devision.md"), "# DeVision research\n");
+      writeFileSync(join(foreign, "plans/sprints/devision.sprint.md"), "# DeVision sprint\n");
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({
+          user_message: [
+            `/goal read: ${foreign}/docs/researches/devision.md`,
+            `execute: ${foreign}/plans/sprints/devision.sprint.md`,
+            "plan this target-state baseline with [$think](/Users/ancienttwo/.agents/skills/think/SKILL.md)",
+          ].join("\n"),
+        }),
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[RepoIsolationGate]");
+      expect(res.stdout).toContain(foreign);
+      expect(res.stdout).not.toContain("Created plan:");
+      const plans = existsSync(join(cwd, "plans"))
+        ? readdirSync(join(cwd, "plans")).filter((name) => name.startsWith("plan-"))
+        : [];
+      expect(plans).toEqual([]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(foreign, { recursive: true, force: true });
+    }
+  });
+
   test("prompt-guard: keeps multi-turn pending plan discussion out of implementation gates", () => {
     const cwd = tmpWorkspace("prompt-guard-pending-plan-discussion");
     try {

@@ -4,6 +4,18 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-06-21
+
+### Fixed
+
+- Bound managed Codex and Claude hook adapters to the current git repository
+  before dispatching user-level hooks, so global hook commands cannot
+  accidentally run against a sibling repository.
+- Made the hook runtime silently skip execution when an explicit
+  `HOOK_REPO_ROOT` conflicts with the hook process git root.
+- Stopped prompt-guard from creating or capturing repo-local plan artifacts when
+  a planning prompt references a different git repository by absolute path.
+
 ## [0.7.4] - 2026-06-20
 
 ### Added
