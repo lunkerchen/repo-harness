@@ -1,7 +1,7 @@
 # Release Filing: repo-harness 0.7.5
 
 Date: 2026-06-21
-Status: Release branch prepared; npm publish, Git tag, and GitHub release pending
+Status: Release branch prepared; npm publish blocked on local npm auth
 
 ## Scope
 
@@ -66,7 +66,14 @@ file isolation and constrained test concurrency.
 
 ## Publish Evidence
 
-Pending:
+Blocked:
+
+- `npm whoami --registry https://registry.npmjs.org/` returned `ENEEDAUTH`.
+- The repo has CI but no publish workflow for GitHub Actions trusted publishing.
+- No local `_ops/env/npm-token.md` publish token file was present in the main or
+  release worktree.
+
+Pending after npm auth is available:
 
 - npm publish result for `repo-harness@0.7.5`
 - registry readback for version, tarball, shasum, integrity, and `gitHead`
@@ -79,5 +86,7 @@ Pending:
 
 ## Publish Hold
 
-- Do not publish until the prepared branch is committed and pushed.
+- Do not publish until an authenticated npm identity is available.
+- Do not tag `v0.7.5` or create the GitHub release until npm publish and
+  registry readback succeed.
 - Do not include the lane-runtime feature branch in this patch release.
