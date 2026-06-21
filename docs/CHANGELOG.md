@@ -4,6 +4,8 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-06-21
+
 ### Added
 
 - Added advisory minimal-change hooks across `SessionStart`,
@@ -30,10 +32,6 @@ All notable changes to this skill are documented here.
 - Made legacy MCP `fullDiskRead: true` configurations fail closed instead of
   auto-migrating to `/`; users must explicitly choose registered adopted repos
   or add extra non-repo directories with `--allow-root`.
-
-## [0.7.5] - 2026-06-21
-
-### Fixed
 
 - Bound managed Codex and Claude hook adapters to the current git repository
   before dispatching user-level hooks, so global hook commands cannot
