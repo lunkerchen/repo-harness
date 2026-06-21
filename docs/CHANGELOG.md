@@ -4,6 +4,13 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added advisory minimal-change hooks across `SessionStart`,
+  `UserPromptSubmit`, `PostToolUse.edit`, and `Stop`, with deterministic
+  `.ai/harness/checks/minimal-change.latest.json` evidence, handoff summaries,
+  default policy, scaffold/migration adoption, and reference-config docs.
+
 ## [0.7.4] - 2026-06-20
 
 ### Added

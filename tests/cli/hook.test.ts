@@ -157,7 +157,11 @@ describe('hook command (Phase 1B)', () => {
       expect(result.exitCode).toBe(0);
       expect(result.reason).toBe('ok');
       expect(result.scriptsRun).toEqual([]);
-      expect(result.skippedScripts).toEqual(['session-start-context.sh', 'security-sentinel.sh']);
+      expect(result.skippedScripts).toEqual([
+        'session-start-context.sh',
+        'minimal-change-context.sh',
+        'security-sentinel.sh',
+      ]);
       expect(result.failedScript).toBeUndefined();
     });
   });
@@ -227,7 +231,10 @@ describe('hook command (Phase 1B)', () => {
         expect(result.exitCode).toBe(0);
         expect(result.reason).toBe('ok');
         expect(result.scriptsRun).toEqual(['security-sentinel.sh']);
-        expect(result.skippedScripts).toEqual(['session-start-context.sh']);
+        expect(result.skippedScripts).toEqual([
+          'session-start-context.sh',
+          'minimal-change-context.sh',
+        ]);
       },
     );
   });
@@ -246,6 +253,30 @@ describe('hook command (Phase 1B)', () => {
       expect(result.skippedScripts).toEqual(['post-tool-observer.sh']);
       expect(result.failedScript).toBeUndefined();
     });
+  });
+
+  test('opt-in + missing minimal-change observer on PostToolUse.edit → soft-skips after guard', () => {
+    withTempRepo(
+      {
+        optIn: true,
+        scripts: {
+          'post-edit-guard.sh': '#!/bin/bash\nexit 0\n',
+        },
+      },
+      (repoRoot) => {
+        const result = runHook({
+          event: 'PostToolUse',
+          routeId: 'edit',
+          cwd: repoRoot,
+          stdio: 'ignore',
+        });
+        expect(result.exitCode).toBe(0);
+        expect(result.reason).toBe('ok');
+        expect(result.scriptsRun).toEqual(['post-edit-guard.sh']);
+        expect(result.skippedScripts).toEqual(['minimal-change-observer.sh']);
+        expect(result.failedScript).toBeUndefined();
+      },
+    );
   });
 
   test('opt-in + missing subagent guard script on PreToolUse.subagent → soft-skips, exits 0', () => {
@@ -395,9 +426,12 @@ describe('hook command (Phase 1B)', () => {
         const parsed = JSON.parse(res.stdout);
         const context = parsed.hookSpecificOutput.additionalContext;
         expect(context).toContain('ctx-ok');
-        expect(context).toContain('hooks drift (source=repo-pin): missing security-sentinel.sh');
+        expect(context).toContain(
+          'hooks drift (source=repo-pin): missing minimal-change-context.sh, security-sentinel.sh',
+        );
         expect(context.split('\n').filter((line: string) => line.includes('hooks drift')).length).toBe(1);
         expect(res.stderr).toContain('skipping missing script');
+        expect(res.stderr).toContain('minimal-change-context.sh');
         expect(res.stderr).toContain('security-sentinel.sh');
       },
     );

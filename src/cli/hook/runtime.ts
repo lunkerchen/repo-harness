@@ -176,6 +176,11 @@ function isSoftMissingRoute(event: HookEvent, routeId: RouteId): boolean {
   );
 }
 
+function isSoftMissingScript(event: HookEvent, routeId: RouteId, script: string): boolean {
+  if (isSoftMissingRoute(event, routeId)) return true;
+  return event === 'PostToolUse' && routeId === 'edit' && script === 'minimal-change-observer.sh';
+}
+
 export function runHook(opts: RunHookOptions): RunHookResult {
   const cwd = opts.cwd ?? process.cwd();
   const commandName = opts.commandName ?? 'repo-harness hook';
@@ -246,7 +251,7 @@ export function runHook(opts: RunHookOptions): RunHookResult {
   for (const script of route.scripts) {
     const scriptPath = path.join(hooksDir, script);
     if (!fs.existsSync(scriptPath)) {
-      if (isSoftMissingRoute(opts.event, opts.routeId)) {
+      if (isSoftMissingScript(opts.event, opts.routeId, script)) {
         process.stderr.write(
           `${commandName}: skipping missing script ${scriptPath} (route ${opts.event}.${opts.routeId}); ${syncHint}\n`,
         );

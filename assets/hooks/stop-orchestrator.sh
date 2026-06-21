@@ -10,6 +10,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/hook-input.sh"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/workflow-state.sh"
+if [[ -f "$SCRIPT_DIR/lib/minimal-change.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "$SCRIPT_DIR/lib/minimal-change.sh"
+fi
+
+MINIMAL_CHANGE_REVIEW_SUMMARY=""
+MINIMAL_CHANGE_REVIEW_VERDICT=""
+MINIMAL_CHANGE_REVIEW_PATH=""
+MINIMAL_CHANGE_REVIEW_FINDINGS="0"
 
 plan_completeness_state_file() {
   workflow_repo_relative_path \
@@ -129,6 +138,87 @@ emit_stop_block_json() {
   fi
 
   printf '{"decision":"block","reason":"%s"}\n' "$(workflow_json_escape "$reason")"
+}
+
+minimal_change_parse_review_json() {
+  local raw="$1"
+  local parsed
+
+  if command -v jq >/dev/null 2>&1; then
+    parsed="$(printf '%s' "$raw" | jq -r '
+      def line($finding):
+        "- [" + ($finding.tag // "review") + "] " + ($finding.path // ".") + ": " + ($finding.question // $finding.evidence // "review required");
+      [
+        (.verdict // "unknown"),
+        (.report_path // ".ai/harness/checks/minimal-change.latest.json"),
+        ((.findings // []) | length | tostring),
+        (
+          if (.verdict // "unknown") == "disabled" then ""
+          elif (.findings // [] | length) == 0 then ""
+          else
+            "[MinimalChange] Non-blocking review (" + (.report_path // ".ai/harness/checks/minimal-change.latest.json") + "):\n" +
+            ((.findings // [])[0:5] | map(line(.)) | join("\n"))
+          end
+        )
+      ] | @tsv
+    ' 2>/dev/null)" || return 1
+  elif command -v bun >/dev/null 2>&1; then
+    parsed="$(MINIMAL_CHANGE_RAW="$raw" bun -e '
+      const report = JSON.parse(process.env.MINIMAL_CHANGE_RAW || "{}");
+      const findings = Array.isArray(report.findings) ? report.findings : [];
+      const path = report.report_path || ".ai/harness/checks/minimal-change.latest.json";
+      let summary = "";
+      if (report.verdict !== "disabled" && findings.length > 0) {
+        summary = `[MinimalChange] Non-blocking review (${path}):\n` + findings.slice(0, 5).map((finding) => {
+          const tag = finding.tag || "review";
+          const file = finding.path || ".";
+          const question = finding.question || finding.evidence || "review required";
+          return `- [${tag}] ${file}: ${question}`;
+        }).join("\n");
+      }
+      console.log([report.verdict || "unknown", path, String(findings.length), summary].join("\t"));
+    ' 2>/dev/null)" || return 1
+  else
+    return 1
+  fi
+
+  IFS=$'\t' read -r \
+    MINIMAL_CHANGE_REVIEW_VERDICT \
+    MINIMAL_CHANGE_REVIEW_PATH \
+    MINIMAL_CHANGE_REVIEW_FINDINGS \
+    MINIMAL_CHANGE_REVIEW_SUMMARY <<< "$parsed"
+}
+
+minimal_change_refresh_review() {
+  local raw
+
+  declare -F minimal_change_hook_entry >/dev/null 2>&1 || return 0
+  raw="$(minimal_change_hook_entry review --phase stop 2>/dev/null || true)"
+  [[ "$raw" == \{* ]] || return 0
+  minimal_change_parse_review_json "$raw" || return 0
+}
+
+minimal_change_append_handoff() {
+  local handoff_file
+
+  [[ -n "$MINIMAL_CHANGE_REVIEW_VERDICT" ]] || return 0
+  [[ "$MINIMAL_CHANGE_REVIEW_VERDICT" != "disabled" ]] || return 0
+  handoff_file="$(workflow_handoff_file)"
+  mkdir -p "$(dirname "$handoff_file")"
+  {
+    printf '\n## Minimal Change Review\n\n'
+    printf -- '- Report: `%s`\n' "${MINIMAL_CHANGE_REVIEW_PATH:-.ai/harness/checks/minimal-change.latest.json}"
+    printf -- '- Verdict: `%s`\n' "${MINIMAL_CHANGE_REVIEW_VERDICT:-unknown}"
+    printf -- '- Findings: `%s`\n' "${MINIMAL_CHANGE_REVIEW_FINDINGS:-0}"
+    if [[ -n "$MINIMAL_CHANGE_REVIEW_SUMMARY" ]]; then
+      printf '\n%s\n' "$MINIMAL_CHANGE_REVIEW_SUMMARY"
+    fi
+  } >> "$handoff_file"
+}
+
+minimal_change_reason_suffix() {
+  [[ -n "$MINIMAL_CHANGE_REVIEW_SUMMARY" ]] || return 0
+  printf '\n\n%s' "$MINIMAL_CHANGE_REVIEW_SUMMARY"
 }
 
 delegation_state_paths_json() {
@@ -264,6 +354,9 @@ should_run_plan_completeness_gate() {
 
 refresh_handoff
 
+minimal_change_refresh_review
+minimal_change_append_handoff
+
 stop_hook_active="$(hook_json_get '.stop_hook_active' 'false')"
 last_assistant_message="$(hook_json_get '.last_assistant_message' '')"
 
@@ -275,12 +368,12 @@ if should_run_plan_completeness_gate "$stop_hook_active" "$last_assistant_messag
     guidance="$(plan_completeness_capture_guidance)"
     emit_stop_block_json "[PlanCompletenessGate] A first planning answer was produced while pending orchestration is still open: ${summary}
 
-${guidance}"
+${guidance}$(minimal_change_reason_suffix)"
     exit 0
   fi
 fi
 
 if delegation_should_block "$stop_hook_active"; then
   delegation_mark_fallback_used
-  emit_stop_block_json "[DelegationFallback] This turn explicitly requested bounded delegation, but no SubagentStart event was observed. Continue the task now by spawning the independent explorer/reviewer or isolated worker workstreams first when at least two independent workstreams exist, wait for them, reconcile their findings in the parent, then complete the response. Do not spawn for a trivial or strictly sequential task."
+  emit_stop_block_json "[DelegationFallback] This turn explicitly requested bounded delegation, but no SubagentStart event was observed. Continue the task now by spawning the independent explorer/reviewer or isolated worker workstreams first when at least two independent workstreams exist, wait for them, reconcile their findings in the parent, then complete the response. Do not spawn for a trivial or strictly sequential task.$(minimal_change_reason_suffix)"
 fi

@@ -51,10 +51,17 @@ describe('route registry (Phase 1B Z design)', () => {
   });
 
   test('getRoute returns the expected ordered scripts for each route', () => {
-    expect(getRoute('SessionStart', 'default')?.scripts).toEqual(['session-start-context.sh', 'security-sentinel.sh']);
+    expect(getRoute('SessionStart', 'default')?.scripts).toEqual([
+      'session-start-context.sh',
+      'minimal-change-context.sh',
+      'security-sentinel.sh',
+    ]);
     expect(getRoute('PreToolUse', 'edit')?.scripts).toEqual(['worktree-guard.sh', 'pre-edit-guard.sh']);
     expect(getRoute('PreToolUse', 'subagent')?.scripts).toEqual(['subagent-return-channel-guard.sh']);
-    expect(getRoute('PostToolUse', 'edit')?.scripts).toEqual(['post-edit-guard.sh']);
+    expect(getRoute('PostToolUse', 'edit')?.scripts).toEqual([
+      'post-edit-guard.sh',
+      'minimal-change-observer.sh',
+    ]);
     expect(getRoute('PostToolUse', 'bash')?.scripts).toEqual(['post-bash.sh']);
     expect(getRoute('PostToolUse', 'always')?.scripts).toEqual(['post-tool-observer.sh']);
     expect(getRoute('UserPromptSubmit', 'default')?.scripts).toEqual(['prompt-guard.sh']);
@@ -88,11 +95,13 @@ describe('route registry (Phase 1B Z design)', () => {
   test('every route script name is in the known hook set (catches typos)', () => {
     const KNOWN = new Set([
       'session-start-context.sh',
+      'minimal-change-context.sh',
       'security-sentinel.sh',
       'worktree-guard.sh',
       'pre-edit-guard.sh',
       'subagent-return-channel-guard.sh',
       'post-edit-guard.sh',
+      'minimal-change-observer.sh',
       'post-bash.sh',
       'post-tool-observer.sh',
       'prompt-guard.sh',

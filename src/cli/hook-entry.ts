@@ -29,6 +29,14 @@ function parseCliArgs(argv: readonly string[]): { event: HookEvent; routeId: Rou
 
 if (import.meta.main) {
   const argv = process.argv.slice(2);
+  if (argv[0] === 'minimal-change') {
+    const { runMinimalChangeCli } = await import('./hook/minimal-change-cli');
+    const result = runMinimalChangeCli(argv.slice(1));
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
   if (argv[0] === 'prompt-guard-decide') {
     console.log(runPromptGuardDecideCli());
     process.exit(0);

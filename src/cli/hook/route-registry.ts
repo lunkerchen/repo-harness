@@ -57,7 +57,11 @@ export const ROUTES: readonly Route[] = Object.freeze([
   Object.freeze({
     event: 'SessionStart' as const,
     routeId: 'default' as const,
-    scripts: Object.freeze(['session-start-context.sh', 'security-sentinel.sh']),
+    scripts: Object.freeze([
+      'session-start-context.sh',
+      'minimal-change-context.sh',
+      'security-sentinel.sh',
+    ]),
   }),
   Object.freeze({
     event: 'PreToolUse' as const,
@@ -75,7 +79,7 @@ export const ROUTES: readonly Route[] = Object.freeze([
     event: 'PostToolUse' as const,
     routeId: 'edit' as const,
     matcher: 'Edit|Write',
-    scripts: Object.freeze(['post-edit-guard.sh']),
+    scripts: Object.freeze(['post-edit-guard.sh', 'minimal-change-observer.sh']),
   }),
   Object.freeze({
     event: 'PostToolUse' as const,

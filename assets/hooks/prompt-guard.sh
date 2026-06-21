@@ -22,6 +22,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/workflow-state.sh"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/session-state.sh"
+if [[ -f "$SCRIPT_DIR/lib/minimal-change.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "$SCRIPT_DIR/lib/minimal-change.sh"
+fi
 
 # --- Filesystem/worktree helpers (shell-owned authority) ---
 
@@ -860,6 +864,19 @@ emit_workflow_file_guards() {
   fi
 }
 
+emit_minimal_change_prompt_advice() {
+  local output
+
+  [[ "${PG_ACTION:-}" == "allow" ]] || return 0
+  [[ -n "${PG_INTENT:-}" ]] || return 0
+  declare -F minimal_change_hook_entry >/dev/null 2>&1 || return 0
+
+  if output="$(minimal_change_hook_entry context --phase prompt --intent "$PG_INTENT" 2>/dev/null)"; then
+    [[ -n "$output" ]] && printf '%s\n' "$output"
+  fi
+  return 0
+}
+
 # --- Main flow ---
 
 PROMPT_TEXT="$(hook_get_prompt "${1:-}")"
@@ -929,6 +946,7 @@ if [ "$implement_intent" -eq 1 ]; then
   prompt_guard_refresh_state
   prompt_guard_engine_call
   render_prompt_guard_action "$PG_ACTION"
+  emit_minimal_change_prompt_advice
 fi
 
 if [ "$done_intent" -eq 1 ]; then

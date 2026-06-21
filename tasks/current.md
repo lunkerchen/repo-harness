@@ -1,26 +1,26 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-20T16:27:16+0800 -->
+<!-- updated_at: 2026-06-21T17:25:44+0800 -->
 <!-- stale_after: 24h -->
 
-> **Status**: Active
-> **Updated At**: 2026-06-20T16:27:16+0800
-> **Source Branch**: main
-> **Source Commit**: ed34dfe
+> **Status**: Idle
+> **Updated At**: 2026-06-21T17:25:44+0800
+> **Source Branch**: codex/minimal-change-hooks
+> **Source Commit**: e60a1d6
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: chatgpt-app-preselect
+> **Reason**: minimal-change-hooks-pr1
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
 
 ## Current Focus
 
-- Status: Active
+- Status: Idle
 - Active Plan: (none)
 - Plan Status: (none)
-- Next Task: inspect active worktree marker(s)
+- Next Task: (none)
 - Clear Note: (none)
 
 ## Mainline Snapshot Reading
@@ -31,8 +31,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Active Work
 
-- /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md: plans/plan-20260606-0245-think-skill-codex-repo-skill-think-hook-agents-md.md
-- /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md: active-worktree owner -> /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md
+- (none)
 ## Active Sprint
 
 - Sprint: (none)
@@ -45,26 +44,29 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Checks
 
-- status=(none), source=(none), exit_code=(none), file=.ai/harness/checks/latest.json
+- status=(none), source=(none), file=.ai/harness/checks/latest.json
 
 ## Git Status
 
-- Summary: 13 changed/untracked path(s)
+- Summary: 16 changed/untracked path(s)
 
 ```
- M assets/skill-commands/repo-harness-gptpro/SKILL.md
- M docs/CHANGELOG.md
- M docs/repo-harness-chatgpt-browser-engine.md
- M docs/repo-harness-chatgpt-mcp-setup.md
- M src/cli/chatgpt-browser/engine.ts
- M src/cli/chatgpt-browser/oracle-provider.ts
- M src/cli/chatgpt-browser/session-store.ts
- M src/cli/chatgpt-browser/types.ts
- M src/cli/commands/chatgpt.ts
- M src/cli/mcp/tools.ts
- M tasks/current.md
- M tests/cli/chatgpt-browser.test.ts
- M tests/cli/mcp-tools.test.ts
+ M src/cli/hook-entry.ts
+ M src/cli/hook/route-registry.ts
+ M tests/cli/hook.test.ts
+ M tests/cli/route-registry.test.ts
+?? .ai/hooks/lib/minimal-change.sh
+?? .ai/hooks/minimal-change-context.sh
+?? assets/hooks/lib/minimal-change.sh
+?? assets/hooks/minimal-change-context.sh
+?? "plans/prds/Cherry-pick Analysis of Ponytail into Repo-harness Hooks.md"
+?? plans/sprints/20260621-minimal-change-hooks.sprint.md
+?? src/cli/hook/minimal-change-cli.ts
+?? src/cli/hook/minimal-change-context.ts
+?? src/cli/hook/minimal-change-policy.ts
+?? tasks/notes/20260621-minimal-change-hooks.notes.md
+?? tests/minimal-change-context.test.ts
+?? tests/minimal-change-policy.test.ts
 ```
 
 ## Source Artifacts

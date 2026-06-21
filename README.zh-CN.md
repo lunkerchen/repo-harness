@@ -86,6 +86,12 @@ Release notes 见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)，当前版本线是 
    时按 central-first 解析 packaged install 或 `~/.repo-harness/hooks/`，repo policy
    也可以把自托管开发钉回 `.ai/hooks/*`。
 
+minimal-change hooks 复用同一套路由 surface，不新增公开 adapter route。`SessionStart`
+和允许执行的 prompt 会打印 advisory context，`PostToolUse.edit` 把有界改动信号写到
+`.ai/harness/checks/minimal-change.latest.json`，`Stop` 把最新 review 摘要写进 handoff。
+默认 policy 是 `mode: "advice"` 并且 fail-open；即使配置 `mode: "enforce"` 也会归一化为
+advisory 行为，真正的 enforcement boundary 仍然是 tests、contracts 和 human review。
+
 对 `UserPromptSubmit` 来说，公开 adapter contract 仍然是
 `repo-harness-hook UserPromptSubmit --route default`。CLI route registry 会把这个
 route dispatch 到 `.ai/hooks/prompt-guard.sh`。Shell hook 继续负责 host JSON 解析、
