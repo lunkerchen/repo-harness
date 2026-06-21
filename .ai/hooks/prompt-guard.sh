@@ -186,8 +186,56 @@ prompt_intent_text() {
   fi
 }
 
+prompt_nearest_existing_path() {
+  local path="$1"
+  while [[ "$path" != "/" && ! -e "$path" && ! -L "$path" ]]; do
+    path="$(dirname "$path")"
+  done
+  [[ -e "$path" || -L "$path" ]] || return 1
+  printf '%s' "$path"
+}
+
+prompt_resolve_probe_path() {
+  local path="$1"
+  local base target hops followed state
+  hops=0
+  followed=0
+
+  while true; do
+    path="$(prompt_nearest_existing_path "$path")" || {
+      printf 'SKIP\t%s' "$1"
+      return 0
+    }
+    if [[ ! -L "$path" ]]; then
+      state="OK"
+      [[ "$followed" -eq 1 ]] && state="OK_SYMLINK"
+      printf '%s\t%s' "$state" "$path"
+      return 0
+    fi
+
+    hops=$((hops + 1))
+    if [[ "$hops" -gt 20 ]]; then
+      printf 'FAIL\t%s' "$path"
+      return 0
+    fi
+    target="$(readlink "$path" 2>/dev/null || true)"
+    if [[ -z "$target" ]]; then
+      printf 'FAIL\t%s' "$path"
+      return 0
+    fi
+    followed=1
+
+    if [[ "$target" == /* ]]; then
+      path="$target"
+    else
+      base="$(dirname "$path")"
+      path="$base/$target"
+    fi
+  done
+}
+
 prompt_foreign_repo_root() {
-  local current_root current_real candidates raw candidate dir root root_real
+  local current_root current_real candidates raw candidate probe_record probe_state probe dir dir_real root root_real
   current_root="${HOOK_REPO_ROOT:-$(pwd)}"
   current_real="$(cd "$current_root" 2>/dev/null && pwd -P || true)"
   [[ -n "$current_real" ]] || current_real="$current_root"
@@ -205,17 +253,32 @@ prompt_foreign_repo_root() {
   while IFS= read -r raw || [[ -n "$raw" ]]; do
     [[ -n "$raw" ]] || continue
     candidate="$raw"
-    [[ "$candidate" == "$current_root"* || "$candidate" == "$current_real"* ]] && continue
 
-    dir="$candidate"
-    while [[ "$dir" != "/" && ! -e "$dir" ]]; do
-      dir="$(dirname "$dir")"
-    done
-    [[ -e "$dir" ]] || continue
-    [[ -f "$dir" ]] && dir="$(dirname "$dir")"
+    probe_record="$(prompt_resolve_probe_path "$candidate")"
+    probe_state="${probe_record%%$'\t'*}"
+    probe="${probe_record#*$'\t'}"
+    if [[ "$probe_state" == "FAIL" ]]; then
+      printf '%s' "$probe"
+      return 0
+    fi
+    [[ "$probe_state" == "OK" || "$probe_state" == "OK_SYMLINK" ]] || continue
+    [[ -n "$probe" ]] || continue
+    if [[ -d "$probe" ]]; then
+      dir="$probe"
+    else
+      dir="$(dirname "$probe")"
+    fi
+    dir_real="$(cd "$dir" 2>/dev/null && pwd -P || true)"
+    [[ -n "$dir_real" ]] || continue
 
-    root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)"
-    [[ -n "$root" ]] || continue
+    root="$(git -C "$dir_real" rev-parse --show-toplevel 2>/dev/null || true)"
+    if [[ -z "$root" ]]; then
+      if [[ "$probe_state" == "OK_SYMLINK" && "$dir_real" != "$current_real" && "$dir_real" != "$current_real"/* ]]; then
+        printf '%s' "$dir_real"
+        return 0
+      fi
+      continue
+    fi
     root_real="$(cd "$root" 2>/dev/null && pwd -P || true)"
     [[ -n "$root_real" ]] || root_real="$root"
 

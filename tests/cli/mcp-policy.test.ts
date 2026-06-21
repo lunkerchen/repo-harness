@@ -272,11 +272,18 @@ describe('mcp redaction and audit', () => {
   });
 
   test('safe audit write reports failure without throwing', () => {
-    expect(tryWriteMcpAuditEntry('/dev/null/not-a-dir', {
-      timestamp: '2026-06-17T00:00:00.000Z',
-      tool: 'read_workflow_file',
-      status: 'ok',
-      inputHash: hashMcpInput({ path: 'plans/test.md' }),
-    })).toBe(false);
+    const tmp = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-audit-failure-'));
+    try {
+      const blockingFile = join(tmp, 'not-a-dir');
+      writeFileSync(blockingFile, 'not a directory\n');
+      expect(tryWriteMcpAuditEntry(blockingFile, {
+        timestamp: '2026-06-17T00:00:00.000Z',
+        tool: 'read_workflow_file',
+        status: 'ok',
+        inputHash: hashMcpInput({ path: 'plans/test.md' }),
+      })).toBe(false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
