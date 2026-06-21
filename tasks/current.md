@@ -1,26 +1,26 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-20T16:27:16+0800 -->
+<!-- updated_at: 2026-06-21T23:22:14+0800 -->
 <!-- stale_after: 24h -->
 
-> **Status**: Active
-> **Updated At**: 2026-06-20T16:27:16+0800
-> **Source Branch**: main
-> **Source Commit**: ed34dfe
+> **Status**: Idle
+> **Updated At**: 2026-06-21T23:22:14+0800
+> **Source Branch**: codex/release-0.7.5
+> **Source Commit**: 75b7a50
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: chatgpt-app-preselect
+> **Reason**: mcp-external-gates-blocker
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
 
 ## Current Focus
 
-- Status: Active
+- Status: Idle
 - Active Plan: (none)
 - Plan Status: (none)
-- Next Task: inspect active worktree marker(s)
+- Next Task: (none)
 - Clear Note: (none)
 
 ## Mainline Snapshot Reading
@@ -31,8 +31,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Active Work
 
-- /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md: plans/plan-20260606-0245-think-skill-codex-repo-skill-think-hook-agents-md.md
-- /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md: active-worktree owner -> /Users/kito/Projects/agentic-dev-wt-think-skill-codex-repo-skill-think-hook-agents-md
+- (none)
 ## Active Sprint
 
 - Sprint: (none)
@@ -41,7 +40,7 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 - `tasks/workstreams/workflow-engine/contract-assets/cleanup-script-policy.md`: status=completed, current_slice=todo-01, source_plan=(none)
 ## Handoff
 
-- Exact Next Step: (none)
+- Exact Next Step: Clean up merged contract worktree codex/single-source-minimal-change-review. Command: bash scripts/contract-worktree.sh cleanup --slug single-source-minimal-change-review --target main
 
 ## Checks
 
@@ -49,22 +48,49 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 13 changed/untracked path(s)
+- Summary: 48 changed/untracked path(s)
 
 ```
- M assets/skill-commands/repo-harness-gptpro/SKILL.md
- M docs/CHANGELOG.md
- M docs/repo-harness-chatgpt-browser-engine.md
- M docs/repo-harness-chatgpt-mcp-setup.md
- M src/cli/chatgpt-browser/engine.ts
- M src/cli/chatgpt-browser/oracle-provider.ts
- M src/cli/chatgpt-browser/session-store.ts
- M src/cli/chatgpt-browser/types.ts
- M src/cli/commands/chatgpt.ts
- M src/cli/mcp/tools.ts
- M tasks/current.md
- M tests/cli/chatgpt-browser.test.ts
- M tests/cli/mcp-tools.test.ts
+ M .github/workflows/ci.yml
+MM README.md
+MM docs/CHANGELOG.md
+MM docs/repo-harness-chatgpt-mcp-setup.md
+AM plans/sprints/20260621-mcp-fix.sprint.md
+ M src/cli/commands/adopt-plan.ts
+ M src/cli/commands/init.ts
+MM src/cli/commands/mcp.ts
+MM src/cli/mcp/auth.ts
+ M src/cli/mcp/instructions.ts
+MM src/cli/mcp/oauth.ts
+MM src/cli/mcp/paths.ts
+MM src/cli/mcp/policy.ts
+MM src/cli/mcp/server.ts
+MM src/cli/mcp/setup.ts
+MM src/cli/mcp/tools.ts
+MM src/cli/mcp/transports/http.ts
+MM src/cli/mcp/types.ts
+MM tasks/current.md
+ M tests/bootstrap-files.test.ts
+ M tests/cli/adoption-plan.test.ts
+ M tests/cli/init.test.ts
+MM tests/cli/mcp-http.test.ts
+MM tests/cli/mcp-policy.test.ts
+MM tests/cli/mcp-setup.test.ts
+MM tests/cli/mcp-tools.test.ts
+MM tests/cli/mcp.test.ts
+ M tests/hook-recursive-copy.test.ts
+?? .ai/harness/handoff/mcp-reader-external-gates-blocker.md
+?? .ai/harness/handoff/mcp-reader-local-http-e2e.md
+?? .ai/harness/handoff/mcp-reader-review-prep.md
+?? .ai/harness/handoff/mcp-reader-review-request.md
+?? .ai/harness/handoff/mcp-reader-self-review.md
+?? .ai/harness/handoff/mcp-reader-sprint-closeout.md
+?? plans/prds/20260621-repo-harness-mcp-reader-hardening-prd.md
+?? "plans/prds/Cherry-pick Analysis of Ponytail into Repo-harness Hooks.md"
+?? plans/sprints/20260621-minimal-change-hooks.sprint.md
+?? plans/sprints/20260621-repo-harness-mcp-reader-hardening-sprint.md
+?? plans/sprints/20260621-single-source-minimal-change-review.sprint.md
+?? src/cli/mcp/reader-tools.ts
 ```
 
 ## Source Artifacts

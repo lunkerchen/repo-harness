@@ -336,20 +336,53 @@ before applying anything.
 
 ## MCP Connector Quickstart
 
-As an optional sidecar, `repo-harness mcp` exposes only workflow artifacts to
-MCP clients. ChatGPT acts as a planner/reviewer that reads state and moves an
-idea through PRD, checklist Sprint, and Codex goal handoff artifacts — with no
-source-code write access, arbitrary shell execution, or default Codex runner.
-Codex remains the executor.
+As an optional sidecar, `repo-harness mcp` exposes workflow artifacts to MCP
+clients through the default `planner` profile. ChatGPT acts as a
+planner/reviewer that reads state and moves an idea through PRD, checklist
+Sprint, and Codex goal handoff artifacts — with no source-code write access,
+arbitrary shell execution, or default Codex runner. Codex remains the executor.
+
+The same `planner` Connector also exposes read-only workspace tools for
+registered adopted repos. Use `discover_harness_repos` first, then pass
+`repo_path` to workflow tools and use `list_allowed_roots`, `open_workspace`,
+`tree`, `search_text`, and `read_text` to inspect non-ignored docs/source while
+retaining deny rules for secrets, private keys, `.git`, and dependency/build
+output. External non-repo local roots require explicit `--allow-root`
+authorization.
 
 This sidecar assumes the CLI is already installed from
 [First 5 Minutes](#first-5-minutes). Use it when you want ChatGPT to plan
 against the real repo state and Codex to execute the resulting file-backed
 Sprint.
 
+The ChatGPT Connector registers one endpoint URL, not one repository per URL.
+Adopted repos are discovered from `~/.repo-harness/registered-repos.json`, which
+is updated by `repo-harness adopt`, `repo-harness init`, and user-scope ChatGPT
+setup. Stale registry entries are ignored unless the live repo still has
+repo-harness adoption markers.
+
 ```bash
 repo-harness mcp setup chatgpt --repo .
 repo-harness mcp serve --repo . --transport http --host 127.0.0.1 --port 8765 --profile planner
+```
+
+User-scope global Connector setup:
+
+```bash
+repo-harness mcp setup chatgpt --scope user --repo . --endpoint <https-url>/mcp
+repo-harness mcp serve --repo . --transport http --host 127.0.0.1 --port 8765 --profile planner
+```
+
+Optional external reader roots:
+
+```bash
+repo-harness mcp setup chatgpt \
+  --scope user \
+  --repo . \
+  --enable-reader \
+  --allow-root "$HOME/Documents" \
+  --allow-root "$HOME/Projects" \
+  --endpoint <https-url>/mcp
 ```
 
 Expose that local server through an HTTPS tunnel and create a ChatGPT Connector
