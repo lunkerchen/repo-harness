@@ -97,6 +97,15 @@ it resolves hooks central-first through the packaged install or
 `~/.repo-harness/hooks/`, with repo policy able to pin self-host development
 back to `.ai/hooks/*`.
 
+Minimal-change hooks sit inside that same route surface without adding a public
+adapter route. `SessionStart` and allowed execution prompts print advisory
+context when policy opts in, `PostToolUse.edit` can write bounded change signals
+to `.ai/harness/checks/minimal-change.latest.json` when
+`post_edit_observer:true` is explicitly enabled, and `Stop` records the latest
+review summary in the handoff. Missing or malformed policy defaults to off; even
+`mode: "enforce"` is normalized to advisory behavior so tests, contracts, and
+human review stay the enforcement boundary.
+
 For `UserPromptSubmit`, the public adapter contract stays
 `repo-harness-hook UserPromptSubmit --route default`. The CLI route registry
 dispatches that route to `.ai/hooks/prompt-guard.sh`. The shell hook remains the

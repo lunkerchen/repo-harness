@@ -55,6 +55,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, "docs/reference-configs/heartbeat-triage.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/document-generation.md"))).toBe(true);
       expect(existsSync(join(cwd, "docs/reference-configs/global-working-rules.md"))).toBe(true);
+      expect(existsSync(join(cwd, "docs/reference-configs/minimal-change-hooks.md"))).toBe(true);
       expectReferenceConfigStub(cwd, "harness-overview");
       expectReferenceConfigStub(cwd, "agentic-development-flow");
       expectReferenceConfigStub(cwd, "external-tooling");
@@ -240,6 +241,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/heartbeat-triage.md");
+      expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/minimal-change-hooks.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("deploy/README.md");
       expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/scripts");
       expect(workflowContract.artifacts.requiredDirectories).toContain("deploy/sql");
@@ -294,6 +296,23 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.external_tooling.codegraph.readiness).toBe("required-for-agent-code-navigation");
       expect(policy.external_tooling.codegraph.hook_policy).toBe("do-not-block-hooks");
       expect(policy.external_tooling.codegraph.vendoring_policy).toBe("do-not-add-package-dependency");
+      expect(policy.minimal_change).toMatchObject({
+        version: 1,
+        mode: "advice",
+        session_context: true,
+        prompt_advice: true,
+        post_edit_observer: false,
+        stop_review: true,
+        max_findings: 5,
+        max_context_words: 180,
+        new_dependency: "warn",
+        new_file: "observe",
+        new_abstraction: "warn",
+        report_path: ".ai/harness/checks/minimal-change.latest.json",
+        event_dedupe: true,
+      });
+      expect(policy.minimal_change.protected_concerns).toContain("security");
+      expect(policy.minimal_change.protected_concerns).toContain("tests");
       expect(policy.tasks.notes_dir).toBe("tasks/notes");
       expect(policy.tasks.workstreams_dir).toBe("tasks/workstreams");
       expect(policy.reference_material.dir).toBe("_ref");
@@ -362,6 +381,7 @@ describe("create-project-dirs runtime smoke", () => {
       expect(policy.sidecar_research.fallback_runner).toBe("main-thread trace");
       expect(policy.sidecar_research.main_thread_policy).toContain("if spawning is not worthwhile");
       expect(policy.documentation.reference_configs).toContain("global-working-rules.md");
+      expect(policy.documentation.reference_configs).toContain("minimal-change-hooks.md");
       expect(policy.upgrade.strategy_version).toBe(1);
       expect(policy.upgrade.cleanup.remove_only_ownership).toBe("known_generated");
 

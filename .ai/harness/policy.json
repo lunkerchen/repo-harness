@@ -234,7 +234,8 @@
       "handoff-protocol.md",
       "document-generation.md",
       "global-working-rules.md",
-      "heartbeat-triage.md"
+      "heartbeat-triage.md",
+      "minimal-change-hooks.md"
     ],
     "rule": "create optional docs only when the agent has concrete repo evidence or the user asks"
   },
@@ -393,6 +394,30 @@
         "shared_contract"
       ]
     }
+  },
+  "minimal_change": {
+    "version": 1,
+    "mode": "advice",
+    "session_context": true,
+    "prompt_advice": true,
+    "post_edit_observer": false,
+    "stop_review": true,
+    "max_findings": 5,
+    "max_context_words": 180,
+    "new_dependency": "warn",
+    "new_file": "observe",
+    "new_abstraction": "warn",
+    "protected_concerns": [
+      "security",
+      "validation",
+      "data_loss",
+      "error_handling",
+      "accessibility",
+      "explicit_requirement",
+      "tests"
+    ],
+    "report_path": ".ai/harness/checks/minimal-change.latest.json",
+    "event_dedupe": true
   },
   "enforcement": {
     "worktree_guard": "warn-by-default",

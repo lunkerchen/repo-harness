@@ -6,6 +6,11 @@ All notable changes to this skill are documented here.
 
 ### Added
 
+- Added advisory minimal-change hooks across `SessionStart`,
+  `UserPromptSubmit`, `PostToolUse.edit`, and `Stop`, with deterministic
+  `.ai/harness/checks/minimal-change.latest.json` evidence, handoff summaries,
+  explicit opt-in policy, scaffold/migration adoption, and reference-config
+  docs.
 - Added ChatGPT MCP `workspaceReader` capability on the default `planner`
   profile, with registered-repo workspaces and `reader_status`,
   `list_allowed_roots`, `open_workspace`, `tree`, `search_text`, and

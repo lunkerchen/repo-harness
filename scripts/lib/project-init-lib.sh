@@ -442,8 +442,8 @@ PI_EVALUATION_PROFILE_DEFAULT="browser-qa"
 PI_HANDOFF_PROFILE_DEFAULT="artifact-aware"
 PI_DOCUMENTATION_PROFILE_DEFAULT="minimal-agentic"
 PI_DEFAULT_LSP_PROFILE="typescript-lsp"
-PI_MINIMAL_REFERENCE_CONFIGS="harness-overview.md agentic-development-flow.md external-tooling.md sprint-contracts.md heartbeat-triage.md handoff-protocol.md document-generation.md global-working-rules.md"
-PI_FULL_REFERENCE_CONFIGS="agentic-development-flow.md ai-workflows.md changelog-versioning.md coding-standards.md development-protocol.md document-generation.md evaluator-rubric.md external-tooling.md git-strategy.md global-working-rules.md heartbeat-triage.md handoff-protocol.md harness-overview.md hook-operations.md release-deploy.md spa-day-protocol.md sprint-contracts.md workflow-orchestration.md"
+PI_MINIMAL_REFERENCE_CONFIGS="harness-overview.md agentic-development-flow.md external-tooling.md sprint-contracts.md heartbeat-triage.md handoff-protocol.md document-generation.md global-working-rules.md minimal-change-hooks.md"
+PI_FULL_REFERENCE_CONFIGS="agentic-development-flow.md ai-workflows.md changelog-versioning.md coding-standards.md development-protocol.md document-generation.md evaluator-rubric.md external-tooling.md git-strategy.md global-working-rules.md heartbeat-triage.md handoff-protocol.md harness-overview.md hook-operations.md minimal-change-hooks.md release-deploy.md spa-day-protocol.md sprint-contracts.md workflow-orchestration.md"
 PI_REFERENCE_CONFIG_STUB_MARKER="<!-- repo-harness: reference-config-stub v1 -->"
 
 pi_write_file_if_apply() {
@@ -2176,6 +2176,22 @@ pi_write_harness_policy() {
       "levels": ["P1_GLOBAL_ARCHITECTURE", "P2_DATA_FLOW_TRACE", "P3_DESIGN_DECISION"],
       "explicit_report_required_for": ["plan-eng-review", "hunt", "risky_refactor", "deployment", "auth_payment_data", "shared_contract"]
     }
+  },
+  "minimal_change": {
+    "version": 1,
+    "mode": "advice",
+    "session_context": true,
+    "prompt_advice": true,
+    "post_edit_observer": false,
+    "stop_review": true,
+    "max_findings": 5,
+    "max_context_words": 180,
+    "new_dependency": "warn",
+    "new_file": "observe",
+    "new_abstraction": "warn",
+    "protected_concerns": ["security", "validation", "data_loss", "error_handling", "accessibility", "explicit_requirement", "tests"],
+    "report_path": ".ai/harness/checks/minimal-change.latest.json",
+    "event_dedupe": true
   },
   "enforcement": {
     "worktree_guard": "warn-by-default",

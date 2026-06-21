@@ -933,7 +933,7 @@ ARCHITECTURE_INDEX_EOF
     "profile": "minimal-agentic",
     "required": ["docs/spec.md", "docs/architecture/index.md"],
     "on_demand": ["docs/brief.md", "docs/tech-stack.md", "docs/decisions.md", "docs/architecture.md", "docs/packages.md"],
-    "reference_configs": ["harness-overview.md", "agentic-development-flow.md", "external-tooling.md", "sprint-contracts.md", "handoff-protocol.md", "document-generation.md", "global-working-rules.md"],
+    "reference_configs": ["harness-overview.md", "agentic-development-flow.md", "external-tooling.md", "sprint-contracts.md", "heartbeat-triage.md", "handoff-protocol.md", "document-generation.md", "global-working-rules.md", "minimal-change-hooks.md"],
     "reference_source": "user-level-runtime-docs",
     "reference_stub_marker": "<!-- repo-harness: reference-config-stub v1 -->",
     "reference_resolver": "repo-harness docs path <doc-id>",
@@ -1069,6 +1069,22 @@ ARCHITECTURE_INDEX_EOF
       "levels": ["P1_GLOBAL_ARCHITECTURE", "P2_DATA_FLOW_TRACE", "P3_DESIGN_DECISION"],
       "explicit_report_required_for": ["plan-eng-review", "hunt", "risky_refactor", "deployment", "auth_payment_data", "shared_contract"]
     }
+  },
+  "minimal_change": {
+    "version": 1,
+    "mode": "advice",
+    "session_context": true,
+    "prompt_advice": true,
+    "post_edit_observer": false,
+    "stop_review": true,
+    "max_findings": 5,
+    "max_context_words": 180,
+    "new_dependency": "warn",
+    "new_file": "observe",
+    "new_abstraction": "warn",
+    "protected_concerns": ["security", "validation", "data_loss", "error_handling", "accessibility", "explicit_requirement", "tests"],
+    "report_path": ".ai/harness/checks/minimal-change.latest.json",
+    "event_dedupe": true
   },
   "enforcement": {
     "worktree_guard": "warn-by-default",

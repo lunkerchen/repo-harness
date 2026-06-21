@@ -402,6 +402,7 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, "docs/reference-configs/sprint-contracts.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/reference-configs/heartbeat-triage.md"))).toBe(true);
       expect(existsSync(join(repo, "docs/reference-configs/global-working-rules.md"))).toBe(true);
+      expect(existsSync(join(repo, "docs/reference-configs/minimal-change-hooks.md"))).toBe(true);
       expectReferenceConfigStub(repo, "harness-overview");
       expectReferenceConfigStub(repo, "agentic-development-flow");
       expectReferenceConfigStub(repo, "external-tooling");
@@ -465,6 +466,24 @@ describe("Migration script contract", () => {
       expect(policy.external_tooling.codegraph.readiness).toBe("required-for-agent-code-navigation");
       expect(policy.external_tooling.codegraph.hook_policy).toBe("do-not-block-hooks");
       expect(policy.external_tooling.codegraph.vendoring_policy).toBe("do-not-add-package-dependency");
+      expect(policy.minimal_change).toMatchObject({
+        version: 1,
+        mode: "advice",
+        session_context: true,
+        prompt_advice: true,
+        post_edit_observer: false,
+        stop_review: true,
+        max_findings: 5,
+        max_context_words: 180,
+        new_dependency: "warn",
+        new_file: "observe",
+        new_abstraction: "warn",
+        report_path: ".ai/harness/checks/minimal-change.latest.json",
+        event_dedupe: true,
+      });
+      expect(policy.minimal_change.protected_concerns).toContain("security");
+      expect(policy.minimal_change.protected_concerns).toContain("tests");
+      expect(policy.documentation.reference_configs).toContain("minimal-change-hooks.md");
       expect(policy.agentic_development.routing).toEqual({
         product_discovery: "gstack:office-hours",
         complex_engineering_plan: "gstack:plan-eng-review",
@@ -570,6 +589,7 @@ describe("Migration script contract", () => {
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/document-generation.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/global-working-rules.md");
       expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/heartbeat-triage.md");
+      expect(workflowContract.artifacts.requiredFiles).toContain("docs/reference-configs/minimal-change-hooks.md");
       expect(workflowContract.artifacts.requiredFiles).toContain(".claude/templates/implementation-notes.template.md");
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/notes");
       expect(workflowContract.artifacts.requiredDirectories).toContain("tasks/workstreams");
@@ -973,6 +993,10 @@ describe("Migration script contract", () => {
               mode: "strict-local",
               gbrain: { mcp: "configured" },
             },
+            minimal_change: {
+              mode: "off",
+              custom_flag: "preserve-me",
+            },
           },
           null,
           2
@@ -1002,6 +1026,10 @@ describe("Migration script contract", () => {
       expect(policy.external_tooling.codegraph.primary_host).toBe("both");
       expect(policy.external_tooling.codegraph.index_dir).toBe(".codegraph");
       expect(policy.agentic_development.routing.complex_engineering_plan).toBe("gstack:plan-eng-review");
+      expect(policy.minimal_change.mode).toBe("off");
+      expect(policy.minimal_change.custom_flag).toBe("preserve-me");
+      expect(policy.minimal_change.version).toBe(1);
+      expect(policy.minimal_change.report_path).toBe(".ai/harness/checks/minimal-change.latest.json");
       expect(policy.upgrade.strategy_version).toBe(1);
       expect(policy.upgrade.cleanup.custom_hooks).toBe("preserve");
     } finally {

@@ -1736,6 +1736,173 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("minimal-change-observer: writes objective report and stays stdout-silent", () => {
+    const cwd = tmpWorkspace("minimal-change-observer");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, ".ai/harness"), { recursive: true });
+      writeFileSync(
+        join(cwd, ".ai/harness/policy.json"),
+        JSON.stringify({ minimal_change: { mode: "advice", post_edit_observer: true } }, null, 2)
+      );
+      mkdirSync(join(cwd, "src"), { recursive: true });
+      writeFileSync(
+        join(cwd, "src/payment-wrapper.ts"),
+        [
+          "export interface PaymentAdapter {",
+          "  charge(amount: number): Promise<void>;",
+          "}",
+        ].join("\n")
+      );
+
+      const res = runHook("minimal-change-observer.sh", cwd, {
+        stdin: JSON.stringify({ tool_input: { file_path: "src/payment-wrapper.ts" } }),
+      });
+      expect(res.status).toBe(0);
+      expect(res.stdout).toBe("");
+
+      const report = JSON.parse(
+        readFileSync(join(cwd, ".ai/harness/checks/minimal-change.latest.json"), "utf-8")
+      );
+      expect(report.scope.paths).toEqual(["src/payment-wrapper.ts"]);
+      expect(report.signals.new_file_paths).toEqual(["src/payment-wrapper.ts"]);
+      expect(report.signals.abstraction_candidates.length).toBeGreaterThan(0);
+      expect(report.verdict).toBe("review");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: appends minimal-change advice only on allowed execution prompts", () => {
+    const cwd = tmpWorkspace("minimal-change-prompt");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, "docs"), { recursive: true });
+      mkdirSync(join(cwd, "plans"), { recursive: true });
+      mkdirSync(join(cwd, "tasks/contracts"), { recursive: true });
+      mkdirSync(join(cwd, ".ai/harness"), { recursive: true });
+      writeFileSync(
+        join(cwd, ".ai/harness/policy.json"),
+        JSON.stringify({ minimal_change: { mode: "advice" } }, null, 2)
+      );
+      writeFileSync(join(cwd, "docs/spec.md"), "# Product Spec\n");
+
+      const planPath = "plans/plan-20260621-1200-demo.md";
+      const contractPath = "tasks/contracts/20260621-1200-demo.contract.md";
+      writeFileSync(
+        join(cwd, planPath),
+        [
+          "# Plan: Demo",
+          "",
+          "> **Status**: Executing",
+          `> **Task Contract**: ${contractPath}`,
+          "",
+          planEvidenceContract(),
+        ].join("\n")
+      );
+      writeFileSync(join(cwd, contractPath), "# Contract\n\n> **Capability ID**: runtime-harness-hook-adapters\n");
+      writeActivePlan(cwd, planPath);
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "please implement the next task" }),
+      });
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("Minimal-change execution advice");
+
+      writeFileSync(
+        join(cwd, ".ai/harness/policy.json"),
+        JSON.stringify({ minimal_change: { mode: "off" } }, null, 2)
+      );
+      const disabled = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ prompt: "please implement the next task" }),
+      });
+      expect(disabled.status).toBe(0);
+      expect(disabled.stdout).not.toContain("Minimal-change execution advice");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("stop-orchestrator: records minimal-change review evidence in handoff", () => {
+    const cwd = tmpWorkspace("minimal-change-stop");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      mkdirSync(join(cwd, ".ai/harness"), { recursive: true });
+      writeFileSync(
+        join(cwd, ".ai/harness/policy.json"),
+        JSON.stringify({ minimal_change: { mode: "advice" } }, null, 2)
+      );
+      mkdirSync(join(cwd, ".ai/harness/checks"), { recursive: true });
+      writeFileSync(
+        join(cwd, ".ai/harness/checks/minimal-change.latest.json"),
+        JSON.stringify(
+          {
+            version: 1,
+            policy_version: 1,
+            mode: "advice",
+            generated_at: "2026-06-21T00:00:00.000Z",
+            repo_root: ".",
+            base_ref: "HEAD",
+            fingerprint: "sha256:test",
+            scope: { paths: ["package.json"], manifest_paths: ["package.json"] },
+            signals: {
+              files_changed: 1,
+              files_added: 0,
+              files_deleted: 0,
+              loc_added: 1,
+              loc_deleted: 0,
+              binary_files: [],
+              dependency_manifests_changed: ["package.json"],
+              new_dependencies: [{ name: "chalk", type: "dependencies", version: "^5.0.0" }],
+              removed_dependencies: [],
+              new_file_paths: [],
+              abstraction_candidates: [],
+            },
+            protected_changes: [],
+            findings: [
+              {
+                tag: "dependency",
+                path: "package.json",
+                severity: "advice",
+                evidence: "dependency chalk was added to dependencies",
+                question: "Can an existing dependency cover this?",
+              },
+            ],
+            verdict: "review",
+            report_path: ".ai/harness/checks/minimal-change.latest.json",
+          },
+          null,
+          2
+        )
+      );
+
+      const res = runHook("stop-orchestrator.sh", cwd, {
+        stdin: JSON.stringify({ hook_event_name: "Stop", stop_hook_active: false }),
+      });
+      expect(res.status).toBe(0);
+      expect(res.stdout).toBe("");
+
+      const handoff = readFileSync(join(cwd, ".ai/harness/handoff/current.md"), "utf-8");
+      expect(handoff).toContain("<!-- repo-harness:minimal-change-review begin -->");
+      expect(handoff).toContain("## Minimal Change Review");
+      expect(handoff).toContain("Verdict: `review`");
+      expect(handoff).toContain("package.json");
+      expect(handoff).toContain("Can an existing dependency cover this?");
+
+      const second = runHook("stop-orchestrator.sh", cwd, {
+        stdin: JSON.stringify({ hook_event_name: "Stop", stop_hook_active: false }),
+      });
+      expect(second.status).toBe(0);
+      const updated = readFileSync(join(cwd, ".ai/harness/handoff/current.md"), "utf-8");
+      expect(updated.match(/## Minimal Change Review/g)?.length).toBe(1);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("changelog-guard: warns when unreleased section is empty on release command", () => {
     const cwd = tmpWorkspace("changelog-guard");
     try {
@@ -2479,6 +2646,7 @@ describe("Hook runtime behavior", () => {
       });
       expect(recursive.status).toBe(0);
       expect(recursive.stdout).toBe("");
+      expect(existsSync(join(cwd, ".ai/harness/handoff/current.md"))).toBe(false);
 
       const codex = runHook("stop-orchestrator.sh", cwd, {
         stdin: JSON.stringify({
