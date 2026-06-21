@@ -186,6 +186,48 @@ prompt_intent_text() {
   fi
 }
 
+prompt_foreign_repo_root() {
+  local current_root current_real candidates raw candidate dir root root_real
+  current_root="${HOOK_REPO_ROOT:-$(pwd)}"
+  current_real="$(cd "$current_root" 2>/dev/null && pwd -P || true)"
+  [[ -n "$current_real" ]] || current_real="$current_root"
+
+  candidates="$(printf '%s\n' "$PROMPT_INTENT_TEXT" | awk '
+    {
+      line = $0
+      while (match(line, /\/[^[:space:]<>"`]+/)) {
+        print substr(line, RSTART, RLENGTH)
+        line = substr(line, RSTART + RLENGTH)
+      }
+    }
+  ' | sed -E 's/[][),.;:]+$//' | sort -u)"
+
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    [[ -n "$raw" ]] || continue
+    candidate="$raw"
+    [[ "$candidate" == "$current_root"* || "$candidate" == "$current_real"* ]] && continue
+
+    dir="$candidate"
+    while [[ "$dir" != "/" && ! -e "$dir" ]]; do
+      dir="$(dirname "$dir")"
+    done
+    [[ -e "$dir" ]] || continue
+    [[ -f "$dir" ]] && dir="$(dirname "$dir")"
+
+    root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)"
+    [[ -n "$root" ]] || continue
+    root_real="$(cd "$root" 2>/dev/null && pwd -P || true)"
+    [[ -n "$root_real" ]] || root_real="$root"
+
+    if [[ "$root_real" != "$current_real" ]]; then
+      printf '%s' "$root"
+      return 0
+    fi
+  done <<< "$candidates"
+
+  return 1
+}
+
 # --- Decision engine invocation ---
 
 prompt_guard_decision_command() {
@@ -429,6 +471,14 @@ emit_pending_orchestration_capture_gate() {
 maybe_start_plan_workflow() {
   pg_fact THINK_PLAN_START || return 0
 
+  local foreign_repo
+  foreign_repo="$(prompt_foreign_repo_root || true)"
+  if [[ -n "$foreign_repo" ]]; then
+    echo "[RepoIsolationGate] Think/plan intent references a different git repo: $foreign_repo"
+    echo "[RepoIsolationGate] Skipping automatic Draft plan workflow in ${HOOK_REPO_ROOT:-$(pwd)}. Continue from the referenced repo before creating repo-local workflow files."
+    return 0
+  fi
+
   if [[ ! -x "scripts/ensure-task-workflow.sh" ]]; then
     echo "[PlanStartGate] Think/plan intent detected, but scripts/ensure-task-workflow.sh is missing. Continue with planning and capture manually."
     return 0
@@ -507,6 +557,14 @@ normalize_plan_slug() {
 
 maybe_capture_embedded_approved_plan() {
   pg_fact EMBEDDED_APPROVED_PLAN || pg_fact PLAN_SHAPED_MARKDOWN || return 0
+
+  local foreign_repo
+  foreign_repo="$(prompt_foreign_repo_root || true)"
+  if [[ -n "$foreign_repo" ]]; then
+    echo "[RepoIsolationGate] Embedded plan references a different git repo: $foreign_repo"
+    echo "[RepoIsolationGate] Skipping capture-plan in ${HOOK_REPO_ROOT:-$(pwd)}. Re-run the prompt from the referenced repo before projecting workflow files."
+    return 0
+  fi
 
   if [[ ! -x "scripts/capture-plan.sh" ]]; then
     echo "[PlanCaptureGate] Embedded approved plan detected, but scripts/capture-plan.sh is missing."
@@ -893,8 +951,14 @@ plan_start_intent=0
 pg_fact PLAN_START && plan_start_intent=1
 
 plan_research_ready=1
+plan_repo_isolation_skip=0
 if [ "$plan_start_intent" -eq 1 ]; then
-  if ! has_research_for_new_plan; then
+  foreign_repo="$(prompt_foreign_repo_root || true)"
+  if [[ -n "$foreign_repo" ]]; then
+    plan_repo_isolation_skip=1
+    echo "[RepoIsolationGate] Think/plan intent references a different git repo: $foreign_repo"
+    echo "[RepoIsolationGate] Skipping automatic Draft plan workflow in ${HOOK_REPO_ROOT:-$(pwd)}. Continue from the referenced repo before creating repo-local workflow files."
+  elif ! has_research_for_new_plan; then
     latest_plan="$(get_latest_plan || true)"
     if [[ -n "$latest_plan" ]]; then
       plan_research_ready=0
@@ -908,7 +972,9 @@ if [ "$plan_start_intent" -eq 1 ]; then
 fi
 
 if [ "$implement_intent" -eq 0 ] && [ "$done_intent" -eq 0 ]; then
-  if [ "$plan_start_intent" -eq 1 ] && [ "$plan_research_ready" -eq 0 ]; then
+  if [ "$plan_start_intent" -eq 1 ] && [ "$plan_repo_isolation_skip" -eq 1 ]; then
+    :
+  elif [ "$plan_start_intent" -eq 1 ] && [ "$plan_research_ready" -eq 0 ]; then
     echo "[PlanStartGate] Skipping automatic Draft plan workflow until research is refreshed."
   else
     maybe_start_plan_workflow
