@@ -1,10 +1,10 @@
 # Sprint V2: Single-Source Minimal-Change Hooks + Deep Diff Review
 
-> **Status**: Draft
+> **Status**: Done
 
 ```yaml
 sprint_id: 20260621-single-source-minimal-change-review
-status: Draft
+status: Done
 target_branch: codex/single-source-minimal-change-review
 duration: 12 engineering days
 risk: high
@@ -16,6 +16,164 @@ source_research:
   - Ancienttwo/repo-harness
 target_release: next-minor
 ```
+
+## PRD
+
+Source PRD: collapse repo-harness minimal-change hook work into the existing hook/runtime/policy workflow while first removing the duplicate human-edited hook source between `assets/hooks/` and `.ai/hooks/`. The product promise is a native repo-harness path for minimal-change guidance and deep diff review without importing Ponytail runtime state, commands, or adapters.
+
+## Backlog
+
+| # | Status | Task | Mode | Acceptance | Plan |
+|---|---|---|---|---|---|
+| 1 | [x] | Establish canonical hook source projection | inline | `bun run check:hooks` passes and the self-host `.ai/hooks/` projection matches `assets/hooks/`. | PR 0 |
+| 2 | [x] | Add minimal-change policy and fixed session context | inline | Policy parsing and context rendering are covered by tests and remain advice-only by default. | PR 1 |
+| 3 | [x] | Collect objective minimal-change edit signals | inline | Post-edit signal collection records deterministic file, diff, dependency, and test-surface facts without blocking edits. | PR 2 |
+| 4 | [x] | Add severity-ranked deep diff review rubric | inline | Review routing can render a deterministic rubric ordered by severity and mapped to existing review evidence. | PR 3 |
+| 5 | [x] | Invalidate stale review evidence after diff changes | inline | Done/review gates can detect when recorded review evidence predates the implementation diff fingerprint. | PR 4 |
+| 6 | [x] | Package, migrate, document, and release the completed hook flow | inline | Adoption, migration, docs, and release gates prove the full minimal-change workflow from package surfaces. | PR 5 |
+
+## 0. Execution Snapshot
+
+### 2026-06-21 PR0 progress
+
+Completed the single-source hook projection foundation:
+
+- Added `assets/hooks/projection.json`.
+- Added `scripts/sync-hook-sources.ts`.
+- Added `bun run sync:hooks` and `bun run check:hooks`.
+- Generated `.ai/hooks/.projection.json`.
+- Made `assets/hooks/` the canonical human-edited root and `.ai/hooks/` the deterministic self-host projection.
+- Classified package-only files: `projection.json`, `codex.hooks.template.json`, `settings.template.json`.
+- Classified repo-only files: none.
+- Confirmed Codex lifecycle scripts are shared canonical files with route owners, not repo-only exceptions.
+- Updated central install and repo-pinned scaffold/migration copy paths to skip package-only files.
+- Added audit evidence: `docs/researches/20260621-hook-source-projection-audit.md`.
+
+Verified:
+
+- `bun run check:hooks`
+- `bun run check:type`
+- `bun test tests/hook-source-projection.test.ts tests/workflow-contract.test.ts tests/hook-shim-resolution.test.ts`
+- `bun test --timeout 60000 --max-concurrency 4` — 890 pass, 0 fail.
+- `bash scripts/check-deploy-sql-order.sh`
+- `bash scripts/check-architecture-sync.sh`
+- `bash scripts/check-task-sync.sh`
+- `bash scripts/check-task-workflow.sh --strict`
+- `bun scripts/inspect-project-state.ts --repo . --format text`
+- `bash scripts/migrate-project-template.sh --repo . --dry-run`
+
+### 2026-06-21 PR1 progress
+
+Completed the minimal-change policy and context foundation:
+
+- Added `src/cli/hook/minimal-change-policy.ts`.
+- Added `src/cli/hook/minimal-change-context.ts`.
+- Added `src/cli/hook/minimal-change-cli.ts`.
+- Added `repo-harness-hook minimal-change context --phase session|execution`.
+- Added `.ai/harness/policy.json` / generated policy `minimal_change` defaults.
+- Added `assets/hooks/minimal-change-context.sh` and `assets/hooks/lib/minimal-change.sh`.
+- Added SessionStart context injection without changing route tuple/order.
+- Added execution-only prompt advice through existing `prompt-guard.sh`.
+- Preserved v1 advice-only behavior: `enforce` normalizes to `advice`, `blocking=false`, and `mode=off` emits byte-empty output.
+- Updated package-only hook templates so direct SessionStart templates include `minimal-change-context.sh`.
+- Added audit evidence: `docs/researches/20260621-minimal-change-policy-context-audit.md`.
+
+Verified:
+
+- `bun run check:type`
+- `bun run check:hooks` — 24 files, `sha256:6d1beda78332605787c7fdbc68d0daeac9a0f50c8ad6ac8d90b62bf9e724ca53`.
+- `bun test tests/minimal-change-policy.test.ts tests/cli/hook.test.ts tests/hook-source-projection.test.ts`
+- `bun test tests/hook-contracts.test.ts tests/bootstrap-files.test.ts tests/cli/route-registry.test.ts tests/hook-shim-resolution.test.ts tests/workflow-contract.test.ts`
+- `bun test tests/scaffold-parity.test.ts`
+- `bun test --timeout 60000 --max-concurrency 4` — 897 pass, 0 fail.
+- `bash scripts/check-deploy-sql-order.sh`
+- `bash scripts/check-architecture-sync.sh`
+- `bash scripts/check-task-sync.sh`
+- `bash scripts/check-task-workflow.sh --strict` — first run reported stale handoff freshness; `bash scripts/prepare-codex-handoff.sh` refreshed `current.md`/`resume.md`; rerun passed.
+- `bun scripts/inspect-project-state.ts --repo . --format text`
+- `bash scripts/migrate-project-template.sh --repo . --dry-run`
+
+### 2026-06-21 PR2 progress
+
+Completed the minimal-change edit signal foundation:
+
+- Added `src/cli/hook/diff-fingerprint.ts` as the shared diff fingerprint primitive for signal and future freshness work.
+- Added `src/cli/hook/minimal-change-signals.ts` with schema v1 report generation, path containment checks, bounded git facts, package.json dependency diffing, protected-change detection, abstraction candidates, deterministic sorting, fingerprint dedupe, and atomic report writes.
+- Extended `repo-harness-hook minimal-change` with `signals --phase post-edit --path <path>`.
+- Added `assets/hooks/minimal-change-observer.sh` and projected `.ai/hooks/minimal-change-observer.sh`.
+- Updated `PostToolUse.edit` internal script order to `post-edit-guard.sh`, then `minimal-change-observer.sh`, without changing the route tuple/order.
+- Preserved advice-only behavior: `minimal_change.mode=off` writes no report, observer stdout is empty, and failures remain fail-open.
+- Added audit evidence: `docs/researches/20260621-minimal-change-signals-audit.md`.
+
+Verified:
+
+- `git diff --check`
+- `bun run check:type`
+- `bun run check:hooks` — 25 files, `sha256:5f6c6cf6740e392ea2cceec06751d61f373900ab67ffa7191ee3a0c0ad60623d`.
+- `bun test tests/minimal-change-signals.test.ts`
+- `bun test tests/minimal-change-signals.test.ts tests/hook-runtime.test.ts tests/cli/route-registry.test.ts`
+- `bun test tests/cli/hook.test.ts tests/hook-source-projection.test.ts tests/hook-contracts.test.ts tests/create-project-dirs.runtime.test.ts tests/migration-script.test.ts tests/scaffold-parity.test.ts`
+- `bun test --timeout 60000 --max-concurrency 4` — 903 pass, 0 fail.
+- `bash scripts/check-deploy-sql-order.sh`
+- `bash scripts/check-architecture-sync.sh`
+- `bash scripts/check-task-sync.sh`
+- `bash scripts/check-task-workflow.sh --strict` — first post-PR2 run reported `docs/reference-configs/hook-operations.md` over the 100-line brain stub limit and stale handoff freshness; docs were compacted to 100 lines, `bash scripts/prepare-codex-handoff.sh` refreshed handoff, and rerun passed.
+- `bun scripts/inspect-project-state.ts --repo . --format text`
+- `bash scripts/migrate-project-template.sh --repo . --dry-run`
+
+### 2026-06-21 PR3 progress
+
+Completed the severity-ranked review rubric foundation:
+
+- Added `src/cli/hook/review-rubric.ts` with `REVIEW_RUBRIC_VERSION = 1`, fixed P0/P1/P2/P3 order, eight review dimensions, required finding shape, no-findings guidance, and the rule that minimal-change/YAGNI is maintenance cost only.
+- Added `repo-harness-hook review-rubric --format prompt|text` through a dynamic import in `src/cli/hook-entry.ts`.
+- Added a hidden full CLI fallback `repo-harness review-rubric`.
+- Updated `assets/hooks/prompt-guard.sh` so only the existing `REVIEW_RELEASE` branch injects the rubric into local `/check` guidance and peer external acceptance prompts.
+- Preserved route ownership: no new `UserPromptSubmit` route/script, no file writes, no `/check` execution, no host JSON envelope changes.
+- Added audit evidence: `docs/researches/20260621-review-rubric-audit.md`.
+
+Verified so far:
+
+- `bun run check:type`
+- `bun run check:hooks` — 25 files, `sha256:6e743a44061306e5f0d82610b562c396e914f8793adaded031e7b80a0c22e9bb`.
+- `bun test tests/review-rubric.test.ts tests/hook-runtime.test.ts tests/cli/hook.test.ts tests/hook-source-projection.test.ts`
+
+### 2026-06-21 PR4 progress
+
+Completed review freshness invalidation:
+
+- Extended `src/cli/hook/diff-fingerprint.ts` with implementation review fingerprints for branch, staged, unstaged, and untracked changes.
+- Added `repo-harness-hook review-fingerprint --format json` through the lightweight hook entrypoint plus hidden full CLI fallback.
+- Updated review/release prompt guidance to print the current implementation diff fingerprint and metadata lines for review artifacts.
+- Updated review templates and plan/todo projection helpers so new reviews include `Review Rubric Version`, `Reviewed Diff Fingerprint`, and `Reviewed Scope`.
+- Added Done-gate freshness comparison in `prompt-guard.sh`: fresh fingerprints pass, missing legacy metadata warns, malformed/unknown/stale metadata blocks with `ReviewFreshnessGuard`.
+- Added Stop-time stale review nudges in `stop-orchestrator.sh` without blocking Stop or emitting a second decision envelope.
+- Excluded review/check evidence and hook runtime state from the implementation fingerprint so the guard is not invalidated by its own evidence writes.
+- Added audit evidence: `docs/researches/20260621-review-freshness-audit.md`.
+
+Verified so far:
+
+- `bun run check:type`
+- `bun test tests/review-freshness.test.ts tests/hook-runtime.test.ts tests/review-rubric.test.ts tests/hook-source-projection.test.ts` — 124 pass, 0 fail.
+
+### 2026-06-21 PR5 progress
+
+Completed packaging, migration, documentation, and release readiness:
+
+- Bumped the next-minor release line to `repo-harness@0.8.0` in `package.json`, `assets/skill-version.json`, and localized README current-release surfaces.
+- Strengthened `scripts/check-tarball-install-smoke.sh` so the tarball must contain canonical `assets/hooks/` shared runtime plus package-only templates, must not ship `.ai/hooks/`, and must prove installed central bundle digest parity against packaged canonical assets.
+- Strengthened `tests/hook-shim-resolution.test.ts` so `scripts/repo-harness.sh install` proves `~/.repo-harness/hooks/` matches canonical managed hook bytes and executable bits.
+- Kept packaged bash installs quiet by auto-trusting only source checkouts, not npm package `scripts/` directories that are not Git repos.
+- Confirmed `repo-harness@0.8.0` is unpublished on npm and `repo-harness@0.7.4` is already published, so the next-minor release line is required for a passing release gate.
+- Added audit evidence: `docs/researches/20260621-package-release-parity-audit.md`.
+
+Verified:
+
+- `bash -n scripts/repo-harness.sh scripts/check-tarball-install-smoke.sh`
+- `bun test tests/hook-shim-resolution.test.ts tests/bootstrap-files.test.ts`
+- `bash scripts/check-tarball-install-smoke.sh`
+- `bun test tests/skill-version.test.ts tests/readme-dx.test.ts`
+- `bun run check:release` — npm unpublished-version gate passed for `repo-harness@0.8.0`; full CI gate passed with 914 tests, 0 fail; tarball smoke passed.
 
 ## 1. Sprint Goal
 

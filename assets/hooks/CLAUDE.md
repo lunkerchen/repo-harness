@@ -11,6 +11,8 @@ Keep this file focused on the local contract for this primary functional block.
 - Treat `.ai/context/context-map.json` as the index of discoverable context files.
 - Do not keep pushing context files deeper by default; add lower-level files only for a separately owned functional block with its own commands and invariants.
 - Prefer repo-local workflow artifacts over tool-specific chat memory.
+- `assets/hooks/` is the only human-authored hook source. Treat `.ai/hooks/` as the generated self-host projection; after editing hook files, run `bun run sync:hooks`, then `bun run check:hooks`.
+- Do not hand-edit generated `.ai/hooks/` drift. Classify package-only or repo-only exceptions in `assets/hooks/projection.json`.
 
 <!-- BEGIN CAPABILITY CONTEXT -->
 ## Capability Context

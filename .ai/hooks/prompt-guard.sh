@@ -770,9 +770,29 @@ emit_waza_route_hint() {
 
   if pg_fact REVIEW_RELEASE; then
     echo "[WazaRoute] Review/release intent detected. Default route: Waza /check."
+    emit_review_rubric_prompt
+    emit_review_fingerprint_prompt
     emit_external_acceptance_prompt review
     emit_cross_review_hint merge
   fi
+}
+
+emit_review_rubric_prompt() {
+  local rubric
+  rubric="$(review_rubric_prompt || true)"
+  [[ -n "$rubric" ]] || return 0
+  printf '%s\n' "$rubric"
+}
+
+emit_review_fingerprint_prompt() {
+  local fingerprint review_file
+  fingerprint="$(workflow_current_review_fingerprint_value || true)"
+  review_file="$(workflow_active_review || true)"
+  echo "[ReviewFreshness] Current implementation diff fingerprint: ${fingerprint:-unknown}"
+  echo "[ReviewFreshness] Record these review metadata lines in ${review_file:-tasks/reviews/<slug>.review.md}:"
+  echo "> **Review Rubric Version**: 1"
+  echo "> **Reviewed Diff Fingerprint**: ${fingerprint:-unknown}"
+  echo "> **Reviewed Scope**: branch+staged+unstaged+untracked"
 }
 
 # Cross-review advisory: nudge the agent to consider an independent second
@@ -800,7 +820,7 @@ emit_cross_review_hint() {
 
 emit_external_acceptance_prompt() {
   local mode="${1:-review}"
-  local expected_reviewer expected_source command active_plan_local contract_file_local review_file checks_file
+  local expected_reviewer expected_source command active_plan_local contract_file_local review_file checks_file rubric fingerprint
 
   expected_reviewer="$(workflow_external_acceptance_expected_reviewer)"
   expected_source="$(workflow_external_acceptance_expected_source "$expected_reviewer")"
@@ -814,6 +834,8 @@ emit_external_acceptance_prompt() {
   contract_file_local="$(workflow_active_contract || true)"
   review_file="$(workflow_active_review || true)"
   checks_file="$(workflow_checks_file)"
+  rubric="$(review_rubric_prompt || true)"
+  fingerprint="$(workflow_current_review_fingerprint_value || true)"
 
   echo "[ExternalAcceptance] Review/release intent detected. Start peer acceptance in parallel with local /check."
   echo "[ExternalAcceptance] Mode: $mode"
@@ -821,11 +843,14 @@ emit_external_acceptance_prompt() {
   echo "[ExternalAcceptance] Current contract: ${contract_file_local:-"(none)"}"
   echo "[ExternalAcceptance] Current review: ${review_file:-tasks/reviews/<slug>.review.md}"
   echo "[ExternalAcceptance] Current checks: $checks_file"
+  echo "[ExternalAcceptance] Current diff fingerprint: ${fingerprint:-unknown}"
   echo "[ExternalAcceptance] Peer reviewer: $expected_reviewer via $command"
   echo "[ExternalAcceptance] Diff scope for peer: branch diff against target, staged diff, unstaged diff, and untracked files."
   cat <<EOF_EXTERNAL_ACCEPTANCE
 [ExternalAcceptance] Prompt to send with $command:
-Review the current sprint for acceptance only. Do not run /check. Do not edit files. Do not write files. Inspect the diff scope, contract, review evidence, and checks evidence, then return only a Markdown block that can be pasted into ${review_file:-tasks/reviews/<slug>.review.md}.
+Review the current sprint for acceptance only. Do not run /check. Do not edit files. Do not write files. Inspect the diff scope, contract, review evidence, checks evidence, and Review Rubric v1, then return only a Markdown block that can be pasted into ${review_file:-tasks/reviews/<slug>.review.md}.
+
+${rubric:-[ReviewRubric] Deep Diff Review Rubric v1 unavailable; use severity order P0/P1/P2/P3 and report no style-only nits.}
 
 ## External Acceptance Advice
 > **External Acceptance**: pass
@@ -833,6 +858,9 @@ Review the current sprint for acceptance only. Do not run /check. Do not edit fi
 > **External Source**: $expected_source
 > **External Started**: YYYY-MM-DDTHH:MM:SS+0800
 > **External Completed**: YYYY-MM-DDTHH:MM:SS+0800
+> **Review Rubric Version**: 1
+> **Reviewed Diff Fingerprint**: ${fingerprint:-unknown}
+> **Reviewed Scope**: branch+staged+unstaged+untracked
 
 - P1 blockers: none
 - P2 advisories:
@@ -1118,6 +1146,27 @@ if [ "$done_intent" -eq 1 ]; then
       "quality_gate"
     exit 2
   fi
+
+  review_freshness="$(workflow_review_freshness_status "$review_file")"
+  IFS=$'\t' read -r review_freshness_state review_fingerprint review_freshness_message <<< "$review_freshness"
+  case "$review_freshness_state" in
+    pass)
+      ;;
+    legacy_missing)
+      # Advisory only: an absent rubric is blocked downstream by the external
+      # acceptance gate, which requires a supported rubric.
+      echo "[ReviewFreshness] WARN: $review_freshness_message"
+      ;;
+    *)
+      echo "[ReviewFreshnessGuard] $review_freshness_message"
+      hook_structured_error \
+        "ReviewFreshnessGuard" \
+        "$review_freshness_message" \
+        "Rerun Waza /check and peer acceptance so $review_file records the current Reviewed Diff Fingerprint." \
+        "quality_gate"
+      exit 2
+      ;;
+  esac
 
   external_status="$(workflow_external_acceptance_status "$review_file")"
   IFS=$'\t' read -r external_state external_reviewer external_source external_message <<< "$external_status"

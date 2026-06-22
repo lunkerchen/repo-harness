@@ -37,6 +37,22 @@ if (import.meta.main) {
     process.exit(result.exitCode);
   }
 
+  if (argv[0] === 'review-rubric') {
+    const { runReviewRubricCli } = await import('./hook/review-rubric');
+    const result = runReviewRubricCli(argv.slice(1));
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
+  if (argv[0] === 'review-fingerprint') {
+    const { runReviewFingerprintCli } = await import('./hook/diff-fingerprint');
+    const result = runReviewFingerprintCli(argv.slice(1));
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.exitCode);
+  }
+
   if (argv[0] === 'prompt-guard-decide') {
     console.log(runPromptGuardDecideCli());
     process.exit(0);

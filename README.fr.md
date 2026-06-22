@@ -85,7 +85,7 @@ l'emportent.
 ## Nouveautés
 
 Les notes de version vivent dans [`docs/CHANGELOG.md`](docs/CHANGELOG.md). La
-ligne actuelle est `0.7.5`.
+ligne actuelle est `0.8.0`.
 
 ## Comment ça marche
 
@@ -424,8 +424,8 @@ Guards courants :
 
 ## Release actuelle
 
-- npm package : `repo-harness@0.7.5`
-- Generated workflow stamp : `repo-harness@0.7.5+template@0.7.5`
+- npm package : `repo-harness@0.8.0`
+- Generated workflow stamp : `repo-harness@0.8.0+template@0.8.0`
 - GitHub repository : `Ancienttwo/repo-harness`
 - Release history : [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
@@ -590,7 +590,7 @@ bun run benchmark:skills --eval repair-agents-task-sync
   - `scripts/create-project-dirs.sh`
 - Legacy-doc migrator : `scripts/migrate-workflow-docs.ts`
 
-## Generated vs Self-Hosted Hook Parity
+## Generated vs Self-Hosted Hook Projection
 
 - Le comportement downstream des hooks est défini par la sortie générée depuis `assets/hooks/` et `assets/reference-configs/`.
 - Ce repo dogfoode le même contract, mais le comportement self-host ne se synchronise pas magiquement avec les generated repos ; un changement doit mettre à jour explicitement les deux surfaces lorsque nécessaire.

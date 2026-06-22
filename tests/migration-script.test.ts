@@ -180,7 +180,7 @@ describe("Migration script contract", () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
-  }, 30000);
+  }, MIGRATION_INTEGRATION_TIMEOUT);
 
   test("should refuse to migrate HOME as a repo target", () => {
     const tmp = mkdtempSync(join(tmpdir(), "migration-home-guard-"));
@@ -643,7 +643,7 @@ describe("Migration script contract", () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
-  }, 30000);
+  }, MIGRATION_INTEGRATION_TIMEOUT);
 
   test("should ignore and untrack generated helper wrappers while preserving app-owned scripts", () => {
     const repo = mkdtempSync(join(tmpdir(), "migration-helper-ignore-"));
@@ -766,6 +766,9 @@ describe("Migration script contract", () => {
       expect(existsSync(join(repo, ".ai/hooks/post-edit-guard.sh"))).toBe(true);
       expect(existsSync(join(repo, ".ai/hooks/post-tool-observer.sh"))).toBe(true);
       expect(existsSync(join(repo, ".ai/hooks/lib/workflow-state.sh"))).toBe(true);
+      expect(existsSync(join(repo, ".ai/hooks/AGENTS.md"))).toBe(true);
+      expect(existsSync(join(repo, ".ai/hooks/projection.json"))).toBe(false);
+      expect(existsSync(join(repo, ".ai/hooks/settings.template.json"))).toBe(false);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

@@ -241,16 +241,21 @@ install_hooks_bundle() {
     exit 1
   fi
   rm -rf "$CENTRAL_HOOKS_DIR"
-  mkdir -p "$CENTRAL_HOOKS_DIR/lib"
-  local f
-  for f in "$HOOKS_SRC_DIR"/*.sh; do
-    [ -f "$f" ] || continue
-    install -m 0755 "$f" "$CENTRAL_HOOKS_DIR/"
-  done
-  for f in "$HOOKS_SRC_DIR"/lib/*.sh; do
-    [ -f "$f" ] || continue
-    install -m 0644 "$f" "$CENTRAL_HOOKS_DIR/lib/"
-  done
+  mkdir -p "$CENTRAL_HOOKS_DIR"
+  local f rel dest mode
+  while IFS= read -r f; do
+    rel="${f#"$HOOKS_SRC_DIR"/}"
+    case "$rel" in
+      projection.json|codex.hooks.template.json|settings.template.json)
+        continue
+        ;;
+    esac
+    dest="$CENTRAL_HOOKS_DIR/$rel"
+    mkdir -p "$(dirname "$dest")"
+    mode=0644
+    [ -x "$f" ] && mode=0755
+    install -m "$mode" "$f" "$dest"
+  done < <(find "$HOOKS_SRC_DIR" -type f | sort)
   local version="unknown"
   if [ -f "${PACKAGE_ROOT}/package.json" ] && command -v jq >/dev/null 2>&1; then
     version=$(jq -r '.version // "unknown"' "${PACKAGE_ROOT}/package.json" 2>/dev/null || echo unknown)
@@ -272,9 +277,11 @@ cmd_install() {
   install_shim
   install_hooks_bundle
 
-  # Auto-trust the checkout we are installing from: running install is an
-  # explicit act of trust in this copy of repo-harness.
-  trust_repo "$SHIM_SRC_DIR" || true
+  # Auto-trust source checkouts only. npm/global package installs are not git
+  # repos, and warning about that path during a normal install is noise.
+  if git -C "$SHIM_SRC_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    trust_repo "$SHIM_SRC_DIR" || true
+  fi
 
   case "$target" in
     codex|both) merge_hooks_into "$CODEX_HOOKS" ;;

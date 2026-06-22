@@ -76,18 +76,19 @@ describe("README DX contract", () => {
     expect(firstFive).toContain("Project hooks synced from:");
     expect(firstFive).toContain("Host hook config target:");
     expect(firstFive).toContain("Host hook adapters are user-level:");
-    expect(hookAuthority).toContain(".ai/hooks/");
+    expect(hookAuthority).toContain("assets/hooks/");
+    expect(hookAuthority).toContain("bun run sync:hooks");
     expect(hookAuthority).toContain("repo-harness-hook");
     expect(hookAuthority).toContain("route registry");
     expect(maintainer).toContain("bun scripts/assemble-template.ts --plan C --name \"MyProject\"");
   });
 
-  test("links to the hook operations reference and parity contract", () => {
+  test("links to the hook operations reference and projection contract", () => {
     const readme = read("README.md");
     const hookOps = read("docs/reference-configs/hook-operations.md");
 
     expect(readme).toContain("docs/reference-configs/hook-operations.md");
-    expect(readme).toContain("Generated vs Self-Hosted Hook Parity");
+    expect(readme).toContain("Generated vs Self-Hosted Hook Projection");
     expect(hookOps).toContain("## Hook Authority Map");
     expect(hookOps).toContain("## Hook Failure Playbook");
     expect(hookOps).toContain("PlanStatusGuard");
@@ -173,7 +174,7 @@ describe("README DX contract", () => {
       expect(localized).toContain("repo-harness docs list");
       expect(localized).toContain("SessionStart.default");
       expect(localized).toContain("PostToolUse.always");
-      expect(localized).toContain("Generated vs Self-Hosted Hook Parity");
+      expect(localized).toContain("Generated vs Self-Hosted Hook Projection");
       expect(localized).toContain("Package Manager Defaults");
       expect(localized).toContain("Runtime Profiles");
       expect(localized).toContain("bun run benchmark:skills --eval route-workflow-check");

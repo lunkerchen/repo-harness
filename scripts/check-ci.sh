@@ -46,6 +46,9 @@ bun install --frozen-lockfile
 echo "[ci] typecheck"
 bun run check:type
 
+echo "[ci] hook projection"
+bun run check:hooks
+
 echo "[ci] tests"
 run_bun_tests
 

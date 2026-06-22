@@ -105,7 +105,7 @@ function planEvidenceContract(): string {
   ].join("\n");
 }
 
-function externalAcceptanceAdvice(reviewer = "Codex", source = "codex-review"): string {
+function externalAcceptanceAdvice(reviewer = "Codex", source = "codex-review", fingerprint?: string): string {
   return [
     "## External Acceptance Advice",
     "",
@@ -114,6 +114,14 @@ function externalAcceptanceAdvice(reviewer = "Codex", source = "codex-review"): 
     `> **External Source**: ${source}`,
     "> **External Started**: 2026-03-04T14:05:00+0800",
     "> **External Completed**: 2026-03-04T14:06:00+0800",
+    // Under rubric v1 the peer must bind acceptance to the exact diff reviewed.
+    ...(fingerprint
+      ? [
+          "> **Review Rubric Version**: 1",
+          `> **Reviewed Diff Fingerprint**: ${fingerprint}`,
+          "> **Reviewed Scope**: branch+staged+unstaged+untracked",
+        ]
+      : []),
     "",
     "- P1 blockers: none",
     "- P2 advisories: none",
@@ -192,6 +200,87 @@ function initGitRepo(cwd: string) {
   writeFileSync(join(cwd, "tracked.txt"), "base\n");
   expect(run("git", ["add", "tracked.txt"], cwd).status).toBe(0);
   expect(run("git", ["commit", "-m", "init"], cwd).status).toBe(0);
+  // Align the working branch with the default target (workflow_target_branch
+  // resolves to `main`) so the review-fingerprint CLI can bind --base main.
+  expect(run("git", ["branch", "-M", "main"], cwd).status).toBe(0);
+}
+
+function currentReviewFingerprint(cwd: string): string {
+  const res = spawnSync("bun", [join(ROOT, "src/cli/hook-entry.ts"), "review-fingerprint", "--base", "main", "--format", "json"], {
+    cwd,
+    encoding: "utf-8",
+    maxBuffer: HOOK_RUNTIME_SPAWN_BUFFER_BYTES,
+    env: {
+      ...process.env,
+      ...(TEST_NODE_PATH ? { NODE_PATH: TEST_NODE_PATH } : {}),
+    },
+  });
+  expect(res.status).toBe(0);
+  const parsed = JSON.parse(res.stdout);
+  expect(parsed.status).toBe("ok");
+  expect(parsed.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
+  return parsed.fingerprint;
+}
+
+function reviewFingerprintMetadata(fingerprint: string): string {
+  return [
+    "> **Review Rubric Version**: 1",
+    `> **Reviewed Diff Fingerprint**: ${fingerprint}`,
+    "> **Reviewed Scope**: branch+staged+unstaged+untracked",
+  ].join("\n");
+}
+
+function writeDoneGateBase(cwd: string, options: { archive?: boolean } = {}) {
+  mkdirSync(join(cwd, "plans"), { recursive: true });
+  mkdirSync(join(cwd, "tasks"), { recursive: true });
+  mkdirSync(join(cwd, "tasks/contracts"), { recursive: true });
+  mkdirSync(join(cwd, "tasks/reviews"), { recursive: true });
+  mkdirSync(join(cwd, ".ai/harness/checks"), { recursive: true });
+  mkdirSync(join(cwd, "scripts"), { recursive: true });
+
+  writeFileSync(
+    join(cwd, "plans/plan-20260304-1410-demo.md"),
+    ["# Plan: demo", "", "> **Status**: Approved", "", planEvidenceContract(), ""].join("\n")
+  );
+  writeActivePlan(cwd, "plans/plan-20260304-1410-demo.md");
+  writeFileSync(
+    join(cwd, "tasks/todos.md"),
+    "# Task Execution Checklist (Primary)\n\n> **Source Plan**: plans/plan-20260304-1410-demo.md\n"
+  );
+  writeFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "# contract\n");
+  writeValidSprintChecks(cwd);
+  writeFileSync(
+    join(cwd, "scripts/verify-contract.sh"),
+    "#!/bin/bash\nset -euo pipefail\necho \"[verify] ok\"\n"
+  );
+  expect(run("chmod", ["+x", "scripts/verify-contract.sh"], cwd).status).toBe(0);
+
+  if (options.archive) {
+    writeFileSync(
+      join(cwd, "scripts/archive-workflow.sh"),
+      "#!/bin/bash\nset -euo pipefail\necho \"[archive] mocked $*\"\n"
+    );
+    expect(run("chmod", ["+x", "scripts/archive-workflow.sh"], cwd).status).toBe(0);
+  }
+}
+
+function writePassingReview(cwd: string, fingerprint?: string) {
+  writeFileSync(
+    join(cwd, "tasks/reviews/demo.review.md"),
+    [
+      "# Task Review: demo",
+      "",
+      "> **Recommendation**: pass",
+      ...(fingerprint ? ["", reviewFingerprintMetadata(fingerprint)] : []),
+      "",
+      humanReviewCard(),
+      "",
+      // Bind the External Acceptance section to the same fingerprint so the
+      // peer's acceptance is for the current diff, not a stale earlier one.
+      externalAcceptanceAdvice("Codex", "codex-review", fingerprint),
+      "",
+    ].join("\n")
+  );
 }
 
 function installArchitectureHelpers(cwd: string) {
@@ -242,6 +331,10 @@ describe("Hook runtime behavior", () => {
       expect(reviewRes.status).toBe(0);
       expect(reviewRes.stdout).toContain("[WazaRoute] Review/release intent detected");
       expect(reviewRes.stdout).toContain("Waza /check");
+      expect(reviewRes.stdout).toContain("[ReviewRubric] Deep Diff Review Rubric v1");
+      expect(reviewRes.stdout).toContain("[ReviewFreshness] Current implementation diff fingerprint:");
+      expect(reviewRes.stdout).toContain("> **Reviewed Diff Fingerprint**:");
+      expect(reviewRes.stdout).toContain("branch diff against target, staged diff, unstaged diff, and untracked files");
 
       for (const prompt of [
         "验收开始：基于 active plan 执行 checklist，告诉对方模型验收什么。",
@@ -252,6 +345,8 @@ describe("Hook runtime behavior", () => {
         });
         expect(reviewExecuteRes.status).toBe(0);
         expect(reviewExecuteRes.stdout).toContain("[WazaRoute] Review/release intent detected");
+        expect(reviewExecuteRes.stdout).toContain("[ReviewRubric] Deep Diff Review Rubric v1");
+        expect(reviewExecuteRes.stdout).toContain("[ReviewFreshness] Current implementation diff fingerprint:");
         expect(reviewExecuteRes.stdout).not.toContain("[PlanStatusGuard]");
         expect(reviewExecuteRes.stdout).not.toContain("[BDD] Feature intent detected");
       }
@@ -372,6 +467,9 @@ describe("Hook runtime behavior", () => {
       expect(mergeClaude.stdout).toContain("[ExternalAcceptance]");
       expect(mergeClaude.stdout).toContain("Peer reviewer: Codex via codex-review");
       expect(mergeClaude.stdout).toContain("Do not run /check");
+      expect(mergeClaude.stdout).toContain("Review Rubric v1");
+      expect(mergeClaude.stdout).toContain("[ExternalAcceptance] Current diff fingerprint:");
+      expect(mergeClaude.stdout).toContain("> **Reviewed Diff Fingerprint**:");
       expect(mergeClaude.stdout).toContain("## External Acceptance Advice");
       expect(mergeClaude.stdout).toContain("[CrossReview]");
       expect(mergeClaude.stdout).toContain("codex-review");
@@ -386,6 +484,8 @@ describe("Hook runtime behavior", () => {
       expect(mergeCodex.stdout).toContain("[ExternalAcceptance]");
       expect(mergeCodex.stdout).toContain("Peer reviewer: Claude via /claude-review");
       expect(mergeCodex.stdout).toContain("> **External Reviewer**: Claude");
+      expect(mergeCodex.stdout).toContain("Review Rubric v1");
+      expect(mergeCodex.stdout).toContain("[ExternalAcceptance] Current diff fingerprint:");
       expect(mergeCodex.stdout).toContain("[CrossReview]");
       expect(mergeCodex.stdout).toContain("claude-review");
 
@@ -3786,10 +3886,6 @@ describe("Hook runtime behavior", () => {
         "# Task Execution Checklist (Primary)\n\n> **Source Plan**: plans/plan-20260304-1410-demo.md\n"
       );
       writeFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "# contract\n");
-      writeFileSync(
-        join(cwd, "tasks/reviews/demo.review.md"),
-        ["# Task Review: demo", "", "> **Recommendation**: pass", "", humanReviewCard(), "", externalAcceptanceAdvice(), ""].join("\n")
-      );
       writeValidSprintChecks(cwd);
       writeFileSync(
         join(cwd, "scripts/verify-contract.sh"),
@@ -3801,6 +3897,11 @@ describe("Hook runtime behavior", () => {
         "#!/bin/bash\nset -euo pipefail\necho \"[archive] mocked $*\"\n"
       );
       expect(run("chmod", ["+x", "scripts/archive-workflow.sh"], cwd).status).toBe(0);
+      // A valid rubric-v1 review bound to the current implementation fingerprint:
+      // the gate clears freshness + external on the fresh path. (The legacy
+      // warn-only path for a rubric-less review was removed.)
+      const fingerprint = currentReviewFingerprint(cwd);
+      writePassingReview(cwd, fingerprint);
 
       const res = runHook("prompt-guard.sh", cwd, {
         stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
@@ -3809,8 +3910,299 @@ describe("Hook runtime behavior", () => {
 
       expect(res.status).toBe(0);
       expect(res.stdout).toContain("[verify] ok");
+      expect(res.stdout).not.toContain("[ReviewFreshness] WARN");
+      expect(res.stdout).not.toContain("[ReviewFreshnessGuard]");
       expect(res.stdout).toContain("[AutoArchive] All quality gates passed");
       expect(res.stdout).toContain("[archive] mocked");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: allows done intent when review fingerprint is fresh", () => {
+    const cwd = tmpWorkspace("prompt-guard-review-fresh");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd, { archive: true });
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\n");
+      const fingerprint = currentReviewFingerprint(cwd);
+      writePassingReview(cwd, fingerprint);
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("[verify] ok");
+      expect(res.stdout).not.toContain("[ReviewFreshness] WARN");
+      expect(res.stdout).not.toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("[AutoArchive] All quality gates passed");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when review fingerprint is stale", () => {
+    const cwd = tmpWorkspace("prompt-guard-review-stale");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\n");
+      const fingerprint = currentReviewFingerprint(cwd);
+      writePassingReview(cwd, fingerprint);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\nchanged after review\n");
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(2);
+      expect(res.stdout).toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("Review is stale for current implementation diff fingerprint");
+      expect(res.stdout).toContain('"guard":"ReviewFreshnessGuard"');
+      expect(res.stdout).not.toContain("[ExternalAcceptanceGuard]");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when review fingerprint is malformed", () => {
+    const cwd = tmpWorkspace("prompt-guard-review-malformed");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      writePassingReview(cwd, "sha256:not-a-valid-fingerprint");
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(2);
+      expect(res.stdout).toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("Review fingerprint is malformed");
+      expect(res.stdout).toContain('"guard":"ReviewFreshnessGuard"');
+      expect(res.stdout).not.toContain("[ExternalAcceptanceGuard]");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when a rubric v1 review fingerprint is still pending", () => {
+    const cwd = tmpWorkspace("prompt-guard-review-pending");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      // Rubric v1 metadata that was never filled in: fail closed, not legacy warn.
+      writeFileSync(
+        join(cwd, "tasks/reviews/demo.review.md"),
+        [
+          "# Task Review: demo",
+          "",
+          "> **Recommendation**: pass",
+          "",
+          "> **Review Rubric Version**: 1",
+          "> **Reviewed Diff Fingerprint**: pending",
+          "> **Reviewed Scope**: branch+staged+unstaged+untracked",
+          "",
+          humanReviewCard(),
+          "",
+          externalAcceptanceAdvice(),
+          "",
+        ].join("\n")
+      );
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(2);
+      expect(res.stdout).not.toContain("[ReviewFreshness] WARN");
+      expect(res.stdout).toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("Review fingerprint is missing for rubric v1");
+      expect(res.stdout).toContain('"guard":"ReviewFreshnessGuard"');
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when the review rubric version is malformed or unsupported", () => {
+    const cwd = tmpWorkspace("prompt-guard-review-rubric-malformed");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\n");
+      const fp = currentReviewFingerprint(cwd);
+      // The top fingerprint is fresh (F2), but the rubric version is garbage.
+      // A malformed/unsupported rubric must fail closed, not fall through to the
+      // lenient legacy path — that path also disabled the external-acceptance
+      // binding check, letting a stale peer acceptance satisfy the gate.
+      writeFileSync(
+        join(cwd, "tasks/reviews/demo.review.md"),
+        [
+          "# Task Review: demo",
+          "",
+          "> **Recommendation**: pass",
+          "",
+          "> **Review Rubric Version**: invalid",
+          `> **Reviewed Diff Fingerprint**: ${fp}`,
+          "> **Reviewed Scope**: branch+staged+unstaged+untracked",
+          "",
+          humanReviewCard(),
+          "",
+          externalAcceptanceAdvice("Codex", "codex-review", fp),
+          "",
+        ].join("\n")
+      );
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(2);
+      expect(res.stdout).not.toContain("[ReviewFreshness] WARN");
+      expect(res.stdout).toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("malformed or unsupported");
+      expect(res.stdout).toContain('"guard":"ReviewFreshnessGuard"');
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when the top-of-file review rubric version is absent", () => {
+    const cwd = tmpWorkspace("prompt-guard-review-rubric-absent");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\n");
+      const fp = currentReviewFingerprint(cwd);
+      // No rubric line in the top-of-file header (stripped, or a pre-rubric
+      // artifact). It cannot be proven legacy, so it must fail closed. Note the
+      // External Acceptance section below DOES carry a rubric — this also proves
+      // the top-of-file parser does not read a section-level field as top-level.
+      writeFileSync(
+        join(cwd, "tasks/reviews/demo.review.md"),
+        [
+          "# Task Review: demo",
+          "",
+          "> **Recommendation**: pass",
+          `> **Reviewed Diff Fingerprint**: ${fp}`,
+          "> **Reviewed Scope**: branch+staged+unstaged+untracked",
+          "",
+          humanReviewCard(),
+          "",
+          externalAcceptanceAdvice("Codex", "codex-review", fp),
+          "",
+        ].join("\n")
+      );
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(2);
+      // The top fingerprint is fresh, so freshness passes; external acceptance is
+      // the authority that requires a supported rubric and rejects the absent one.
+      expect(res.stdout).not.toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("[ExternalAcceptanceGuard]");
+      expect(res.stdout).toContain("Review Rubric Version is missing");
+      expect(res.stdout).toContain('"guard":"ExternalAcceptanceGuard"');
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when external acceptance fingerprint is stale even though the top fingerprint is fresh", () => {
+    const cwd = tmpWorkspace("prompt-guard-external-stale-fp");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nfirst reviewed change\n");
+      const f1 = currentReviewFingerprint(cwd);
+      // Implementation moves on to F2; the peer only ever reviewed F1.
+      writeFileSync(join(cwd, "tracked.txt"), "base\nfirst reviewed change\nsecond change\n");
+      const f2 = currentReviewFingerprint(cwd);
+      expect(f2).not.toBe(f1);
+      // Top fingerprint refreshed to F2 (freshness passes) but the External
+      // Acceptance section still carries the stale F1.
+      writeFileSync(
+        join(cwd, "tasks/reviews/demo.review.md"),
+        [
+          "# Task Review: demo",
+          "",
+          "> **Recommendation**: pass",
+          "",
+          reviewFingerprintMetadata(f2),
+          "",
+          humanReviewCard(),
+          "",
+          externalAcceptanceAdvice("Codex", "codex-review", f1),
+          "",
+        ].join("\n")
+      );
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(2);
+      expect(res.stdout).not.toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("[ExternalAcceptanceGuard]");
+      expect(res.stdout).toContain("External acceptance fingerprint");
+      expect(res.stdout).toContain("is stale for current implementation diff");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("prompt-guard: blocks done intent when a rubric v1 external acceptance omits its fingerprint", () => {
+    const cwd = tmpWorkspace("prompt-guard-external-missing-fp");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\n");
+      const fp = currentReviewFingerprint(cwd);
+      // Top fingerprint is fresh, but the peer section omits the binding — the
+      // original fail-open shape the gate must now reject.
+      writeFileSync(
+        join(cwd, "tasks/reviews/demo.review.md"),
+        [
+          "# Task Review: demo",
+          "",
+          "> **Recommendation**: pass",
+          "",
+          reviewFingerprintMetadata(fp),
+          "",
+          humanReviewCard(),
+          "",
+          externalAcceptanceAdvice(),
+          "",
+        ].join("\n")
+      );
+
+      const res = runHook("prompt-guard.sh", cwd, {
+        stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
+        env: { HOOK_HOST: "claude" },
+      });
+
+      expect(res.status).toBe(2);
+      expect(res.stdout).not.toContain("[ReviewFreshnessGuard]");
+      expect(res.stdout).toContain("[ExternalAcceptanceGuard]");
+      expect(res.stdout).toContain("missing a valid Reviewed Diff Fingerprint");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -3838,13 +4230,17 @@ describe("Hook runtime behavior", () => {
         "# Task Execution Checklist (Primary)\n\n> **Source Plan**: plans/plan-20260304-1410-demo.md\n"
       );
       writeFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "# contract\n");
-      writeFileSync(
-        join(cwd, "tasks/reviews/demo.review.md"),
-        ["# Task Review: demo", "", "> **Recommendation**: pass", "", humanReviewCard("pass", "unavailable"), ""].join("\n")
-      );
       writeValidSprintChecks(cwd);
       writeFileSync(join(cwd, "scripts/verify-contract.sh"), "#!/bin/bash\nset -euo pipefail\necho \"[verify] ok\"\n");
       expect(run("chmod", ["+x", "scripts/verify-contract.sh"], cwd).status).toBe(0);
+      // Valid rubric-v1 header bound to the current fingerprint (freshness passes)
+      // but NO External Acceptance section, so the gate reaches and trips the
+      // external-acceptance guard this test asserts.
+      const fingerprint = currentReviewFingerprint(cwd);
+      writeFileSync(
+        join(cwd, "tasks/reviews/demo.review.md"),
+        ["# Task Review: demo", "", "> **Recommendation**: pass", "", reviewFingerprintMetadata(fingerprint), "", humanReviewCard("pass", "unavailable"), ""].join("\n")
+      );
 
       const res = runHook("prompt-guard.sh", cwd, {
         stdin: JSON.stringify({ user_message: "任务完成了，结束吧" }),
@@ -3950,16 +4346,17 @@ describe("Hook runtime behavior", () => {
           "# Task Execution Checklist (Primary)\n\n> **Source Plan**: plans/plan-20260304-1410-demo.md\n"
         );
         writeFileSync(join(cwd, "tasks/contracts/demo.contract.md"), "# contract\n");
-        writeFileSync(
-          join(cwd, "tasks/reviews/demo.review.md"),
-          ["# Task Review: demo", "", "> **Recommendation**: pass", "", humanReviewCard(), "", externalAcceptanceAdvice(), ""].join("\n")
-        );
         writeFileSync(join(cwd, ".ai/harness/checks/latest.json"), checks);
         writeFileSync(
           join(cwd, "scripts/verify-contract.sh"),
           "#!/bin/bash\nset -euo pipefail\necho \"[verify] ok\"\n"
         );
         expect(run("chmod", ["+x", "scripts/verify-contract.sh"], cwd).status).toBe(0);
+        // A valid rubric-v1 review bound to the current fingerprint clears
+        // freshness + external so the gate reaches the structured-checks
+        // (EvidenceGuard) stage that this case exercises.
+        const fingerprint = currentReviewFingerprint(cwd);
+        writePassingReview(cwd, fingerprint);
 
         const res = runHook("prompt-guard.sh", cwd, {
           stdin: JSON.stringify({ user_message: "done" }),
@@ -4007,6 +4404,30 @@ describe("Hook runtime behavior", () => {
       expect(res.status).toBe(2);
       expect(res.stdout).toContain("[ContractGuard]");
       expect(res.stdout).toContain("Contract verification failed");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("stop-orchestrator: nudges stale review freshness without blocking stop", () => {
+    const cwd = tmpWorkspace("stop-review-freshness-stale");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+      writeDoneGateBase(cwd);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\n");
+      const fingerprint = currentReviewFingerprint(cwd);
+      writePassingReview(cwd, fingerprint);
+      writeFileSync(join(cwd, "tracked.txt"), "base\nreviewed change\nchanged after review\n");
+
+      const res = runHook("stop-orchestrator.sh", cwd, {
+        stdin: JSON.stringify({ stop_hook_active: false, last_assistant_message: "Done." }),
+      });
+
+      expect(res.status).toBe(0);
+      expect(res.stderr).toContain("[FinalizeHandoff] Refreshed .ai/harness/handoff/current.md.");
+      expect(res.stderr).toContain("[ReviewFreshness] Review is stale for current implementation diff fingerprint");
+      expect(res.stdout).toBe("");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

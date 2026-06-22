@@ -1288,6 +1288,166 @@ workflow_review_recommends_pass() {
   grep -Eq '^> \*\*Recommendation\*\*:[[:space:]]*pass[[:space:]]*$' "$review_file"
 }
 
+workflow_review_metadata_field() {
+  local review_file="${1:-}"
+  local field="${2:-}"
+  [[ -n "$review_file" && -f "$review_file" && -n "$field" ]] || return 1
+  awk -v field="$field" '
+    # Top-of-file metadata only: stop at the first section heading so a
+    # section-level "> **<field>**:" line (e.g. the External Acceptance section
+    # carries its own Reviewed Diff Fingerprint) can never be read as a top-level
+    # value when the real header omits it.
+    /^## / { exit }
+    index($0, "> **" field "**:") == 1 {
+      sub("^> \\*\\*" field "\\*\\*:[[:space:]]*", "");
+      gsub(/\r/, "");
+      print;
+      exit;
+    }
+  ' "$review_file"
+}
+
+workflow_review_fingerprint() {
+  workflow_review_metadata_field "${1:-}" "Reviewed Diff Fingerprint"
+}
+
+workflow_review_rubric_version() {
+  workflow_review_metadata_field "${1:-}" "Review Rubric Version"
+}
+
+# Classify the top-of-file Review Rubric Version. Echoes one of:
+#   absent     - no rubric line at all (a genuine pre-rubric legacy artifact)
+#   1          - the supported modern rubric version
+#   malformed  - a rubric line is present but is not a supported version
+#                (non-numeric, 0, an unsupported number, or quote/space garbage)
+# A present-but-unsupported rubric means the artifact claims a schema this gate
+# cannot evaluate, so callers must fail closed rather than fall through to the
+# lenient legacy path. Only a genuinely absent rubric stays lenient.
+workflow_review_rubric_class() {
+  local raw trimmed
+  raw="$(workflow_review_rubric_version "${1:-}")"
+  # Trim surrounding whitespace WITHOUT xargs: an unbalanced quote in the value
+  # makes xargs fail and emit nothing, which would silently downgrade a malformed
+  # rubric to "absent" (legacy lenient) — exactly the fail-open this prevents.
+  trimmed="${raw#"${raw%%[![:space:]]*}"}"
+  trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+  if [[ -z "$trimmed" ]]; then
+    printf 'absent'
+  elif [[ "$trimmed" == "1" ]]; then
+    printf '1'
+  else
+    printf 'malformed'
+  fi
+}
+
+workflow_hook_cli_json() {
+  if [[ -n "${REPO_HARNESS_HOOK_CLI:-}" && -f "${REPO_HARNESS_HOOK_CLI:-}" ]] && command -v bun >/dev/null 2>&1; then
+    bun "$REPO_HARNESS_HOOK_CLI" "$@"
+    return $?
+  fi
+  if [[ -n "${HOOK_REPO_ROOT:-}" && -f "$HOOK_REPO_ROOT/src/cli/hook-entry.ts" ]] && command -v bun >/dev/null 2>&1; then
+    bun "$HOOK_REPO_ROOT/src/cli/hook-entry.ts" "$@"
+    return $?
+  fi
+  if [[ -n "${REPO_HARNESS_CLI:-}" && -f "${REPO_HARNESS_CLI:-}" ]] && command -v bun >/dev/null 2>&1; then
+    bun "$REPO_HARNESS_CLI" "$@"
+    return $?
+  fi
+  if command -v repo-harness-hook >/dev/null 2>&1; then
+    repo-harness-hook "$@"
+    return $?
+  fi
+  if command -v repo-harness >/dev/null 2>&1; then
+    repo-harness "$@"
+    return $?
+  fi
+  return 127
+}
+
+workflow_json_field() {
+  local json="${1:-}"
+  local field="${2:-}"
+  [[ -n "$json" && -n "$field" ]] || return 1
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$json" | jq -r ".$field // empty" 2>/dev/null || true
+    return
+  fi
+  if command -v bun >/dev/null 2>&1; then
+    JSON_INPUT="$json" JSON_FIELD="$field" bun -e '
+      try {
+        const parsed = JSON.parse(process.env.JSON_INPUT ?? "");
+        const value = parsed?.[process.env.JSON_FIELD ?? ""];
+        if (value != null) process.stdout.write(String(value));
+      } catch {}
+    ' 2>/dev/null || true
+  fi
+}
+
+workflow_current_review_fingerprint_json() {
+  # Bind the fingerprint to the resolved target branch so base_rev tracks the
+  # target tip; without --base the CLI falls back to HEAD, making the branch diff
+  # HEAD...HEAD (empty) and blinding the gate to target movement.
+  local target
+  target="$(workflow_target_branch)"
+  workflow_hook_cli_json review-fingerprint --base "$target" --format json 2>/dev/null || true
+}
+
+workflow_current_review_fingerprint_value() {
+  local json status fingerprint
+  json="$(workflow_current_review_fingerprint_json)"
+  status="$(workflow_json_field "$json" "status")"
+  [[ "$status" == "ok" ]] || return 1
+  fingerprint="$(workflow_json_field "$json" "fingerprint")"
+  [[ -n "$fingerprint" ]] || return 1
+  printf '%s' "$fingerprint"
+}
+
+workflow_review_freshness_status() {
+  local review_file="${1:-}"
+  local reviewed rubric_class current_json current_status current_fingerprint current_scope
+
+  reviewed="$(workflow_review_fingerprint "$review_file" | xargs || true)"
+  rubric_class="$(workflow_review_rubric_class "$review_file")"
+  if [[ "$rubric_class" == "malformed" ]]; then
+    # A malformed/unsupported rubric claims a schema this gate cannot evaluate;
+    # fail closed at the freshness stage instead of treating it as legacy.
+    printf 'malformed_schema\t-\tReview Rubric Version is malformed or unsupported; rerun /check to record the review under a supported rubric, or record a Manual Override.\n'
+    return 0
+  fi
+  if [[ -z "$reviewed" || "$reviewed" == "pending" || "$reviewed" == "unknown" ]]; then
+    # A supported rubric (v1+) with no concrete fingerprint was never bound to the
+    # diff: fail closed (`missing`). An `absent` rubric stays on the advisory legacy
+    # path here — the external-acceptance gate is the authority that requires a
+    # supported rubric (a rubric-less review fails external acceptance), so absent
+    # is still blocked at every Done/finish/verify gate that enforces external.
+    if [[ "$rubric_class" == "1" ]]; then
+      printf 'missing\t-\tReview fingerprint is missing for rubric v%s; rerun /check and peer acceptance to record the current Reviewed Diff Fingerprint.\n' "$rubric_class"
+      return 0
+    fi
+    printf 'legacy_missing\t-\tReview fingerprint is missing; rerun /check to refresh the review metadata.\n'
+    return 0
+  fi
+  if ! [[ "$reviewed" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    printf 'malformed\t%s\tReview fingerprint is malformed; rerun /check and peer acceptance.\n' "$reviewed"
+    return 0
+  fi
+
+  current_json="$(workflow_current_review_fingerprint_json)"
+  current_status="$(workflow_json_field "$current_json" "status")"
+  current_fingerprint="$(workflow_json_field "$current_json" "fingerprint")"
+  current_scope="$(workflow_json_field "$current_json" "scope")"
+  if [[ "$current_status" != "ok" || -z "$current_fingerprint" ]]; then
+    printf 'unknown\t-\tCurrent implementation diff fingerprint is unknown; rerun /check after git state is readable.\n'
+    return 0
+  fi
+  if [[ "$reviewed" != "$current_fingerprint" ]]; then
+    printf 'stale\t%s\tReview is stale for current implementation diff fingerprint %s; rerun /check and peer acceptance.\n' "$reviewed" "$current_fingerprint"
+    return 0
+  fi
+
+  printf 'pass\t%s\tReview fingerprint is fresh for %s.\n' "$reviewed" "${current_scope:-branch+staged+unstaged+untracked}"
+}
+
 workflow_external_acceptance_expected_reviewer() {
   local host="${HOOK_HOST:-}"
 
@@ -1408,6 +1568,51 @@ workflow_external_acceptance_status() {
     printf 'fail\t%s\t%s\tExternal acceptance has P1 blockers: %s\n' "${reviewer:--}" "${source:--}" "${p1_blockers:-missing}"
     return 0
   fi
+
+  # Bind the peer's acceptance to the exact diff they reviewed. A supported rubric
+  # (v1) requires the External Acceptance section to carry its own current Reviewed
+  # Diff Fingerprint and scope; otherwise a stale F1 acceptance keeps satisfying the
+  # gate after the implementation moves to F2, because the top-of-file fingerprint
+  # is agent-editable. An absent or malformed rubric fails closed here — external
+  # acceptance is the authority that requires a supported rubric; Manual Override
+  # above is the only escape for a genuine pre-rubric legacy artifact.
+  local rubric_class section_fp section_scope current_fp
+  rubric_class="$(workflow_review_rubric_class "$review_file")"
+  case "$rubric_class" in
+    absent)
+      # An absent rubric cannot be proven to predate the rubric (it may have been
+      # stripped to skip binding), so fail closed. Manual Override above is the
+      # escape hatch for a genuine pre-rubric legacy artifact.
+      printf 'fail\t%s\t%s\tReview Rubric Version is missing; rerun peer acceptance under a supported rubric or record a Manual Override.\n' "${reviewer:--}" "${source:--}"
+      return 0
+      ;;
+    malformed)
+      # An unsupported rubric must not silently disable the binding check.
+      printf 'fail\t%s\t%s\tReview Rubric Version is malformed or unsupported; rerun peer acceptance under a supported rubric or record a Manual Override.\n' "${reviewer:--}" "${source:--}"
+      return 0
+      ;;
+    *)
+      section_fp="$(workflow_external_acceptance_field "$section" "Reviewed Diff Fingerprint" | xargs || true)"
+      section_scope="$(workflow_external_acceptance_field "$section" "Reviewed Scope" | xargs || true)"
+      current_fp="$(workflow_current_review_fingerprint_value || true)"
+      if [[ -z "$current_fp" ]]; then
+        printf 'fail\t%s\t%s\tCurrent implementation diff fingerprint is unknown; rerun peer acceptance after git state is readable.\n' "${reviewer:--}" "${source:--}"
+        return 0
+      fi
+      if ! [[ "$section_fp" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+        printf 'fail\t%s\t%s\tExternal acceptance is missing a valid Reviewed Diff Fingerprint for rubric v%s; rerun peer acceptance for the current diff.\n' "${reviewer:--}" "${source:--}" "$rubric_class"
+        return 0
+      fi
+      if [[ "$section_fp" != "$current_fp" ]]; then
+        printf 'fail\t%s\t%s\tExternal acceptance fingerprint %s is stale for current implementation diff %s; rerun peer acceptance.\n' "${reviewer:--}" "${source:--}" "$section_fp" "$current_fp"
+        return 0
+      fi
+      if [[ "$section_scope" != "branch+staged+unstaged+untracked" ]]; then
+        printf 'fail\t%s\t%s\tExternal acceptance scope is %s; expected branch+staged+unstaged+untracked.\n' "${reviewer:--}" "${source:--}" "${section_scope:-missing}"
+        return 0
+      fi
+      ;;
+  esac
 
   printf 'pass\t%s\t%s\tExternal acceptance passed.\n' "$reviewer" "$source"
 }

@@ -146,7 +146,7 @@ describe('mcp http transport', () => {
           '--auth',
           'bearer',
         ],
-        { cwd: process.cwd(), stdout: 'ignore', stderr: 'pipe' },
+        { cwd: process.cwd(), stdout: 'ignore', stderr: 'pipe', env: { ...process.env } },
       );
       await waitForHealth(port);
 
@@ -271,7 +271,7 @@ describe('mcp http transport', () => {
           '--auth',
           'url-token',
         ],
-        { cwd: process.cwd(), stdout: 'ignore', stderr: 'pipe' },
+        { cwd: process.cwd(), stdout: 'ignore', stderr: 'pipe', env: { ...process.env } },
       );
       await waitForHealth(port);
 
@@ -330,7 +330,7 @@ describe('mcp http transport', () => {
           '--profile',
           'planner',
         ],
-        { cwd: process.cwd(), stdout: 'ignore', stderr: 'pipe' },
+        { cwd: process.cwd(), stdout: 'ignore', stderr: 'pipe', env: { ...process.env } },
       );
       await waitForHealth(port);
 

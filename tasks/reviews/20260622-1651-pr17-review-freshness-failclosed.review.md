@@ -1,11 +1,11 @@
-# Task Review: {{TASK_SLUG}}
+# Task Review: pr17-review-freshness-failclosed
 
 > **Status**: Pending
-> **Plan**: {{PLAN_FILE}}
-> **Contract**: {{CONTRACT_FILE}}
-> **Notes File**: {{NOTES_FILE}}
-> **Checks File**: {{CHECKS_FILE}}
-> **Last Updated**: {{TIMESTAMP}}
+> **Plan**: plans/plan-20260622-1651-pr17-review-freshness-failclosed.md
+> **Contract**: tasks/contracts/20260622-1651-pr17-review-freshness-failclosed.contract.md
+> **Notes File**: tasks/notes/20260622-1651-pr17-review-freshness-failclosed.notes.md
+> **Checks File**: .ai/harness/checks/latest.json
+> **Last Updated**: 2026-06-22 16:51
 > **Recommendation**: fail
 > **Review Rubric Version**: 1
 > **Reviewed Diff Fingerprint**: pending
