@@ -4,6 +4,32 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-22
+
+### Added
+
+- Added `assets/hooks/projection.json` plus `bun run sync:hooks` and
+  `bun run check:hooks`, making `assets/hooks/` the canonical hook source and
+  `.ai/hooks/` the generated self-host projection.
+- Added Review Rubric v1 and implementation diff fingerprints to review,
+  release, and peer-acceptance prompts.
+- Added review freshness validation for Done claims: fresh fingerprints pass,
+  legacy missing fingerprints warn, and stale or malformed fingerprints block
+  closeout until `/check` and peer acceptance are refreshed.
+- Added tarball and central-install parity checks so packaged hook assets and
+  installed `~/.repo-harness/hooks/` copies match the canonical managed file
+  set.
+
+### Changed
+
+- Updated hook operations and README release docs to use the generated
+  self-host hook projection contract instead of manual generated/self-host
+  parity edits.
+- Expanded repo-pinned hook install and migration paths to copy the managed hook
+  runtime file set, not only shell scripts.
+- Raised the migration idempotency integration test timeout to the suite-level
+  budget now that repo-pinned hook projection copies a larger managed file set.
+
 ## [0.7.5] - 2026-06-21
 
 ### Added

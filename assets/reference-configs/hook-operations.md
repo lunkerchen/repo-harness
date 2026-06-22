@@ -16,13 +16,13 @@ Generated host adapter commands carry a 30 second timeout; long-running work bel
 
 `repo-harness adopt`, migration, and new-project scaffold paths do not copy the full hook runtime into ordinary downstream repos. Without a `"hook_source": "repo"` pin they prune stale top-level `.ai/hooks/*.sh` entry scripts and refresh only `.ai/hooks/lib/` helper libraries plus a README tombstone, because active execution should come from the user-level adapter and packaged hooks. Repos that intentionally develop or override hooks must set `"hook_source": "repo"` before syncing a full vendored hook runtime.
 
-`UserPromptSubmit.default` dispatches to the active `prompt-guard.sh` resolved by the central-first hook source decision. For ordinary repos that means the packaged/user-level runtime; `.ai/hooks/prompt-guard.sh` is active only when the repo pins `"hook_source": "repo"`. The shell layer parses host prompt JSON, reads workflow files, performs capture side effects, and renders host-safe output; it pipes `{"prompt": ...}` into `repo-harness-hook prompt-guard-decide`, which owns every prompt-text intent classifier (Unicode-aware, in `src/cli/hook/prompt-intents.ts`) plus the intent x state decision table and returns one verdict JSON line (action, intent facts, derived strings). If the engine is unreachable or predates the protocol, the prompt layer degrades to a one-shot advisory instead of guessing; there is no shell fallback decision table.
+`UserPromptSubmit.default` dispatches to the active `prompt-guard.sh` resolved by the central-first hook source decision. For ordinary repos that means the packaged/user-level runtime; `.ai/hooks/prompt-guard.sh` is active only when the repo pins `"hook_source": "repo"`. The shell layer parses host prompt JSON, reads workflow files, performs capture side effects, and renders host-safe output; it pipes `{"prompt": ...}` into `repo-harness-hook prompt-guard-decide`, which owns every prompt-text intent classifier (Unicode-aware, in `src/cli/hook/prompt-intents.ts`) plus the intent x state decision table and returns one verdict JSON line (action, intent facts, derived strings). Review/release prompts add Review Rubric v1 plus the current implementation diff fingerprint to local `/check` and peer acceptance guidance; Done blocks stale/malformed recorded fingerprints, legacy missing fingerprints warn, and Stop nudges without blocking. If the engine is unreachable or predates the protocol, the prompt layer degrades to a one-shot advisory instead of guessing; there is no shell fallback decision table.
 
 `UserPromptSubmit.delegation` dispatches to `codex-delegation-advisor.sh`: Codex-only, explicit-mode (`/delegate`, `/parallel`, imperative `spawn/use/run subagents to ...`, parallel investigation, Chinese equivalents), forwards only valid `UserPromptSubmit` `additionalContext` JSON, and records ignored scoped state under `.ai/harness/delegation/` with `latest.json` as the current pointer. Mechanism/design questions that merely mention `spawn subagent(s)` are ignored rather than treated as delegation authorization.
 
 Prompt-layer plan/spec/contract gates are advisory routing only. Hard enforcement lives in `PreToolUse.edit`: `pre-edit-guard.sh` blocks implementation edits (paths outside plans/tasks/docs/deploy/harness/markdown surfaces) unless the active plan is Approved/Executing and `docs/spec.md` exists. Modes `enforce` (default) | `advice` | `off` via policy `.guards.edit_plan_gate` or `REPO_HARNESS_EDIT_PLAN_GATE`. Done-claim gates in the prompt layer keep blocking because they verify file-backed completion evidence, not language.
 
-If you are asking "which hook file should I edit?", default to `assets/hooks/` for product changes and mirror into `.ai/hooks/` only for this self-host repo or another repo that pins `"hook_source": "repo"`; runtime pickup outside repo-pinned development happens on the next `install`/CLI upgrade because hooks resolve central-first.
+If you are asking "which hook file should I edit?", edit canonical `assets/hooks/` for product changes, then run `bun run sync:hooks` to refresh this self-host repo's checked-in `.ai/hooks/` projection. Package-only files are classified in `assets/hooks/projection.json` and are not projected. Runtime pickup outside repo-pinned development happens on the next `install`/CLI upgrade because hooks resolve central-first.
 After installing or refreshing `~/.codex/hooks.json`, open Codex Settings and mark the user-level hook config as trusted; otherwise Codex will not execute it.
 Repo-local `.claude/settings.json` and `.codex/hooks.json` hook adapters are legacy project-level config and should be retired during migration.
 
@@ -30,27 +30,27 @@ Repo-local `.claude/settings.json` and `.codex/hooks.json` hook adapters are leg
 `SubagentStop.quality` runs `subagent-stop-quality.sh` and forwards only valid decision JSON; it asks Codex to continue the same subagent once when the final report is obviously incomplete, keyed by session/run identity, subagent identity, and message hash. These delegation lifecycle routes are installed only into the Codex adapter; Claude keeps the shared `PreToolUse.subagent` return-channel route.
 `Stop.default` routes through `stop-orchestrator.sh`. On Codex, dispatcher stdout stays quiet for ordinary successful hooks, but valid Stop decision JSON is forwarded so Codex can honor a one-shot planning completeness block or one-shot explicit-delegation fallback; success stderr such as handoff refresh noise remains suppressed.
 
-`SessionStart.default` runs `session-start-context.sh` and `security-sentinel.sh` under one adapter entry and aggregates their context into one JSON payload. The security sentinel is changed-only and advisory; stale repo-local copies emit one drift reminder instead of blocking the host session.
+`SessionStart.default` runs `minimal-change-context.sh`, `session-start-context.sh`, and `security-sentinel.sh` under one adapter entry and aggregates their context into one JSON payload. The minimal-change context is fixed, advice-only, and disabled by `.ai/harness/policy.json` `minimal_change.mode=off`; the security sentinel is changed-only and advisory; stale repo-local copies emit one drift reminder instead of blocking the host session.
 
-Use this command for an explicit read-only audit:
-
-```bash
-repo-harness security scan --json
-```
+Explicit read-only audit: `repo-harness security scan --json`.
 
 `PostToolUse.always` runs one merged observer, `post-tool-observer.sh` (JSONL trace + lightweight advisories); the trace file `.claude/.trace.jsonl` is the single tool-trace record.
 
 `PostToolUse.edit` runs local edit reminders, the FirstPrinciples
-anti-overengineering advisory, then the downstream sync chain: architecture
-drift record, context contract sync, capability-context queueing, repo-to-brain
-mirror sync, and active contract verification. These stages remain advisory. A
-failed downstream stage must emit one `[SyncChain] WARN: ...` line and let the
-edit hook exit 0 so local editing is not blocked by maintenance drift. The
-FirstPrinciples advisory reviews only the current file diff and asks whether new
-dependencies, compatibility branches, abstractions, config surfaces, or
-branch-heavy logic truly need to exist; it must not override trust-boundary
-validation, data-loss prevention, security, accessibility, or explicit
-user-requested behavior.
+anti-overengineering advisory, the downstream sync chain, then
+`minimal-change-observer.sh`. The sync chain records architecture drift, context
+contract sync, capability-context queueing, repo-to-brain mirror sync, and active
+contract verification. These stages remain advisory. A failed downstream stage
+must emit one `[SyncChain] WARN: ...` line and let the edit hook exit 0 so local
+editing is not blocked by maintenance drift. The FirstPrinciples advisory
+reviews only the current file diff and asks whether new dependencies,
+compatibility branches, abstractions, config surfaces, or branch-heavy logic
+truly need to exist; it must not override trust-boundary validation, data-loss
+prevention, security, accessibility, or explicit user-requested behavior. The
+minimal-change observer is stdout-silent and writes bounded objective facts to
+`.ai/harness/checks/minimal-change.latest.json`: scoped path, diff fingerprint,
+numstat, package.json dependency changes, low-confidence abstraction candidates,
+and protected-change markers.
 
 `.ai/harness/scripts/sync-brain-docs.sh --changed <path>` is hot-path optimized: the PostEdit hook starts it only when the changed repo path appears in the brain manifest. The script still owns authoritative JSON parsing and containment checks. Source files that resolve outside the repo, or brain targets that resolve outside the configured brain root through symlinks, are rejected.
 

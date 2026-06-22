@@ -69,7 +69,7 @@ review、checks 或 handoff 冲突，以 source artifacts 为准。
 
 ## What's New
 
-Release notes 见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)，当前版本线是 `0.7.5`。
+Release notes 见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)，当前版本线是 `0.8.0`。
 
 ## 工作原理
 
@@ -360,12 +360,13 @@ repo-harness mcp serve --repo . --transport http --profile orchestrator --enable
 
 ## Hook Authority Map
 
-- `.ai/hooks/` 是唯一应该优先编辑的 shared hook implementation。
+- `assets/hooks/` 是唯一人工维护的 shared hook implementation。本仓库的 `.ai/hooks/` 是给 `"hook_source": "repo"` dogfood 使用的 checked-in generated projection。
 - `~/.claude/settings.json` 是 user-level Claude adapter，负责 dispatch 到 opted-in repos。
 - `~/.codex/hooks.json` 是 user-level Codex adapter，dispatch 到同一个 runner。
 - Repo-local `.claude/settings.json` 和 `.codex/hooks.json` hook adapters 是 legacy project-level config，迁移时应退休。
 - Codex 必须在 Settings 里信任 `~/.codex/hooks.json`，hooks 才会执行。
-- 调试顺序：user-level adapter config -> `repo-harness-hook` 或 fallback `repo-harness hook` -> route registry -> `.ai/hooks/*`。
+- 调试顺序：user-level adapter config -> `repo-harness-hook` 或 fallback `repo-harness hook` -> route registry -> active hook source。
+- Hook 产品变更只改 `assets/hooks/<path>`，然后运行 `bun run sync:hooks` 和 `bun run check:hooks`。Package-only templates 在 `assets/hooks/projection.json` 分类，不投影到 `.ai/hooks/`。
 
 
 The installed adapter owns eight managed hook routes. The route tuple
@@ -444,8 +445,8 @@ hook block 工作时，先看 terminal 里的结构化输出。核心字段是
 
 ## 当前 Release
 
-- npm package：`repo-harness@0.7.5`
-- Generated workflow stamp：`repo-harness@0.7.5+template@0.7.5`
+- npm package：`repo-harness@0.8.0`
+- Generated workflow stamp：`repo-harness@0.8.0+template@0.8.0`
 - GitHub repository：`Ancienttwo/repo-harness`
 - Release history：[`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
@@ -618,11 +619,11 @@ bun run benchmark:skills --eval repair-agents-task-sync
   - `scripts/create-project-dirs.sh`
 - Legacy-doc migrator：`scripts/migrate-workflow-docs.ts`
 
-## Generated vs Self-Hosted Hook Parity
+## Generated vs Self-Hosted Hook Projection
 
-- 下游 hook 行为由 `assets/hooks/` 和 `assets/reference-configs/` 的生成输出定义。
-- 本仓库 dogfood 同一套 contract，但 self-host 行为不会自动与 generated repos 同步；变更必须显式更新两侧 surface。
-- 每个 hook 变更都要说明影响 `self-host`、`generated` 还是 `both`。
+- 下游 hook 行为由 `assets/hooks/` 和 `assets/reference-configs/` 定义。
+- 本仓库通过 `.ai/hooks/` dogfood 同一套 hook runtime，但这棵树由 `assets/hooks/projection.json` 生成。
+- 每个 hook 变更只应更新 canonical `assets/hooks/`，运行 `bun run sync:hooks`，并在验证里包含 `bun run check:hooks`。
 
 ## Package Manager Defaults
 

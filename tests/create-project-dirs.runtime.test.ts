@@ -583,6 +583,9 @@ describe("create-project-dirs runtime smoke", () => {
       expect(existsSync(join(cwd, ".ai/hooks/session-start-context.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/lib/workflow-state.sh"))).toBe(true);
       expect(existsSync(join(cwd, ".ai/hooks/lib/session-state.sh"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/hooks/AGENTS.md"))).toBe(true);
+      expect(existsSync(join(cwd, ".ai/hooks/projection.json"))).toBe(false);
+      expect(existsSync(join(cwd, ".ai/hooks/codex.hooks.template.json"))).toBe(false);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }

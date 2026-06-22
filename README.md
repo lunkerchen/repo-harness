@@ -78,7 +78,7 @@ active plan, contract, review, checks, or handoff, the source artifacts win.
 ## What's New
 
 Release notes live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). The current line
-is `0.7.5`.
+is `0.8.0`.
 
 ## How It Works
 
@@ -439,13 +439,13 @@ and not arbitrary shell.
 
 ## Hook Authority Map
 
-- `.ai/hooks/` is the only shared hook implementation you should edit first.
+- `assets/hooks/` is the only human-authored shared hook implementation. This self-host repo keeps `.ai/hooks/` as a checked-in generated projection for `"hook_source": "repo"` dogfood.
 - `~/.claude/settings.json` is the user-level Claude adapter that dispatches into opted-in repos.
 - `~/.codex/hooks.json` is the user-level Codex adapter that dispatches into the same runner.
 - Repo-local `.claude/settings.json` and `.codex/hooks.json` hook adapters are legacy project-level config and should be retired during migration.
 - Codex must mark `~/.codex/hooks.json` as trusted in Codex Settings before those hooks run.
-- Debug in this order: user-level adapter config -> `repo-harness-hook` (or fallback `repo-harness hook`) -> route registry -> `.ai/hooks/*`.
-- If `repo-harness-hook` reports `.ai/hooks` drift, refresh the repo-local copy with `repo-harness adopt --repo <root>`.
+- Debug in this order: user-level adapter config -> `repo-harness-hook` (or fallback `repo-harness hook`) -> route registry -> active hook source.
+- For hook product changes, edit `assets/hooks/<path>`, run `bun run sync:hooks`, then verify with `bun run check:hooks`. Package-only templates are classified in `assets/hooks/projection.json` and are not projected into `.ai/hooks/`.
 
 The installed adapter owns eight shared managed hook routes. Codex also installs
 three Codex-only bounded-delegation routes. The route tuple
@@ -535,8 +535,8 @@ Most common guards:
 
 ## Current Release
 
-- npm package: `repo-harness@0.7.5`
-- Generated workflow stamp: `repo-harness@0.7.5+template@0.7.5`
+- npm package: `repo-harness@0.8.0`
+- Generated workflow stamp: `repo-harness@0.8.0+template@0.8.0`
 - GitHub repository: `Ancienttwo/repo-harness`
 - Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
@@ -705,13 +705,11 @@ bun run benchmark:skills --eval repair-agents-task-sync
   - `scripts/init-project.sh`
   - `scripts/create-project-dirs.sh`
 
-## Generated vs Self-Hosted Hook Parity
+## Generated vs Self-Hosted Hook Projection
 
-- Downstream hook behavior is defined by generated output from `assets/hooks/` plus
-  `assets/reference-configs/`.
-- This repo dogfoods the same contract, but self-host behavior is not magically in
-  sync with generated repos unless a change explicitly updates both surfaces.
-- Every hook change should say whether it affects `self-host`, `generated`, or `both`.
+- Downstream hook behavior is defined by `assets/hooks/` plus `assets/reference-configs/`.
+- This repo dogfoods the same hook runtime through `.ai/hooks/`, but that tree is generated from `assets/hooks/projection.json`.
+- Every hook change should update canonical `assets/hooks/` once, run `bun run sync:hooks`, and include `bun run check:hooks` in verification.
 
 ## Package Manager Defaults
 

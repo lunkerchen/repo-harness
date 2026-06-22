@@ -474,6 +474,9 @@ CONTRACT_TEMPLATE_EOF
 > **Checks File**: {{CHECKS_FILE}}
 > **Last Updated**: {{TIMESTAMP}}
 > **Recommendation**: fail
+> **Review Rubric Version**: 1
+> **Reviewed Diff Fingerprint**: pending
+> **Reviewed Scope**: branch+staged+unstaged+untracked
 
 ## Human Review Card
 

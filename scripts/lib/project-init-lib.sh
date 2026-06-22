@@ -645,8 +645,13 @@ pi_install_hook_assets() {
 
   if pi_repo_pins_hook_source "$target_dir"; then
     while IFS= read -r hook; do
-      local rel_path rel_dir dest_dir hook_name
+      local rel_path rel_dir dest_dir hook_name hook_mode
       rel_path="${hook#"$hooks_assets_dir"/}"
+      case "$rel_path" in
+        projection.json|codex.hooks.template.json|settings.template.json)
+          continue
+          ;;
+      esac
       rel_dir="$(dirname "$rel_path")"
       if [[ "$rel_dir" == "." ]]; then
         dest_dir="$hooks_dir"
@@ -661,8 +666,10 @@ pi_install_hook_assets() {
       fi
       mkdir -p "$dest_dir"
       cp "$hook" "$dest_dir/$hook_name"
-      chmod +x "$dest_dir/$hook_name" 2>/dev/null || true
-    done < <(find "$hooks_assets_dir" -type f -name '*.sh' | sort)
+      hook_mode=0644
+      [[ -x "$hook" ]] && hook_mode=0755
+      chmod "$hook_mode" "$dest_dir/$hook_name" 2>/dev/null || true
+    done < <(find "$hooks_assets_dir" -type f | sort)
     return 0
   fi
 

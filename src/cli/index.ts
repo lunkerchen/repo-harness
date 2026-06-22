@@ -24,6 +24,9 @@ import { buildRunCommand } from './commands/run';
 import { formatSecurityScan, runSecurityScan } from './commands/security';
 import { runGlobalRuntimeSetup } from './commands/global-runtime';
 import { runPromptGuardDecideCli } from './commands/prompt-guard-decision';
+import { runMinimalChangeCli } from './hook/minimal-change-cli';
+import { runReviewRubricCli } from './hook/review-rubric';
+import { runReviewFingerprintCli } from './hook/diff-fingerprint';
 import { runAdoptionPlan, runExperimentalTsApply } from './commands/adopt-plan';
 import { runRuntimeReclaim, runRuntimeRollback } from './repo-adoption/reclaim-runtime';
 import { rollbackAdoptionTransaction } from '../effects/fs-transaction';
@@ -528,6 +531,42 @@ export function buildProgram(): Command {
     .action(() => {
       console.log(runPromptGuardDecideCli());
       process.exit(0);
+    });
+  program
+    .command('minimal-change', { hidden: true })
+    .argument('[args...]')
+    .allowUnknownOption(true)
+    .allowExcessArguments(true)
+    .description('Internal minimal-change hook context renderer')
+    .action((args: string[]) => {
+      const result = runMinimalChangeCli(args);
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      process.exit(result.exitCode);
+    });
+  program
+    .command('review-rubric', { hidden: true })
+    .argument('[args...]')
+    .allowUnknownOption(true)
+    .allowExcessArguments(true)
+    .description('Internal review rubric renderer')
+    .action((args: string[]) => {
+      const result = runReviewRubricCli(args);
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      process.exit(result.exitCode);
+    });
+  program
+    .command('review-fingerprint', { hidden: true })
+    .argument('[args...]')
+    .allowUnknownOption(true)
+    .allowExcessArguments(true)
+    .description('Internal review freshness fingerprint renderer')
+    .action((args: string[]) => {
+      const result = runReviewFingerprintCli(args);
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      process.exit(result.exitCode);
     });
 
   return program;

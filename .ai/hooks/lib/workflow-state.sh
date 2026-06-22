@@ -1288,6 +1288,115 @@ workflow_review_recommends_pass() {
   grep -Eq '^> \*\*Recommendation\*\*:[[:space:]]*pass[[:space:]]*$' "$review_file"
 }
 
+workflow_review_metadata_field() {
+  local review_file="${1:-}"
+  local field="${2:-}"
+  [[ -n "$review_file" && -f "$review_file" && -n "$field" ]] || return 1
+  awk -v field="$field" '
+    index($0, "> **" field "**:") == 1 {
+      sub("^> \\*\\*" field "\\*\\*:[[:space:]]*", "");
+      gsub(/\r/, "");
+      print;
+      exit;
+    }
+  ' "$review_file"
+}
+
+workflow_review_fingerprint() {
+  workflow_review_metadata_field "${1:-}" "Reviewed Diff Fingerprint"
+}
+
+workflow_review_rubric_version() {
+  workflow_review_metadata_field "${1:-}" "Review Rubric Version"
+}
+
+workflow_hook_cli_json() {
+  if [[ -n "${REPO_HARNESS_HOOK_CLI:-}" && -f "${REPO_HARNESS_HOOK_CLI:-}" ]] && command -v bun >/dev/null 2>&1; then
+    bun "$REPO_HARNESS_HOOK_CLI" "$@"
+    return $?
+  fi
+  if [[ -n "${HOOK_REPO_ROOT:-}" && -f "$HOOK_REPO_ROOT/src/cli/hook-entry.ts" ]] && command -v bun >/dev/null 2>&1; then
+    bun "$HOOK_REPO_ROOT/src/cli/hook-entry.ts" "$@"
+    return $?
+  fi
+  if [[ -n "${REPO_HARNESS_CLI:-}" && -f "${REPO_HARNESS_CLI:-}" ]] && command -v bun >/dev/null 2>&1; then
+    bun "$REPO_HARNESS_CLI" "$@"
+    return $?
+  fi
+  if command -v repo-harness-hook >/dev/null 2>&1; then
+    repo-harness-hook "$@"
+    return $?
+  fi
+  if command -v repo-harness >/dev/null 2>&1; then
+    repo-harness "$@"
+    return $?
+  fi
+  return 127
+}
+
+workflow_json_field() {
+  local json="${1:-}"
+  local field="${2:-}"
+  [[ -n "$json" && -n "$field" ]] || return 1
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$json" | jq -r ".$field // empty" 2>/dev/null || true
+    return
+  fi
+  if command -v bun >/dev/null 2>&1; then
+    JSON_INPUT="$json" JSON_FIELD="$field" bun -e '
+      try {
+        const parsed = JSON.parse(process.env.JSON_INPUT ?? "");
+        const value = parsed?.[process.env.JSON_FIELD ?? ""];
+        if (value != null) process.stdout.write(String(value));
+      } catch {}
+    ' 2>/dev/null || true
+  fi
+}
+
+workflow_current_review_fingerprint_json() {
+  workflow_hook_cli_json review-fingerprint --format json 2>/dev/null || true
+}
+
+workflow_current_review_fingerprint_value() {
+  local json status fingerprint
+  json="$(workflow_current_review_fingerprint_json)"
+  status="$(workflow_json_field "$json" "status")"
+  [[ "$status" == "ok" ]] || return 1
+  fingerprint="$(workflow_json_field "$json" "fingerprint")"
+  [[ -n "$fingerprint" ]] || return 1
+  printf '%s' "$fingerprint"
+}
+
+workflow_review_freshness_status() {
+  local review_file="${1:-}"
+  local reviewed current_json current_status current_fingerprint current_scope
+
+  reviewed="$(workflow_review_fingerprint "$review_file" | xargs || true)"
+  if [[ -z "$reviewed" || "$reviewed" == "pending" || "$reviewed" == "unknown" ]]; then
+    printf 'legacy_missing\t-\tReview fingerprint is missing; rerun /check to refresh the review metadata.\n'
+    return 0
+  fi
+  if ! [[ "$reviewed" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    printf 'malformed\t%s\tReview fingerprint is malformed; rerun /check and peer acceptance.\n' "$reviewed"
+    return 0
+  fi
+
+  current_json="$(workflow_current_review_fingerprint_json)"
+  current_status="$(workflow_json_field "$current_json" "status")"
+  current_fingerprint="$(workflow_json_field "$current_json" "fingerprint")"
+  current_scope="$(workflow_json_field "$current_json" "scope")"
+  if [[ "$current_status" != "ok" || -z "$current_fingerprint" ]]; then
+    printf 'unknown\t-\tCurrent implementation diff fingerprint is unknown; rerun /check after git state is readable.\n'
+    return 0
+  fi
+  if [[ "$reviewed" != "$current_fingerprint" ]]; then
+    printf 'stale\t%s\tReview is stale for current implementation diff fingerprint %s; rerun /check and peer acceptance.\n' "$reviewed" "$current_fingerprint"
+    return 0
+  fi
+
+  printf 'pass\t%s\tReview fingerprint is fresh for %s.\n' "$reviewed" "${current_scope:-branch+staged+unstaged+untracked}"
+}
+
 workflow_external_acceptance_expected_reviewer() {
   local host="${HOOK_HOST:-}"
 

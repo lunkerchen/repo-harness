@@ -1,13 +1,15 @@
 import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, copyFileSync, existsSync, readFileSync } from "fs";
+import { createHash } from "crypto";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync, lstatSync, statSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { join, relative } from "path";
 import { spawnSync } from "child_process";
 
 const ROOT = join(import.meta.dir, "..");
 const SHIM = join(ROOT, "scripts/hook-shim.sh");
 const CLI = join(ROOT, "scripts/repo-harness.sh");
 const REAL_RUN_HOOK = join(ROOT, "assets/hooks/run-hook.sh");
+const ASSETS_HOOKS = join(ROOT, "assets/hooks");
 
 let sandbox: string;
 let harnessHome: string;
@@ -39,6 +41,45 @@ function writePolicy(content: string | null) {
   } else {
     writeFileSync(policyPath, content);
   }
+}
+
+function rel(path: string, root: string): string {
+  return relative(root, path).replaceAll("\\", "/");
+}
+
+function collectFiles(root: string, current = root): string[] {
+  const entries = readdirSync(current).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const fullPath = join(current, entry);
+    const stat = lstatSync(fullPath);
+    if (stat.isDirectory()) {
+      files.push(...collectFiles(root, fullPath));
+      continue;
+    }
+    if (stat.isFile()) files.push(rel(fullPath, root));
+  }
+
+  return files;
+}
+
+function normalizedMode(path: string): "100644" | "100755" {
+  return (statSync(path).mode & 0o111) === 0 ? "100644" : "100755";
+}
+
+function digest(root: string, files: readonly string[]): string {
+  const hash = createHash("sha256");
+  for (const file of files) {
+    const fullPath = join(root, file);
+    hash.update(file);
+    hash.update("\0");
+    hash.update(normalizedMode(fullPath));
+    hash.update("\0");
+    hash.update(readFileSync(fullPath));
+    hash.update("\0");
+  }
+  return `sha256:${hash.digest("hex")}`;
 }
 
 beforeAll(() => {
@@ -156,7 +197,18 @@ describe("hook-shim runtime resolution", () => {
     expect(existsSync(join(centralDir, "prompt-guard.sh"))).toBe(true);
     expect(existsSync(join(centralDir, "hook-input.sh"))).toBe(true);
     expect(existsSync(join(centralDir, "lib/workflow-state.sh"))).toBe(true);
+    expect(existsSync(join(centralDir, "AGENTS.md"))).toBe(true);
+    expect(existsSync(join(centralDir, "projection.json"))).toBe(false);
     expect(existsSync(join(centralDir, "codex.hooks.template.json"))).toBe(false);
+
+    const manifest = JSON.parse(readFileSync(join(ASSETS_HOOKS, "projection.json"), "utf-8")) as {
+      package_only: string[];
+    };
+    const packageOnly = new Set(manifest.package_only);
+    const managedAssets = collectFiles(ASSETS_HOOKS).filter((file) => !packageOnly.has(file));
+    const centralFiles = collectFiles(centralDir).filter((file) => file !== ".version");
+    expect(centralFiles).toEqual(managedAssets);
+    expect(digest(centralDir, centralFiles)).toBe(digest(ASSETS_HOOKS, managedAssets));
 
     const version = readFileSync(join(centralDir, ".version"), "utf-8").trim();
     const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf-8")) as { version: string };

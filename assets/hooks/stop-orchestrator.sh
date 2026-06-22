@@ -385,6 +385,17 @@ refresh_handoff
 minimal_change_refresh_review
 minimal_change_append_handoff
 
+review_file="$(workflow_active_review || true)"
+if [[ -n "$review_file" && -f "$review_file" ]]; then
+  review_freshness="$(workflow_review_freshness_status "$review_file")"
+  IFS=$'\t' read -r review_freshness_state _review_fingerprint review_freshness_message <<< "$review_freshness"
+  case "$review_freshness_state" in
+    stale|malformed|unknown)
+      echo "[ReviewFreshness] $review_freshness_message" >&2
+      ;;
+  esac
+fi
+
 if should_run_plan_completeness_gate "$stop_hook_active" "$last_assistant_message"; then
   signature="$(plan_completeness_signature)"
   if [[ "$(plan_completeness_last_signature 2>/dev/null || true)" != "$signature" ]]; then

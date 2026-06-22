@@ -42,13 +42,18 @@ describe("workflow contract manifest", () => {
     expect(runtime).toBe(asset);
   });
 
-  test("hook asset files should stay in parity with self-hosted .ai/hooks", () => {
-    const assetFiles = collectFiles(join(ROOT, "assets/hooks")).filter((file) => !["./settings.template.json", "./codex.hooks.template.json"].includes(file));
-    const allRuntimeFiles = collectFiles(join(ROOT, ".ai/hooks"));
+  test("hook asset files should stay in projection parity with self-hosted .ai/hooks", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(ROOT, "assets/hooks/projection.json"), "utf-8"),
+    ) as { package_only: string[]; repo_only: string[] };
+    const packageOnly = new Set(manifest.package_only.map((file) => `./${file}`));
+    const repoOnly = new Set(manifest.repo_only.map((file) => `./${file}`));
+    const assetFiles = collectFiles(join(ROOT, "assets/hooks")).filter((file) => !packageOnly.has(file));
+    const runtimeFiles = collectFiles(join(ROOT, ".ai/hooks")).filter((file) => file !== "./.projection.json");
 
-    expect(allRuntimeFiles).toEqual(assetFiles);
+    expect(runtimeFiles.filter((file) => !repoOnly.has(file))).toEqual(assetFiles);
 
-    for (const relPath of allRuntimeFiles) {
+    for (const relPath of assetFiles) {
       const assetContent = readFileSync(join(ROOT, "assets/hooks", relPath.slice(2)), "utf-8");
       const runtimeContent = readFileSync(join(ROOT, ".ai/hooks", relPath.slice(2)), "utf-8");
       expect(runtimeContent).toBe(assetContent);
