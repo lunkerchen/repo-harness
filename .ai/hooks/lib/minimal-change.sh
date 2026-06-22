@@ -75,7 +75,3 @@ minimal_change_hook_entry() {
 review_rubric_prompt() {
   repo_harness_hook_cli review-rubric --format prompt 2>/dev/null || true
 }
-
-review_diff_fingerprint_json() {
-  repo_harness_hook_cli review-fingerprint --format json 2>/dev/null || true
-}

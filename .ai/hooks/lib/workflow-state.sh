@@ -1354,7 +1354,12 @@ workflow_json_field() {
 }
 
 workflow_current_review_fingerprint_json() {
-  workflow_hook_cli_json review-fingerprint --format json 2>/dev/null || true
+  # Bind the fingerprint to the resolved target branch so base_rev tracks the
+  # target tip; without --base the CLI falls back to HEAD, making the branch diff
+  # HEAD...HEAD (empty) and blinding the gate to target movement.
+  local target
+  target="$(workflow_target_branch)"
+  workflow_hook_cli_json review-fingerprint --base "$target" --format json 2>/dev/null || true
 }
 
 workflow_current_review_fingerprint_value() {
@@ -1369,10 +1374,19 @@ workflow_current_review_fingerprint_value() {
 
 workflow_review_freshness_status() {
   local review_file="${1:-}"
-  local reviewed current_json current_status current_fingerprint current_scope
+  local reviewed rubric current_json current_status current_fingerprint current_scope
 
   reviewed="$(workflow_review_fingerprint "$review_file" | xargs || true)"
+  rubric="$(workflow_review_rubric_version "$review_file" | xargs || true)"
   if [[ -z "$reviewed" || "$reviewed" == "pending" || "$reviewed" == "unknown" ]]; then
+    # A modern rubric (v1+) that records no concrete fingerprint has not been
+    # reviewed against the diff: fail closed (blocking `missing`). Only an artifact
+    # that predates the rubric (no version line) keeps the legacy warn-only path;
+    # missingness alone must not be read as legacy.
+    if [[ "$rubric" =~ ^[0-9]+$ ]] && (( rubric >= 1 )); then
+      printf 'missing\t-\tReview fingerprint is missing for rubric v%s; rerun /check and peer acceptance to record the current Reviewed Diff Fingerprint.\n' "$rubric"
+      return 0
+    fi
     printf 'legacy_missing\t-\tReview fingerprint is missing; rerun /check to refresh the review metadata.\n'
     return 0
   fi
@@ -1516,6 +1530,36 @@ workflow_external_acceptance_status() {
   if [[ "$p1_lc" != "none" ]]; then
     printf 'fail\t%s\t%s\tExternal acceptance has P1 blockers: %s\n' "${reviewer:--}" "${source:--}" "${p1_blockers:-missing}"
     return 0
+  fi
+
+  # Bind the peer's acceptance to the exact diff they reviewed. When the review
+  # uses the modern rubric (v1+), the External Acceptance section must carry its
+  # own current Reviewed Diff Fingerprint and scope; otherwise a stale F1
+  # acceptance keeps satisfying the gate after the implementation moves to F2,
+  # because the top-of-file fingerprint is agent-editable. Legacy reviews with no
+  # rubric version keep the prior lenient behaviour.
+  local top_rubric section_fp section_scope current_fp
+  top_rubric="$(workflow_review_rubric_version "$review_file" | xargs || true)"
+  if [[ "$top_rubric" =~ ^[0-9]+$ ]] && (( top_rubric >= 1 )); then
+    section_fp="$(workflow_external_acceptance_field "$section" "Reviewed Diff Fingerprint" | xargs || true)"
+    section_scope="$(workflow_external_acceptance_field "$section" "Reviewed Scope" | xargs || true)"
+    current_fp="$(workflow_current_review_fingerprint_value || true)"
+    if [[ -z "$current_fp" ]]; then
+      printf 'fail\t%s\t%s\tCurrent implementation diff fingerprint is unknown; rerun peer acceptance after git state is readable.\n' "${reviewer:--}" "${source:--}"
+      return 0
+    fi
+    if ! [[ "$section_fp" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+      printf 'fail\t%s\t%s\tExternal acceptance is missing a valid Reviewed Diff Fingerprint for rubric v%s; rerun peer acceptance for the current diff.\n' "${reviewer:--}" "${source:--}" "$top_rubric"
+      return 0
+    fi
+    if [[ "$section_fp" != "$current_fp" ]]; then
+      printf 'fail\t%s\t%s\tExternal acceptance fingerprint %s is stale for current implementation diff %s; rerun peer acceptance.\n' "${reviewer:--}" "${source:--}" "$section_fp" "$current_fp"
+      return 0
+    fi
+    if [[ "$section_scope" != "branch+staged+unstaged+untracked" ]]; then
+      printf 'fail\t%s\t%s\tExternal acceptance scope is %s; expected branch+staged+unstaged+untracked.\n' "${reviewer:--}" "${source:--}" "${section_scope:-missing}"
+      return 0
+    fi
   fi
 
   printf 'pass\t%s\t%s\tExternal acceptance passed.\n' "$reviewer" "$source"

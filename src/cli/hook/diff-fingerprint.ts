@@ -3,8 +3,14 @@ import { createHash } from 'crypto';
 import { existsSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 
-const PATCH_HASH_MAX_BUFFER = 4 * 1024 * 1024;
-const UNTRACKED_HASH_MAX_BYTES = 1024 * 1024;
+// Raised from 4 MiB: a diff that overflows this cap can no longer be observed,
+// so instead of collapsing distinct contents to one fixed hash we mark the
+// fingerprint degraded and fail closed (status: unknown).
+const PATCH_HASH_MAX_BUFFER = 64 * 1024 * 1024;
+// Untracked files up to this size are content-hashed; above it the content
+// cannot be fully observed, so the fingerprint is marked degraded (fail-closed)
+// rather than silently recording metadata only.
+const UNTRACKED_HASH_MAX_BYTES = 64 * 1024 * 1024;
 
 export interface DiffFingerprintInput {
   readonly repoRoot: string;
@@ -51,6 +57,23 @@ export interface ReviewFingerprintCliResult {
   readonly stderr: string;
 }
 
+// Accumulates whether any git observation failed during a single fingerprint
+// computation. A degraded computation must fail closed (status: unknown) so the
+// Done gate never accepts a review against a diff it could not fully read.
+interface FingerprintCtx {
+  degraded: boolean;
+}
+
+interface GitTextResult {
+  readonly ok: boolean;
+  readonly text: string;
+}
+
+interface GitBufferResult {
+  readonly ok: boolean;
+  readonly buf: Buffer;
+}
+
 export function byteCompare(a: string, b: string): number {
   return Buffer.compare(Buffer.from(a), Buffer.from(b));
 }
@@ -59,15 +82,35 @@ export function uniqueSorted(values: readonly string[]): string[] {
   return Array.from(new Set(values.filter(Boolean))).sort(byteCompare);
 }
 
-function gitText(repoRoot: string, args: readonly string[], maxBuffer = PATCH_HASH_MAX_BUFFER): string {
+// Returns ok:false on any git failure (non-zero exit, maxBuffer overflow, git
+// missing) so callers can distinguish a legitimately empty result from an
+// unobservable one. The previous helper returned '' for both, which let command
+// failures masquerade as clean state.
+function gitRun(repoRoot: string, args: readonly string[], maxBuffer = PATCH_HASH_MAX_BUFFER): GitTextResult {
   try {
-    return execFileSync('git', ['-C', repoRoot, ...args], {
+    const text = execFileSync('git', ['-C', repoRoot, ...args], {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer,
     });
+    return { ok: true, text };
   } catch {
-    return '';
+    return { ok: false, text: '' };
+  }
+}
+
+// Byte-exact variant for NUL-delimited (`-z`) output so non-ASCII, quoted, or
+// whitespace-bearing pathnames survive verbatim instead of being mangled by
+// line/space splitting.
+function gitRunBuffer(repoRoot: string, args: readonly string[], maxBuffer = PATCH_HASH_MAX_BUFFER): GitBufferResult {
+  try {
+    const out = execFileSync('git', ['-C', repoRoot, ...args], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer,
+    });
+    return { ok: true, buf: Buffer.isBuffer(out) ? out : Buffer.from(String(out)) };
+  } catch {
+    return { ok: false, buf: Buffer.alloc(0) };
   }
 }
 
@@ -93,21 +136,44 @@ function hashJson(value: unknown): string {
   return hashText(stableJson(value));
 }
 
-function hashGitPatch(repoRoot: string, args: readonly string[], label: string): string {
-  const patch = gitText(repoRoot, args, PATCH_HASH_MAX_BUFFER);
-  if (!patch) return hashUnknown(label);
-  return hashText(patch);
+// A successful, genuinely empty patch hashes to hashText('') — distinct from a
+// command failure, which marks ctx.degraded and returns hashUnknown(label).
+function hashGitPatch(repoRoot: string, args: readonly string[], label: string, ctx: FingerprintCtx): string {
+  const res = gitRun(repoRoot, args, PATCH_HASH_MAX_BUFFER);
+  if (!res.ok) {
+    ctx.degraded = true;
+    return hashUnknown(label);
+  }
+  return hashText(res.text);
 }
 
 function hashEmptyGitPatch(): string {
   return hashText('');
 }
 
-function untrackedContentHash(repoRoot: string, paths: readonly string[]): string {
-  const entries = [];
+// Split a NUL-delimited git buffer into verbatim utf-8 tokens.
+function splitNul(buf: Buffer): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  for (let index = 0; index < buf.length; index += 1) {
+    if (buf[index] === 0) {
+      if (index > start) parts.push(buf.toString('utf-8', start, index));
+      start = index + 1;
+    }
+  }
+  if (start < buf.length) parts.push(buf.toString('utf-8', start, buf.length));
+  return parts;
+}
+
+function untrackedContentHash(repoRoot: string, paths: readonly string[], ctx: FingerprintCtx): string {
+  const entries: Array<Record<string, unknown>> = [];
   for (const path of paths) {
-    const status = gitText(repoRoot, ['status', '--porcelain=v1', '--', path]);
-    if (!status.split('\n').some((line) => line.startsWith('?? '))) continue;
+    const statusRes = gitRun(repoRoot, ['status', '--porcelain=v1', '-z', '--', path]);
+    if (!statusRes.ok) {
+      ctx.degraded = true;
+      continue;
+    }
+    if (!statusRes.text.split('\0').some((token) => token.startsWith('?? '))) continue;
 
     const absolute = join(repoRoot, path);
     if (!existsSync(absolute)) continue;
@@ -115,7 +181,9 @@ function untrackedContentHash(repoRoot: string, paths: readonly string[]): strin
       const stat = statSync(absolute);
       if (!stat.isFile()) continue;
       if (stat.size > UNTRACKED_HASH_MAX_BYTES) {
-        entries.push({ path, large: true, size: stat.size });
+        // Cannot fully observe the content of an oversized untracked file.
+        ctx.degraded = true;
+        entries.push({ path, oversized: true, size: stat.size });
         continue;
       }
       entries.push({
@@ -123,25 +191,31 @@ function untrackedContentHash(repoRoot: string, paths: readonly string[]): strin
         sha256: createHash('sha256').update(readFileSync(absolute)).digest('hex'),
       });
     } catch {
+      ctx.degraded = true;
       entries.push({ path, unreadable: true });
     }
   }
   return hashJson(entries);
 }
 
-export function buildDiffFingerprint(input: DiffFingerprintInput): DiffFingerprint {
+export function buildDiffFingerprint(input: DiffFingerprintInput, ctx: FingerprintCtx = { degraded: false }): DiffFingerprint {
   const baseRef = input.baseRef ?? 'HEAD';
   const paths = uniqueSorted(input.paths);
   const pathspec = ['--', ...paths];
-  const baseRev = gitText(input.repoRoot, ['rev-parse', '--verify', baseRef]).trim() || baseRef;
-  const status = paths.length > 0
-    ? gitText(input.repoRoot, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...paths])
-    : '';
+  const baseRevRes = gitRun(input.repoRoot, ['rev-parse', '--verify', baseRef]);
+  const baseRev = baseRevRes.text.trim() || baseRef;
+  let status = '';
+  if (paths.length > 0) {
+    const statusRes = gitRun(input.repoRoot, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...paths]);
+    if (!statusRes.ok) ctx.degraded = true;
+    status = statusRes.text;
+  }
   const stagedDiffHash = paths.length > 0
     ? hashGitPatch(
         input.repoRoot,
         ['diff', '--cached', '--no-ext-diff', '--binary', '--find-renames', ...pathspec],
         'staged-diff',
+        ctx,
       )
     : hashEmptyGitPatch();
   const unstagedDiffHash = paths.length > 0
@@ -149,10 +223,11 @@ export function buildDiffFingerprint(input: DiffFingerprintInput): DiffFingerpri
         input.repoRoot,
         ['diff', '--no-ext-diff', '--binary', '--find-renames', ...pathspec],
         'unstaged-diff',
+        ctx,
       )
     : hashEmptyGitPatch();
   const statusHash = hashText(status);
-  const untrackedHash = untrackedContentHash(input.repoRoot, paths);
+  const untrackedHash = untrackedContentHash(input.repoRoot, paths, ctx);
 
   const fingerprint = hashJson({
     version: 1,
@@ -179,27 +254,51 @@ export function buildDiffFingerprint(input: DiffFingerprintInput): DiffFingerpri
   });
 }
 
-function parseStatusPaths(output: string): string[] {
-  const paths: string[] = [];
-  for (const line of output.split('\n')) {
-    if (!line.trim()) continue;
-    const rawPath = line.slice(3).trim();
-    if (!rawPath) continue;
-    const renameTarget = rawPath.includes(' -> ') ? rawPath.split(' -> ').at(-1) : rawPath;
-    if (renameTarget) paths.push(renameTarget);
+// Parse `git status --porcelain=v1 -z`. Each entry is `XY <path>`; rename/copy
+// entries are followed by a separate NUL token carrying the source path, which
+// must be consumed so it is not mis-read as the next status entry.
+function parseStatusZ(tokens: readonly string[]): { all: string[]; untracked: string[] } {
+  const all: string[] = [];
+  const untracked: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const entry = tokens[index];
+    if (!entry || entry.length < 3) continue;
+    const xy = entry.slice(0, 2);
+    const path = entry.slice(3);
+    if (!path) continue;
+    all.push(path);
+    if (xy === '??') untracked.push(path);
+    if (xy[0] === 'R' || xy[0] === 'C' || xy[1] === 'R' || xy[1] === 'C') {
+      const source = tokens[index + 1];
+      if (source) {
+        all.push(source);
+        index += 1;
+      }
+    }
   }
-  return uniqueSorted(paths);
+  return { all: uniqueSorted(all), untracked: uniqueSorted(untracked) };
 }
 
-function parseDiffNameStatusPaths(output: string): string[] {
+// Parse `git diff --name-status --find-renames -z`. Format is `<status>\0<path>`
+// per entry; rename/copy entries are `<status>\0<old>\0<new>`.
+function parseNameStatusZ(tokens: readonly string[]): string[] {
   const paths: string[] = [];
-  for (const line of output.split('\n')) {
-    if (!line.trim()) continue;
-    const parts = line.split('\t').filter(Boolean);
-    if (parts.length < 2) continue;
-    const status = parts[0];
-    const path = status.startsWith('R') || status.startsWith('C') ? parts[2] : parts[1];
-    if (path) paths.push(path);
+  let index = 0;
+  while (index < tokens.length) {
+    const status = tokens[index];
+    index += 1;
+    if (!status) continue;
+    if (status[0] === 'R' || status[0] === 'C') {
+      const oldPath = tokens[index];
+      const newPath = tokens[index + 1];
+      if (oldPath) paths.push(oldPath);
+      if (newPath) paths.push(newPath);
+      index += 2;
+    } else {
+      const path = tokens[index];
+      if (path) paths.push(path);
+      index += 1;
+    }
   }
   return uniqueSorted(paths);
 }
@@ -223,47 +322,71 @@ function isOperationalReviewPath(path: string): boolean {
   );
 }
 
+function unknownImplementationFingerprint(
+  baseRef: string,
+  baseRev: string,
+  headRev: string,
+  reason: string,
+): ImplementationDiffFingerprint {
+  return Object.freeze({
+    version: 1 as const,
+    status: 'unknown' as const,
+    scope: IMPLEMENTATION_FINGERPRINT_SCOPE,
+    base_ref: baseRef,
+    base_rev: baseRev,
+    head_rev: headRev,
+    paths: [],
+    excluded_paths: [],
+    branch_diff_hash: hashUnknown('branch-diff'),
+    staged_diff_hash: hashUnknown('staged-diff'),
+    unstaged_diff_hash: hashUnknown('unstaged-diff'),
+    status_hash: hashUnknown('status'),
+    untracked_hash: hashUnknown('untracked'),
+    fingerprint: 'unknown',
+    reason,
+  });
+}
+
 export function buildImplementationDiffFingerprint(
   repoRoot: string,
   opts: { baseRef?: string } = {},
 ): ImplementationDiffFingerprint {
   const baseRef = opts.baseRef ?? 'HEAD';
-  const headRev = gitText(repoRoot, ['rev-parse', '--verify', 'HEAD']).trim();
-  const baseRev = gitText(repoRoot, ['rev-parse', '--verify', baseRef]).trim();
-  if (!headRev || !baseRev) {
-    return Object.freeze({
-      version: 1 as const,
-      status: 'unknown' as const,
-      scope: IMPLEMENTATION_FINGERPRINT_SCOPE,
-      base_ref: baseRef,
-      base_rev: baseRev || baseRef,
-      head_rev: headRev || 'unknown',
-      paths: [],
-      excluded_paths: [],
-      branch_diff_hash: hashUnknown('branch-diff'),
-      staged_diff_hash: hashUnknown('staged-diff'),
-      unstaged_diff_hash: hashUnknown('unstaged-diff'),
-      status_hash: hashUnknown('status'),
-      untracked_hash: hashUnknown('untracked'),
-      fingerprint: 'unknown',
-      reason: 'base or HEAD could not be resolved',
-    });
+  const ctx: FingerprintCtx = { degraded: false };
+  const headRes = gitRun(repoRoot, ['rev-parse', '--verify', 'HEAD']);
+  const baseRes = gitRun(repoRoot, ['rev-parse', '--verify', baseRef]);
+  const headRev = headRes.text.trim();
+  const baseRev = baseRes.text.trim();
+  if (!headRes.ok || !baseRes.ok || !headRev || !baseRev) {
+    return unknownImplementationFingerprint(
+      baseRef,
+      baseRev || baseRef,
+      headRev || 'unknown',
+      'base or HEAD could not be resolved',
+    );
   }
 
-  const branchPaths = parseDiffNameStatusPaths(
-    gitText(repoRoot, ['diff', '--name-status', '--find-renames', `${baseRef}...HEAD`]),
-  );
-  const statusPaths = parseStatusPaths(gitText(repoRoot, ['status', '--porcelain=v1', '--untracked-files=all']));
-  const allPaths = uniqueSorted([...branchPaths, ...statusPaths]);
+  const statusRes = gitRunBuffer(repoRoot, ['status', '--porcelain=v1', '--untracked-files=all', '-z']);
+  if (!statusRes.ok) ctx.degraded = true;
+  const statusParsed = parseStatusZ(splitNul(statusRes.buf));
+
+  const branchRes = gitRunBuffer(repoRoot, ['diff', '--name-status', '--find-renames', '-z', `${baseRef}...HEAD`]);
+  if (!branchRes.ok) ctx.degraded = true;
+  const branchPaths = parseNameStatusZ(splitNul(branchRes.buf));
+
+  const allPaths = uniqueSorted([...branchPaths, ...statusParsed.all]);
   const excludedPaths = allPaths.filter(isOperationalReviewPath);
   const implementationPaths = allPaths.filter((path) => !isOperationalReviewPath(path));
-  const diff = buildDiffFingerprint({
-    repoRoot,
-    baseRef,
-    paths: implementationPaths,
-    policyVersion: 1,
-    purpose: 'implementation-review-freshness',
-  });
+  const diff = buildDiffFingerprint(
+    {
+      repoRoot,
+      baseRef,
+      paths: implementationPaths,
+      policyVersion: 1,
+      purpose: 'implementation-review-freshness',
+    },
+    ctx,
+  );
   const branchDiffHash = implementationPaths.length > 0
     ? hashGitPatch(
         repoRoot,
@@ -277,15 +400,30 @@ export function buildImplementationDiffFingerprint(
           ...implementationPaths,
         ],
         'branch-diff',
+        ctx,
       )
     : hashEmptyGitPatch();
+
+  if (ctx.degraded) {
+    return unknownImplementationFingerprint(
+      diff.base_ref,
+      diff.base_rev,
+      headRev,
+      'implementation diff could not be fully observed',
+    );
+  }
+
   const fingerprint = hashJson({
     version: 1,
     purpose: 'implementation-review-freshness',
     scope: IMPLEMENTATION_FINGERPRINT_SCOPE,
     base_ref: diff.base_ref,
     base_rev: diff.base_rev,
-    head_rev: headRev,
+    // head_rev is intentionally excluded from the hashed payload: committed
+    // implementation content is already captured by branch_diff_hash (base...HEAD
+    // over implementation paths). Hashing raw HEAD would make an operational-only
+    // commit (review/check artifacts) churn the fingerprint and falsely stale the
+    // review.
     paths: diff.paths,
     branch_diff_hash: branchDiffHash,
     staged_diff_hash: diff.staged_diff_hash,
@@ -340,6 +478,9 @@ export function runReviewFingerprintCli(
   const format = argValue(argv, '--format') ?? 'json';
   if (format !== 'json') return reviewFingerprintUsage();
 
+  // The runtime (workflow_current_review_fingerprint_json) passes the resolved
+  // target branch via --base so base_rev tracks the target tip. When --base is
+  // absent this falls back to HEAD for direct/diagnostic use only.
   const fingerprint = buildImplementationDiffFingerprint(opts.cwd ?? process.cwd(), {
     baseRef: argValue(argv, '--base') ?? 'HEAD',
   });

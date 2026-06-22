@@ -25,6 +25,20 @@ function runGit(cwd: string, args: readonly string[]): void {
   expect(res.status).toBe(0);
 }
 
+// A repo with an explicit `main` target and a checked-out `feature` branch, for
+// exercising target-bound fingerprint behaviour.
+function tmpFeatureRepo(prefix: string): string {
+  const cwd = mkdtempSync(join(tmpdir(), `${prefix}-`));
+  runGit(cwd, ['init', '-b', 'main']);
+  runGit(cwd, ['config', 'user.name', 'Review Freshness Test']);
+  runGit(cwd, ['config', 'user.email', 'review-freshness@test.local']);
+  writeFileSync(join(cwd, 'README.md'), '# Demo\n');
+  runGit(cwd, ['add', 'README.md']);
+  runGit(cwd, ['commit', '-m', 'init']);
+  runGit(cwd, ['checkout', '-b', 'feature']);
+  return cwd;
+}
+
 describe('review freshness fingerprint', () => {
   test('is stable across checkout roots for the same repository diff', () => {
     const source = tmpRepo('repo-harness-review-freshness-source');
@@ -101,6 +115,103 @@ describe('review freshness fingerprint', () => {
       expect(first.paths).toEqual(['src/new.ts']);
       expect(second.paths).toEqual(['src/new.ts']);
       expect(second.fingerprint).not.toBe(first.fingerprint);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('binds the fingerprint to the target branch tip so advancing the target restales the review', () => {
+    const cwd = tmpFeatureRepo('repo-harness-review-freshness-target');
+    try {
+      writeFileSync(join(cwd, 'impl.ts'), 'export const a = 1;\n');
+      runGit(cwd, ['add', 'impl.ts']);
+      runGit(cwd, ['commit', '-m', 'feature work']);
+
+      const beforeTarget = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      const beforeHead = buildImplementationDiffFingerprint(cwd); // unbound HEAD default
+
+      // Advance the target branch without touching the feature branch.
+      runGit(cwd, ['checkout', 'main']);
+      writeFileSync(join(cwd, 'unrelated.ts'), 'export const b = 2;\n');
+      runGit(cwd, ['add', 'unrelated.ts']);
+      runGit(cwd, ['commit', '-m', 'target advance']);
+      runGit(cwd, ['checkout', 'feature']);
+
+      const afterTarget = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      const afterHead = buildImplementationDiffFingerprint(cwd);
+
+      expect(beforeTarget.status).toBe('ok');
+      // Target-bound fingerprint moves with the target tip.
+      expect(afterTarget.fingerprint).not.toBe(beforeTarget.fingerprint);
+      // The unbound HEAD default is blind to the target move — the exact gap the
+      // runtime closes by passing --base <target>.
+      expect(afterHead.fingerprint).toBe(beforeHead.fingerprint);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('hashes untracked file content above the legacy 1 MiB cap', () => {
+    const cwd = tmpFeatureRepo('repo-harness-review-freshness-large');
+    try {
+      mkdirSync(join(cwd, 'src'), { recursive: true });
+      const big = join(cwd, 'src/big.bin');
+      writeFileSync(big, Buffer.alloc(2 * 1024 * 1024, 0x41));
+      const first = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      // Same size, different content: the old metadata-only path was blind to this.
+      writeFileSync(big, Buffer.alloc(2 * 1024 * 1024, 0x42));
+      const second = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      expect(first.status).toBe('ok');
+      expect(second.fingerprint).not.toBe(first.fingerprint);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('observes untracked files with non-ASCII pathnames', () => {
+    const cwd = tmpFeatureRepo('repo-harness-review-freshness-unicode');
+    try {
+      mkdirSync(join(cwd, 'src'), { recursive: true });
+      const unicodePath = join(cwd, 'src/变更.ts');
+      writeFileSync(unicodePath, 'AAAA');
+      const first = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      writeFileSync(unicodePath, 'BBBB'); // same length, different content
+      const second = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      expect(first.status).toBe('ok');
+      expect(first.paths).toContain('src/变更.ts');
+      expect(second.fingerprint).not.toBe(first.fingerprint);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('fails closed with status unknown when git state is unreadable', () => {
+    const nonRepo = mkdtempSync(join(tmpdir(), 'repo-harness-review-freshness-nonrepo-'));
+    try {
+      const fp = buildImplementationDiffFingerprint(nonRepo, { baseRef: 'main' });
+      expect(fp.status).toBe('unknown');
+      expect(fp.fingerprint).toBe('unknown');
+    } finally {
+      rmSync(nonRepo, { recursive: true, force: true });
+    }
+  });
+
+  test('is stable across an operational-only commit', () => {
+    const cwd = tmpFeatureRepo('repo-harness-review-freshness-opcommit');
+    try {
+      writeFileSync(join(cwd, 'impl.ts'), 'export const a = 1;\n');
+      runGit(cwd, ['add', 'impl.ts']);
+      runGit(cwd, ['commit', '-m', 'feature work']);
+      const before = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+
+      mkdirSync(join(cwd, 'tasks/reviews'), { recursive: true });
+      writeFileSync(join(cwd, 'tasks/reviews/demo.review.md'), '> **Recommendation**: pass\n');
+      runGit(cwd, ['add', 'tasks/reviews/demo.review.md']);
+      runGit(cwd, ['commit', '-m', 'record review evidence']);
+      const after = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+
+      expect(before.status).toBe('ok');
+      expect(after.fingerprint).toBe(before.fingerprint);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
