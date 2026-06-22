@@ -261,6 +261,26 @@ describe('review freshness fingerprint', () => {
     }
   });
 
+  test('hashes raw symlink target bytes so a non-utf-8 retarget is observed', () => {
+    const cwd = tmpFeatureRepo('repo-harness-review-freshness-symlink-bytes');
+    try {
+      // Two distinct non-utf-8 targets that both decode to the SAME utf-8
+      // replacement string ("ta�"). A utf-8 readlink would collapse them to
+      // one value (a fingerprint collision); the raw-byte hash must keep them
+      // distinct. (The link name stays ascii, so only the target is non-utf-8.)
+      symlinkSync(Buffer.from([0x74, 0x61, 0xff]), join(cwd, 'link'));
+      const first = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      rmSync(join(cwd, 'link'));
+      symlinkSync(Buffer.from([0x74, 0x61, 0xfe]), join(cwd, 'link'));
+      const second = buildImplementationDiffFingerprint(cwd, { baseRef: 'main' });
+      expect(first.status).toBe('ok');
+      expect(first.paths).toContain('link');
+      expect(second.fingerprint).not.toBe(first.fingerprint);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test('detects an untracked executable-bit flip with no content change', () => {
     const cwd = tmpFeatureRepo('repo-harness-review-freshness-mode');
     try {

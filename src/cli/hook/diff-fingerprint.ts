@@ -200,7 +200,11 @@ function untrackedContentHash(repoRoot: string, paths: readonly string[], ctx: F
       // skip a dangling symlink entirely.
       const stat = lstatSync(absolute);
       if (stat.isSymbolicLink()) {
-        entries.push({ path, type: 'symlink', target: readlinkSync(absolute) });
+        // Hash the raw link-target bytes (hex): a symlink target is an arbitrary
+        // byte string, and the default utf-8 decode of readlinkSync would collapse
+        // two distinct non-utf-8 targets to the same replacement string — a
+        // fingerprint collision. Hex is lossless, so any retarget changes the hash.
+        entries.push({ path, type: 'symlink', target_hex: readlinkSync(absolute, { encoding: 'buffer' }).toString('hex') });
         continue;
       }
       if (!stat.isFile()) {
