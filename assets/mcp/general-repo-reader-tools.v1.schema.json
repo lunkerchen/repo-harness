@@ -1,0 +1,504 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repo-harness.local/schemas/mcp/general-repo-reader-tools.v1.schema.json",
+  "title": "repo-harness general repo reader MCP tools v1",
+  "type": "object",
+  "required": [
+    "version",
+    "policy",
+    "tools",
+    "common_response_fields",
+    "error_codes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": "1"
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "repo_authorization",
+        "content_exclusion",
+        "path_representation",
+        "snapshot_required",
+        "implicit_redaction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repo_authorization": {
+          "const": "registered_repo_whitelist"
+        },
+        "content_exclusion": {
+          "const": ".ignore"
+        },
+        "path_representation": {
+          "const": "repo_relative"
+        },
+        "snapshot_required": {
+          "const": true
+        },
+        "implicit_redaction": {
+          "const": false
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 7,
+      "items": {
+        "$ref": "#/$defs/tool"
+      }
+    },
+    "common_response_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "repo_id",
+          "snapshot_id",
+          "index_revision",
+          "ignore_digest",
+          "stale",
+          "partial",
+          "next_cursor"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "error_codes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "REPO_NOT_ALLOWED",
+          "WRITE_DISABLED",
+          "INVALID_RELATIVE_PATH",
+          "PATH_OUTSIDE_REPO",
+          "SYMLINK_ESCAPE",
+          "PATH_IGNORED",
+          "NOT_FOUND",
+          "NOT_A_FILE",
+          "BINARY_CONTENT",
+          "INVALID_RANGE",
+          "PAYLOAD_LIMIT_REACHED",
+          "SNAPSHOT_STALE",
+          "INDEX_UNAVAILABLE",
+          "INDEX_STALE",
+          "REVISION_CONFLICT",
+          "TARGET_EXISTS",
+          "PARTIAL_FAILURE",
+          "INTERNAL_ADAPTER_ERROR"
+        ]
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "annotations",
+        "input_schema",
+        "output_schema"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "enum": [
+            "get_repo_capabilities",
+            "repo_manifest",
+            "list_tree",
+            "search_text",
+            "read_file",
+            "read_files",
+            "stat_file"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "annotations": {
+          "type": "object",
+          "required": [
+            "readOnlyHint",
+            "destructiveHint",
+            "idempotentHint",
+            "openWorldHint"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "readOnlyHint": {
+              "const": true
+            },
+            "destructiveHint": {
+              "const": false
+            },
+            "idempotentHint": {
+              "const": true
+            },
+            "openWorldHint": {
+              "const": false
+            }
+          }
+        },
+        "input_schema": {
+          "$ref": "#/$defs/object_schema"
+        },
+        "output_schema": {
+          "$ref": "#/$defs/object_schema"
+        }
+      }
+    },
+    "object_schema": {
+      "type": "object",
+      "required": [
+        "type",
+        "additionalProperties"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "properties": {
+          "type": "object"
+        },
+        "additionalProperties": {
+          "const": false
+        }
+      }
+    }
+  },
+  "x-repo-harness-tools": [
+    {
+      "name": "get_repo_capabilities",
+      "description": "Return read/write mode, index capabilities, and limits for a registered repo.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "access_mode",
+          "read_tools",
+          "write_tools",
+          "limits"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo_manifest",
+      "description": "Return the complete non-.ignore repo inventory with indexed/readable metadata.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "page_size": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "entries",
+          "complete"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_tree",
+      "description": "List non-.ignore children under a repo-relative directory with stable pagination.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "default": "."
+          },
+          "depth": {
+            "type": "number",
+            "minimum": 0
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "entries"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "search_text",
+      "description": "Search allowed repo text using CodeGraph first and policy-consistent fallback when needed.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "query"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "enum": [
+              "literal",
+              "regex"
+            ]
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "matches"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_file",
+      "description": "Read one allowed file by line or byte range with hash and continuation metadata.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "path"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "line_range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "byte_range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "path",
+          "sha256"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_files",
+      "description": "Read a bounded batch of allowed files with per-item success or failure.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "requests"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "array"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "byte_budget": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "results"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "stat_file",
+      "description": "Return metadata for one allowed file, directory, or symlink.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "path"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "snapshot_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "path",
+          "type",
+          "indexed",
+          "readable"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}

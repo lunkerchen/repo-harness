@@ -1,0 +1,1 @@
+Nested .gitignore match remains visible.
