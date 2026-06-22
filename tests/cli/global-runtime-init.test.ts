@@ -69,6 +69,11 @@ describe('init command global runtime bootstrap', () => {
       mkdirSync(repo, { recursive: true });
       mkdirSync(fakeBin, { recursive: true });
       setupFakeSource(source);
+      mkdirSync(join(home, '.agents', 'rules'), { recursive: true });
+      writeFileSync(join(home, '.agents', 'rules', 'anti-patterns.md'), 'anti\n');
+      writeFileSync(join(home, '.agents', 'rules', 'chinese.md'), 'zh\n');
+      writeFileSync(join(home, '.agents', 'rules', 'durable-context.md'), 'durable\n');
+      writeFileSync(join(home, '.agents', 'rules', 'english.md'), 'en\n');
       writeFakeCodegraph(fakeBin, codegraphLog);
       writeExecutable(join(fakeBin, 'bun'), `#!/bin/bash\nprintf '%s\\n' "$*" >> "${bunLog}"\nexit 0\n`);
       writeExecutable(
@@ -104,6 +109,7 @@ describe('init command global runtime bootstrap', () => {
       expect(readFileSync(npxLog, 'utf-8')).toContain(
         '-y skills add tw93/Waza -g -a codex -s think hunt check health -y',
       );
+      expect(readFileSync(join(home, '.codex', 'rules', 'anti-patterns.md'), 'utf-8')).toBe('anti\n');
       expect(readFileSync(npxLog, 'utf-8')).toContain(
         '-y skills add BfdCampos/dotfiles -g -a codex -s mermaid -y',
       );

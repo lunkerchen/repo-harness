@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "fs";
+import { homedir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { configureBrainRoot, defaultBrainRootChoice, expandHomePath } from "./brain-root";
@@ -41,6 +42,7 @@ export interface GlobalRuntimeResult {
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const CODEGRAPH_PACKAGE = "@colbymchenry/codegraph";
 const WAZA_SKILLS = ["think", "hunt", "check", "health"] as const;
+const WAZA_SHARED_RULES = ["anti-patterns.md", "chinese.md", "durable-context.md", "english.md"] as const;
 
 function defaultSourceRoot(): string {
   return join(SCRIPT_DIR, "..", "..", "..");
@@ -90,6 +92,20 @@ function hostAgents(target: InstallTargetSpec): string[] {
   if (target === "codex") return ["codex"];
   if (target === "claude") return ["claude-code"];
   return ["claude-code", "codex"];
+}
+
+function hostIds(target: InstallTargetSpec): Array<"codex" | "claude"> {
+  if (target === "codex") return ["codex"];
+  if (target === "claude") return ["claude"];
+  return ["claude", "codex"];
+}
+
+function homeDir(env?: NodeJS.ProcessEnv): string {
+  return env?.HOME ?? process.env.HOME ?? homedir();
+}
+
+function hostRulesDir(host: "codex" | "claude", env?: NodeJS.ProcessEnv): string {
+  return join(homeDir(env), host === "codex" ? ".codex" : ".claude", "rules");
 }
 
 function isNpxCacheSource(sourceRoot: string): boolean {
@@ -168,6 +184,39 @@ function installWazaSkills(sourceRoot: string, target: InstallTargetSpec, env?: 
     env,
   );
   return withStepName(step, "configure Waza skills", `target=${target}`);
+}
+
+function syncWazaSharedRules(target: InstallTargetSpec, env?: NodeJS.ProcessEnv): GlobalRuntimeStep {
+  const sourceDir = join(homeDir(env), ".agents", "rules");
+  if (!existsSync(sourceDir)) {
+    return {
+      step: "sync Waza shared rules",
+      status: "skipped",
+      detail: `staging rules not found: ${sourceDir}`,
+    };
+  }
+
+  const synced: string[] = [];
+  const missing: string[] = [];
+  for (const host of hostIds(target)) {
+    const destDir = hostRulesDir(host, env);
+    mkdirSync(destDir, { recursive: true });
+    for (const rule of WAZA_SHARED_RULES) {
+      const source = join(sourceDir, rule);
+      if (!existsSync(source)) {
+        missing.push(rule);
+        continue;
+      }
+      copyFileSync(source, join(destDir, rule));
+      synced.push(`${host}:${rule}`);
+    }
+  }
+
+  return {
+    step: "sync Waza shared rules",
+    status: missing.length > 0 ? "failed" : "ok",
+    detail: missing.length > 0 ? `missing ${missing.join(", ")}` : `synced ${synced.length} files`,
+  };
 }
 
 function installMermaidSkill(sourceRoot: string, target: InstallTargetSpec, env?: NodeJS.ProcessEnv): GlobalRuntimeStep {
@@ -261,7 +310,11 @@ export function runGlobalRuntimeSetup(opts: GlobalRuntimeOptions = {}): GlobalRu
   else steps.push({ step: "install host adapters", status: "skipped", detail: "disabled" });
 
   if (opts.externalSkills !== false) {
-    steps.push(installWazaSkills(sourceRoot, target, env));
+    const waza = installWazaSkills(sourceRoot, target, env);
+    steps.push(waza);
+    steps.push(waza.status === "ok"
+      ? syncWazaSharedRules(target, env)
+      : { step: "sync Waza shared rules", status: "skipped", detail: "Waza install failed" });
     steps.push(installMermaidSkill(sourceRoot, target, env));
     steps.push(...syncCrossReviewSkills(sourceRoot, target, env));
   } else {

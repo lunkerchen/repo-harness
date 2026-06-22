@@ -531,6 +531,7 @@ describe("check-agent-tooling", () => {
       });
 
       expect(res.status).toBe(0);
+      const report = JSON.parse(res.stdout);
       const log = readFileSync(logFile, "utf-8");
       expect(log).toContain("git -C");
       expect(log).toContain("remote get-url origin");
@@ -553,6 +554,12 @@ describe("check-agent-tooling", () => {
       expect(log).not.toContain("codegraph init");
       expect(log).not.toContain("codegraph sync");
       expect(log).not.toContain("codegraph install");
+      expect(report.tools.waza.stage_command).toContain("skills add tw93/Waza");
+      expect(report.tools.waza.stage_command).not.toContain("skills update");
+      expect(report.tools.waza.sync_command).toContain("~/.claude/rules");
+      expect(report.tools.waza.sync_command).toContain("~/.codex/rules");
+      expect(report.tools.waza.upgrade_command).toContain("~/.claude/rules");
+      expect(report.tools.waza.upgrade_command).toContain("~/.codex/rules");
     } finally {
       rmSync(envRoot.root, { recursive: true, force: true });
     }

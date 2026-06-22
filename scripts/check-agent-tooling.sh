@@ -600,6 +600,24 @@ function resolveWazaRulePath(host, rule) {
   return hostRulesPath;
 }
 
+function wazaHostRuntimeRoot(host) {
+  return host === "claude" ? "~/.claude" : "~/.codex";
+}
+
+function buildWazaHostSyncCommand(host) {
+  const root = wazaHostRuntimeRoot(host);
+  const skillsList = WAZA_MANAGED_SKILLS.join(" ");
+  const rulesList = WAZA_SHARED_RULES.join(" ");
+  return `mkdir -p ${root}/skills ${root}/rules; for d in ${skillsList}; do if [ ! -L ${root}/skills/$d ]; then rsync -a --delete ~/.agents/skills/$d/ ${root}/skills/$d/; fi; done; for f in ${rulesList}; do cp ~/.agents/rules/$f ${root}/rules/$f; done`;
+}
+
+function buildWazaHostVerifyCommand(host) {
+  const root = wazaHostRuntimeRoot(host);
+  const skillsList = WAZA_MANAGED_SKILLS.join(" ");
+  const rulesList = WAZA_SHARED_RULES.join(" ");
+  return `for d in ${skillsList}; do diff -qr ~/.agents/skills/$d ${root}/skills/$d; done; for f in ${rulesList}; do cmp -s ~/.agents/rules/$f ${root}/rules/$f; done`;
+}
+
 function inspectWazaSharedRule(host, rule, upstreamRules) {
   const localFile = resolveWazaRulePath(host, rule);
   const stagingFile = path.join(WAZA_STAGING_RULES_DIR, rule);
@@ -798,8 +816,8 @@ function detectWaza() {
   const installCommand = `npx -y skills add tw93/Waza -g -a ${
     hostMode === "both" ? "claude-code codex" : hostMode === "claude" ? "claude-code" : "codex"
   } -s think hunt check health -y`;
-  const rulesList = WAZA_SHARED_RULES.join(" ");
-  const syncCommand = `for d in ${WAZA_MANAGED_SKILLS.join(" ")}; do rsync -a --delete ~/.agents/skills/$d/ ~/.codex/skills/$d/; done; mkdir -p ~/.codex/rules; for f in ${rulesList}; do cp ~/.agents/rules/$f ~/.codex/rules/$f; done`;
+  const syncCommand = SELECTED_HOSTS.map((host) => buildWazaHostSyncCommand(host)).join(" && ");
+  const verifyCommand = SELECTED_HOSTS.map((host) => buildWazaHostVerifyCommand(host)).join(" && ");
 
   return {
     name: "waza",
@@ -830,10 +848,10 @@ function detectWaza() {
     update_status: updateStatus,
     update_reason: updateReason,
     install_command: installCommand,
-    stage_command: "npx -y skills update",
+    stage_command: installCommand,
     sync_command: syncCommand,
-    verify_command: `for d in ${WAZA_MANAGED_SKILLS.join(" ")}; do diff -qr ~/.agents/skills/$d ~/.codex/skills/$d; done; for f in ${rulesList}; do cmp -s ~/.agents/rules/$f ~/.codex/rules/$f; done`,
-    upgrade_command: `npx -y skills update && ${syncCommand}`,
+    verify_command: verifyCommand,
+    upgrade_command: `${installCommand} && ${syncCommand}`,
     impact: {
       complex_tasks: "unaffected",
       simple_tasks: status === "present" ? "full" : status === "partial" ? "degraded" : "missing",
@@ -1459,7 +1477,7 @@ function printText(result) {
   console.log(`  - Impact: simple=${waza.impact.simple_tasks}`);
   console.log(`  - Install: ${waza.install_command}`);
   console.log(`  - Stage: ${waza.stage_command}`);
-  console.log(`  - Sync Codex: ${waza.sync_command}`);
+  console.log(`  - Sync hosts: ${waza.sync_command}`);
   console.log(`  - Verify: ${waza.verify_command}`);
   console.log("");
 

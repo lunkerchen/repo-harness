@@ -36,6 +36,7 @@ import { runProcess as runBoundedProcess } from "../../effects/process-runner";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..", "..", "..");
 const WAZA_SKILLS = ["think", "hunt", "check", "health"];
+const WAZA_SHARED_RULES = ["anti-patterns.md", "chinese.md", "durable-context.md", "english.md"];
 const GBRAIN_INSTALL_ARGS = ["install", "-g", "github:garrytan/gbrain"] as const;
 const GLOBAL_RULES_BEGIN = "<!-- BEGIN: repo-harness global-working-rules -->";
 const GLOBAL_RULES_END = "<!-- END: repo-harness global-working-rules -->";
@@ -161,6 +162,12 @@ function hostAgents(target: InstallTargetSpec): string[] {
   if (target === "codex") return ["codex"];
   if (target === "claude") return ["claude-code"];
   return ["claude-code", "codex"];
+}
+
+function hostIds(target: InstallTargetSpec): Array<"codex" | "claude"> {
+  if (target === "codex") return ["codex"];
+  if (target === "claude") return ["claude"];
+  return ["claude", "codex"];
 }
 
 function homeDir(env?: NodeJS.ProcessEnv): string | null {
@@ -332,6 +339,44 @@ export function syncCrossReviewSkills(
   return steps;
 }
 
+function syncWazaSharedRules(target: InstallTargetSpec, env?: NodeJS.ProcessEnv): InitStep {
+  const home = homeDir(env);
+  if (!home) {
+    return { step: "external skills Waza shared rules", status: "failed", detail: "HOME is required" };
+  }
+
+  const sourceDir = join(home, ".agents", "rules");
+  if (!existsSync(sourceDir)) {
+    return {
+      step: "external skills Waza shared rules",
+      status: "skipped",
+      detail: `staging rules not found: ${sourceDir}`,
+    };
+  }
+
+  const synced: string[] = [];
+  const missing: string[] = [];
+  for (const host of hostIds(target)) {
+    const destDir = join(home, host === "claude" ? ".claude" : ".codex", "rules");
+    mkdirSync(destDir, { recursive: true });
+    for (const rule of WAZA_SHARED_RULES) {
+      const source = join(sourceDir, rule);
+      if (!existsSync(source)) {
+        missing.push(rule);
+        continue;
+      }
+      cpSync(source, join(destDir, rule));
+      synced.push(`${host}:${rule}`);
+    }
+  }
+
+  return {
+    step: "external skills Waza shared rules",
+    status: missing.length > 0 ? "failed" : "ok",
+    detail: missing.length > 0 ? `missing ${missing.join(", ")}` : `synced ${synced.length} files`,
+  };
+}
+
 function installExternalSkills(sourceRoot: string, target: InstallTargetSpec, env?: NodeJS.ProcessEnv): InitStep[] {
   const steps: InitStep[] = [];
   const agents = hostAgents(target);
@@ -353,6 +398,9 @@ function installExternalSkills(sourceRoot: string, target: InstallTargetSpec, en
     env,
   );
   steps.push(withStepName(waza, "external skills Waza", `target=${target}`));
+  steps.push(waza.status === "ok"
+    ? syncWazaSharedRules(target, env)
+    : { step: "external skills Waza shared rules", status: "skipped", detail: "Waza install failed" });
   const mermaid = runProcess(
     "npx",
     [

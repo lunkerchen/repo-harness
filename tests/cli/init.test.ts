@@ -299,6 +299,11 @@ describe("init command", () => {
       mkdirSync(repo, { recursive: true });
       mkdirSync(fakeBin, { recursive: true });
       setupFakeSource(source);
+      mkdirSync(join(home, ".agents", "rules"), { recursive: true });
+      writeFileSync(join(home, ".agents", "rules", "anti-patterns.md"), "anti\n");
+      writeFileSync(join(home, ".agents", "rules", "chinese.md"), "zh\n");
+      writeFileSync(join(home, ".agents", "rules", "durable-context.md"), "durable\n");
+      writeFileSync(join(home, ".agents", "rules", "english.md"), "en\n");
       makeExecutable(
         join(fakeBin, "npx"),
         `#!/bin/bash\nprintf '%s\\n' "$*" >> "${npxLog}"\nexit 0\n`,
@@ -322,6 +327,8 @@ describe("init command", () => {
       expect(readFileSync(npxLog, "utf-8")).toContain(
         "-y skills add tw93/Waza -g -a claude-code codex -s think hunt check health -y",
       );
+      expect(readFileSync(join(home, ".claude", "rules", "anti-patterns.md"), "utf-8")).toBe("anti\n");
+      expect(readFileSync(join(home, ".codex", "rules", "anti-patterns.md"), "utf-8")).toBe("anti\n");
       expect(readFileSync(npxLog, "utf-8")).toContain(
         "-y skills add BfdCampos/dotfiles -g -a claude-code codex -s mermaid -y",
       );
