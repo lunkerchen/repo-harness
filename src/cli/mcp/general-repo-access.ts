@@ -59,6 +59,7 @@ interface ResolvedRepoPath {
   type: RepoEntryType;
   size?: number;
   modifiedAt?: string;
+  metadataSignature: string;
   symlinkTargetKind: SymlinkTargetKind;
   readable: boolean;
   identity?: string;
@@ -97,9 +98,21 @@ interface VisibleEntrySnapshot {
   manifestDigest: string;
   partial: boolean;
   walkerErrors: number;
+  entryMetadataCacheHits: number;
+  entryMetadataCacheMisses: number;
   codeGraph: CodeGraphRepoSnapshot;
   codeGraphFilteredPaths: number;
   codeGraphLaggingPaths: string[];
+}
+
+interface EntryMetadataCacheStats {
+  hits: number;
+  misses: number;
+}
+
+interface EntryMetadataCacheValue {
+  entry: ManifestEntry;
+  lastUsedAtMs: number;
 }
 
 const GENERAL_REPO_TOOLS = [
@@ -120,11 +133,13 @@ const BINARY_PROBE_BYTES = 8 * 1024;
 const SEARCH_FILE_SCAN_BYTES = 1024 * 1024;
 const DEFAULT_SEARCH_RESULTS = 50;
 const HARD_SEARCH_RESULTS = 100;
-const SNAPSHOT_TTL_MS = 30_000;
+const SNAPSHOT_TTL_MS = 5 * 60_000;
 const MAX_SNAPSHOT_CACHE_ENTRIES = 16;
+const MAX_ENTRY_METADATA_CACHE_ENTRIES = 200_000;
 const MAX_LAGGING_PATHS_RETURNED = 50;
 const DEFAULT_CODEGRAPH_ADAPTER = createCodeGraphCliAdapter();
 const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
+const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
 
 export type GeneralRepoToolName = typeof GENERAL_REPO_TOOLS[number];
 
@@ -184,6 +199,19 @@ function numberArg(value: unknown, fallback: number, min: number, max: number): 
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(Math.trunc(parsed), min), max);
+}
+
+function cachePaths(paths: string[] | undefined): string[] {
+  const normalized = (paths && paths.length > 0 ? paths : ['.'])
+    .map((path) => toPosixPath(String(path || '.')).replace(/^\.\/+/, '') || '.');
+  return [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
+}
+
+function responseCacheKey(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, scope: { tool: string; paths?: string[] }): { key: string; paths: string[]; pathDigest: string } {
+  const paths = cachePaths(scope.paths);
+  const pathDigest = `sha256:${sha256(JSON.stringify(paths))}`;
+  const key = `cache_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${snapshot.id}\0${scope.tool}\0${pathDigest}`).slice(0, 16)}`;
+  return { key, paths, pathDigest };
 }
 
 function toPosixPath(value: string): string {
@@ -413,6 +441,15 @@ function resolveRepoPath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePol
 
   const fileStat = readable ? statSync(canonicalPath) : lstat;
   const parentStat = statSync(dirname(absolutePath));
+  const metadataSignature = [
+    fileStat.size,
+    fileStat.mtimeMs,
+    fileStat.ctimeMs,
+    fileStat.mode,
+    fileStat.ino,
+    type,
+    readable ? 'readable' : 'metadata-only',
+  ].join(':');
   if (opts.requireFile && (!readable || !fileStat.isFile())) {
     throw new GeneralRepoAccessError('NOT_A_FILE', 'path is not a regular file', { path: relativePath });
   }
@@ -428,6 +465,7 @@ function resolveRepoPath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePol
     type,
     size: fileStat.isFile() ? fileStat.size : undefined,
     modifiedAt: fileStat.mtime.toISOString(),
+    metadataSignature,
     symlinkTargetKind,
     readable,
     identity: readable ? statIdentity(fileStat) : undefined,
@@ -477,7 +515,8 @@ function readStableResolvedFile(resolved: ResolvedRepoPath, ignore: IgnorePolicy
   }
 }
 
-function commonFields(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot) {
+function commonFields(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, scope: { tool: string; paths?: string[] }) {
+  const scopedCache = responseCacheKey(repo, ignore, snapshot, scope);
   return {
     repo_id: repo.repoId,
     snapshot_id: snapshot.id,
@@ -486,10 +525,20 @@ function commonFields(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleE
     snapshot_expires_at: snapshot.expiresAt,
     snapshot_ttl_ms: snapshot.ttlMs,
     snapshot_cache: {
-      key: snapshot.cacheKey,
+      key: scopedCache.key,
+      snapshot_key: snapshot.cacheKey,
+      scope: scope.tool,
+      paths: scopedCache.paths,
+      path_digest: scopedCache.pathDigest,
       hit: snapshot.cacheHit,
       size: snapshot.cacheSize,
       max_entries: MAX_SNAPSHOT_CACHE_ENTRIES,
+      entry_metadata: {
+        hits: snapshot.entryMetadataCacheHits,
+        misses: snapshot.entryMetadataCacheMisses,
+        size: ENTRY_METADATA_CACHE.size,
+        max_entries: MAX_ENTRY_METADATA_CACHE_ENTRIES,
+      },
     },
     index_revision: snapshot.codeGraph.indexRevision,
     ignore_digest: ignore.digest,
@@ -499,7 +548,29 @@ function commonFields(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleE
   };
 }
 
-function metadataForResolved(resolved: ResolvedRepoPath): ManifestEntry {
+function entryMetadataCacheKey(resolved: ResolvedRepoPath, ignore: IgnorePolicy): string {
+  return `entry_${sha256(`${resolved.repo.repoId}\0${resolved.repo.registryRevision}\0${ignore.digest}\0${resolved.relativePath}\0${resolved.metadataSignature}`).slice(0, 16)}`;
+}
+
+function rememberEntryMetadata(key: string, entry: ManifestEntry): void {
+  ENTRY_METADATA_CACHE.set(key, { entry: { ...entry }, lastUsedAtMs: Date.now() });
+  while (ENTRY_METADATA_CACHE.size > MAX_ENTRY_METADATA_CACHE_ENTRIES) {
+    const oldestKey = ENTRY_METADATA_CACHE.keys().next().value;
+    if (oldestKey === undefined) break;
+    ENTRY_METADATA_CACHE.delete(oldestKey);
+  }
+}
+
+function metadataForResolved(resolved: ResolvedRepoPath, ignore: IgnorePolicy, stats?: EntryMetadataCacheStats): ManifestEntry {
+  const cacheKey = entryMetadataCacheKey(resolved, ignore);
+  const cached = ENTRY_METADATA_CACHE.get(cacheKey);
+  if (cached) {
+    stats && (stats.hits += 1);
+    ENTRY_METADATA_CACHE.delete(cacheKey);
+    ENTRY_METADATA_CACHE.set(cacheKey, { entry: cached.entry, lastUsedAtMs: Date.now() });
+    return { ...cached.entry };
+  }
+  stats && (stats.misses += 1);
   let binary = false;
   let fileHash: string | undefined;
   if (resolved.readable) {
@@ -510,7 +581,7 @@ function metadataForResolved(resolved: ResolvedRepoPath): ManifestEntry {
       fileHash = sha256(raw);
     }
   }
-  return {
+  const entry = {
     path: resolved.relativePath,
     type: resolved.type,
     size: resolved.size,
@@ -522,9 +593,11 @@ function metadataForResolved(resolved: ResolvedRepoPath): ManifestEntry {
     writable: resolved.repo.accessMode === 'read_write' && resolved.readable,
     symlink_target_kind: resolved.symlinkTargetKind,
   };
+  rememberEntryMetadata(cacheKey, entry);
+  return { ...entry };
 }
 
-function walkVisibleEntries(repo: RepoRecord, ignore: IgnorePolicy, startRelative = '.'): { entries: ManifestEntry[]; partial: boolean; walkerErrors: number } {
+function walkVisibleEntries(repo: RepoRecord, ignore: IgnorePolicy, startRelative = '.', stats: EntryMetadataCacheStats = { hits: 0, misses: 0 }): { entries: ManifestEntry[]; partial: boolean; walkerErrors: number } {
   const start = resolveRepoPath(repo, startRelative, ignore, { allowRoot: true, allowExternalSymlinkMetadata: true });
   const entries: ManifestEntry[] = [];
   let walkerErrors = 0;
@@ -545,7 +618,7 @@ function walkVisibleEntries(repo: RepoRecord, ignore: IgnorePolicy, startRelativ
       if (!ignored) {
         try {
           resolvedChild = resolveRepoPath(repo, childRelative, ignore, { allowExternalSymlinkMetadata: true });
-          entries.push(metadataForResolved(resolvedChild));
+          entries.push(metadataForResolved(resolvedChild, ignore, stats));
         } catch (_error) {
           walkerErrors += 1;
         }
@@ -558,7 +631,7 @@ function walkVisibleEntries(repo: RepoRecord, ignore: IgnorePolicy, startRelativ
     }
   };
 
-  if (start.relativePath !== '.') entries.push(metadataForResolved(start));
+  if (start.relativePath !== '.') entries.push(metadataForResolved(start, ignore, stats));
   if (start.readable && statSync(start.canonicalPath).isDirectory()) visit(start.canonicalPath, start.relativePath);
   return { entries: entries.sort((a, b) => a.path.localeCompare(b.path)), partial: walkerErrors > 0, walkerErrors };
 }
@@ -617,7 +690,8 @@ function mergeCodeGraphMetadata(repo: RepoRecord, ignore: IgnorePolicy, entries:
 function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy): VisibleEntrySnapshot {
   const createdAtMs = Date.now();
   const codeGraph = (ctx.codeGraphAdapter ?? DEFAULT_CODEGRAPH_ADAPTER).discoverRepo(repo.canonicalRoot);
-  const walked = walkVisibleEntries(repo, ignore);
+  const entryMetadataStats = { hits: 0, misses: 0 };
+  const walked = walkVisibleEntries(repo, ignore, '.', entryMetadataStats);
   const merged = mergeCodeGraphMetadata(repo, ignore, walked.entries, codeGraph);
   const manifestDigest = metadataDigest(walked.entries);
   const id = `snap_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${codeGraph.indexRevision}\0${manifestDigest}`).slice(0, 16)}`;
@@ -641,6 +715,8 @@ function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
     manifestDigest,
     partial: walked.partial,
     walkerErrors: walked.walkerErrors,
+    entryMetadataCacheHits: entryMetadataStats.hits,
+    entryMetadataCacheMisses: entryMetadataStats.misses,
     codeGraph,
     codeGraphFilteredPaths: merged.filteredPaths,
     codeGraphLaggingPaths: merged.laggingPaths,
@@ -660,6 +736,8 @@ function rememberSnapshot(snapshot: VisibleEntrySnapshot): VisibleEntrySnapshot 
       ...cached,
       cacheHit: true,
       cacheSize: SNAPSHOT_CACHE.size,
+      entryMetadataCacheHits: snapshot.entryMetadataCacheHits,
+      entryMetadataCacheMisses: snapshot.entryMetadataCacheMisses,
     };
     SNAPSHOT_CACHE.set(snapshot.cacheKey, cacheHit);
     return cacheHit;
@@ -735,7 +813,7 @@ function byteRange(value: unknown, maxLength: number): [number, number] | null {
   return [start, Math.min(length, maxLength)];
 }
 
-function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES): Record<string, unknown> {
+function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file'): Record<string, unknown> {
   if (args.line_range !== undefined && args.byte_range !== undefined) {
     throw new GeneralRepoAccessError('INVALID_RANGE', 'line_range and byte_range are mutually exclusive');
   }
@@ -752,6 +830,7 @@ function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visib
   const target = resolveRepoPath(repo, args.path, ignore, { requireFile: true });
   const snapshotEntry = snapshot.entriesByPath.get(target.relativePath);
   const indexed = snapshotEntry?.indexed ?? false;
+  const fields = commonFields(repo, ignore, snapshot, { tool, paths: [target.relativePath] });
   const raw = readStableResolvedFile(target, ignore);
   const fullHash = sha256(raw);
   const binary = raw.subarray(0, BINARY_PROBE_BYTES).includes(0);
@@ -762,7 +841,7 @@ function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visib
     const [start, length] = range;
     const chunk = raw.subarray(start, start + length);
     return {
-      ...commonFields(repo, ignore, snapshot),
+      ...fields,
       path: target.relativePath,
       sha256: fullHash,
       indexed,
@@ -792,7 +871,7 @@ function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visib
       throw new GeneralRepoAccessError('PAYLOAD_LIMIT_REACHED', 'line_range exceeds response byte budget', { max_bytes: maxBytes });
     }
     return {
-      ...commonFields(repo, ignore, snapshot),
+      ...fields,
       path: target.relativePath,
       sha256: fullHash,
       indexed,
@@ -811,7 +890,7 @@ function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visib
   const bytes = raw.subarray(0, maxBytes);
   const content = bytes.toString('utf-8');
   return {
-    ...commonFields(repo, ignore, snapshot),
+    ...fields,
     path: target.relativePath,
     sha256: fullHash,
     indexed,
@@ -831,7 +910,7 @@ function getRepoCapabilities(ctx: GeneralRepoToolContext, args: Record<string, u
   const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore);
   assertSnapshotFresh(args, snapshot);
   return textResult({
-    ...commonFields(repo, ignore, snapshot),
+    ...commonFields(repo, ignore, snapshot, { tool: 'get_repo_capabilities' }),
     access_mode: repo.accessMode,
     writable: repo.accessMode === 'read_write',
     display_name: repo.displayName,
@@ -862,7 +941,7 @@ function repoManifest(ctx: GeneralRepoToolContext, args: Record<string, unknown>
   const entries = snapshot.entries;
   const paged = pageEntries(entries, args.cursor, args.page_size);
   return textResult({
-    ...commonFields(repo, ignore, snapshot),
+    ...commonFields(repo, ignore, snapshot, { tool: 'repo_manifest', paths: ['.'] }),
     entries: paged.page,
     next_cursor: paged.nextCursor,
     complete: !snapshot.partial,
@@ -902,7 +981,7 @@ function listTree(ctx: GeneralRepoToolContext, args: Record<string, unknown>): G
     });
   const paged = pageEntries(entries, args.cursor, (args.page_size ?? DEFAULT_PAGE_SIZE));
   return textResult({
-    ...commonFields(repo, ignore, snapshot),
+    ...commonFields(repo, ignore, snapshot, { tool: 'list_tree', paths: [root.relativePath] }),
     path: root.relativePath,
     entries: paged.page,
     next_cursor: paged.nextCursor,
@@ -916,9 +995,9 @@ function statFile(ctx: GeneralRepoToolContext, args: Record<string, unknown>): G
   const resolved = resolveRepoPath(repo, args.path, ignore);
   const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore);
   assertSnapshotFresh(args, snapshot);
-  const entry = snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved);
+  const entry = snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved, ignore);
   return textResult({
-    ...commonFields(repo, ignore, snapshot),
+    ...commonFields(repo, ignore, snapshot, { tool: 'stat_file', paths: [resolved.relativePath] }),
     ...entry,
     codegraph: codeGraphSummary(snapshot),
   });
@@ -958,7 +1037,7 @@ function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): 
       continue;
     }
     try {
-      const payload = readFilePayload(repo, ignore, snapshot, request as Record<string, unknown>, remaining);
+      const payload = readFilePayload(repo, ignore, snapshot, request as Record<string, unknown>, remaining, 'read_files');
       remaining -= Number(payload.bytes_returned ?? 0);
       results.push(payload);
     } catch (error) {
@@ -972,7 +1051,12 @@ function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): 
   }
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot),
+    ...commonFields(repo, ignore, snapshot, {
+      tool: 'read_files',
+      paths: requests
+        .map((request) => (typeof request === 'object' && request !== null && !Array.isArray(request) ? String((request as { path?: unknown }).path ?? '') : ''))
+        .filter((path) => path.length > 0),
+    }),
     partial: partial || snapshot.partial,
     results,
     bytes_remaining: remaining,
@@ -999,7 +1083,7 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
           : entry.path === resolved.relativePath || entry.path.startsWith(`${resolved.relativePath}/`)
       )));
     } else {
-      candidates.push(snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved));
+      candidates.push(snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved, ignore));
     }
   }
   const seen = new Set<string>();
@@ -1049,7 +1133,7 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
   const nextCursor = matches.length > maxResults ? String(offset + maxResults) : null;
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot),
+    ...commonFields(repo, ignore, snapshot, { tool: 'search_text', paths: requestedPaths.map((path) => String(path)) }),
     query,
     mode,
     matches: returned,
