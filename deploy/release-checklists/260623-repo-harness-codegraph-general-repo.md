@@ -35,6 +35,19 @@ Status: Prepared for stacked Sprint 4 module PR review; package publish is out o
 - Setup readback: `repo-harness setup check --target codex --check-updates --json`.
 - Hosted PR #35 checks after the review-fix branch push.
 
+## Latest Local Evidence
+
+Review-fix run on 2026-06-23:
+
+- `bun test`: 981 pass / 1 skip / 0 fail / 10337 expect calls.
+- `bun run check:type`: passed.
+- `bash scripts/check-task-sync.sh && bash scripts/check-task-workflow.sh --strict && bash scripts/check-deploy-sql-order.sh && bash scripts/check-architecture-sync.sh`: passed after `bash scripts/prepare-codex-handoff.sh` refreshed the local handoff/resume packet.
+- `bash scripts/migrate-project-template.sh --repo . --dry-run`: passed.
+- `bun scripts/mcp-rollout-gate.ts --repo /Users/ancienttwo/Projects/repo-harness-codegraph-verify --out /tmp/repo-harness-mcp-rollout-gate.json`: passed with `shadow=pass`, `canary=ready`, and `rollback=pass`.
+- `bun scripts/mcp-observability-report.ts --repo /Users/ancienttwo/Projects/repo-harness-codegraph-verify --out /tmp/repo-harness-mcp-observability-report.json`: passed with 52 events and 0 alerts.
+- The rollout gate was run from a detached verification worktree under `/Users` because the active review-fix clone lived under `/private/tmp`, which is correctly denied by MCP sensitive-root policy.
+- Hosted PR #35 checks and external review must be refreshed after the review-fix branch push.
+
 ## Exit Checklist
 
 - [ ] External reviewer has re-run PR #35 after the review-fix commits and found
