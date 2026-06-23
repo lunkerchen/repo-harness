@@ -231,6 +231,20 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   result, duration, and rejection error code. The logged input remains hashed,
   not embedded, so file contents and patch bodies do not enter the audit log.
 
+## 2026-06-23 mutation lock root hardening slice
+
+- Mutation path locks moved from repo-local `.ai/harness/mcp/locks` to
+  repo-harness home under `mcp/mutation-locks/<repo_id>/...`.
+- Reason: the old repo-local lock ancestor was attacker-controllable through a
+  symlinked `.ai/harness/mcp/locks`; lock coordination must not depend on
+  repo-controlled filesystem ancestry.
+- Validation: after creating the lock root, the runtime confirms the root is a
+  real directory and its realpath remains inside repo-harness home. Repo-local
+  symlinked lock roots are ignored by mutation tools.
+- Tradeoff: this closes repo-controlled symlink escape and recursive removal
+  under untrusted repo paths; stale-lock lease/recovery remains a separate P2
+  slice, and `move_path` link/unlink atomicity remains a separate P1 slice.
+
 ## 2026-06-23 S4 security hardening slice
 
 - Root validation now stores a first-observed directory identity for each

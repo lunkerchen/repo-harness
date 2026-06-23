@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-23T18:10:13+0800 -->
+<!-- updated_at: 2026-06-23T19:31:15+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-23T18:10:13+0800
+> **Updated At**: 2026-06-23T19:31:15+0800
 > **Source Branch**: main
-> **Source Commit**: 8a39f53
+> **Source Commit**: 9a158ec
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: hook-doc-asset-drift-closeout
+> **Reason**: mcp-mutation-lock-root-hardening
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -48,19 +48,12 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 10 changed/untracked path(s)
+- Summary: 3 changed/untracked path(s)
 
 ```
- M README.md
- M assets/hooks/codex.hooks.template.json
- M assets/hooks/settings.template.json
- M assets/reference-configs/hook-operations.md
- M docs/reference-configs/hook-operations.md
- M "docs/researches/repo-harness \351\222\251\345\255\220\346\227\266\345\273\266\344\270\216 LLM \346\217\220\344\276\233\345\225\206\351\231\220\346\265\201\345\275\222\345\233\240\347\240\224\347\251\266\346\212\245\345\221\212.md"
- M scripts/repo-harness.sh
- M tests/bootstrap-files.test.ts
- M tests/hook-contracts.test.ts
- M tests/readme-dx.test.ts
+ M src/cli/mcp/general-repo-access.ts
+ M tasks/notes/20260622-repo-harness-codegraph.notes.md
+ M tests/cli/mcp-reader-tools.test.ts
 ```
 
 ## Source Artifacts

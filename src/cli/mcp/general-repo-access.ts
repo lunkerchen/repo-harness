@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import { appendFileSync, closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync, type Dirent } from 'fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'path';
-import { readRegisteredRepoHarnessRepos, repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../effects/repo-registry';
+import { readRegisteredRepoHarnessRepos, repoHarnessRegisteredReposPath, repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../effects/repo-registry';
 import { hashMcpInput, tryWriteMcpAuditEntry } from './audit';
 import { createCodeGraphCliAdapter, type CodeGraphRefreshResult, type CodeGraphRepoSnapshot, type GeneralRepoCodeGraphAdapter } from './codegraph-adapter';
 import { globMatches, isPathInside } from './paths';
@@ -198,7 +198,7 @@ const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
 const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'move_path', 'delete_path', 'refresh_repo_index']);
 const MCP_INDEX_EVENTS_RELATIVE_PATH = '.ai/harness/mcp/index-events.jsonl';
-const MCP_LOCKS_RELATIVE_PATH = '.ai/harness/mcp/locks';
+const MCP_MUTATION_LOCKS_RELATIVE_PATH = 'mcp/mutation-locks';
 const MCP_METRICS_RELATIVE_PATH = '.ai/harness/mcp/metrics.jsonl';
 const MCP_TRACE_RELATIVE_PATH = '.ai/harness/mcp/trace.jsonl';
 const MUTATION_FAULT_ENV = 'REPO_HARNESS_MCP_MUTATION_FAULT_POINT';
@@ -645,17 +645,42 @@ interface MutationPathLock {
   lockPath: string;
 }
 
-function mutationLockPath(repo: RepoRecord, relativePath: string): string {
-  const lockDir = resolve(repo.canonicalRoot, MCP_LOCKS_RELATIVE_PATH);
-  return resolve(lockDir, `${sha256(relativePath).slice(0, 32)}.lock`);
+function mutationLockRoot(repo: RepoRecord): string {
+  const harnessHome = dirname(repoHarnessRegisteredReposPath());
+  const lockRoot = resolve(harnessHome, MCP_MUTATION_LOCKS_RELATIVE_PATH, repo.repoId);
+  mkdirSync(lockRoot, { recursive: true, mode: 0o700 });
+  try {
+    const homeRealpath = realpathSync(harnessHome);
+    const rootStats = lstatSync(lockRoot);
+    if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
+      throw new GeneralRepoAccessError('LOCK_UNAVAILABLE', 'mutation lock root is not a trusted directory', {
+        lock_root: MCP_MUTATION_LOCKS_RELATIVE_PATH,
+      }, true);
+    }
+    const rootRealpath = realpathSync(lockRoot);
+    if (!isPathInside(homeRealpath, rootRealpath)) {
+      throw new GeneralRepoAccessError('LOCK_UNAVAILABLE', 'mutation lock root escapes repo-harness home', {
+        lock_root: MCP_MUTATION_LOCKS_RELATIVE_PATH,
+      }, true);
+    }
+  } catch (error) {
+    if (error instanceof GeneralRepoAccessError) throw error;
+    throw new GeneralRepoAccessError('LOCK_UNAVAILABLE', 'mutation lock root is unavailable', {
+      lock_root: MCP_MUTATION_LOCKS_RELATIVE_PATH,
+    }, true);
+  }
+  return lockRoot;
+}
+
+function mutationLockPath(lockRoot: string, relativePath: string): string {
+  return resolve(lockRoot, `${sha256(relativePath).slice(0, 32)}.lock`);
 }
 
 function acquireMutationLocks(repo: RepoRecord, paths: string[]): MutationPathLock[] {
-  const lockDir = resolve(repo.canonicalRoot, MCP_LOCKS_RELATIVE_PATH);
-  mkdirSync(lockDir, { recursive: true });
+  const lockRoot = mutationLockRoot(repo);
   const locks: MutationPathLock[] = [];
   for (const relativePath of cachePaths(paths)) {
-    const lockPath = mutationLockPath(repo, relativePath);
+    const lockPath = mutationLockPath(lockRoot, relativePath);
     let created = false;
     try {
       mkdirSync(lockPath, { mode: 0o700 });

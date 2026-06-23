@@ -1013,6 +1013,47 @@ describe('MCP reader tools', () => {
 	    }, { accessMode: 'read_write' });
 	  });
 
+	  test('write mutation locks ignore repo-local symlinked lock roots', async () => {
+	    await withReaderRepo(async (repoRoot, ctx) => {
+	      const externalLockRoot = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-lock-escape-'));
+	      try {
+	        const repoMcpDir = join(repoRoot, '.ai', 'harness', 'mcp');
+	        const repoLocksDir = join(repoMcpDir, 'locks');
+	        mkdirSync(repoMcpDir, { recursive: true });
+	        rmSync(repoLocksDir, { recursive: true, force: true });
+	        try {
+	          symlinkSync(externalLockRoot, repoLocksDir);
+	        } catch (_error) {
+	          return;
+	        }
+
+	        const writeCtx = createReaderToolContext(
+	          repoRoot,
+	          ctx.policy,
+	          new WorkspaceManager({ allowedRoots: [repoRoot], policy: ctx.policy }),
+	        );
+	        const repoId = (await jsonTool(writeCtx, 'list_allowed_roots')).roots[0].repo_id;
+	        const created = await jsonTool(writeCtx, 'write_file', {
+	          repo_id: repoId,
+	          path: 'docs/lock-safe.txt',
+	          content: 'safe\n',
+	          must_not_exist: true,
+	        });
+
+	        expect(created.error).toBeUndefined();
+	        expect(readFileSync(join(repoRoot, 'docs', 'lock-safe.txt'), 'utf-8')).toBe('safe\n');
+	        expect(readdirSync(externalLockRoot)).toEqual([]);
+	        const harnessHome = process.env.REPO_HARNESS_HOME;
+	        expect(typeof harnessHome).toBe('string');
+	        const trustedLockRoot = join(harnessHome as string, 'mcp', 'mutation-locks', repoId);
+	        expect(existsSync(trustedLockRoot)).toBe(true);
+	        expect(readdirSync(trustedLockRoot)).toEqual([]);
+	      } finally {
+	        rmSync(externalLockRoot, { recursive: true, force: true });
+	      }
+	    }, { accessMode: 'read_write' });
+	  });
+
 	  test('write mutations cleanly abort injected pre-commit filesystem faults', async () => {
 	    await withReaderRepo(async (repoRoot, ctx) => {
 	      const writeCtx = createReaderToolContext(
