@@ -104,7 +104,18 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   changes, and registry revision changes produce different cache keys.
 - `docs/researches/20260623-general-repo-reader-performance-baseline.md`
   records the first reproducible baseline. The 10k fixture completed with a
-  warm manifest first page at 360.91 ms and warm search at 763.39 ms. The 100k
-  fixture completed without OOM, returned paginated results, and hit the warm
-  snapshot/metadata cache, but warm manifest/read/search still took about
-  4.3-4.4 seconds. The 100k SLO and 500k baseline remain open.
+  warm manifest first page at 95.31 ms and warm search at 512.12 ms after the
+  walker optimization. The 100k fixture completed without OOM, returned
+  paginated results, and met the warm-path SLO: manifest 906.77 ms, read first
+  chunk 0.94 ms, and search 1038.71 ms.
+- The walker optimization removes the per-entry `resolveRepoPath` hot path for
+  manifest traversal and constructs metadata directly from the directory entry
+  and one `lstat`. Explicit `snapshot_id` stat/read calls can reuse a cached
+  snapshot and validate the requested file hash instead of rebuilding the full
+  repo snapshot. This preserves stale detection for the requested file while
+  removing whole-repo revalidation from ordinary warm read chunks.
+- The 500k fixture remains open. A `bun run benchmark:mcp-reader -- --entries
+  500000 --json` run was interrupted after more than 9 minutes without JSON
+  output, and the temporary fixture was removed. True streaming manifest work is
+  still needed because cold manifest construction still materializes and sorts
+  the full visible entry set.

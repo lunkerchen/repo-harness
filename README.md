@@ -371,9 +371,11 @@ scoped by tool and repo-relative path set, while `snapshot_cache.snapshot_key`
 identifies the underlying repo snapshot. Entry metadata is cached separately by
 repo, registry revision, `.ignore` digest, relative path, and current stat
 signature, so unchanged warm manifest/stat/read calls avoid repeated file hash
-and binary probes without hiding file, registry, or `.ignore` changes. If
-CodeGraph reports a now-missing indexed path or metadata that no longer matches
-the filesystem, the snapshot becomes `index_lagging` while authorized read/stat
+and binary probes without hiding file, registry, or `.ignore` changes. Explicit
+`snapshot_id` stat/read calls can reuse the cached snapshot and validate the
+requested file hash instead of rebuilding the full repo snapshot. If CodeGraph
+reports a now-missing indexed path or metadata that no longer matches the
+filesystem, the snapshot becomes `index_lagging` while authorized read/stat
 fallback stays available. Full-text search still falls back to the guarded
 filesystem path when CodeGraph cannot provide complete repo-text search.
 

@@ -29,11 +29,11 @@ Result:
 
 | Measurement | Duration |
 | --- | ---: |
-| cold manifest first page | 672.21 ms |
-| warm manifest first page | 360.91 ms |
-| list_tree root depth 1 | 344.89 ms |
-| read_file first chunk | 341.80 ms |
-| warm literal search | 763.39 ms |
+| cold manifest first page | 366.09 ms |
+| warm manifest first page | 95.31 ms |
+| list_tree root depth 1 | 88.54 ms |
+| read_file first chunk | 0.60 ms |
+| warm literal search | 512.12 ms |
 
 Observed state:
 
@@ -42,7 +42,7 @@ Observed state:
 - `counts.entries`: `10109`
 - `counts.files`: `10005`
 - `next_cursor`: `1000`
-- `rss_bytes_after_measurements`: `141606912`
+- `rss_bytes_after_measurements`: `147718144`
 - warm manifest cache: `hit=true`
 - warm manifest entry metadata cache: `hits=10108`, `misses=1`
 - search matches: `10`
@@ -59,11 +59,11 @@ Result:
 
 | Measurement | Duration |
 | --- | ---: |
-| cold manifest first page | 18411.08 ms |
-| warm manifest first page | 4318.82 ms |
-| list_tree root depth 1 | 4320.39 ms |
-| read_file first chunk | 4391.59 ms |
-| warm literal search | 4404.87 ms |
+| cold manifest first page | 14894.23 ms |
+| warm manifest first page | 919.11 ms |
+| list_tree root depth 1 | 922.27 ms |
+| read_file first chunk | 0.94 ms |
+| warm literal search | 1038.71 ms |
 
 Observed state:
 
@@ -72,22 +72,36 @@ Observed state:
 - `counts.entries`: `100109`
 - `counts.files`: `100005`
 - `next_cursor`: `1000`
-- `rss_bytes_after_measurements`: `621821952`
+- `rss_bytes_after_measurements`: `678952960`
 - warm manifest cache: `hit=true`
 - warm manifest entry metadata cache: `hits=100108`, `misses=1`
 - search matches: `50`
 - search `truncated`: `true`
 
-This proves the generated 100k fixture can complete without OOM and returns
-paginated results. It does not satisfy the proposed Sprint 2 SLO: warm manifest
-first page is still above 2 seconds, ordinary read first chunk is above 500 ms,
-and warm search is above 2 seconds.
+This proves the generated 100k fixture can complete without OOM, returns
+paginated results, and satisfies the proposed Sprint 2 warm-path SLO on this
+machine: warm manifest first page is below 2 seconds, read first chunk is below
+500 ms, and warm search is below 2 seconds.
+
+## 500k Fixture Attempt
+
+Command:
+
+```bash
+bun run benchmark:mcp-reader -- --entries 500000 --json
+```
+
+Observed outcome: manually interrupted after more than 9 minutes without a JSON
+result. The temporary fixture directory was removed after interruption.
+
+This does not prove the 500k baseline. It shows the remaining large-repo
+bottleneck has moved to fixture generation, cold manifest construction, and the
+fact that the manifest still materializes and sorts the full visible entry set.
 
 ## Decision
 
 The path-aware response cache key and entry metadata cache close the
-cache-key/invalidation slice, but they do not close streaming manifest or the
-100k/500k performance gate. The next performance slice should move snapshot
-revalidation away from repeated whole-repo walks. The 100k warm path now avoids
-full content hashing for unchanged files, but it still stats and sorts the full
-visible tree before serving first-page manifest, read, tree, or search results.
+cache-key/invalidation slice. The optimized walker and path-scoped cached
+snapshot reuse close the 100k warm-path SLO on this machine. They do not close
+true streaming manifest or the 500k baseline: cold manifest still materializes
+and sorts the full visible tree before returning first-page manifest results.

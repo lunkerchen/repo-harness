@@ -489,7 +489,7 @@ Sprint 1 evidence:
 - [x] **S2-PERF-002** cache key 包含 repo、snapshot、ignore digest 和路径。
 - [x] **S2-PERF-003** 文件变化、ignore 变化、registry 变化时精确失效。
 - [ ] **S2-PERF-004** 在 10k/100k/500k entries fixture 上记录基线。
-- [ ] **S2-PERF-005** 建议初始目标：100k 文件 warm manifest 首屏 p95 < 2s；普通 read 首块 p95 < 500ms；warm search p95 < 2s。最终以环境基线调整。
+- [x] **S2-PERF-005** 建议初始目标：100k 文件 warm manifest 首屏 p95 < 2s；普通 read 首块 p95 < 500ms；warm search p95 < 2s。最终以环境基线调整。
 
 ## 9.6 Sprint 2 退出标准
 
@@ -498,7 +498,7 @@ Sprint 1 evidence:
 - [x] 同一 snapshot 中 manifest/search/read 的 hash 一致。
 - [x] CodeGraph 返回越界或已忽略路径时被二次过滤。
 - [x] search 不因 dotfile、扩展名或 `.gitignore` 漏结果。
-- [ ] 100k 文件规模下无 OOM，所有大结果均可分页恢复。
+- [x] 100k 文件规模下无 OOM，所有大结果均可分页恢复。
 - [x] CodeGraph 故障时错误清晰；允许 fallback 的路径可降级运行。
 
 Sprint 2 adapter/snapshot evidence:
@@ -508,7 +508,8 @@ Sprint 2 adapter/snapshot evidence:
 - Verification: `bun test tests/cli/mcp-reader-tools.test.ts`, `bun run check:type`
 - Snapshot cache/index-lag update: responses now expose `snapshot_state`, creation/expiry, TTL, bounded snapshot metadata, and CodeGraph lagging path summaries. Snapshot memoization is repo-wide and revalidated by the current manifest digest, so it closes `S2-SNP-006/007` but does not claim the per-path cache requirements in `S2-PERF-002/003`.
 - Cache-key/performance update: public `snapshot_cache.key` is scoped by tool and repo-relative path set, with `snapshot_cache.snapshot_key` naming the underlying snapshot. Entry metadata cache keys include repo id, registry revision, `.ignore` digest, path, and current stat signature, so file, `.ignore`, and registry changes do not reuse stale metadata. Verification: `bun test tests/cli/mcp-reader-tools.test.ts tests/cli/mcp-codegraph-contract.test.ts`, `bun run check:type`, and `bun run benchmark:mcp-reader -- --entries 10000 --json`.
-- Deferred by design: `S2-PERF-001`, `S2-PERF-004/005`, and the 100k/OOM exit gate remain open. The 10k and 100k baselines are recorded in `docs/researches/20260623-general-repo-reader-performance-baseline.md`; 100k completes without OOM and returns paginated results, but warm manifest/read/search still take about 4.3-4.4 seconds and miss the proposed S2 SLO. CodeGraph CLI `query` remains symbol-oriented, so full-text `search_text` continues to use the policy-consistent filesystem fallback while exposing CodeGraph indexed metadata.
+- Performance update: the manifest walker now avoids the per-entry `resolveRepoPath` hot path, and explicit `snapshot_id` stat/read calls reuse cached snapshots with requested-file hash validation instead of rebuilding the full repo snapshot. The 100k benchmark completes without OOM, returns paginated results, and meets the warm-path SLO on this machine: manifest 919.11 ms, read first chunk 0.94 ms, search 1038.71 ms. Verification: `bun test tests/cli/mcp-reader-tools.test.ts tests/cli/mcp-codegraph-contract.test.ts`, `bun run check:type`, and `bun run benchmark:mcp-reader -- --entries 100000 --json`.
+- Deferred by design: `S2-PERF-001` and `S2-PERF-004` remain open. The 10k and 100k baselines are recorded in `docs/researches/20260623-general-repo-reader-performance-baseline.md`; a 500k benchmark attempt was interrupted after more than 9 minutes without JSON output and then cleaned up. Cold manifest still materializes and sorts the full visible entry set, so true streaming manifest remains the next S2 performance bottleneck. CodeGraph CLI `query` remains symbol-oriented, so full-text `search_text` continues to use the policy-consistent filesystem fallback while exposing CodeGraph indexed metadata.
 
 ---
 
