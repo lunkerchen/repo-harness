@@ -356,17 +356,20 @@ registered adopted repos. Use `discover_harness_repos` first, then call
 `list_allowed_roots` to get the stable `repo_id`. General repo reads use
 `repo_manifest`, `list_tree`, `stat_file`, `read_file`, `read_files`, and
 `search_text`. The write surface currently exposes `write_file`, `apply_patch`,
-and `refresh_repo_index`, all rejected unless that registered repo is explicitly
-configured as `read_write`.
+`move_path`, `delete_path`, and `refresh_repo_index`, all rejected unless that
+registered repo is explicitly configured as `read_write`.
 `write_file` creates only with `must_not_exist: true`, replaces only with
 `expected_sha256`, and reports `before`, `after`, `diff`, `mutation_id`, and
 `index_state` after an atomic same-directory rename. `apply_patch` operates only
 on existing text files, requires `expected_sha256`, and accepts either structured
 `old_text`/`new_text` edits or guarded unified diff hunks. Patch precondition
 misses and stale hashes return `REVISION_CONFLICT` without writing. Successful
-writes leave the index pending; `refresh_repo_index` runs CodeGraph sync for the
-repo, invalidates reader snapshots, and returns the new `snapshot_id`,
-`index_revision`, `index_state`, and refresh strategy. The CLI adapter reports
+file moves require a source `expected_sha256` plus `must_not_exist: true` for the
+target. Deletes require `expected_sha256`; v1 deletes regular files only and
+rejects directory or recursive deletes. Successful writes leave the index
+pending; `refresh_repo_index` runs CodeGraph sync for the repo, invalidates
+reader snapshots, and returns the new `snapshot_id`, `index_revision`,
+`index_state`, and refresh strategy. The CLI adapter reports
 `path_refresh_supported:false` when it must use repo-level sync for requested
 paths. The repo whitelist is the authorization boundary, `.ignore` is the only
 content exclusion source, paths are repo-relative, and authorized file content is

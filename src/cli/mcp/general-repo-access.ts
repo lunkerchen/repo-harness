@@ -171,6 +171,8 @@ const GENERAL_REPO_TOOLS = [
   'stat_file',
   'write_file',
   'apply_patch',
+  'move_path',
+  'delete_path',
   'refresh_repo_index',
 ] as const;
 
@@ -190,7 +192,7 @@ const MAX_SNAPSHOT_BUILD_ATTEMPTS = 2;
 const DEFAULT_CODEGRAPH_ADAPTER = createCodeGraphCliAdapter();
 const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
-const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'refresh_repo_index']);
+const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'move_path', 'delete_path', 'refresh_repo_index']);
 
 export type GeneralRepoToolName = typeof GENERAL_REPO_TOOLS[number];
 
@@ -231,6 +233,12 @@ function audit(ctx: GeneralRepoToolContext, tool: string, status: 'ok' | 'blocke
     inputHash: hashMcpInput(input),
     error,
   });
+}
+
+function auditTargetPath(input: Record<string, unknown>): string | undefined {
+  if (typeof input.path === 'string') return input.path;
+  if (typeof input.from_path === 'string' && typeof input.to_path === 'string') return `${input.from_path} -> ${input.to_path}`;
+  return undefined;
 }
 
 function sha256(value: string | Buffer): string {
@@ -1552,9 +1560,12 @@ function indexRefreshError(refresh: CodeGraphRefreshResult): GeneralRepoAccessEr
 }
 
 function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, target: ResolvedRepoWritePath, opts: {
-  operation: 'create' | 'replace' | 'patch';
+  operation: 'create' | 'replace' | 'patch' | 'move';
   beforeHash: string | null;
   beforeSize: number;
+  tool?: string;
+  responsePath?: string;
+  changedPaths?: string[];
   extra?: Record<string, unknown>;
 }): GeneralRepoToolResult {
   const after = resolveRepoPath(repo, target.relativePath, ignore, { requireFile: true });
@@ -1564,12 +1575,15 @@ function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: I
   const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
   const indexedEntry = snapshot.entriesByPath.get(target.relativePath);
   const indexState = mutationIndexState(snapshot);
-  const mutationId = `mut_${sha256(`${repo.repoId}\0${target.relativePath}\0${opts.beforeHash ?? 'new'}\0${afterHash}\0${Date.now()}`).slice(0, 16)}`;
+  const changedPaths = cachePaths(opts.changedPaths ?? [target.relativePath]);
+  const responsePath = opts.responsePath ?? target.relativePath;
+  const mutationTool = opts.tool ?? (opts.operation === 'patch' ? 'apply_patch' : 'write_file');
+  const mutationId = `mut_${sha256(`${repo.repoId}\0${changedPaths.join('\0')}\0${opts.beforeHash ?? 'new'}\0${afterHash}\0${Date.now()}`).slice(0, 16)}`;
   const invalidationId = `idxinv_${sha256(`${mutationId}\0${snapshot.codeGraph.indexRevision}\0${target.relativePath}`).slice(0, 16)}`;
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: opts.operation === 'patch' ? 'apply_patch' : 'write_file', paths: [target.relativePath] }),
-    path: target.relativePath,
+    ...commonFields(repo, ignore, snapshot, { tool: mutationTool, paths: changedPaths }),
+    path: responsePath,
     operation: opts.operation,
     mutation_id: mutationId,
     before: {
@@ -1598,7 +1612,51 @@ function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: I
     index: {
       state: indexState,
       action: snapshot.codeGraph.available ? 'refresh_repo_index_required' : 'codegraph_unavailable',
-      changed_paths: [target.relativePath],
+      changed_paths: changedPaths,
+      mutation_id: mutationId,
+      invalidation_id: invalidationId,
+      refresh_tool: 'refresh_repo_index',
+      before_index_revision: snapshot.codeGraph.indexRevision,
+    },
+    codegraph: codeGraphSummary(snapshot),
+  });
+}
+
+function deleteMutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, deleted: ManifestEntry, beforeHash: string, beforeSize: number): GeneralRepoToolResult {
+  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const indexState = mutationIndexState(snapshot);
+  const mutationId = `mut_${sha256(`${repo.repoId}\0${deleted.path}\0${beforeHash}\0deleted\0${Date.now()}`).slice(0, 16)}`;
+  const invalidationId = `idxinv_${sha256(`${mutationId}\0${snapshot.codeGraph.indexRevision}\0${deleted.path}`).slice(0, 16)}`;
+
+  return textResult({
+    ...commonFields(repo, ignore, snapshot, { tool: 'delete_path', paths: [deleted.path] }),
+    path: deleted.path,
+    operation: 'delete',
+    mutation_id: mutationId,
+    before: {
+      existed: true,
+      sha256: beforeHash,
+      size: beforeSize,
+    },
+    after: {
+      existed: false,
+      sha256: null,
+      size: 0,
+    },
+    deleted,
+    diff: {
+      format: 'summary',
+      bytes_before: beforeSize,
+      bytes_after: 0,
+      bytes_delta: -beforeSize,
+      before_sha256: beforeHash,
+      after_sha256: null,
+    },
+    index_state: indexState,
+    index: {
+      state: indexState,
+      action: snapshot.codeGraph.available ? 'refresh_repo_index_required' : 'codegraph_unavailable',
+      changed_paths: [deleted.path],
       mutation_id: mutationId,
       invalidation_id: invalidationId,
       refresh_tool: 'refresh_repo_index',
@@ -1820,6 +1878,110 @@ function applyPatchTool(ctx: GeneralRepoToolContext, args: Record<string, unknow
       },
     },
   });
+}
+
+function movePathTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const source = resolveRepoPath(repo, args.from_path, ignore, { requireFile: true });
+  if (source.type === 'symlink') {
+    throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'move_path does not move symlinks', { path: source.relativePath });
+  }
+  const beforeRaw = readFileSync(source.canonicalPath);
+  const beforeHash = sha256(beforeRaw);
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+  if (!expectedHash) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when moving a file', {
+      path: source.relativePath,
+      actual_sha256: beforeHash,
+    });
+  }
+  if (expectedHash !== beforeHash) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
+      path: source.relativePath,
+      expected_sha256: expectedHash,
+      actual_sha256: beforeHash,
+    });
+  }
+  const mustNotExist = booleanArg(args.must_not_exist, false);
+  const target = resolveRepoWritePath(repo, args.to_path, ignore);
+  if (target.existing) {
+    throw new GeneralRepoAccessError('TARGET_EXISTS', 'move target already exists', { path: target.relativePath });
+  }
+  if (!mustNotExist) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when moving to a new target', {
+      path: target.relativePath,
+    });
+  }
+
+  renameSync(source.canonicalPath, target.canonicalPath);
+  fsyncDirectoryBestEffort(dirname(source.canonicalPath));
+  if (dirname(source.canonicalPath) !== target.parentCanonicalPath) fsyncDirectoryBestEffort(target.parentCanonicalPath);
+  invalidateRepoCaches(repo);
+
+  return mutationResult(ctx, repo, ignore, target, {
+    operation: 'move',
+    tool: 'move_path',
+    responsePath: target.relativePath,
+    changedPaths: [source.relativePath, target.relativePath],
+    beforeHash,
+    beforeSize: beforeRaw.length,
+    extra: {
+      from_path: source.relativePath,
+      to_path: target.relativePath,
+      move: {
+        source_sha256: beforeHash,
+        target_must_not_exist: true,
+      },
+    },
+  });
+}
+
+function deletePathTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const target = resolveRepoPath(repo, args.path, ignore);
+  const recursive = booleanArg(args.recursive, false);
+  if (target.type === 'directory') {
+    if (recursive) {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'recursive delete is disabled in v1', { path: target.relativePath, recursive });
+    }
+    throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files; directory deletion is disabled', {
+      path: target.relativePath,
+      recursive: false,
+    });
+  }
+  if (target.type === 'symlink') {
+    throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'delete_path does not delete symlinks', { path: target.relativePath });
+  }
+  if (!target.contentFile) {
+    throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files', { path: target.relativePath });
+  }
+  const beforeRaw = readFileSync(target.canonicalPath);
+  const beforeHash = sha256(beforeRaw);
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+  if (!expectedHash) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when deleting a file', {
+      path: target.relativePath,
+      actual_sha256: beforeHash,
+    });
+  }
+  if (expectedHash !== beforeHash) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
+      path: target.relativePath,
+      expected_sha256: expectedHash,
+      actual_sha256: beforeHash,
+    });
+  }
+  const deleted = metadataForResolved(target, ignore, undefined, { contentHash: true, cache: false });
+
+  rmSync(target.canonicalPath);
+  fsyncDirectoryBestEffort(dirname(target.canonicalPath));
+  invalidateRepoCaches(repo);
+
+  return deleteMutationResult(ctx, repo, ignore, deleted, beforeHash, beforeRaw.length);
 }
 
 function refreshRepoIndex(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
@@ -2252,6 +2414,39 @@ export function buildGeneralRepoToolDefinitions(): GeneralRepoToolDefinition[] {
       annotations: writeTool,
     },
     {
+      name: 'move_path',
+      description: 'Move one existing repo-relative file to a new repo-relative path using source hash and target-existence preconditions.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          from_path: { type: 'string' },
+          to_path: { type: 'string' },
+          expected_sha256: { type: 'string' },
+          must_not_exist: { type: 'boolean' },
+        },
+        required: ['repo_id', 'from_path', 'to_path', 'expected_sha256', 'must_not_exist'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
+    {
+      name: 'delete_path',
+      description: 'Delete one existing repo-relative regular file using an expected_sha256 precondition; directory and recursive deletes are disabled in v1.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          path: { type: 'string' },
+          expected_sha256: { type: 'string' },
+          recursive: { type: 'boolean' },
+        },
+        required: ['repo_id', 'path', 'expected_sha256'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
+    {
       name: 'refresh_repo_index',
       description: 'Synchronize CodeGraph for a read_write repo after mutations and return the new index/snapshot state.',
       inputSchema: {
@@ -2299,20 +2494,26 @@ export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: str
       case 'apply_patch':
         result = applyPatchTool(ctx, args);
         break;
+      case 'move_path':
+        result = movePathTool(ctx, args);
+        break;
+      case 'delete_path':
+        result = deletePathTool(ctx, args);
+        break;
       case 'refresh_repo_index':
         result = refreshRepoIndex(ctx, args);
         break;
       default:
         return errorResult('INTERNAL_ADAPTER_ERROR', `tool is not a general repo reader tool: ${name}`);
     }
-    audit(ctx, name, 'ok', args, typeof args.path === 'string' ? args.path : undefined);
+    audit(ctx, name, 'ok', args, auditTargetPath(args));
     return result;
   } catch (error) {
     if (error instanceof GeneralRepoAccessError) {
-      audit(ctx, name, 'blocked', args, typeof args.path === 'string' ? args.path : undefined, error.message);
+      audit(ctx, name, 'blocked', args, auditTargetPath(args), error.message);
       return errorResult(error.code, error.message, error.details, error.retryable);
     }
-    audit(ctx, name, 'failed', args, typeof args.path === 'string' ? args.path : undefined, error instanceof Error ? error.message : String(error));
+    audit(ctx, name, 'failed', args, auditTargetPath(args), error instanceof Error ? error.message : String(error));
     return errorResult('INTERNAL_ADAPTER_ERROR', error instanceof Error ? error.message : String(error));
   }
 }

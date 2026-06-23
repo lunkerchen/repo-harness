@@ -525,9 +525,9 @@ Sprint 2 adapter/snapshot evidence:
 - [x] **S3-CAP-003** 写请求复用同一 Path Guard 和 IgnorePolicy。
 - [x] **S3-API-001** 实现 `write_file` create/replace。
 - [x] **S3-API-002** 实现 `apply_patch`，优先结构化 edits，必要时支持 unified diff。
-- [ ] **S3-API-003** 实现 `move_path`。
-- [ ] **S3-API-004** 实现 `delete_path`。
-- [ ] **S3-API-005** 定义目录创建、空目录和递归删除策略；递归删除建议首版默认关闭或要求显式参数。
+- [x] **S3-API-003** 实现 `move_path`。
+- [x] **S3-API-004** 实现 `delete_path`。
+- [x] **S3-API-005** 定义目录创建、空目录和递归删除策略；递归删除建议首版默认关闭或要求显式参数。
 - [x] **S3-API-006** 写响应返回 before/after hash、diff、mutation id 和 index state。
 
 ## 10.2 乐观并发与原子写
@@ -539,7 +539,7 @@ Sprint 2 adapter/snapshot evidence:
 - [x] **S3-MUT-005** 写临时文件 → fsync → atomic rename。
 - [x] **S3-MUT-006** 保留原文件权限和必要 metadata，策略写入 ADR。
 - [x] **S3-MUT-007** patch 应验证每个 hunk 或精确文本 precondition。
-- [ ] **S3-MUT-008** move/delete 同样进行版本和目标存在性检查。
+- [x] **S3-MUT-008** move/delete 同样进行版本和目标存在性检查。
 - [ ] **S3-MUT-009** 写失败不得留下半文件或跨 repo 临时文件。
 - [ ] **S3-MUT-010** 对写入过程进行故障注入测试：磁盘满、权限变化、进程中断、rename 失败。
 
@@ -586,9 +586,9 @@ Sprint 3 write_file evidence:
 - Verified in this slice: success and precondition-conflict paths leave no
   `.repo-harness-*` temporary files in the target directory. Full write-failure
   injection remains open under `S3-MUT-009/010`.
-- Explicitly still open: `move_path`, `delete_path`, recursive directory policy,
-  full index retry/dead-letter, index-lag monitoring, and complete write
-  audit/runbook coverage.
+- Explicitly still open: full write-failure injection, full index
+  retry/dead-letter, index-lag monitoring, and complete write audit/runbook
+  coverage.
 
 Sprint 3 index-sync evidence:
 
@@ -630,6 +630,29 @@ Sprint 3 apply_patch evidence:
 - Metadata policy: existing file mode bits are preserved. Filesystem mtime
   changes as part of the commit; ownership, xattrs, and platform-specific
   metadata are out of scope for the portable v1 mutation layer.
+
+Sprint 3 move/delete path mutation evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`,
+  `tests/cli/mcp-codegraph-contract.test.ts`
+- Schema/docs: `assets/mcp/general-repo-reader-tools.v1.schema.json`,
+  `README.md`, `docs/repo-harness-chatgpt-mcp-setup.md`,
+  `docs/architecture/decisions/20260622-general-repo-codegraph-access.md`,
+  `tasks/notes/20260622-repo-harness-codegraph.notes.md`
+- Completed slice: `move_path` and `delete_path` are exposed only for
+  `read_write` repos and reuse the same repo registry, Path Guard, `.ignore`,
+  snapshot invalidation, audit hash, and pending CodeGraph refresh contract as
+  `write_file` and `apply_patch`.
+- `move_path` is regular-file only, requires the source `expected_sha256`,
+  rejects stale hashes, requires an existing target parent directory, and
+  requires `must_not_exist: true` so target collisions return `TARGET_EXISTS`
+  before `rename`.
+- `delete_path` is regular-file only, requires `expected_sha256`, returns the
+  deleted metadata, and rejects stale hashes before removing the file.
+- Directory policy for v1 is now explicit: write tools do not create parent
+  directories; empty-directory mutation is unsupported; recursive delete is
+  disabled and returns a stable policy error before any filesystem mutation.
 
 ---
 

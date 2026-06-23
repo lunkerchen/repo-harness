@@ -19,6 +19,8 @@ const TOOL_NAMES = [
   'stat_file',
   'write_file',
   'apply_patch',
+  'move_path',
+  'delete_path',
   'refresh_repo_index',
 ];
 
@@ -178,6 +180,32 @@ function sampleSuccessPayload(toolName: string): Record<string, unknown> {
         patch: { mode: 'edits', edit_count: 1 },
         index_state: 'pending',
       };
+    case 'move_path':
+      return {
+        ...common,
+        path: 'docs/moved.md',
+        from_path: 'docs/source.md',
+        to_path: 'docs/moved.md',
+        operation: 'move',
+        mutation_id: `mut_${'1'.repeat(16)}`,
+        before: { existed: true, sha256: 'b'.repeat(64), size: 2 },
+        after: { sha256: 'b'.repeat(64), size: 2 },
+        diff: { format: 'summary', bytes_before: 2, bytes_after: 2, bytes_delta: 0, before_sha256: 'b'.repeat(64), after_sha256: 'b'.repeat(64) },
+        move: { source_sha256: 'b'.repeat(64), target_must_not_exist: true },
+        index_state: 'pending',
+      };
+    case 'delete_path':
+      return {
+        ...common,
+        path: 'docs/delete.md',
+        operation: 'delete',
+        mutation_id: `mut_${'2'.repeat(16)}`,
+        before: { existed: true, sha256: 'b'.repeat(64), size: 2 },
+        after: { existed: false, sha256: null, size: 0 },
+        diff: { format: 'summary', bytes_before: 2, bytes_after: 0, bytes_delta: -2, before_sha256: 'b'.repeat(64), after_sha256: null },
+        deleted: { path: 'docs/delete.md', sha256: 'b'.repeat(64), size: 2 },
+        index_state: 'pending',
+      };
     case 'refresh_repo_index':
       return {
         ...common,
@@ -328,7 +356,7 @@ describe('general repo CodeGraph contract', () => {
 
     for (const tool of schema.tools) {
       expect(validateJsonSchema(schema.$defs.tool, tool, schema).errors).toEqual([]);
-      if (tool.name === 'write_file' || tool.name === 'apply_patch' || tool.name === 'refresh_repo_index') {
+      if (tool.name === 'write_file' || tool.name === 'apply_patch' || tool.name === 'move_path' || tool.name === 'delete_path' || tool.name === 'refresh_repo_index') {
         expect(tool.annotations).toEqual({
           readOnlyHint: false,
           destructiveHint: true,
@@ -343,6 +371,13 @@ describe('general repo CodeGraph contract', () => {
           expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'expected_sha256']);
           expect(tool.input_schema.properties.edits.items.required).toEqual(['old_text', 'new_text']);
           expect(tool.input_schema.properties.unified_diff).toEqual({ type: 'string' });
+        } else if (tool.name === 'move_path') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'from_path', 'to_path', 'expected_sha256', 'must_not_exist']);
+          expect(tool.input_schema.properties.from_path).toEqual({ type: 'string' });
+          expect(tool.input_schema.properties.to_path).toEqual({ type: 'string' });
+        } else if (tool.name === 'delete_path') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'expected_sha256']);
+          expect(tool.input_schema.properties.recursive).toEqual({ type: 'boolean' });
         } else {
           expect(tool.input_schema.required).toEqual(['repo_id']);
           expect(tool.input_schema.properties.paths.items).toEqual({ type: 'string' });

@@ -61,8 +61,7 @@ Sprint 0 freezes the read contract for:
 - `search_text`
 
 The current write implementation covers `write_file` create/replace,
-`apply_patch`, and `refresh_repo_index`. Move and delete remain
-implementation-gated until their Sprint 3 slices land.
+`apply_patch`, `move_path`, `delete_path`, and `refresh_repo_index`.
 
 `write_file` and `apply_patch` commit filesystem truth first and return an index
 invalidation record with `index_state: pending` when CodeGraph is available.
@@ -73,6 +72,15 @@ precondition and returns `REVISION_CONFLICT` if it no longer matches. Existing
 file replacements preserve the file mode bits used by the target. Filesystem
 mtime changes as part of the commit, and ownership, xattrs, and platform-specific
 metadata are not preserved in this portable v1 mutation layer.
+
+`move_path` is a regular-file-only mutation. It requires the source
+`expected_sha256`, refuses symlink moves, requires the target parent directory to
+already exist, and requires `must_not_exist: true` for the target path.
+`delete_path` also deletes only regular files and requires `expected_sha256`.
+Directory creation, empty-directory mutation, and recursive delete are explicitly
+disabled in v1; directory targets fail before any filesystem mutation. This
+keeps tree-shape changes out of the first mutation layer while still closing the
+lost-update contract for file moves and deletes.
 
 The explicit `refresh_repo_index` tool requires the same `read_write` repo
 capability, reuses the same path guard and `.ignore` policy for requested paths,
