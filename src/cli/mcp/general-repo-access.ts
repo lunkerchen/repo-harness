@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import { appendFileSync, closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync, type Dirent } from 'fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'path';
+import { dlopen } from 'bun:ffi';
 import { readRegisteredRepoHarnessRepos, repoHarnessRegisteredReposPath, repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../effects/repo-registry';
 import { hashMcpInput, tryWriteMcpAuditEntry } from './audit';
 import { createCodeGraphCliAdapter, type CodeGraphRefreshResult, type CodeGraphRepoSnapshot, type GeneralRepoCodeGraphAdapter } from './codegraph-adapter';
@@ -22,6 +23,7 @@ export interface GeneralRepoToolContext {
   testHooks?: {
     afterSnapshotWalk?: (event: { repoRoot: string; kind: 'complete' | 'manifest_page'; attempt: number }) => void;
     beforeMutationCommit?: (event: { repoRoot: string; tool: string; paths: string[] }) => void;
+    beforeNativeMoveCommit?: (event: { repoRoot: string; fromPath: string; toPath: string }) => void;
   };
 }
 
@@ -2067,19 +2069,105 @@ function assertWriteTargetAbsent(target: ResolvedRepoWritePath): void {
   }
 }
 
-function commitMoveNoOverwrite(source: ResolvedRepoPath, target: ResolvedRepoWritePath, beforeCommit: () => void): void {
+type DarwinRenameLibrary = {
+  symbols: {
+    renamex_np: (oldPath: Buffer, newPath: Buffer, flags: number) => number;
+  };
+};
+
+type LinuxSyscallLibrary = {
+  symbols: {
+    syscall: (syscallNumber: number, oldDirFd: number, oldPath: Buffer, newDirFd: number, newPath: Buffer, flags: number) => bigint;
+  };
+};
+
+type WindowsMoveFileLibrary = {
+  symbols: {
+    MoveFileExW: (oldPath: Buffer, newPath: Buffer, flags: number) => boolean;
+  };
+};
+
+let darwinRenameLibrary: DarwinRenameLibrary | null = null;
+let linuxSyscallLibrary: LinuxSyscallLibrary | null = null;
+let windowsMoveFileLibrary: WindowsMoveFileLibrary | null = null;
+
+function cPath(value: string): Buffer {
+  if (value.includes('\0')) {
+    throw new GeneralRepoAccessError('INVALID_RELATIVE_PATH', 'path contains a nul byte');
+  }
+  return Buffer.from(`${value}\0`);
+}
+
+function windowsPath(value: string): Buffer {
+  if (value.includes('\0')) {
+    throw new GeneralRepoAccessError('INVALID_RELATIVE_PATH', 'path contains a nul byte');
+  }
+  return Buffer.from(`${value}\0`, 'utf16le');
+}
+
+function darwinRenameNoReplace(sourcePath: string, targetPath: string): number {
+  const lib = darwinRenameLibrary ??= dlopen('/usr/lib/libSystem.B.dylib', {
+    renamex_np: { args: ['cstring', 'cstring', 'u32'], returns: 'i32' },
+  }) as unknown as DarwinRenameLibrary;
+  return lib.symbols.renamex_np(cPath(sourcePath), cPath(targetPath), 0x00000004);
+}
+
+function linuxRenameNoReplace(sourcePath: string, targetPath: string): number {
+  const syscallNumber = process.arch === 'x64' ? 316 : process.arch === 'arm64' ? 276 : null;
+  if (syscallNumber === null) return -1;
+  const lib = linuxSyscallLibrary ??= dlopen('libc.so.6', {
+    syscall: { args: ['i64', 'i32', 'cstring', 'i32', 'cstring', 'u32'], returns: 'i64' },
+  }) as unknown as LinuxSyscallLibrary;
+  const result = lib.symbols.syscall(syscallNumber, -100, cPath(sourcePath), -100, cPath(targetPath), 1);
+  return result === 0n ? 0 : -1;
+}
+
+function windowsRenameNoReplace(sourcePath: string, targetPath: string): number {
+  const lib = windowsMoveFileLibrary ??= dlopen('kernel32.dll', {
+    MoveFileExW: { args: ['ptr', 'ptr', 'u32'], returns: 'bool' },
+  }) as unknown as WindowsMoveFileLibrary;
+  return lib.symbols.MoveFileExW(windowsPath(sourcePath), windowsPath(targetPath), 0x00000008) ? 0 : -1;
+}
+
+function renameNoReplaceNative(sourcePath: string, targetPath: string): number {
+  if (process.platform === 'darwin') return darwinRenameNoReplace(sourcePath, targetPath);
+  if (process.platform === 'linux') return linuxRenameNoReplace(sourcePath, targetPath);
+  if (process.platform === 'win32') return windowsRenameNoReplace(sourcePath, targetPath);
+  return -1;
+}
+
+function commitMoveNoOverwrite(source: ResolvedRepoPath, target: ResolvedRepoWritePath, beforeCommit: () => void, beforeNativeCommit?: () => void): void {
   beforeCommit();
   injectMutationFault('move_before_rename');
+  beforeNativeCommit?.();
+  let result = -1;
   try {
-    linkSync(source.canonicalPath, target.canonicalPath);
+    result = renameNoReplaceNative(source.canonicalPath, target.canonicalPath);
   } catch (error) {
-    const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
-    if (code === 'EEXIST') {
+    throw new GeneralRepoAccessError('MOVE_COMMIT_FAILED', 'atomic no-overwrite move failed', {
+      from_path: source.relativePath,
+      path: target.relativePath,
+      platform: process.platform,
+      cause: error instanceof Error ? error.message : String(error),
+    }, true);
+  }
+  if (result !== 0) {
+    if (existsSync(target.canonicalPath)) {
       throw new GeneralRepoAccessError('TARGET_EXISTS', 'move target already exists at commit time', { path: target.relativePath }, true);
     }
-    throw error;
+    if (!existsSync(source.canonicalPath)) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'move source disappeared before commit', {
+        path: source.relativePath,
+        actual_sha256: null,
+      }, true);
+    }
+    throw new GeneralRepoAccessError('MOVE_COMMIT_FAILED', 'atomic no-overwrite move is unavailable on this platform or filesystem', {
+      from_path: source.relativePath,
+      path: target.relativePath,
+      platform: process.platform,
+      arch: process.arch,
+    }, true);
   }
-  rmSync(source.canonicalPath);
   fsyncDirectoryBestEffort(dirname(source.canonicalPath));
   if (dirname(source.canonicalPath) !== target.parentCanonicalPath) fsyncDirectoryBestEffort(target.parentCanonicalPath);
 }
@@ -2535,6 +2623,12 @@ function movePathTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>
       assertExpectedHash(source.relativePath, expectedHash, latest.sha256);
       const latestTarget = resolveRepoWritePath(repo, target.relativePath, ignore);
       assertWriteTargetAbsent(latestTarget);
+    }, () => {
+      ctx.testHooks?.beforeNativeMoveCommit?.({
+        repoRoot: repo.canonicalRoot,
+        fromPath: source.relativePath,
+        toPath: target.relativePath,
+      });
     });
     invalidateRepoCaches(repo);
 

@@ -1054,6 +1054,48 @@ describe('MCP reader tools', () => {
 	    }, { accessMode: 'read_write' });
 	  });
 
+	  test('move_path commit does not use a hard-link then unlink commit sequence', () => {
+	    const source = readFileSync(join(process.cwd(), 'src', 'cli', 'mcp', 'general-repo-access.ts'), 'utf-8');
+	    const match = source.match(/function commitMoveNoOverwrite[\s\S]*?\n}\n\nfunction invalidateRepoCaches/);
+	    expect(match).not.toBeNull();
+	    const body = match?.[0] ?? '';
+	    expect(body).toContain('renameNoReplaceNative');
+	    expect(body).not.toContain('linkSync(');
+	    expect(body).not.toContain('rmSync(source.canonicalPath');
+	  });
+
+	  test('move_path native commit does not overwrite a target created after final preconditions', async () => {
+	    await withReaderRepo(async (repoRoot, ctx) => {
+	      const raceCtx = createReaderToolContext(
+	        repoRoot,
+	        ctx.policy,
+	        new WorkspaceManager({ allowedRoots: [repoRoot], policy: ctx.policy }),
+	        undefined,
+	        {
+	          beforeNativeMoveCommit(event) {
+	            if (event.toPath === 'docs/native-race-target.txt') {
+	              writeFileSync(join(repoRoot, 'docs', 'native-race-target.txt'), 'external target\n');
+	            }
+	          },
+	        },
+	      );
+	      const repoId = (await jsonTool(raceCtx, 'list_allowed_roots')).roots[0].repo_id;
+	      writeFileSync(join(repoRoot, 'docs', 'native-race-source.txt'), 'source\n');
+	      const sourceStat = await jsonTool(raceCtx, 'stat_file', { repo_id: repoId, path: 'docs/native-race-source.txt' });
+	      const raced = await jsonTool(raceCtx, 'move_path', {
+	        repo_id: repoId,
+	        from_path: 'docs/native-race-source.txt',
+	        to_path: 'docs/native-race-target.txt',
+	        expected_sha256: sourceStat.sha256,
+	        must_not_exist: true,
+	      });
+
+	      expect(raced.error.code).toBe('TARGET_EXISTS');
+	      expect(readFileSync(join(repoRoot, 'docs', 'native-race-source.txt'), 'utf-8')).toBe('source\n');
+	      expect(readFileSync(join(repoRoot, 'docs', 'native-race-target.txt'), 'utf-8')).toBe('external target\n');
+	    }, { accessMode: 'read_write' });
+	  });
+
 	  test('write mutations cleanly abort injected pre-commit filesystem faults', async () => {
 	    await withReaderRepo(async (repoRoot, ctx) => {
 	      const writeCtx = createReaderToolContext(

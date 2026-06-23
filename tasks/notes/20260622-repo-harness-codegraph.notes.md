@@ -245,6 +245,23 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   under untrusted repo paths; stale-lock lease/recovery remains a separate P2
   slice, and `move_path` link/unlink atomicity remains a separate P1 slice.
 
+## 2026-06-23 move_path atomic no-replace slice
+
+- `move_path` no longer commits through hard-link plus source unlink. The commit
+  path now uses platform atomic no-replace rename primitives:
+  Darwin `renamex_np(RENAME_EXCL)`, Linux `renameat2(RENAME_NOREPLACE)` through
+  `syscall`, and Windows `MoveFileExW` without replace.
+- Reason: mutation locks and post-lock precondition checks prevent tool-level
+  races, but they do not make two namespace operations (`link` then `unlink`)
+  atomic. A crash or kill between those operations can permanently expose both
+  paths.
+- Validation: tests now pin `commitMoveNoOverwrite` away from `linkSync` plus
+  `rmSync(source.canonicalPath)`, and inject a target after final preconditions
+  but before the native commit to verify the target is not overwritten.
+- Tradeoff: unsupported platforms/filesystems fail closed with
+  `MOVE_COMMIT_FAILED` instead of falling back to the old non-atomic sequence.
+  Stale mutation-lock lease/recovery remains a separate P2 slice.
+
 ## 2026-06-23 S4 security hardening slice
 
 - Root validation now stores a first-observed directory identity for each
