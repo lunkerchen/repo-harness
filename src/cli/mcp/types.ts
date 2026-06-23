@@ -17,6 +17,14 @@ export interface McpPolicy {
   denyGlobs: string[];
   allowAbsoluteRead?: boolean;
   maxFileBytes: number;
+  generalRepo: {
+    general_repo_read: boolean;
+    repo_write: boolean;
+    fs_fallback: boolean;
+    shadow_compare: boolean;
+    canary_repos: string[];
+    rollback_to_legacy_tools: boolean;
+  };
   execution: {
     fixedWorkflowCheck: boolean;
     codexRunner: boolean;

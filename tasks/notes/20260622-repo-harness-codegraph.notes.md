@@ -291,3 +291,57 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   large-log max latency aggregation, blocked-vs-failed reporting, manifest-only
   parity failure accounting, snapshot stability coverage, and escape-input
   redaction assertions.
+
+## 2026-06-23 S4 migration slice
+
+- Added `McpPolicy.generalRepo` as the rollout boundary for general repo access:
+  `general_repo_read`, `repo_write`, `fs_fallback`, `shadow_compare`,
+  `canary_repos`, and `rollback_to_legacy_tools`. Local MCP config persists the
+  same flags under `rollout.generalRepo`; environment overrides give operators
+  a one-process rollback/canary path without editing registry state.
+- Defaults are closed by default: general repo read is disabled, repo write is
+  disabled, filesystem fallback is disabled, shadow mode is disabled, and
+  rollback is disabled. Operators must explicitly opt in to read and fallback;
+  both repo `read_write` capability and rollout `repo_write=true` are still
+  required before mutation tools are listed or executed.
+- Legacy `read_workflow_file` now preferentially calls the new `read_file`
+  service, then reshapes/redacts the result into the old artifact response. It
+  deliberately falls back to the old bounded workflow path when rollback mode is
+  active or when a file exceeds the new single-call read chunk. That preserves
+  existing workflow clients while exercising the new repo service in normal
+  migration traffic.
+- `fs_fallback=false` does not hide files from manifest/stat. It blocks
+  unindexed file content reads with `INDEX_UNAVAILABLE` and records skipped
+  fallback search candidates as partial search output. This preserves the
+  invariant that index/fallback limits are observable constraints, not
+  permission denials.
+- Added `scripts/mcp-rollout-gate.ts` as the local release/canary gate for this
+  migration. It compares legacy workflow file listing/read compatibility against
+  the new manifest/tree/search path, validates rollback tool-surface behavior,
+  selects configured canaries, and records CodeGraph ignore recheck status.
+- Self-host rollout gate passed with `shadow=pass`, `canary=ready`, and
+  `rollback=pass`. The live global registry currently contains one adopted
+  read-only canary, this repo, classified as medium. The script supports
+  configured 1-3 canaries and `--require-three-canaries`; the later release-exit
+  gate should use that stricter mode once small/large registered canaries exist.
+
+## 2026-06-23 S4 documentation and exit slice
+
+- Folded S4 security, observability, migration, rollout, documentation, and exit
+  evidence into module PR #35 after closing the superseded fine-grained PRs. The
+  reviewable module boundary is now the S4 module branch.
+- Added `docs/reference-configs/general-repo-mcp.md` as the public reference for
+  general repo MCP tool examples, repo administration, `.ignore` policy,
+  CodeGraph health, privacy/audit, workflow-artifact migration, rollout flags,
+  and known limits.
+- Added `deploy/runbooks/general-repo-mcp-codegraph.md` for index stale,
+  CodeGraph down, manifest incomplete, mutation conflict, reindex dead-letter,
+  write-disable, fallback-disable, and rollback operations.
+- Added `deploy/release-checklists/260623-repo-harness-codegraph-general-repo.md`
+  to keep Sprint 4 release evidence distinct from npm publish authority.
+- README and the ChatGPT MCP setup guide now link to the reference and runbook;
+  the setup guide generator was updated so future generated guides keep the same
+  general repo entrypoints.
+- Sprint 4 machine-verifiable exit criteria are local-gated, but human
+  release/test/security signoff and the post-fix external review remain the PR
+  review/merge gate and are not self-signed by the implementing agent.

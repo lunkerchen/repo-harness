@@ -219,6 +219,15 @@ tools for the previous workspace reader surface. They still apply the legacy
 deny/redaction behavior and should not be used as proof of the general repo
 access contract.
 
+Full reference:
+
+- Tool reference, JSON examples, repo administration, privacy/audit, migration,
+  rollout flags, and known limits:
+  `docs/reference-configs/general-repo-mcp.md`
+- Operations runbook for index stale, CodeGraph down, manifest incomplete,
+  mutation conflict, reindex dead-letter, and rollback:
+  `deploy/runbooks/general-repo-mcp-codegraph.md`
+
 ## Dev Mode Agent Runner
 
 The default planner Connector does not run Codex or Claude. If you intentionally want ChatGPT to trigger a local agent from MCP, use the `orchestrator` profile and enable the dev runner setting yourself.
@@ -403,7 +412,8 @@ Use repo-harness-chatgpt-bridge. Execute the latest ChatGPT-generated Codex goal
 - If ChatGPT cannot connect, verify the tunnel URL is HTTPS and ends in `/mcp`.
 - If ChatGPT returns unauthorized, verify OAuth discovery works and re-run the authorization passphrase flow.
 - If tools are missing, restart `repo-harness mcp serve` and rescan tools.
-- If writes fail, verify the target path is a PRD, sprint, plan, or approved handoff file.
+- If workflow artifact writes fail, verify the target path is a PRD, sprint, plan, or approved handoff file.
+- If general repo writes fail, call `get_repo_capabilities`; write tools require both a read-write repo and rollout `repo_write=true`.
 - If ChatGPT generated prose instead of checklist Sprint task cards, ask it to use write_checklist_sprint.
 - If Codex cannot see the server, run `repo-harness mcp setup codex --repo . --scope project`.
 
@@ -415,7 +425,7 @@ Use repo-harness-chatgpt-bridge. Execute the latest ChatGPT-generated Codex goal
 - The `/mcp` endpoint requires OAuth-issued Bearer tokens by default. Do not expose it through a tunnel without Connector auth configured.
 - `repo-harness mcp serve --auth bearer` is available for non-ChatGPT clients that can send a static bearer token.
 - `repo-harness mcp serve --auth url-token` is a single-user compatibility mode that accepts the same token in either `Authorization: Bearer` or `?repo_harness_token=`; logs and shared docs must not include the token.
-- Reader mode never disables deny globs for `.env`, private keys, SSH keys, credentials, secrets, `.git`, or dependency/build output.
+- Legacy workspace reader mode keeps deny globs for `.env`, private keys, SSH keys, credentials, secrets, `.git`, and dependency/build output. The general repo API uses `.ignore` as the content filter and relies on repo registration plus path guards.
 - Planner profile cannot write application source files, package manifests, lockfiles, CI config, secrets, or files outside the repo root.
 - MCP does not expose a default Codex runner. It prepares `.ai/harness/handoff/codex-goal.md`; the local Codex host owns `/goal` execution unless the user explicitly enables the local orchestrator dev runner.
 - The orchestrator dev runner is local-only, opt-in, timeout-bounded, audited, and limited to the fixed Codex goal handoff. It is not arbitrary shell.

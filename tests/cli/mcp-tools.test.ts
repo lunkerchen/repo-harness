@@ -19,7 +19,11 @@ async function withRepo<T>(fn: (repoRoot: string, ctx: McpToolContext) => Promis
     writeFileSync(join(repoRoot, 'tasks/current.md'), 'status=Active\n');
     writeFileSync(join(repoRoot, 'plans/prds/existing.prd.md'), '# Existing\n');
     writeFileSync(join(repoRoot, 'plans/sprints/example.sprint.md'), '# Sprint\n');
-    const policy = getMcpPolicy('planner', { enableReader: true, allowedRoots: [repoRoot] });
+    const policy = getMcpPolicy('planner', {
+      enableReader: true,
+      allowedRoots: [repoRoot],
+      generalRepo: { general_repo_read: true, fs_fallback: true },
+    });
     return await fn(repoRoot, {
       repoRoot,
       policy,
@@ -122,6 +126,8 @@ describe('mcp tools', () => {
       const read = await jsonTool(ctx, 'read_workflow_file', { path: 'tasks/current.md' });
       expect(read.path).toBe('tasks/current.md');
       expect(read.content).toContain('status=Active');
+      expect(read.source).toBe('general_repo_read_file');
+      expect(read.correlation_id).toMatch(/^mcpcorr_/);
 
       const denied = await jsonTool(ctx, 'read_workflow_file', { path: '.env' });
       expect(denied.error.code).toBe('POLICY_DENIED');
@@ -178,12 +184,13 @@ describe('mcp tools', () => {
         (entry: { repo_id: string; path?: string }) => entry.repo_id === repoHarnessRepoIdFor(realpathSync(repoRoot)),
       );
       expect(root?.path).toBeUndefined();
-      expect(root?.root_id).toMatch(/^root_/);
+      const rootId = root?.root_id;
+      expect(rootId).toMatch(/^root_/);
 
-      const opened = await jsonTool(ctx, 'open_workspace', { root_id: root.root_id });
+      const opened = await jsonTool(ctx, 'open_workspace', { root_id: rootId });
       expect(opened.workspace_id).toMatch(/^ws_/);
 
-      const deniedRoot = await jsonTool(ctx, 'open_workspace', { root_id: root.root_id, path: outside });
+      const deniedRoot = await jsonTool(ctx, 'open_workspace', { root_id: rootId, path: outside });
       expect(deniedRoot.error.code).toBe('ABSOLUTE_PATH_DENIED');
 
       const tree = await jsonTool(ctx, 'tree', { workspace_id: opened.workspace_id, path: '.', include_hidden: true });
