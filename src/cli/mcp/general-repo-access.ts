@@ -1,11 +1,12 @@
-import { createHash } from 'crypto';
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync, statSync, type Dirent } from 'fs';
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'path';
+import { createHash, randomBytes } from 'crypto';
+import { appendFileSync, closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync, type Dirent } from 'fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'path';
 import { readRegisteredRepoHarnessRepos, repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../effects/repo-registry';
 import { hashMcpInput, tryWriteMcpAuditEntry } from './audit';
-import { createCodeGraphCliAdapter, type CodeGraphRepoSnapshot, type GeneralRepoCodeGraphAdapter } from './codegraph-adapter';
+import { createCodeGraphCliAdapter, type CodeGraphRefreshResult, type CodeGraphRepoSnapshot, type GeneralRepoCodeGraphAdapter } from './codegraph-adapter';
 import { globMatches, isPathInside } from './paths';
-import type { McpPolicy } from './types';
+import { redactMcpText } from './redaction';
+import type { McpAuditEntry, McpPolicy } from './types';
 
 export interface GeneralRepoToolDefinition {
   name: string;
@@ -20,6 +21,7 @@ export interface GeneralRepoToolContext {
   codeGraphAdapter?: GeneralRepoCodeGraphAdapter;
   testHooks?: {
     afterSnapshotWalk?: (event: { repoRoot: string; kind: 'complete' | 'manifest_page'; attempt: number }) => void;
+    beforeMutationCommit?: (event: { repoRoot: string; tool: string; paths: string[] }) => void;
   };
 }
 
@@ -69,6 +71,16 @@ interface ResolvedRepoPath {
   readable: boolean;
   identity?: string;
   parentIdentity?: string;
+}
+
+interface ResolvedRepoWritePath {
+  repo: RepoRecord;
+  relativePath: string;
+  absolutePath: string;
+  canonicalPath: string;
+  parentRelativePath: string;
+  parentCanonicalPath: string;
+  existing?: ResolvedRepoPath;
 }
 
 interface ManifestEntry {
@@ -159,6 +171,11 @@ const GENERAL_REPO_TOOLS = [
   'read_file',
   'read_files',
   'stat_file',
+  'write_file',
+  'apply_patch',
+  'move_path',
+  'delete_path',
+  'refresh_repo_index',
 ] as const;
 
 const DEFAULT_PAGE_SIZE = 300;
@@ -177,6 +194,10 @@ const MAX_SNAPSHOT_BUILD_ATTEMPTS = 2;
 const DEFAULT_CODEGRAPH_ADAPTER = createCodeGraphCliAdapter();
 const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
+const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'move_path', 'delete_path', 'refresh_repo_index']);
+const MCP_INDEX_EVENTS_RELATIVE_PATH = '.ai/harness/mcp/index-events.jsonl';
+const MCP_LOCKS_RELATIVE_PATH = '.ai/harness/mcp/locks';
+const MUTATION_FAULT_ENV = 'REPO_HARNESS_MCP_MUTATION_FAULT_POINT';
 
 export type GeneralRepoToolName = typeof GENERAL_REPO_TOOLS[number];
 
@@ -208,15 +229,94 @@ function errorResult(code: string, message: string, details?: unknown, retryable
   };
 }
 
-function audit(ctx: GeneralRepoToolContext, tool: string, status: 'ok' | 'blocked' | 'failed', input: unknown, targetPath?: string, error?: string): void {
+function audit(ctx: GeneralRepoToolContext, tool: string, status: 'ok' | 'blocked' | 'failed', input: unknown, targetPath?: string, error?: string, details: Partial<McpAuditEntry> = {}): void {
   tryWriteMcpAuditEntry(ctx.repoRoot, {
     timestamp: new Date().toISOString(),
     tool,
     status,
+    actor: `mcp:${ctx.policy.profile}`,
+    result: status,
     targetPath,
     inputHash: hashMcpInput(input),
+    ...details,
     error,
   });
+}
+
+function auditTargetPath(input: Record<string, unknown>): string | undefined {
+  if (typeof input.path === 'string') return input.path;
+  if (typeof input.from_path === 'string' && typeof input.to_path === 'string') return `${input.from_path} -> ${input.to_path}`;
+  return undefined;
+}
+
+function auditPaths(input: Record<string, unknown>): string[] {
+  const paths = new Set<string>();
+  if (typeof input.path === 'string') paths.add(input.path);
+  if (typeof input.from_path === 'string') paths.add(input.from_path);
+  if (typeof input.to_path === 'string') paths.add(input.to_path);
+  if (Array.isArray(input.paths)) {
+    for (const path of input.paths) {
+      if (typeof path === 'string') paths.add(path);
+    }
+  }
+  return [...paths];
+}
+
+function recordObject(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const values = value.filter((entry): entry is string => typeof entry === 'string');
+  return values.length > 0 ? values : undefined;
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+function auditDetailsFromResult(result: GeneralRepoToolResult, input: Record<string, unknown>, durationMs: number, tool: string): Partial<McpAuditEntry> {
+  const payload = recordObject(result.structuredContent);
+  if (!payload) {
+    return {
+      repoId: stringField(input.repo_id),
+      operation: tool,
+      relativePaths: auditPaths(input),
+      durationMs,
+    };
+  }
+  const index = recordObject(payload.index);
+  const diff = recordObject(payload.diff);
+  const relativePaths = stringArray(index?.changed_paths)
+    ?? stringArray(index?.refreshed_paths)
+    ?? stringArray(payload.paths)
+    ?? auditPaths(input);
+  return {
+    repoId: stringField(payload.repo_id) ?? stringField(input.repo_id),
+    operation: stringField(payload.operation) ?? stringField(input.operation) ?? tool,
+    relativePaths,
+    mutationId: stringField(payload.mutation_id) ?? stringField(index?.mutation_id),
+    indexInvalidationId: stringField(index?.invalidation_id),
+    indexEventId: stringField(index?.event_id),
+    indexState: stringField(payload.index_state) ?? stringField(index?.state),
+    fileHashes: diff ? {
+      before_sha256: typeof diff.before_sha256 === 'string' ? diff.before_sha256 : diff.before_sha256 === null ? null : undefined,
+      after_sha256: typeof diff.after_sha256 === 'string' ? diff.after_sha256 : diff.after_sha256 === null ? null : undefined,
+    } : undefined,
+    durationMs,
+  };
+}
+
+function auditDetailsFromError(error: GeneralRepoAccessError, input: Record<string, unknown>, durationMs: number, tool: string): Partial<McpAuditEntry> {
+  return {
+    repoId: stringField(input.repo_id),
+    operation: tool,
+    relativePaths: auditPaths(input),
+    durationMs,
+    errorCode: error.code,
+  };
 }
 
 function sha256(value: string | Buffer): string {
@@ -238,10 +338,113 @@ function numberArg(value: unknown, fallback: number, min: number, max: number): 
   return Math.min(Math.max(Math.trunc(parsed), min), max);
 }
 
+function booleanArg(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
 function cachePaths(paths: string[] | undefined): string[] {
   const normalized = (paths && paths.length > 0 ? paths : ['.'])
     .map((path) => toPosixPath(String(path || '.')).replace(/^\.\/+/, '') || '.');
   return [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
+}
+
+function mcpIndexEventsPath(repoRoot: string): string {
+  return join(repoRoot, MCP_INDEX_EVENTS_RELATIVE_PATH);
+}
+
+function indexEventId(repo: RepoRecord, eventType: string, seed: string): string {
+  return `idxevt_${sha256(`${repo.repoId}\0${eventType}\0${seed}\0${Date.now()}\0${randomBytes(4).toString('hex')}`).slice(0, 16)}`;
+}
+
+function safeEventError(error: CodeGraphRefreshResult['error'] | undefined): Record<string, unknown> | undefined {
+  if (!error) return undefined;
+  return {
+    code: error.code,
+    message: redactMcpText(error.message).text,
+    retryable: error.retryable,
+  };
+}
+
+function tryWriteIndexEvent(ctx: GeneralRepoToolContext, repo: RepoRecord, event: Record<string, unknown>): string | null {
+  const eventId = typeof event.event_id === 'string'
+    ? event.event_id
+    : indexEventId(repo, String(event.event_type ?? 'index_event'), JSON.stringify(event));
+  try {
+    const logPath = mcpIndexEventsPath(ctx.repoRoot);
+    mkdirSync(dirname(logPath), { recursive: true });
+    appendFileSync(logPath, `${JSON.stringify({
+      schema_version: 1,
+      timestamp: new Date().toISOString(),
+      event_id: eventId,
+      repo_id: repo.repoId,
+      ...event,
+    })}\n`, 'utf-8');
+    return eventId;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function readRecentIndexEvents(repoRoot: string): Record<string, unknown>[] {
+  const logPath = mcpIndexEventsPath(repoRoot);
+  if (!existsSync(logPath)) return [];
+  try {
+    return readFileSync(logPath, 'utf-8')
+      .trimEnd()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-1000)
+      .map((line) => JSON.parse(line))
+      .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null && !Array.isArray(entry));
+  } catch (_error) {
+    return [];
+  }
+}
+
+function eventPathsOverlap(eventPaths: unknown, paths: string[]): boolean {
+  const values = stringArray(eventPaths);
+  if (!values) return false;
+  const refreshPaths = new Set(cachePaths(paths));
+  return values.some((path) => refreshPaths.has(path) || refreshPaths.has('.') || path === '.');
+}
+
+function latestIndexInvalidationEvent(ctx: GeneralRepoToolContext, repo: RepoRecord, mutationId: string, paths: string[]): Record<string, unknown> | null {
+  const events = readRecentIndexEvents(ctx.repoRoot);
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.event_type !== 'index_invalidation' || event.repo_id !== repo.repoId) continue;
+    if (mutationId && event.mutation_id === mutationId) return event;
+    if (!mutationId && eventPathsOverlap(event.relative_paths, paths)) return event;
+  }
+  return null;
+}
+
+function indexLagMsFrom(event: Record<string, unknown> | null, nowMs = Date.now()): number | undefined {
+  if (!event || typeof event.timestamp !== 'string') return undefined;
+  const startedAt = Date.parse(event.timestamp);
+  if (!Number.isFinite(startedAt)) return undefined;
+  return Math.max(0, nowMs - startedAt);
+}
+
+function indexRecovery(paths: string[], retryable = true): Record<string, unknown> {
+  return {
+    retryable,
+    retry_tool: 'refresh_repo_index',
+    retry_paths: paths,
+    dead_letter_log: MCP_INDEX_EVENTS_RELATIVE_PATH,
+    manual_recovery: 'bash scripts/ensure-codegraph.sh --sync',
+  };
+}
+
+function injectMutationFault(point: string): void {
+  if ((process.env[MUTATION_FAULT_ENV] ?? '').trim() !== point) return;
+  throw new GeneralRepoAccessError('INJECTED_MUTATION_FAULT', `injected mutation fault at ${point}`, { fault_point: point }, true);
 }
 
 function responseCacheKey(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, scope: { tool: string; paths?: string[] }): { key: string; paths: string[]; pathDigest: string } {
@@ -249,6 +452,70 @@ function responseCacheKey(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visi
   const pathDigest = `sha256:${sha256(JSON.stringify(paths))}`;
   const key = `cache_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${snapshot.id}\0${scope.tool}\0${pathDigest}`).slice(0, 16)}`;
   return { key, paths, pathDigest };
+}
+
+interface MutationPathLock {
+  relativePath: string;
+  lockPath: string;
+}
+
+function mutationLockPath(repo: RepoRecord, relativePath: string): string {
+  const lockDir = resolve(repo.canonicalRoot, MCP_LOCKS_RELATIVE_PATH);
+  return resolve(lockDir, `${sha256(relativePath).slice(0, 32)}.lock`);
+}
+
+function acquireMutationLocks(repo: RepoRecord, paths: string[]): MutationPathLock[] {
+  const lockDir = resolve(repo.canonicalRoot, MCP_LOCKS_RELATIVE_PATH);
+  mkdirSync(lockDir, { recursive: true });
+  const locks: MutationPathLock[] = [];
+  for (const relativePath of cachePaths(paths)) {
+    const lockPath = mutationLockPath(repo, relativePath);
+    let created = false;
+    try {
+      mkdirSync(lockPath, { mode: 0o700 });
+      created = true;
+      const payload = `${JSON.stringify({
+        repo_id: repo.repoId,
+        path: relativePath,
+        pid: process.pid,
+        created_at: new Date().toISOString(),
+      })}\n`;
+      writeFileSync(resolve(lockPath, 'owner.json'), payload, { encoding: 'utf-8', mode: 0o600 });
+      locks.push({ relativePath, lockPath });
+    } catch (error) {
+      if (created) rmSync(lockPath, { recursive: true, force: true });
+      releaseMutationLocks(locks);
+      const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
+      if (code === 'EEXIST') {
+        throw new GeneralRepoAccessError('REVISION_CONFLICT', 'path is locked by another repo mutation', { path: relativePath }, true);
+      }
+      throw error;
+    }
+  }
+  return locks;
+}
+
+function releaseMutationLocks(locks: MutationPathLock[]): void {
+  for (const lock of locks.reverse()) {
+    try {
+      rmSync(lock.lockPath, { recursive: true, force: true });
+    } catch (_error) {
+      // Best-effort cleanup: never hide the mutation result behind lock cleanup.
+    }
+  }
+}
+
+function withMutationLocks<T>(repo: RepoRecord, paths: string[], fn: () => T): T {
+  const locks = acquireMutationLocks(repo, paths);
+  try {
+    return fn();
+  } finally {
+    releaseMutationLocks(locks);
+  }
+}
+
+function beforeMutationCommit(ctx: GeneralRepoToolContext, repo: RepoRecord, tool: string, paths: string[]): void {
+  ctx.testHooks?.beforeMutationCommit?.({ repoRoot: repo.canonicalRoot, tool, paths: cachePaths(paths) });
 }
 
 function toPosixPath(value: string): string {
@@ -518,6 +785,103 @@ function resolveRepoPath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePol
     readable,
     identity: readable ? statIdentity(fileStat) : undefined,
     parentIdentity: statIdentity(parentStat),
+  };
+}
+
+function parentRelativePath(relativePath: string): string {
+  const index = relativePath.lastIndexOf('/');
+  return index < 0 ? '.' : relativePath.slice(0, index) || '.';
+}
+
+function leafName(relativePath: string): string {
+  const index = relativePath.lastIndexOf('/');
+  return index < 0 ? relativePath : relativePath.slice(index + 1);
+}
+
+function assertRepoWriteEnabled(repo: RepoRecord): void {
+  if (repo.accessMode !== 'read_write') {
+    throw new GeneralRepoAccessError('WRITE_DISABLED', 'repo is read_only; mutation tools require read_write capability', {
+      repo_id: repo.repoId,
+      access_mode: repo.accessMode,
+    });
+  }
+}
+
+function refreshPathsArg(repo: RepoRecord, ignore: IgnorePolicy, value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'paths must be an array of repo-relative paths');
+  }
+  const paths = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      throw new GeneralRepoAccessError('INVALID_RELATIVE_PATH', 'paths must contain only strings');
+    }
+    const relativePath = normalizeRepoRelativePath(item, { allowRoot: true });
+    if (relativePath !== '.' && isIgnored(ignore, relativePath)) {
+      throw new GeneralRepoAccessError('PATH_IGNORED', 'path is excluded by .ignore', { path: relativePath });
+    }
+    const absolutePath = relativePath === '.' ? repo.canonicalRoot : resolve(repo.canonicalRoot, relativePath);
+    if (!isPathInside(repo.canonicalRoot, absolutePath)) {
+      throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'path escapes repo root', { path: relativePath });
+    }
+    if (existsSync(absolutePath)) {
+      const resolved = resolveRepoPath(repo, relativePath, ignore, { allowRoot: true, allowExternalSymlinkMetadata: true });
+      paths.add(resolved.relativePath);
+    } else {
+      paths.add(relativePath);
+    }
+  }
+  return [...paths].sort((a, b) => a.localeCompare(b));
+}
+
+function resolveRepoWritePath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePolicy): ResolvedRepoWritePath {
+  const relativePath = normalizeRepoRelativePath(inputPath);
+  if (isIgnored(ignore, relativePath)) {
+    throw new GeneralRepoAccessError('PATH_IGNORED', 'path is excluded by .ignore', { path: relativePath });
+  }
+  const absolutePath = resolve(repo.canonicalRoot, relativePath);
+  if (!isPathInside(repo.canonicalRoot, absolutePath)) {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'path escapes repo root', { path: relativePath });
+  }
+
+  if (existsSync(absolutePath)) {
+    const existing = resolveRepoPath(repo, relativePath, ignore, { requireFile: true });
+    if (existing.type === 'symlink') {
+      throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'write_file does not write through symlinks', { path: relativePath });
+    }
+    return {
+      repo,
+      relativePath,
+      absolutePath,
+      canonicalPath: existing.canonicalPath,
+      parentRelativePath: parentRelativePath(relativePath),
+      parentCanonicalPath: realpathSync(dirname(existing.canonicalPath)),
+      existing,
+    };
+  }
+
+  const parentRelative = parentRelativePath(relativePath);
+  const parent = resolveRepoPath(repo, parentRelative, ignore, { allowRoot: true, requireDirectory: true });
+  if (!parent.readable || parent.symlinkTargetKind === 'external') {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'write parent escapes repo root', { path: relativePath });
+  }
+  const canonicalPath = resolve(parent.canonicalPath, leafName(relativePath));
+  if (!isPathInside(repo.canonicalRoot, canonicalPath)) {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'path escapes repo root', { path: relativePath });
+  }
+  const physicalRelative = toPosixPath(relative(repo.canonicalRoot, canonicalPath)) || '.';
+  if (physicalRelative !== '.' && isIgnored(ignore, physicalRelative)) {
+    throw new GeneralRepoAccessError('PATH_IGNORED', 'write target is excluded by .ignore', { path: relativePath });
+  }
+
+  return {
+    repo,
+    relativePath,
+    absolutePath,
+    canonicalPath,
+    parentRelativePath: parent.relativePath,
+    parentCanonicalPath: parent.canonicalPath,
   };
 }
 
@@ -1186,6 +1550,473 @@ function assertSnapshotEntryCurrent(snapshot: VisibleEntrySnapshot, path: string
   }
 }
 
+function writeContentBuffer(args: Record<string, unknown>): { raw: Buffer; encoding: 'utf-8' | 'base64' } {
+  if (typeof args.content !== 'string') {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'content must be a string');
+  }
+  const encoding = args.encoding === 'base64' ? 'base64' : args.encoding === undefined || args.encoding === 'utf-8' ? 'utf-8' : null;
+  if (!encoding) throw new GeneralRepoAccessError('INVALID_RANGE', 'encoding must be utf-8 or base64');
+  return { raw: Buffer.from(args.content, encoding), encoding };
+}
+
+function assertTextPatchable(raw: Buffer, path: string): string {
+  if (raw.subarray(0, BINARY_PROBE_BYTES).includes(0)) {
+    throw new GeneralRepoAccessError('BINARY_CONTENT', 'apply_patch requires text content', { path });
+  }
+  return raw.toString('utf-8');
+}
+
+function findOccurrences(text: string, needle: string): number[] {
+  const matches: number[] = [];
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    matches.push(index);
+    index = text.indexOf(needle, index + Math.max(needle.length, 1));
+  }
+  return matches;
+}
+
+function replaceTextAt(text: string, start: number, oldText: string, newText: string): string {
+  return `${text.slice(0, start)}${newText}${text.slice(start + oldText.length)}`;
+}
+
+function patchOccurrenceArg(value: unknown, matchCount: number, editIndex: number): number {
+  if (value === undefined) {
+    if (matchCount !== 1) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch edit precondition is ambiguous or missing', {
+        edit_index: editIndex,
+        match_count: matchCount,
+      });
+    }
+    return 1;
+  }
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'edit occurrence must be a positive integer', { edit_index: editIndex });
+  }
+  if (parsed > matchCount) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch edit occurrence does not exist', {
+      edit_index: editIndex,
+      occurrence: parsed,
+      match_count: matchCount,
+    });
+  }
+  return parsed;
+}
+
+function applyStructuredPatchEdits(beforeText: string, edits: unknown): { text: string; applied: Array<Record<string, unknown>>; format: 'structured_edits' } {
+  if (!Array.isArray(edits) || edits.length === 0) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'edits must be a non-empty array');
+  }
+  let text = beforeText;
+  const applied: Array<Record<string, unknown>> = [];
+  for (let index = 0; index < edits.length; index += 1) {
+    const editIndex = index + 1;
+    const edit = edits[index];
+    if (typeof edit !== 'object' || edit === null || Array.isArray(edit)) {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'each edit must be an object', { edit_index: editIndex });
+    }
+    const raw = edit as Record<string, unknown>;
+    if (typeof raw.old_text !== 'string' || raw.old_text.length === 0 || typeof raw.new_text !== 'string') {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'each edit requires non-empty old_text and string new_text', { edit_index: editIndex });
+    }
+    const matches = findOccurrences(text, raw.old_text);
+    const occurrence = patchOccurrenceArg(raw.occurrence, matches.length, editIndex);
+    const start = matches[occurrence - 1];
+    if (start === undefined) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch edit precondition does not match', { edit_index: editIndex });
+    }
+    text = replaceTextAt(text, start, raw.old_text, raw.new_text);
+    applied.push({
+      edit_index: editIndex,
+      mode: 'old_text',
+      occurrence,
+      old_sha256: sha256(raw.old_text),
+      new_sha256: sha256(raw.new_text),
+      bytes_before: Buffer.byteLength(raw.old_text, 'utf-8'),
+      bytes_after: Buffer.byteLength(raw.new_text, 'utf-8'),
+    });
+  }
+  return { text, applied, format: 'structured_edits' };
+}
+
+function lineStartOffset(text: string, lineNumber: number): number {
+  if (lineNumber <= 1) return 0;
+  let offset = 0;
+  let currentLine = 1;
+  while (currentLine < lineNumber) {
+    const next = text.indexOf('\n', offset);
+    if (next < 0) return text.length;
+    offset = next + 1;
+    currentLine += 1;
+  }
+  return offset;
+}
+
+function applyUnifiedDiffPatch(beforeText: string, diff: unknown): { text: string; applied: Array<Record<string, unknown>>; format: 'unified_diff' } {
+  if (typeof diff !== 'string' || diff.trim().length === 0) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff must be a non-empty string');
+  }
+  const lines = diff.replace(/\r\n/g, '\n').split('\n');
+  let text = beforeText;
+  let lineDelta = 0;
+  const applied: Array<Record<string, unknown>> = [];
+  let cursor = 0;
+  while (cursor < lines.length) {
+    const header = lines[cursor] ?? '';
+    if (!header || header.startsWith('--- ') || header.startsWith('+++ ')) {
+      cursor += 1;
+      continue;
+    }
+    const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(header);
+    if (!match) {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff contains an unsupported line', { line: cursor + 1 });
+    }
+    const oldStart = Number(match[1]);
+    const oldLines: string[] = [];
+    const newLines: string[] = [];
+    cursor += 1;
+    while (cursor < lines.length && !(lines[cursor] ?? '').startsWith('@@ ')) {
+      const line = lines[cursor] ?? '';
+      if (line.startsWith('--- ') || line.startsWith('+++ ')) break;
+      if (line.startsWith('\\ No newline at end of file')) {
+        cursor += 1;
+        continue;
+      }
+      if (line.startsWith(' ')) {
+        oldLines.push(line.slice(1));
+        newLines.push(line.slice(1));
+      } else if (line.startsWith('-')) {
+        oldLines.push(line.slice(1));
+      } else if (line.startsWith('+')) {
+        newLines.push(line.slice(1));
+      } else if (line === '' && cursor === lines.length - 1) {
+        cursor += 1;
+        break;
+      } else {
+        throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff hunk contains an unsupported line', { line: cursor + 1 });
+      }
+      cursor += 1;
+    }
+    if (oldLines.length === 0) {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff pure insertion hunks require surrounding context');
+    }
+    const oldBlock = oldLines.join('\n');
+    const newBlock = newLines.join('\n');
+    const expectedOffset = lineStartOffset(text, oldStart + lineDelta);
+    if (!text.startsWith(oldBlock, expectedOffset)) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'unified_diff hunk precondition does not match', {
+        hunk_index: applied.length + 1,
+        old_start: oldStart,
+      });
+    }
+    text = replaceTextAt(text, expectedOffset, oldBlock, newBlock);
+    lineDelta += newLines.length - oldLines.length;
+    applied.push({
+      hunk_index: applied.length + 1,
+      old_start: oldStart,
+      old_lines: oldLines.length,
+      new_lines: newLines.length,
+      old_sha256: sha256(oldBlock),
+      new_sha256: sha256(newBlock),
+    });
+  }
+  if (applied.length === 0) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff contains no hunks');
+  }
+  return { text, applied, format: 'unified_diff' };
+}
+
+function applyPatchContent(beforeText: string, args: Record<string, unknown>): { raw: Buffer; format: 'structured_edits' | 'unified_diff'; applied: Array<Record<string, unknown>> } {
+  const hasEdits = args.edits !== undefined;
+  const hasUnifiedDiff = args.unified_diff !== undefined;
+  if (hasEdits === hasUnifiedDiff) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'provide exactly one of edits or unified_diff');
+  }
+  const patched = hasEdits ? applyStructuredPatchEdits(beforeText, args.edits) : applyUnifiedDiffPatch(beforeText, args.unified_diff);
+  if (patched.text === beforeText) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch produced no content change');
+  }
+  return { raw: Buffer.from(patched.text, 'utf-8'), format: patched.format, applied: patched.applied };
+}
+
+function fsyncDirectoryBestEffort(path: string): void {
+  let fd: number | null = null;
+  try {
+    fd = openSync(path, 'r');
+    fsyncSync(fd);
+  } catch (_error) {
+    // Some filesystems/platforms do not allow directory fsync; the same-directory rename remains atomic.
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch (_error) {
+        // Ignore close failures on best-effort directory fsync.
+      }
+    }
+  }
+}
+
+function atomicWriteFile(target: ResolvedRepoWritePath, raw: Buffer, mode: number, opts: { noOverwrite?: boolean; beforeCommit?: () => void } = {}): void {
+  const tempPath = resolve(target.parentCanonicalPath, `.${leafName(target.relativePath)}.repo-harness-${process.pid}-${Date.now()}-${randomBytes(4).toString('hex')}.tmp`);
+  if (!isPathInside(target.parentCanonicalPath, tempPath)) {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'temporary write path escapes parent directory', { path: target.relativePath });
+  }
+  const fd = openSync(tempPath, 'wx', mode);
+  let committed = false;
+  try {
+    try {
+      writeSync(fd, raw, 0, raw.length, 0);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    opts.beforeCommit?.();
+    injectMutationFault('atomic_write_before_rename');
+    if (opts.noOverwrite) {
+      try {
+        linkSync(tempPath, target.canonicalPath);
+      } catch (error) {
+        const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
+        if (code === 'EEXIST') {
+          throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists at commit time', { path: target.relativePath }, true);
+        }
+        throw error;
+      }
+    } else {
+      renameSync(tempPath, target.canonicalPath);
+    }
+    committed = true;
+    fsyncDirectoryBestEffort(target.parentCanonicalPath);
+  } finally {
+    if (!committed || opts.noOverwrite) rmSync(tempPath, { force: true });
+  }
+}
+
+function readMutationFile(resolved: ResolvedRepoPath, ignore: IgnorePolicy): { raw: Buffer; sha256: string; mode: number } {
+  const raw = readStableResolvedFile(resolved, ignore);
+  return {
+    raw,
+    sha256: sha256(raw),
+    mode: statSync(resolved.canonicalPath).mode & 0o777,
+  };
+}
+
+function revisionConflict(path: string, expectedHash: string, actualHash?: string | null): GeneralRepoAccessError {
+  return new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed before mutation commit', {
+    path,
+    expected_sha256: expectedHash,
+    actual_sha256: actualHash ?? null,
+  }, true);
+}
+
+function assertExpectedHash(path: string, expectedHash: string, actualHash: string): void {
+  if (expectedHash !== actualHash) {
+    throw revisionConflict(path, expectedHash, actualHash);
+  }
+}
+
+function readExpectedExistingWriteTarget(repo: RepoRecord, ignore: IgnorePolicy, path: unknown, expectedHash: string): { target: ResolvedRepoWritePath; raw: Buffer; beforeHash: string; mode: number } {
+  const target = resolveRepoWritePath(repo, path, ignore);
+  if (!target.existing) {
+    throw revisionConflict(target.relativePath, expectedHash, null);
+  }
+  const current = readMutationFile(target.existing, ignore);
+  assertExpectedHash(target.relativePath, expectedHash, current.sha256);
+  return { target, raw: current.raw, beforeHash: current.sha256, mode: current.mode };
+}
+
+function assertWriteTargetAbsent(target: ResolvedRepoWritePath): void {
+  if (target.existing || existsSync(target.absolutePath) || existsSync(target.canonicalPath)) {
+    throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists', { path: target.relativePath }, true);
+  }
+}
+
+function commitMoveNoOverwrite(source: ResolvedRepoPath, target: ResolvedRepoWritePath, beforeCommit: () => void): void {
+  beforeCommit();
+  injectMutationFault('move_before_rename');
+  try {
+    linkSync(source.canonicalPath, target.canonicalPath);
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
+    if (code === 'EEXIST') {
+      throw new GeneralRepoAccessError('TARGET_EXISTS', 'move target already exists at commit time', { path: target.relativePath }, true);
+    }
+    throw error;
+  }
+  rmSync(source.canonicalPath);
+  fsyncDirectoryBestEffort(dirname(source.canonicalPath));
+  if (dirname(source.canonicalPath) !== target.parentCanonicalPath) fsyncDirectoryBestEffort(target.parentCanonicalPath);
+}
+
+function invalidateRepoCaches(repo: RepoRecord): void {
+  for (const [key, snapshot] of SNAPSHOT_CACHE) {
+    if (snapshot.repoId === repo.repoId && snapshot.repoRoot === repo.canonicalRoot) SNAPSHOT_CACHE.delete(key);
+  }
+  ENTRY_METADATA_CACHE.clear();
+}
+
+function mutationIndexState(snapshot: VisibleEntrySnapshot): 'pending' | 'failed' {
+  return snapshot.codeGraph.available ? 'pending' : 'failed';
+}
+
+function refreshedIndexState(snapshot: VisibleEntrySnapshot): 'ready' | 'index_lagging' | 'failed' {
+  if (!snapshot.codeGraph.available) return 'failed';
+  return snapshot.codeGraphLaggingPaths.length > 0 ? 'index_lagging' : 'ready';
+}
+
+function indexRefreshError(refresh: CodeGraphRefreshResult): GeneralRepoAccessError {
+  const error = refresh.error;
+  return new GeneralRepoAccessError(error?.code ?? 'INDEX_UNAVAILABLE', error?.message ?? 'CodeGraph refresh failed', {
+    strategy: refresh.strategy,
+    requested_paths: refresh.requestedPaths,
+    path_refresh_supported: refresh.pathRefreshSupported,
+    index_revision: refresh.indexRevision,
+  }, error?.retryable ?? true);
+}
+
+function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, target: ResolvedRepoWritePath, opts: {
+  operation: 'create' | 'replace' | 'patch' | 'move';
+  beforeHash: string | null;
+  beforeSize: number;
+  tool?: string;
+  responsePath?: string;
+  changedPaths?: string[];
+  extra?: Record<string, unknown>;
+}): GeneralRepoToolResult {
+  const after = resolveRepoPath(repo, target.relativePath, ignore, { requireFile: true });
+  const afterRaw = readFileSync(after.canonicalPath);
+  const afterHash = sha256(afterRaw);
+  const afterEntry = metadataForResolved(after, ignore);
+  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const indexedEntry = snapshot.entriesByPath.get(target.relativePath);
+  const indexState = mutationIndexState(snapshot);
+  const changedPaths = cachePaths(opts.changedPaths ?? [target.relativePath]);
+  const responsePath = opts.responsePath ?? target.relativePath;
+  const mutationTool = opts.tool ?? (opts.operation === 'patch' ? 'apply_patch' : 'write_file');
+  const mutationId = `mut_${sha256(`${repo.repoId}\0${changedPaths.join('\0')}\0${opts.beforeHash ?? 'new'}\0${afterHash}\0${Date.now()}`).slice(0, 16)}`;
+  const invalidationId = `idxinv_${sha256(`${mutationId}\0${snapshot.codeGraph.indexRevision}\0${target.relativePath}`).slice(0, 16)}`;
+  const indexEventId = tryWriteIndexEvent(ctx, repo, {
+    event_type: 'index_invalidation',
+    status: 'pending',
+    operation: opts.operation,
+    mutation_id: mutationId,
+    invalidation_id: invalidationId,
+    relative_paths: changedPaths,
+    index_state: indexState,
+    before_index_revision: snapshot.codeGraph.indexRevision,
+    file_hashes: {
+      before_sha256: opts.beforeHash,
+      after_sha256: afterHash,
+    },
+    retry: indexRecovery(changedPaths, snapshot.codeGraph.available),
+  });
+
+  return textResult({
+    ...commonFields(repo, ignore, snapshot, { tool: mutationTool, paths: changedPaths }),
+    path: responsePath,
+    operation: opts.operation,
+    mutation_id: mutationId,
+    before: {
+      existed: opts.beforeHash !== null,
+      sha256: opts.beforeHash,
+      size: opts.beforeSize,
+    },
+    after: {
+      ...afterEntry,
+      indexed: indexedEntry?.indexed ?? false,
+      codegraph_language: indexedEntry?.codegraph_language,
+      codegraph_node_count: indexedEntry?.codegraph_node_count,
+      codegraph_size: indexedEntry?.codegraph_size,
+      codegraph_index_lagging: indexedEntry?.codegraph_index_lagging,
+    },
+    diff: {
+      format: 'summary',
+      bytes_before: opts.beforeSize,
+      bytes_after: afterRaw.length,
+      bytes_delta: afterRaw.length - opts.beforeSize,
+      before_sha256: opts.beforeHash,
+      after_sha256: afterHash,
+    },
+    ...opts.extra,
+    index_state: indexState,
+    index: {
+      state: indexState,
+      action: snapshot.codeGraph.available ? 'refresh_repo_index_required' : 'codegraph_unavailable',
+      changed_paths: changedPaths,
+      mutation_id: mutationId,
+      invalidation_id: invalidationId,
+      event_id: indexEventId,
+      event_log: MCP_INDEX_EVENTS_RELATIVE_PATH,
+      refresh_tool: 'refresh_repo_index',
+      before_index_revision: snapshot.codeGraph.indexRevision,
+    },
+    codegraph: codeGraphSummary(snapshot),
+  });
+}
+
+function deleteMutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, deleted: ManifestEntry, beforeHash: string, beforeSize: number): GeneralRepoToolResult {
+  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const indexState = mutationIndexState(snapshot);
+  const mutationId = `mut_${sha256(`${repo.repoId}\0${deleted.path}\0${beforeHash}\0deleted\0${Date.now()}`).slice(0, 16)}`;
+  const invalidationId = `idxinv_${sha256(`${mutationId}\0${snapshot.codeGraph.indexRevision}\0${deleted.path}`).slice(0, 16)}`;
+  const indexEventId = tryWriteIndexEvent(ctx, repo, {
+    event_type: 'index_invalidation',
+    status: 'pending',
+    operation: 'delete',
+    mutation_id: mutationId,
+    invalidation_id: invalidationId,
+    relative_paths: [deleted.path],
+    index_state: indexState,
+    before_index_revision: snapshot.codeGraph.indexRevision,
+    file_hashes: {
+      before_sha256: beforeHash,
+      after_sha256: null,
+    },
+    retry: indexRecovery([deleted.path], snapshot.codeGraph.available),
+  });
+
+  return textResult({
+    ...commonFields(repo, ignore, snapshot, { tool: 'delete_path', paths: [deleted.path] }),
+    path: deleted.path,
+    operation: 'delete',
+    mutation_id: mutationId,
+    before: {
+      existed: true,
+      sha256: beforeHash,
+      size: beforeSize,
+    },
+    after: {
+      existed: false,
+      sha256: null,
+      size: 0,
+    },
+    deleted,
+    diff: {
+      format: 'summary',
+      bytes_before: beforeSize,
+      bytes_after: 0,
+      bytes_delta: -beforeSize,
+      before_sha256: beforeHash,
+      after_sha256: null,
+    },
+    index_state: indexState,
+    index: {
+      state: indexState,
+      action: snapshot.codeGraph.available ? 'refresh_repo_index_required' : 'codegraph_unavailable',
+      changed_paths: [deleted.path],
+      mutation_id: mutationId,
+      invalidation_id: invalidationId,
+      event_id: indexEventId,
+      event_log: MCP_INDEX_EVENTS_RELATIVE_PATH,
+      refresh_tool: 'refresh_repo_index',
+      before_index_revision: snapshot.codeGraph.indexRevision,
+    },
+    codegraph: codeGraphSummary(snapshot),
+  });
+}
+
 function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file', verifySnapshotEntry = false): Record<string, unknown> {
   if (args.line_range !== undefined && args.byte_range !== undefined) {
     throw new GeneralRepoAccessError('INVALID_RANGE', 'line_range and byte_range are mutually exclusive');
@@ -1290,8 +2121,8 @@ function getRepoCapabilities(ctx: GeneralRepoToolContext, args: Record<string, u
     display_name: repo.displayName,
     registry_revision: repo.registryRevision,
     source: repo.source,
-    read_tools: GENERAL_REPO_TOOLS.filter((tool) => tool !== 'get_repo_capabilities'),
-    write_tools: repo.accessMode === 'read_write' ? [] : [],
+    read_tools: GENERAL_REPO_TOOLS.filter((tool) => tool !== 'get_repo_capabilities' && !WRITE_TOOLS.has(tool)),
+    write_tools: repo.accessMode === 'read_write' ? [...WRITE_TOOLS] : [],
     codegraph: {
       primary_backend: true,
       ...codeGraphSummary(snapshot),
@@ -1304,6 +2135,361 @@ function getRepoCapabilities(ctx: GeneralRepoToolContext, args: Record<string, u
       max_read_bytes: HARD_READ_BYTES,
       max_read_lines: MAX_READ_LINES,
     },
+  });
+}
+
+function writeFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const initialTarget = resolveRepoWritePath(repo, args.path, ignore);
+  const { raw, encoding } = writeContentBuffer(args);
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+  const mustNotExist = booleanArg(args.must_not_exist, false);
+
+  return withMutationLocks(repo, [initialTarget.relativePath], () => {
+    const target = resolveRepoWritePath(repo, args.path, ignore);
+    const existed = target.existing !== undefined;
+    let beforeHash: string | null = null;
+    let beforeSize = 0;
+    let mode = 0o666;
+
+    if (target.existing) {
+      if (mustNotExist) {
+        throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists', { path: target.relativePath });
+      }
+      const current = readMutationFile(target.existing, ignore);
+      beforeHash = current.sha256;
+      beforeSize = current.raw.length;
+      mode = current.mode;
+      if (!expectedHash) {
+        throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when replacing an existing file', {
+          path: target.relativePath,
+          actual_sha256: beforeHash,
+        });
+      }
+      assertExpectedHash(target.relativePath, expectedHash, beforeHash);
+      atomicWriteFile(target, raw, mode, {
+        beforeCommit: () => {
+          beforeMutationCommit(ctx, repo, 'write_file', [target.relativePath]);
+          readExpectedExistingWriteTarget(repo, ignore, target.relativePath, expectedHash);
+        },
+      });
+    } else {
+      if (!mustNotExist) {
+        throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when creating a new file', {
+          path: target.relativePath,
+        });
+      }
+      assertWriteTargetAbsent(target);
+      atomicWriteFile(target, raw, mode, {
+        noOverwrite: true,
+        beforeCommit: () => {
+          beforeMutationCommit(ctx, repo, 'write_file', [target.relativePath]);
+          const latest = resolveRepoWritePath(repo, target.relativePath, ignore);
+          assertWriteTargetAbsent(latest);
+        },
+      });
+    }
+
+    invalidateRepoCaches(repo);
+
+    return mutationResult(ctx, repo, ignore, target, {
+      operation: existed ? 'replace' : 'create',
+      beforeHash,
+      beforeSize,
+      extra: { encoding },
+    });
+  });
+}
+
+function applyPatchTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const initialTarget = resolveRepoWritePath(repo, args.path, ignore);
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+
+  return withMutationLocks(repo, [initialTarget.relativePath], () => {
+    const target = resolveRepoWritePath(repo, args.path, ignore);
+    if (!target.existing) {
+      throw new GeneralRepoAccessError('NOT_FOUND', 'apply_patch requires an existing file', { path: target.relativePath });
+    }
+    if (!expectedHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when applying a patch', { path: target.relativePath });
+    }
+    const current = readMutationFile(target.existing, ignore);
+    const beforeHash = current.sha256;
+    assertExpectedHash(target.relativePath, expectedHash, beforeHash);
+    const beforeText = assertTextPatchable(current.raw, target.relativePath);
+    const patched = applyPatchContent(beforeText, args);
+
+    atomicWriteFile(target, patched.raw, current.mode, {
+      beforeCommit: () => {
+        beforeMutationCommit(ctx, repo, 'apply_patch', [target.relativePath]);
+        readExpectedExistingWriteTarget(repo, ignore, target.relativePath, expectedHash);
+      },
+    });
+    invalidateRepoCaches(repo);
+
+    return mutationResult(ctx, repo, ignore, target, {
+      operation: 'patch',
+      beforeHash,
+      beforeSize: current.raw.length,
+      extra: {
+        patch: {
+          format: patched.format,
+          applied_count: patched.applied.length,
+          applied: patched.applied,
+        },
+      },
+    });
+  });
+}
+
+function movePathTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const initialSource = resolveRepoPath(repo, args.from_path, ignore, { requireFile: true });
+  const initialTarget = resolveRepoWritePath(repo, args.to_path, ignore);
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+  const mustNotExist = booleanArg(args.must_not_exist, false);
+
+  return withMutationLocks(repo, [initialSource.relativePath, initialTarget.relativePath], () => {
+    const source = resolveRepoPath(repo, args.from_path, ignore, { requireFile: true });
+    if (source.type === 'symlink') {
+      throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'move_path does not move symlinks', { path: source.relativePath });
+    }
+    const current = readMutationFile(source, ignore);
+    const beforeHash = current.sha256;
+    if (!expectedHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when moving a file', {
+        path: source.relativePath,
+        actual_sha256: beforeHash,
+      });
+    }
+    assertExpectedHash(source.relativePath, expectedHash, beforeHash);
+    const target = resolveRepoWritePath(repo, args.to_path, ignore);
+    if (!mustNotExist) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when moving to a new target', {
+        path: target.relativePath,
+      });
+    }
+    assertWriteTargetAbsent(target);
+
+    commitMoveNoOverwrite(source, target, () => {
+      beforeMutationCommit(ctx, repo, 'move_path', [source.relativePath, target.relativePath]);
+      const latestSource = resolveRepoPath(repo, source.relativePath, ignore, { requireFile: true });
+      const latest = readMutationFile(latestSource, ignore);
+      assertExpectedHash(source.relativePath, expectedHash, latest.sha256);
+      const latestTarget = resolveRepoWritePath(repo, target.relativePath, ignore);
+      assertWriteTargetAbsent(latestTarget);
+    });
+    invalidateRepoCaches(repo);
+
+    return mutationResult(ctx, repo, ignore, target, {
+      operation: 'move',
+      tool: 'move_path',
+      responsePath: target.relativePath,
+      changedPaths: [source.relativePath, target.relativePath],
+      beforeHash,
+      beforeSize: current.raw.length,
+      extra: {
+        from_path: source.relativePath,
+        to_path: target.relativePath,
+        move: {
+          source_sha256: beforeHash,
+          target_must_not_exist: true,
+        },
+      },
+    });
+  });
+}
+
+function deletePathTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const recursive = booleanArg(args.recursive, false);
+  const initialTarget = resolveRepoPath(repo, args.path, ignore);
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+
+  return withMutationLocks(repo, [initialTarget.relativePath], () => {
+    const target = resolveRepoPath(repo, args.path, ignore);
+    if (target.type === 'directory') {
+      if (recursive) {
+        throw new GeneralRepoAccessError('INVALID_RANGE', 'recursive delete is disabled in v1', { path: target.relativePath, recursive });
+      }
+      throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files; directory deletion is disabled', {
+        path: target.relativePath,
+        recursive: false,
+      });
+    }
+    if (target.type === 'symlink') {
+      throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'delete_path does not delete symlinks', { path: target.relativePath });
+    }
+    if (!target.contentFile) {
+      throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files', { path: target.relativePath });
+    }
+    const current = readMutationFile(target, ignore);
+    const beforeHash = current.sha256;
+    if (!expectedHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when deleting a file', {
+        path: target.relativePath,
+        actual_sha256: beforeHash,
+      });
+    }
+    assertExpectedHash(target.relativePath, expectedHash, beforeHash);
+    const deleted = metadataForResolved(target, ignore, undefined, { contentHash: true, cache: false });
+
+    beforeMutationCommit(ctx, repo, 'delete_path', [target.relativePath]);
+    const latest = resolveRepoPath(repo, target.relativePath, ignore, { requireFile: true });
+    const latestFile = readMutationFile(latest, ignore);
+    assertExpectedHash(target.relativePath, expectedHash, latestFile.sha256);
+    injectMutationFault('delete_before_unlink');
+    rmSync(target.canonicalPath);
+    fsyncDirectoryBestEffort(dirname(target.canonicalPath));
+    invalidateRepoCaches(repo);
+
+    return deleteMutationResult(ctx, repo, ignore, deleted, beforeHash, current.raw.length);
+  });
+}
+
+function refreshRepoIndex(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const paths = refreshPathsArg(repo, ignore, args.paths);
+  const refreshScope = paths.length > 0 ? paths : ['.'];
+  const mutationId = typeof args.mutation_id === 'string' ? args.mutation_id.trim() : '';
+  const sourceEvent = latestIndexInvalidationEvent(ctx, repo, mutationId, refreshScope);
+  const sourceEventId = typeof sourceEvent?.event_id === 'string' ? sourceEvent.event_id : undefined;
+  const sourceMutationId = typeof sourceEvent?.mutation_id === 'string' ? sourceEvent.mutation_id : mutationId || undefined;
+  const sourceInvalidationId = typeof sourceEvent?.invalidation_id === 'string' ? sourceEvent.invalidation_id : undefined;
+  const before = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const adapter = ctx.codeGraphAdapter ?? DEFAULT_CODEGRAPH_ADAPTER;
+  if (!adapter.refreshRepo) {
+    tryWriteIndexEvent(ctx, repo, {
+      event_type: 'index_refresh',
+      status: 'failed',
+      operation: 'refresh_repo_index',
+      mutation_id: sourceMutationId,
+      source_event_id: sourceEventId,
+      invalidation_id: sourceInvalidationId,
+      relative_paths: refreshScope,
+      before_index_revision: before.codeGraph.indexRevision,
+      strategy: 'unsupported',
+      index_lag_ms: indexLagMsFrom(sourceEvent),
+      error: { code: 'INDEX_UNAVAILABLE', message: 'CodeGraph adapter does not support explicit refresh', retryable: true },
+      dead_letter: indexRecovery(refreshScope, true),
+    });
+    throw new GeneralRepoAccessError('INDEX_UNAVAILABLE', 'CodeGraph adapter does not support explicit refresh', {
+      paths: refreshScope,
+    }, true);
+  }
+
+  let refresh: CodeGraphRefreshResult;
+  try {
+    refresh = adapter.refreshRepo(repo.canonicalRoot, { paths });
+  } catch (error) {
+    tryWriteIndexEvent(ctx, repo, {
+      event_type: 'index_refresh',
+      status: 'failed',
+      operation: 'refresh_repo_index',
+      mutation_id: sourceMutationId,
+      source_event_id: sourceEventId,
+      invalidation_id: sourceInvalidationId,
+      relative_paths: refreshScope,
+      before_index_revision: before.codeGraph.indexRevision,
+      strategy: 'repo-sync',
+      index_lag_ms: indexLagMsFrom(sourceEvent),
+      error: {
+        code: 'INTERNAL_ADAPTER_ERROR',
+        message: redactMcpText(error instanceof Error ? error.message : String(error)).text,
+        retryable: false,
+      },
+      dead_letter: indexRecovery(refreshScope, false),
+    });
+    throw error;
+  }
+  invalidateRepoCaches(repo);
+  if (!refresh.available || !refresh.refreshed) {
+    tryWriteIndexEvent(ctx, repo, {
+      event_type: 'index_refresh',
+      status: 'failed',
+      operation: 'refresh_repo_index',
+      mutation_id: sourceMutationId,
+      source_event_id: sourceEventId,
+      invalidation_id: sourceInvalidationId,
+      relative_paths: refreshScope,
+      before_index_revision: before.codeGraph.indexRevision,
+      adapter_index_revision: refresh.indexRevision,
+      strategy: refresh.strategy,
+      path_refresh_supported: refresh.pathRefreshSupported,
+      latency_ms: refresh.latencyMs,
+      index_lag_ms: indexLagMsFrom(sourceEvent),
+      error: safeEventError(refresh.error),
+      dead_letter: indexRecovery(refreshScope, refresh.error?.retryable ?? true),
+    });
+    throw indexRefreshError(refresh);
+  }
+  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const indexState = refreshedIndexState(snapshot);
+  const indexLagMs = indexLagMsFrom(sourceEvent);
+  const indexEventId = tryWriteIndexEvent(ctx, repo, {
+    event_type: 'index_refresh',
+    status: indexState,
+    operation: 'refresh_repo_index',
+    mutation_id: sourceMutationId,
+    source_event_id: sourceEventId,
+    invalidation_id: sourceInvalidationId,
+    relative_paths: refreshScope,
+    before_index_revision: before.codeGraph.indexRevision,
+    adapter_index_revision: refresh.indexRevision,
+    after_index_revision: snapshot.codeGraph.indexRevision,
+    strategy: refresh.strategy,
+    path_refresh_supported: refresh.pathRefreshSupported,
+    latency_ms: refresh.latencyMs,
+    indexed_files: refresh.files,
+    index_lag_ms: indexLagMs,
+    lagging_path_count: snapshot.codeGraphLaggingPaths.length,
+    lagging_paths: snapshot.codeGraphLaggingPaths.slice(0, MAX_LAGGING_PATHS_RETURNED),
+    recovery: indexState === 'ready' ? undefined : indexRecovery(refreshScope, true),
+  });
+
+  return textResult({
+    ...commonFields(repo, ignore, snapshot, { tool: 'refresh_repo_index', paths: refreshScope }),
+    paths: refreshScope,
+    refreshed: true,
+    index_state: indexState,
+    refresh: {
+      strategy: refresh.strategy,
+      requested_paths: refresh.requestedPaths,
+      path_refresh_supported: refresh.pathRefreshSupported,
+      latency_ms: refresh.latencyMs,
+      before_index_revision: before.codeGraph.indexRevision,
+      adapter_index_revision: refresh.indexRevision,
+      after_index_revision: snapshot.codeGraph.indexRevision,
+      indexed_files: refresh.files,
+      source_event_id: sourceEventId,
+      mutation_id: sourceMutationId,
+      index_lag_ms: indexLagMs,
+    },
+    index: {
+      state: indexState,
+      action: indexState === 'ready' ? 'refresh_complete' : 'refresh_complete_with_lag',
+      refreshed_paths: refreshScope,
+      mutation_id: sourceMutationId,
+      source_event_id: sourceEventId,
+      event_id: indexEventId,
+      event_log: MCP_INDEX_EVENTS_RELATIVE_PATH,
+      index_lag_ms: indexLagMs,
+      lagging_path_count: snapshot.codeGraphLaggingPaths.length,
+      before_index_revision: before.codeGraph.indexRevision,
+      after_index_revision: snapshot.codeGraph.indexRevision,
+    },
+    codegraph: codeGraphSummary(snapshot),
   });
 }
 
@@ -1566,6 +2752,7 @@ export function hasGeneralRepoArgs(args: Record<string, unknown>): boolean {
 
 export function buildGeneralRepoToolDefinitions(): GeneralRepoToolDefinition[] {
   const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+  const writeTool = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
   const repoSchema = {
     type: 'object',
     properties: { repo_id: { type: 'string' } },
@@ -1640,10 +2827,106 @@ export function buildGeneralRepoToolDefinitions(): GeneralRepoToolDefinition[] {
       },
       annotations: readOnly,
     },
+    {
+      name: 'write_file',
+      description: 'Create or replace one repo-relative file in a read_write repo using revision preconditions and atomic same-directory rename.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          path: { type: 'string' },
+          content: { type: 'string' },
+          encoding: { enum: ['utf-8', 'base64'] },
+          expected_sha256: { type: 'string' },
+          must_not_exist: { type: 'boolean' },
+        },
+        required: ['repo_id', 'path', 'content'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
+    {
+      name: 'apply_patch',
+      description: 'Apply structured text edits or a guarded unified diff to one existing repo-relative file using an expected_sha256 precondition.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          path: { type: 'string' },
+          expected_sha256: { type: 'string' },
+          edits: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                old_text: { type: 'string' },
+                new_text: { type: 'string' },
+                occurrence: { type: 'number' },
+              },
+              required: ['old_text', 'new_text'],
+              additionalProperties: false,
+            },
+          },
+          unified_diff: { type: 'string' },
+        },
+        required: ['repo_id', 'path', 'expected_sha256'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
+    {
+      name: 'move_path',
+      description: 'Move one existing repo-relative file to a new repo-relative path using source hash and target-existence preconditions.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          from_path: { type: 'string' },
+          to_path: { type: 'string' },
+          expected_sha256: { type: 'string' },
+          must_not_exist: { type: 'boolean' },
+        },
+        required: ['repo_id', 'from_path', 'to_path', 'expected_sha256', 'must_not_exist'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
+    {
+      name: 'delete_path',
+      description: 'Delete one existing repo-relative regular file using an expected_sha256 precondition; directory and recursive deletes are disabled in v1.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          path: { type: 'string' },
+          expected_sha256: { type: 'string' },
+          recursive: { type: 'boolean' },
+        },
+        required: ['repo_id', 'path', 'expected_sha256'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
+    {
+      name: 'refresh_repo_index',
+      description: 'Synchronize CodeGraph for a read_write repo after mutations and return the new index/snapshot state.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          paths: { type: 'array', items: { type: 'string' } },
+          mutation_id: { type: 'string' },
+        },
+        required: ['repo_id'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
   ];
 }
 
 export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: string, args: Record<string, unknown> = {}): Promise<GeneralRepoToolResult> {
+  const startedAtMs = Date.now();
   try {
     let result: GeneralRepoToolResult;
     switch (name) {
@@ -1668,17 +2951,38 @@ export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: str
       case 'stat_file':
         result = statFile(ctx, args);
         break;
+      case 'write_file':
+        result = writeFileTool(ctx, args);
+        break;
+      case 'apply_patch':
+        result = applyPatchTool(ctx, args);
+        break;
+      case 'move_path':
+        result = movePathTool(ctx, args);
+        break;
+      case 'delete_path':
+        result = deletePathTool(ctx, args);
+        break;
+      case 'refresh_repo_index':
+        result = refreshRepoIndex(ctx, args);
+        break;
       default:
         return errorResult('INTERNAL_ADAPTER_ERROR', `tool is not a general repo reader tool: ${name}`);
     }
-    audit(ctx, name, 'ok', args, typeof args.path === 'string' ? args.path : undefined);
+    audit(ctx, name, 'ok', args, auditTargetPath(args), undefined, auditDetailsFromResult(result, args, Date.now() - startedAtMs, name));
     return result;
   } catch (error) {
     if (error instanceof GeneralRepoAccessError) {
-      audit(ctx, name, 'blocked', args, typeof args.path === 'string' ? args.path : undefined, error.message);
+      audit(ctx, name, 'blocked', args, auditTargetPath(args), error.message, auditDetailsFromError(error, args, Date.now() - startedAtMs, name));
       return errorResult(error.code, error.message, error.details, error.retryable);
     }
-    audit(ctx, name, 'failed', args, typeof args.path === 'string' ? args.path : undefined, error instanceof Error ? error.message : String(error));
+    audit(ctx, name, 'failed', args, auditTargetPath(args), error instanceof Error ? error.message : String(error), {
+      repoId: stringField(args.repo_id),
+      operation: name,
+      relativePaths: auditPaths(args),
+      durationMs: Date.now() - startedAtMs,
+      errorCode: 'INTERNAL_ADAPTER_ERROR',
+    });
     return errorResult('INTERNAL_ADAPTER_ERROR', error instanceof Error ? error.message : String(error));
   }
 }

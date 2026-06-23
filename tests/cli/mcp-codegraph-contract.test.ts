@@ -17,6 +17,11 @@ const TOOL_NAMES = [
   'read_file',
   'read_files',
   'stat_file',
+  'write_file',
+  'apply_patch',
+  'move_path',
+  'delete_path',
+  'refresh_repo_index',
 ];
 
 const COMMON_RESPONSE_FIELDS = [
@@ -153,6 +158,63 @@ function sampleSuccessPayload(toolName: string): Record<string, unknown> {
       return { ...common, results: [] };
     case 'stat_file':
       return { ...common, path: 'README.md', type: 'file', indexed: true, readable: true };
+    case 'write_file':
+      return {
+        ...common,
+        path: 'README.md',
+        mutation_id: `mut_${'c'.repeat(16)}`,
+        before: { existed: false, sha256: null, size: 0 },
+        after: { sha256: 'd'.repeat(64), size: 2 },
+        diff: { format: 'summary', bytes_before: 0, bytes_after: 2, bytes_delta: 2, before_sha256: null, after_sha256: 'd'.repeat(64) },
+        index_state: 'pending',
+      };
+    case 'apply_patch':
+      return {
+        ...common,
+        path: 'README.md',
+        operation: 'patch',
+        mutation_id: `mut_${'e'.repeat(16)}`,
+        before: { existed: true, sha256: 'b'.repeat(64), size: 2 },
+        after: { sha256: 'f'.repeat(64), size: 3 },
+        diff: { format: 'summary', bytes_before: 2, bytes_after: 3, bytes_delta: 1, before_sha256: 'b'.repeat(64), after_sha256: 'f'.repeat(64) },
+        patch: { mode: 'edits', edit_count: 1 },
+        index_state: 'pending',
+      };
+    case 'move_path':
+      return {
+        ...common,
+        path: 'docs/moved.md',
+        from_path: 'docs/source.md',
+        to_path: 'docs/moved.md',
+        operation: 'move',
+        mutation_id: `mut_${'1'.repeat(16)}`,
+        before: { existed: true, sha256: 'b'.repeat(64), size: 2 },
+        after: { sha256: 'b'.repeat(64), size: 2 },
+        diff: { format: 'summary', bytes_before: 2, bytes_after: 2, bytes_delta: 0, before_sha256: 'b'.repeat(64), after_sha256: 'b'.repeat(64) },
+        move: { source_sha256: 'b'.repeat(64), target_must_not_exist: true },
+        index_state: 'pending',
+      };
+    case 'delete_path':
+      return {
+        ...common,
+        path: 'docs/delete.md',
+        operation: 'delete',
+        mutation_id: `mut_${'2'.repeat(16)}`,
+        before: { existed: true, sha256: 'b'.repeat(64), size: 2 },
+        after: { existed: false, sha256: null, size: 0 },
+        diff: { format: 'summary', bytes_before: 2, bytes_after: 0, bytes_delta: -2, before_sha256: 'b'.repeat(64), after_sha256: null },
+        deleted: { path: 'docs/delete.md', sha256: 'b'.repeat(64), size: 2 },
+        index_state: 'pending',
+      };
+    case 'refresh_repo_index':
+      return {
+        ...common,
+        paths: ['README.md'],
+        refreshed: true,
+        index_state: 'ready',
+        refresh: { strategy: 'repo-sync', requested_paths: ['README.md'], path_refresh_supported: false },
+        index: { state: 'ready', action: 'refresh_complete', refreshed_paths: ['README.md'] },
+      };
     default:
       throw new Error(`Missing sample payload for ${toolName}`);
   }
@@ -283,7 +345,7 @@ function manifestFromSecureWalker(root: string, indexedPaths: Set<string>): { ig
 }
 
 describe('general repo CodeGraph contract', () => {
-  test('versioned schema freezes the Sprint 0 reader tool surface', () => {
+  test('versioned schema freezes the general repo reader plus write/index-sync surface', () => {
     const schema = readJson(SCHEMA_PATH);
     expect(schema.properties.version.const).toBe('1');
     expect(schema.properties.policy.properties.content_exclusion.const).toBe('.ignore');
@@ -294,12 +356,41 @@ describe('general repo CodeGraph contract', () => {
 
     for (const tool of schema.tools) {
       expect(validateJsonSchema(schema.$defs.tool, tool, schema).errors).toEqual([]);
-      expect(tool.annotations).toEqual({
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      });
+      if (tool.name === 'write_file' || tool.name === 'apply_patch' || tool.name === 'move_path' || tool.name === 'delete_path' || tool.name === 'refresh_repo_index') {
+        expect(tool.annotations).toEqual({
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: false,
+          openWorldHint: false,
+        });
+        if (tool.name === 'write_file') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'content']);
+          expect(tool.input_schema.properties.expected_sha256).toEqual({ type: 'string' });
+          expect(tool.input_schema.properties.must_not_exist).toEqual({ type: 'boolean' });
+        } else if (tool.name === 'apply_patch') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'expected_sha256']);
+          expect(tool.input_schema.properties.edits.items.required).toEqual(['old_text', 'new_text']);
+          expect(tool.input_schema.properties.unified_diff).toEqual({ type: 'string' });
+        } else if (tool.name === 'move_path') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'from_path', 'to_path', 'expected_sha256', 'must_not_exist']);
+          expect(tool.input_schema.properties.from_path).toEqual({ type: 'string' });
+          expect(tool.input_schema.properties.to_path).toEqual({ type: 'string' });
+        } else if (tool.name === 'delete_path') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'expected_sha256']);
+          expect(tool.input_schema.properties.recursive).toEqual({ type: 'boolean' });
+	        } else {
+	          expect(tool.input_schema.required).toEqual(['repo_id']);
+	          expect(tool.input_schema.properties.paths.items).toEqual({ type: 'string' });
+	          expect(tool.input_schema.properties.mutation_id).toEqual({ type: 'string' });
+	        }
+      } else {
+        expect(tool.annotations).toEqual({
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        });
+      }
       expect(tool.input_schema.additionalProperties).toBe(false);
       expect(tool.input_schema.properties.repo_id).toEqual({ type: 'string' });
       expect(validateJsonSchema(tool.output_schema, sampleSuccessPayload(tool.name), schema).errors).toEqual([]);

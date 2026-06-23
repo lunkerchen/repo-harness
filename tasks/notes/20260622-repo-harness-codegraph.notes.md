@@ -129,3 +129,104 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   `counts.content_deferred=499010`. This records the Sprint 2 baseline and
   leaves 500k latency as a future optimization target rather than an open S2
   checklist item.
+
+## 2026-06-23 write_file slice
+
+- The first Sprint 3 mutation slice adds only `write_file` create/replace. It
+  reuses the general repo registry, Path Guard, `.ignore` policy, audit writer,
+  snapshot fields, and filesystem fallback path instead of adding a parallel
+  write service.
+- `read_only` repos return `WRITE_DISABLED`. `read_write` is sourced only from
+  the registered repo entry and surfaced through `get_repo_capabilities`.
+- New files require `must_not_exist: true`; replacing existing files requires
+  `expected_sha256`. Missing or stale preconditions return
+  `REVISION_CONFLICT`, and `must_not_exist` on an existing file returns
+  `TARGET_EXISTS`.
+- Writes use a temporary file in the same canonical parent directory, fsync the
+  file, then atomically rename into place. The first slice requires the parent
+  directory to already exist; directory creation, recursive delete, patch,
+  move, and delete stay out of scope.
+- CodeGraph refresh is explicit pending state in this slice:
+  `index_state: "pending"` with `refresh_repo_index_required` when CodeGraph is
+  available, or `failed` when no index is available. The process-local snapshot
+  and metadata caches are invalidated after successful writes so immediate
+  read/stat calls see filesystem truth.
+
+## 2026-06-23 refresh_repo_index slice
+
+- The index-sync slice adds `refresh_repo_index` as a read_write-gated mutation
+  companion rather than making `write_file` block on CodeGraph. This keeps the
+  filesystem commit boundary small and makes index lag explicit to the caller.
+- Requested refresh paths are repo-relative, deduplicated, and resolved through
+  the same canonical root, symlink, and `.ignore` guard used by read/write
+  tools. Empty `paths` means repo-level refresh.
+- The CLI adapter uses `codegraph sync <repo>` and then reads
+  `codegraph files --format flat --json` for the new revision. Path-only
+  refresh is reported as unsupported with `path_refresh_supported:false` because
+  the local CodeGraph CLI does not expose a stable path incremental contract.
+- `write_file` now returns an `index.invalidation_id` and
+  `index.refresh_tool`. `refresh_repo_index` returns before/after index
+  revisions, the adapter revision, refresh strategy, snapshot id, and
+  `index_state: ready|index_lagging|failed`.
+- Search still uses the existing CodeGraph-metadata plus guarded filesystem
+  fallback path. This slice makes the index state observable; it does not claim
+  a CodeGraph-only full-text backend.
+
+## 2026-06-23 apply_patch slice
+
+- `apply_patch` is implemented as an existing-file text mutation, not as a
+  create/update hybrid. Missing files return `NOT_FOUND`; binary targets return
+  `BINARY_CONTENT`.
+- The tool requires `expected_sha256` for the whole file before any patch
+  preconditions are evaluated. Stale file hashes, missing `old_text`, ambiguous
+  structured edits, and mismatched unified diff hunks all fail before writing.
+- Structured edits are the primary API shape: each edit replaces one exact
+  `old_text` with `new_text`. Repeated text requires a 1-based `occurrence` so
+  the caller cannot accidentally patch an ambiguous match.
+- Unified diff support is intentionally constrained to guarded hunks with
+  surrounding old/context lines. Pure insertion hunks without context are
+  rejected until there is a stronger insertion precondition shape.
+- The write path reuses the `write_file` atomic same-directory temp + fsync +
+  rename commit and shared mutation response. Existing file mode bits are
+  preserved; mtime changes and platform-specific metadata are not preserved in
+  the portable v1 mutation layer.
+
+## 2026-06-23 move/delete path mutation slice
+
+- `move_path` and `delete_path` deliberately target regular files only. Moving
+  or deleting symlinks, directories, empty directories, or recursive trees stays
+  disabled in v1 so the first path-mutation surface does not create unbounded
+  tree semantics.
+- `move_path` requires the source `expected_sha256`, requires the target parent
+  directory to already exist, and requires `must_not_exist: true` for the target.
+  Stale source hashes and existing targets fail before `rename`.
+- `delete_path` requires `expected_sha256` and returns the deleted file metadata.
+  Directory targets fail before any filesystem mutation; `recursive: true`
+  returns an explicit unsupported-policy error.
+- Successful move/delete mutations invalidate snapshots and return the same
+  pending CodeGraph refresh contract as `write_file` and `apply_patch`.
+
+## 2026-06-23 failure injection, index recovery, and audit slice
+
+- Mutation fault injection is intentionally test-only and env-gated through
+  `REPO_HARNESS_MCP_MUTATION_FAULT_POINT`. The supported fault points sit after
+  temp-file fsync and before atomic rename, before move rename, and before
+  delete unlink. They model the pre-commit boundaries for disk/permission,
+  interrupted-process, and rename/delete failures without adding a public MCP
+  option.
+- Successful mutations now append `.ai/harness/mcp/index-events.jsonl`
+  invalidation events. The event log is ignored runtime state, separate from
+  `.ai/harness/mcp/audit.log`, and carries mutation id, invalidation id, relative
+  paths, hash summaries, index revision, and retry metadata without file bodies
+  or patch text.
+- `refresh_repo_index` accepts an optional `mutation_id` so callers can trace
+  the refresh back to the invalidation event and measure mutation-to-refresh lag.
+  It also accepts recently deleted repo-relative paths so move/delete old paths
+  can be synchronized instead of failing `NOT_FOUND` before refresh.
+- Refresh failures write dead-letter index events with retry metadata and the
+  manual recovery command `bash scripts/ensure-codegraph.sh --sync`; the tool
+  still returns the adapter error to the caller.
+- General repo MCP audit entries now include actor/profile, repo id, operation,
+  relative paths, mutation id, index invalidation/event ids, hash summaries,
+  result, duration, and rejection error code. The logged input remains hashed,
+  not embedded, so file contents and patch bodies do not enter the audit log.

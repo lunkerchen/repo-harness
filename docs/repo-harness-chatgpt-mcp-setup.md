@@ -123,14 +123,15 @@ If `repo-harness mcp doctor --repo . --json` reports `chatgpt.serverNameConfigur
 
 Use ChatGPT for planning and review. Use Codex for local execution.
 
-1. Use the single configured Connector for workflow planning and read-only repo tools.
+1. Use the single configured Connector for workflow planning and repo tools.
 2. Call `discover_harness_repos` to list registered adopted repos, then pass `repo_path` when targeting a specific project.
 3. For registered repo document/code reading, call `list_allowed_roots` to get the stable `repo_id`, then use `get_repo_capabilities`, `repo_manifest`, `list_tree`, `stat_file`, `read_file`, `read_files`, and `search_text`.
-4. Ask ChatGPT to turn the idea into a PRD with `write_prd_from_idea`.
-5. Ask ChatGPT to turn the PRD into a checklist Sprint with `write_checklist_sprint`.
-6. Ask ChatGPT to prepare a Codex Goal with `prepare_codex_goal_from_sprint`.
-7. Open Codex locally and run the generated `/goal` prompt.
-8. Let Codex execute one Sprint task card at a time, run checks, update the checklist, and stage each completed phase before continuing.
+4. For registered repo writes, first check `get_repo_capabilities.write_tools`; only repos explicitly configured as `read_write` expose `write_file`, `apply_patch`, `move_path`, `delete_path`, and `refresh_repo_index`.
+5. Ask ChatGPT to turn the idea into a PRD with `write_prd_from_idea`.
+6. Ask ChatGPT to turn the PRD into a checklist Sprint with `write_checklist_sprint`.
+7. Ask ChatGPT to prepare a Codex Goal with `prepare_codex_goal_from_sprint`.
+8. Open Codex locally and run the generated `/goal` prompt.
+9. Let Codex execute one Sprint task card at a time, run checks, update the checklist, and stage each completed phase before continuing.
 
 The sidecar is not a remote coding agent. It prepares workflow artifacts for the local agent host.
 
@@ -148,7 +149,32 @@ normal manifest entry.
 
 Authorized file content is not implicitly redacted in `read_file`,
 `read_files`, or `search_text` responses. The MCP audit path records tool name,
-target path, input hash, status, and errors, but not file bodies.
+target path, input hash, actor/profile, repo id, operation, relative paths,
+hash summary, status, result, error code, duration, and mutation/index event ids,
+but not file bodies or patch text.
+
+`write_file`, `apply_patch`, `move_path`, and `delete_path` are the general repo
+mutation tools. They are runtime-gated by the registered repo access mode and
+return `WRITE_DISABLED` for `read_only` repos. New files require
+`must_not_exist: true`; replacements, patches, moves, and deletes require
+`expected_sha256`; mismatches return `REVISION_CONFLICT` without writing.
+`apply_patch` operates on existing text files and accepts either structured
+`old_text`/`new_text` edits or guarded unified diff hunks. `move_path` moves one
+regular file only when the target also carries `must_not_exist: true`.
+`delete_path` deletes regular files only; directory creation, empty-directory
+mutation, and recursive delete are disabled in v1. A successful mutation returns
+`before`, `after`, `diff`, `mutation_id`, and `index_state`, and leaves CodeGraph
+refresh explicitly pending. It also appends an index invalidation event to
+`.ai/harness/mcp/index-events.jsonl`. Call `refresh_repo_index` with the changed
+paths and, when available, the returned `mutation_id` after a successful mutation
+to run CodeGraph sync, invalidate repo snapshot caches, append refresh success or
+dead-letter failure to the same event log, and receive the new `index_revision`,
+`snapshot_id`, `index_state`, refresh strategy, and mutation-to-refresh lag. The
+bundled CLI adapter uses repo-level `codegraph sync` when path-only refresh is
+unavailable and reports that tradeoff with `path_refresh_supported:false`. Manual
+recovery for a dead-letter refresh is to rerun `refresh_repo_index`; if the
+adapter stays unavailable, run `bash scripts/ensure-codegraph.sh --sync` and then
+retry the tool.
 
 When a repo has a CodeGraph index, `repo_manifest`, `list_tree`, `stat_file`,
 `read_file`, `read_files`, and `search_text` share a deterministic

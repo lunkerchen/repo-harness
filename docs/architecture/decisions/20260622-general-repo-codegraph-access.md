@@ -41,8 +41,9 @@ For a registered repo:
 - Authorized file content is not implicitly redacted in tool responses for this
   API. Logs, traces, metrics, errors, and audit records must not include file
   content.
-- Write tools are not registered for read-only repos. Write access requires an
-  explicit repo-level `read_write` capability.
+- Write tools are rejected for read-only repos. Write access requires an
+  explicit repo-level `read_write` capability; tool availability is advertised
+  through `get_repo_capabilities.write_tools`.
 - Every overwriting write, patch, move, or delete operation requires a revision
   precondition such as `expected_sha256`; new file creation requires an explicit
   must-not-exist precondition.
@@ -59,8 +60,46 @@ Sprint 0 freezes the read contract for:
 - `read_files`
 - `search_text`
 
-The write contract remains design-frozen but implementation-gated until the
-read plane and snapshot behavior are proven.
+The current write implementation covers `write_file` create/replace,
+`apply_patch`, `move_path`, `delete_path`, and `refresh_repo_index`.
+
+`write_file` and `apply_patch` commit filesystem truth first, return an index
+invalidation record with `index_state: pending` when CodeGraph is available, and
+append an index invalidation event under `.ai/harness/mcp/index-events.jsonl`.
+The same mutation result shape is used by `move_path` and `delete_path`; the
+event log stores mutation ids, invalidation ids, relative paths, hash summaries,
+index revisions, and retry instructions, but never file bodies or patch text.
+`apply_patch` is text-only and supports structured `old_text`/`new_text` edits
+plus guarded unified diff hunks. Both patch modes require an exact
+`expected_sha256` file precondition; each edit/hunk also acts as a local text
+precondition and returns `REVISION_CONFLICT` if it no longer matches. Existing
+file replacements preserve the file mode bits used by the target. Filesystem
+mtime changes as part of the commit, and ownership, xattrs, and platform-specific
+metadata are not preserved in this portable v1 mutation layer.
+
+`move_path` is a regular-file-only mutation. It requires the source
+`expected_sha256`, refuses symlink moves, requires the target parent directory to
+already exist, and requires `must_not_exist: true` for the target path.
+`delete_path` also deletes only regular files and requires `expected_sha256`.
+Directory creation, empty-directory mutation, and recursive delete are explicitly
+disabled in v1; directory targets fail before any filesystem mutation. This
+keeps tree-shape changes out of the first mutation layer while still closing the
+lost-update contract for file moves and deletes.
+
+The explicit `refresh_repo_index` tool requires the same `read_write` repo
+capability, reuses the same path guard and `.ignore` policy for requested paths,
+runs the adapter refresh, invalidates in-process repo snapshots, records refresh
+success or failure in the index event log, then returns the new snapshot and
+CodeGraph revision. Requested refresh paths may be recently deleted paths so
+delete and move invalidations can still be synchronized. Callers may pass the
+mutation id returned by the write tool; when the matching invalidation event is
+still in the recent event window, refresh responses include mutation-to-refresh
+lag and the source event id. Refresh failures are written as dead-letter events
+with retry metadata and the manual recovery command
+`bash scripts/ensure-codegraph.sh --sync`. The bundled CLI adapter uses repo-level
+`codegraph sync` because the local CodeGraph CLI surface does not expose a stable
+path-only refresh command; responses report `path_refresh_supported:false` so
+callers do not assume true incremental reindexing.
 
 ## Snapshot Contract
 

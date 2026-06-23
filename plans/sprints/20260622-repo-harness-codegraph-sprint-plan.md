@@ -520,58 +520,170 @@ Sprint 2 adapter/snapshot evidence:
 
 ## 10.1 写 capability 与 API
 
-- [ ] **S3-CAP-001** repo 默认保持 `read_only`。
-- [ ] **S3-CAP-002** 只有现有授权系统显式配置 `read_write` 时才注册/允许写工具。
-- [ ] **S3-CAP-003** 写请求复用同一 Path Guard 和 IgnorePolicy。
-- [ ] **S3-API-001** 实现 `write_file` create/replace。
-- [ ] **S3-API-002** 实现 `apply_patch`，优先结构化 edits，必要时支持 unified diff。
-- [ ] **S3-API-003** 实现 `move_path`。
-- [ ] **S3-API-004** 实现 `delete_path`。
-- [ ] **S3-API-005** 定义目录创建、空目录和递归删除策略；递归删除建议首版默认关闭或要求显式参数。
-- [ ] **S3-API-006** 写响应返回 before/after hash、diff、mutation id 和 index state。
+- [x] **S3-CAP-001** repo 默认保持 `read_only`。
+- [x] **S3-CAP-002** 只有现有授权系统显式配置 `read_write` 时才注册/允许写工具。
+- [x] **S3-CAP-003** 写请求复用同一 Path Guard 和 IgnorePolicy。
+- [x] **S3-API-001** 实现 `write_file` create/replace。
+- [x] **S3-API-002** 实现 `apply_patch`，优先结构化 edits，必要时支持 unified diff。
+- [x] **S3-API-003** 实现 `move_path`。
+- [x] **S3-API-004** 实现 `delete_path`。
+- [x] **S3-API-005** 定义目录创建、空目录和递归删除策略；递归删除建议首版默认关闭或要求显式参数。
+- [x] **S3-API-006** 写响应返回 before/after hash、diff、mutation id 和 index state。
 
 ## 10.2 乐观并发与原子写
 
-- [ ] **S3-MUT-001** 覆盖已有文件必须提交 `expected_sha256`。
-- [ ] **S3-MUT-002** 新建必须提交 `must_not_exist: true`。
-- [ ] **S3-MUT-003** hash 不匹配返回 `REVISION_CONFLICT`，禁止自动覆盖。
-- [ ] **S3-MUT-004** 临时文件必须位于目标同一文件系统/目录边界。
-- [ ] **S3-MUT-005** 写临时文件 → fsync → atomic rename。
-- [ ] **S3-MUT-006** 保留原文件权限和必要 metadata，策略写入 ADR。
-- [ ] **S3-MUT-007** patch 应验证每个 hunk 或精确文本 precondition。
-- [ ] **S3-MUT-008** move/delete 同样进行版本和目标存在性检查。
-- [ ] **S3-MUT-009** 写失败不得留下半文件或跨 repo 临时文件。
-- [ ] **S3-MUT-010** 对写入过程进行故障注入测试：磁盘满、权限变化、进程中断、rename 失败。
+- [x] **S3-MUT-001** 覆盖已有文件必须提交 `expected_sha256`。
+- [x] **S3-MUT-002** 新建必须提交 `must_not_exist: true`。
+- [x] **S3-MUT-003** hash 不匹配返回 `REVISION_CONFLICT`，禁止自动覆盖。
+- [x] **S3-MUT-004** 临时文件必须位于目标同一文件系统/目录边界。
+- [x] **S3-MUT-005** 写临时文件 → fsync → atomic rename。
+- [x] **S3-MUT-006** 保留原文件权限和必要 metadata，策略写入 ADR。
+- [x] **S3-MUT-007** patch 应验证每个 hunk 或精确文本 precondition。
+- [x] **S3-MUT-008** move/delete 同样进行版本和目标存在性检查。
+- [x] **S3-MUT-009** 写失败不得留下半文件或跨 repo 临时文件。
+- [x] **S3-MUT-010** 对写入过程进行故障注入测试：磁盘满、权限变化、进程中断、rename 失败。
 
 ## 10.3 Index Sync
 
-- [ ] **S3-IDX-001** 每次成功 mutation 产生 index invalidation event。
-- [ ] **S3-IDX-002** 能按 path 增量 reindex 时优先使用；否则明确使用 repo refresh。
-- [ ] **S3-IDX-003** 写后返回 `index_state: pending|ready|failed`。
-- [ ] **S3-IDX-004** 索引完成后生成新 `codegraph_revision` 和 snapshot。
-- [ ] **S3-IDX-005** 在索引 pending 时，changed path 的 read/stat 走安全直读并返回最新 hash。
-- [ ] **S3-IDX-006** search 必须明确使用旧索引还是等待新索引；禁止假装已可搜。
-- [ ] **S3-IDX-007** 实现 `refresh_repo_index` 或内部等价管理接口。
-- [ ] **S3-IDX-008** 定义 reindex retry、dead-letter 和人工恢复流程。
-- [ ] **S3-IDX-009** 监控 mutation commit 到 CodeGraph 可搜索的 index lag。
+- [x] **S3-IDX-001** 每次成功 mutation 产生 index invalidation event。
+- [x] **S3-IDX-002** 能按 path 增量 reindex 时优先使用；否则明确使用 repo refresh。
+- [x] **S3-IDX-003** 写后返回 `index_state: pending|ready|failed`。
+- [x] **S3-IDX-004** 索引完成后生成新 `codegraph_revision` 和 snapshot。
+- [x] **S3-IDX-005** 在索引 pending 时，changed path 的 read/stat 走安全直读并返回最新 hash。
+- [x] **S3-IDX-006** search 必须明确使用旧索引还是等待新索引；禁止假装已可搜。
+- [x] **S3-IDX-007** 实现 `refresh_repo_index` 或内部等价管理接口。
+- [x] **S3-IDX-008** 定义 reindex retry、dead-letter 和人工恢复流程。
+- [x] **S3-IDX-009** 监控 mutation commit 到 CodeGraph 可搜索的 index lag。
 
 ## 10.4 审计
 
-- [ ] **S3-AUD-001** 审计 actor、repo_id、operation、relative paths、hash、结果和耗时。
-- [ ] **S3-AUD-002** 不记录文件正文、patch 全文或 secret。
-- [ ] **S3-AUD-003** 审计日志与应用日志分离并设置保留策略。
-- [ ] **S3-AUD-004** mutation id 可追踪到索引刷新状态。
-- [ ] **S3-AUD-005** 对拒绝的写请求记录错误码，不记录内容。
+- [x] **S3-AUD-001** 审计 actor、repo_id、operation、relative paths、hash、结果和耗时。
+- [x] **S3-AUD-002** 不记录文件正文、patch 全文或 secret。
+- [x] **S3-AUD-003** 审计日志与应用日志分离并设置保留策略。
+- [x] **S3-AUD-004** mutation id 可追踪到索引刷新状态。
+- [x] **S3-AUD-005** 对拒绝的写请求记录错误码，不记录内容。
 
 ## 10.5 Sprint 3 退出标准
 
-- [ ] 所有写工具在 read-only repo 中可靠拒绝。
-- [ ] 100% 检测并发覆盖冲突，无 lost update。
-- [ ] 原子写故障注入不产生半写文件。
-- [ ] 写后 stat/read 立即可见最新内容。
-- [ ] 写后 search 在定义的 index lag SLO 内可见，或明确返回 pending。
-- [ ] move/delete 后 manifest 与索引最终一致。
-- [ ] 所有写操作可通过 mutation id 审计。
+- [x] 所有写工具在 read-only repo 中可靠拒绝。
+- [x] 100% 检测并发覆盖冲突，无 lost update。
+- [x] 原子写故障注入不产生半写文件。
+- [x] 写后 stat/read 立即可见最新内容。
+- [x] 写后 search 在定义的 index lag SLO 内可见，或明确返回 pending。
+- [x] move/delete 后 manifest 与索引最终一致。
+- [x] 所有写操作可通过 mutation id 审计。
+
+Sprint 3 write_file evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`
+- Schema/docs: `assets/mcp/general-repo-reader-tools.v1.schema.json`, `README.md`, `docs/repo-harness-chatgpt-mcp-setup.md`
+- Completed slice: `write_file` create/replace is gated by registered repo
+  `read_write`, reuses the general repo Path Guard and `.ignore` policy,
+  requires `must_not_exist` for create and `expected_sha256` for replace,
+  writes through a same-directory temporary file plus fsync/atomic rename, and
+  returns `mutation_id`, `before`, `after`, `diff`, and `index_state`.
+- Verified in this slice: success, precondition-conflict, and injected
+  pre-commit fault paths leave no `.repo-harness-*` temporary files in the
+  target directory and preserve the old file or absent target state.
+- Fault coverage: deterministic fault points cover temp-write-after-fsync before
+  rename, move before rename, and delete before unlink. These model disk-full,
+  permission-change, interrupted-process, and rename-failure boundaries before a
+  filesystem commit.
+
+Sprint 3 index-sync evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`,
+  `src/cli/mcp/codegraph-adapter.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`,
+  `tests/cli/mcp-codegraph-contract.test.ts`
+- Schema/docs: `assets/mcp/general-repo-reader-tools.v1.schema.json`,
+  `README.md`, `docs/repo-harness-chatgpt-mcp-setup.md`,
+  `docs/architecture/decisions/20260622-general-repo-codegraph-access.md`,
+  `tasks/notes/20260622-repo-harness-codegraph.notes.md`
+- Completed slice: `refresh_repo_index` is exposed only for `read_write` repos,
+  validates requested paths through the same guard/`.ignore` policy, calls
+  CodeGraph refresh, invalidates local snapshots, and returns before/after index
+  revisions plus a fresh snapshot.
+- The bundled adapter uses repo-level `codegraph sync` when path incremental
+  refresh is unavailable and reports `path_refresh_supported:false`.
+- Pending-state reads/stat use filesystem truth and return the latest hash;
+  `search_text` keeps the explicit CodeGraph-metadata plus guarded filesystem
+  fallback backend instead of claiming the changed path is already indexed.
+- Successful mutations now append `.ai/harness/mcp/index-events.jsonl`
+  invalidation events with mutation id, invalidation id, relative paths, hash
+  summaries, retry metadata, and the refresh tool. `refresh_repo_index` accepts
+  the returned `mutation_id`, accepts recently deleted paths for move/delete
+  refresh, records refresh success or dead-letter failure, and reports
+  mutation-to-refresh lag when the source event is in the recent event window.
+- Manual recovery for dead-letter refresh is documented as retrying
+  `refresh_repo_index`, then running `bash scripts/ensure-codegraph.sh --sync`
+  before retrying the tool if the adapter remains unavailable.
+
+Sprint 3 apply_patch evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`,
+  `tests/cli/mcp-codegraph-contract.test.ts`
+- Schema/docs: `assets/mcp/general-repo-reader-tools.v1.schema.json`,
+  `README.md`, `docs/repo-harness-chatgpt-mcp-setup.md`,
+  `docs/architecture/decisions/20260622-general-repo-codegraph-access.md`,
+  `tasks/notes/20260622-repo-harness-codegraph.notes.md`
+- Completed slice: `apply_patch` is exposed only for `read_write` repos,
+  targets existing text files, requires `expected_sha256`, supports structured
+  `old_text`/`new_text` edits plus guarded unified diff hunks, and returns the
+  shared mutation readback with `before`, `after`, `diff`, `mutation_id`, and
+  `index_state`.
+- Patch preconditions are fail-closed: stale file hash, ambiguous structured
+  match without `occurrence`, missing text, and hunk mismatch return
+  `REVISION_CONFLICT` before writing.
+- Metadata policy: existing file mode bits are preserved. Filesystem mtime
+  changes as part of the commit; ownership, xattrs, and platform-specific
+  metadata are out of scope for the portable v1 mutation layer.
+
+Sprint 3 move/delete path mutation evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`,
+  `tests/cli/mcp-codegraph-contract.test.ts`
+- Schema/docs: `assets/mcp/general-repo-reader-tools.v1.schema.json`,
+  `README.md`, `docs/repo-harness-chatgpt-mcp-setup.md`,
+  `docs/architecture/decisions/20260622-general-repo-codegraph-access.md`,
+  `tasks/notes/20260622-repo-harness-codegraph.notes.md`
+- Completed slice: `move_path` and `delete_path` are exposed only for
+  `read_write` repos and reuse the same repo registry, Path Guard, `.ignore`,
+  snapshot invalidation, audit hash, and pending CodeGraph refresh contract as
+  `write_file` and `apply_patch`.
+- `move_path` is regular-file only, requires the source `expected_sha256`,
+  rejects stale hashes, requires an existing target parent directory, and
+  requires `must_not_exist: true` so target collisions return `TARGET_EXISTS`
+  before `rename`.
+- `delete_path` is regular-file only, requires `expected_sha256`, returns the
+  deleted metadata, and rejects stale hashes before removing the file.
+- Directory policy for v1 is now explicit: write tools do not create parent
+  directories; empty-directory mutation is unsupported; recursive delete is
+  disabled and returns a stable policy error before any filesystem mutation.
+
+Sprint 3 failure-injection and audit evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`, `src/cli/mcp/types.ts`,
+  `src/cli/mcp/setup.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`,
+  `tests/cli/mcp-codegraph-contract.test.ts`, `tests/cli/mcp-setup.test.ts`
+- Docs/schema: `assets/mcp/general-repo-reader-tools.v1.schema.json`,
+  `.gitignore`, `README.md`, `docs/repo-harness-chatgpt-mcp-setup.md`,
+  `docs/architecture/decisions/20260622-general-repo-codegraph-access.md`
+- Completed slice: deterministic test-only mutation fault points verify
+  create/replace/patch abort after temp fsync but before rename, move aborts
+  before rename, and delete aborts before unlink. All fault cases leave no
+  committed partial file and no same-directory repo-harness temp residue.
+- The MCP audit log remains separate at `.ai/harness/mcp/audit.log`; the index
+  event/recovery log is separate ignored runtime state at
+  `.ai/harness/mcp/index-events.jsonl`. Both are managed by MCP setup ignore
+  entries. Audit records actor/profile, repo id, operation, relative paths, hash
+  summaries, result, duration, mutation id, index invalidation id, index event id,
+  and rejection error code without storing file bodies, patch text, or secret
+  error strings.
 
 ---
 
