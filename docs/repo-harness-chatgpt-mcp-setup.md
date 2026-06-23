@@ -163,8 +163,10 @@ repo-relative path set; `snapshot_cache.snapshot_key` names the underlying repo
 snapshot. Entry metadata is cached by repo, registry revision, `.ignore`
 digest, path, and current stat signature, so warm calls can reuse unchanged file
 metadata while file, registry, and `.ignore` changes produce a different
-snapshot. If CodeGraph still references a deleted indexed path or returns
-metadata that no longer matches the filesystem, the response uses
+snapshot. Explicit `snapshot_id` stat/read calls can reuse a cached snapshot and
+validate the requested file hash instead of rebuilding the full repo snapshot.
+If CodeGraph still references a deleted indexed path or returns metadata that
+no longer matches the filesystem, the response uses
 `snapshot_state: "index_lagging"` and includes lagging paths under the
 `codegraph` object.
 

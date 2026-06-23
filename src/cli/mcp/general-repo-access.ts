@@ -60,6 +60,7 @@ interface ResolvedRepoPath {
   size?: number;
   modifiedAt?: string;
   metadataSignature: string;
+  contentFile: boolean;
   symlinkTargetKind: SymlinkTargetKind;
   readable: boolean;
   identity?: string;
@@ -85,6 +86,8 @@ interface ManifestEntry {
 
 interface VisibleEntrySnapshot {
   id: string;
+  repoId: string;
+  repoRoot: string;
   state: SnapshotState;
   createdAtMs: number;
   createdAt: string;
@@ -393,6 +396,25 @@ function entryType(path: string): RepoEntryType {
   return 'other';
 }
 
+function entryTypeFromStat(lstat: ReturnType<typeof lstatSync>): RepoEntryType {
+  if (lstat.isSymbolicLink()) return 'symlink';
+  if (lstat.isFile()) return 'file';
+  if (lstat.isDirectory()) return 'directory';
+  return 'other';
+}
+
+function metadataSignature(fileStat: ReturnType<typeof statSync>, type: RepoEntryType, readable: boolean): string {
+  return [
+    fileStat.size,
+    fileStat.mtimeMs,
+    fileStat.ctimeMs,
+    fileStat.mode,
+    fileStat.ino,
+    type,
+    readable ? 'readable' : 'metadata-only',
+  ].join(':');
+}
+
 function resolveRepoPath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePolicy, opts: {
   requireFile?: boolean;
   requireDirectory?: boolean;
@@ -441,15 +463,6 @@ function resolveRepoPath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePol
 
   const fileStat = readable ? statSync(canonicalPath) : lstat;
   const parentStat = statSync(dirname(absolutePath));
-  const metadataSignature = [
-    fileStat.size,
-    fileStat.mtimeMs,
-    fileStat.ctimeMs,
-    fileStat.mode,
-    fileStat.ino,
-    type,
-    readable ? 'readable' : 'metadata-only',
-  ].join(':');
   if (opts.requireFile && (!readable || !fileStat.isFile())) {
     throw new GeneralRepoAccessError('NOT_A_FILE', 'path is not a regular file', { path: relativePath });
   }
@@ -465,7 +478,51 @@ function resolveRepoPath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePol
     type,
     size: fileStat.isFile() ? fileStat.size : undefined,
     modifiedAt: fileStat.mtime.toISOString(),
-    metadataSignature,
+    metadataSignature: metadataSignature(fileStat, type, readable),
+    contentFile: readable && fileStat.isFile(),
+    symlinkTargetKind,
+    readable,
+    identity: readable ? statIdentity(fileStat) : undefined,
+    parentIdentity: statIdentity(parentStat),
+  };
+}
+
+function resolveWalkedRepoPath(repo: RepoRecord, ignore: IgnorePolicy, relativePath: string, absolutePath: string, lstat: ReturnType<typeof lstatSync>): ResolvedRepoPath {
+  if (!isPathInside(repo.canonicalRoot, absolutePath)) {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'path escapes repo root', { path: relativePath });
+  }
+
+  const type = entryTypeFromStat(lstat);
+  let canonicalPath = absolutePath;
+  let symlinkTargetKind: SymlinkTargetKind = 'none';
+  let readable = true;
+  let fileStat = lstat;
+  const parentStat = statSync(dirname(absolutePath));
+
+  if (type === 'symlink') {
+    canonicalPath = realpathSync(absolutePath);
+    const inside = isPathInside(repo.canonicalRoot, canonicalPath);
+    symlinkTargetKind = inside ? 'internal' : 'external';
+    readable = inside;
+    if (inside) {
+      fileStat = statSync(canonicalPath);
+      const physicalRelative = toPosixPath(relative(repo.canonicalRoot, canonicalPath)) || '.';
+      if (physicalRelative !== '.' && isIgnored(ignore, physicalRelative)) {
+        throw new GeneralRepoAccessError('PATH_IGNORED', 'symlink target is excluded by .ignore', { path: relativePath });
+      }
+    }
+  }
+
+  return {
+    repo,
+    relativePath,
+    absolutePath,
+    canonicalPath,
+    type,
+    size: fileStat.isFile() ? fileStat.size : undefined,
+    modifiedAt: fileStat.mtime.toISOString(),
+    metadataSignature: metadataSignature(fileStat, type, readable),
+    contentFile: readable && fileStat.isFile(),
     symlinkTargetKind,
     readable,
     identity: readable ? statIdentity(fileStat) : undefined,
@@ -573,13 +630,10 @@ function metadataForResolved(resolved: ResolvedRepoPath, ignore: IgnorePolicy, s
   stats && (stats.misses += 1);
   let binary = false;
   let fileHash: string | undefined;
-  if (resolved.readable) {
-    const stat = statSync(resolved.canonicalPath);
-    if (stat.isFile()) {
-      const raw = readStableResolvedFile(resolved, { digest: '', rules: [] });
-      binary = raw.subarray(0, BINARY_PROBE_BYTES).includes(0);
-      fileHash = sha256(raw);
-    }
+  if (resolved.readable && resolved.contentFile) {
+    const raw = readStableResolvedFile(resolved, { digest: '', rules: [] });
+    binary = raw.subarray(0, BINARY_PROBE_BYTES).includes(0);
+    fileHash = sha256(raw);
   }
   const entry = {
     path: resolved.relativePath,
@@ -617,7 +671,8 @@ function walkVisibleEntries(repo: RepoRecord, ignore: IgnorePolicy, startRelativ
       let resolvedChild: ResolvedRepoPath | null = null;
       if (!ignored) {
         try {
-          resolvedChild = resolveRepoPath(repo, childRelative, ignore, { allowExternalSymlinkMetadata: true });
+          const childLstat = lstatSync(childAbsolute);
+          resolvedChild = resolveWalkedRepoPath(repo, ignore, childRelative, childAbsolute, childLstat);
           entries.push(metadataForResolved(resolvedChild, ignore, stats));
         } catch (_error) {
           walkerErrors += 1;
@@ -632,7 +687,7 @@ function walkVisibleEntries(repo: RepoRecord, ignore: IgnorePolicy, startRelativ
   };
 
   if (start.relativePath !== '.') entries.push(metadataForResolved(start, ignore, stats));
-  if (start.readable && statSync(start.canonicalPath).isDirectory()) visit(start.canonicalPath, start.relativePath);
+  if (start.readable && start.type === 'directory') visit(start.canonicalPath, start.relativePath);
   return { entries: entries.sort((a, b) => a.path.localeCompare(b.path)), partial: walkerErrors > 0, walkerErrors };
 }
 
@@ -702,6 +757,8 @@ function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
   const expiresAtMs = createdAtMs + SNAPSHOT_TTL_MS;
   const snapshot: VisibleEntrySnapshot = {
     id,
+    repoId: repo.repoId,
+    repoRoot: repo.canonicalRoot,
     state,
     createdAtMs,
     createdAt: new Date(createdAtMs).toISOString(),
@@ -763,6 +820,28 @@ function rememberSnapshot(snapshot: VisibleEntrySnapshot): VisibleEntrySnapshot 
   };
 }
 
+function cachedSnapshotById(repo: RepoRecord, snapshotId: unknown): VisibleEntrySnapshot | null {
+  const requested = typeof snapshotId === 'string' ? snapshotId.trim() : '';
+  if (!requested) return null;
+  const now = Date.now();
+  for (const [key, cached] of SNAPSHOT_CACHE) {
+    if (Date.parse(cached.expiresAt) <= now) {
+      SNAPSHOT_CACHE.delete(key);
+      continue;
+    }
+    if (cached.id === requested && cached.repoId === repo.repoId && cached.repoRoot === repo.canonicalRoot) {
+      const cacheHit = {
+        ...cached,
+        cacheHit: true,
+        cacheSize: SNAPSHOT_CACHE.size,
+      };
+      SNAPSHOT_CACHE.set(key, cacheHit);
+      return cacheHit;
+    }
+  }
+  return null;
+}
+
 function assertSnapshotFresh(args: Record<string, unknown>, snapshot: VisibleEntrySnapshot): void {
   const requested = typeof args.snapshot_id === 'string' ? args.snapshot_id.trim() : '';
   if (requested && requested !== snapshot.id) {
@@ -813,7 +892,17 @@ function byteRange(value: unknown, maxLength: number): [number, number] | null {
   return [start, Math.min(length, maxLength)];
 }
 
-function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file'): Record<string, unknown> {
+function assertSnapshotEntryCurrent(snapshot: VisibleEntrySnapshot, path: string, actualHash: string): void {
+  const snapshotEntry = snapshot.entriesByPath.get(path);
+  if (!snapshotEntry || snapshotEntry.sha256 !== actualHash) {
+    throw new GeneralRepoAccessError('SNAPSHOT_STALE', 'requested snapshot_id does not match current file revision', {
+      requested_snapshot_id: snapshot.id,
+      path,
+    }, true);
+  }
+}
+
+function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file', verifySnapshotEntry = false): Record<string, unknown> {
   if (args.line_range !== undefined && args.byte_range !== undefined) {
     throw new GeneralRepoAccessError('INVALID_RANGE', 'line_range and byte_range are mutually exclusive');
   }
@@ -833,6 +922,7 @@ function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visib
   const fields = commonFields(repo, ignore, snapshot, { tool, paths: [target.relativePath] });
   const raw = readStableResolvedFile(target, ignore);
   const fullHash = sha256(raw);
+  if (verifySnapshotEntry) assertSnapshotEntryCurrent(snapshot, target.relativePath, fullHash);
   const binary = raw.subarray(0, BINARY_PROBE_BYTES).includes(0);
 
   if (args.byte_range !== undefined || cursorByteStart !== null) {
@@ -993,6 +1083,30 @@ function statFile(ctx: GeneralRepoToolContext, args: Record<string, unknown>): G
   const repo = resolveRepo(ctx, args.repo_id);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
   const resolved = resolveRepoPath(repo, args.path, ignore);
+  const cachedSnapshot = cachedSnapshotById(repo, args.snapshot_id);
+  if (cachedSnapshot) {
+    const current = metadataForResolved(resolved, ignore);
+    const cachedEntry = cachedSnapshot.entriesByPath.get(resolved.relativePath);
+    if (!cachedEntry || cachedEntry.sha256 !== current.sha256) {
+      throw new GeneralRepoAccessError('SNAPSHOT_STALE', 'requested snapshot_id does not match current file revision', {
+        requested_snapshot_id: cachedSnapshot.id,
+        path: resolved.relativePath,
+      }, true);
+    }
+    const entry = {
+      ...current,
+      indexed: cachedEntry.indexed,
+      codegraph_language: cachedEntry.codegraph_language,
+      codegraph_node_count: cachedEntry.codegraph_node_count,
+      codegraph_size: cachedEntry.codegraph_size,
+      codegraph_index_lagging: cachedEntry.codegraph_index_lagging,
+    };
+    return textResult({
+      ...commonFields(repo, ignore, cachedSnapshot, { tool: 'stat_file', paths: [resolved.relativePath] }),
+      ...entry,
+      codegraph: codeGraphSummary(cachedSnapshot),
+    });
+  }
   const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore);
   assertSnapshotFresh(args, snapshot);
   const entry = snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved, ignore);
@@ -1006,6 +1120,13 @@ function statFile(ctx: GeneralRepoToolContext, args: Record<string, unknown>): G
 function readFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
   const repo = resolveRepo(ctx, args.repo_id);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const cachedSnapshot = cachedSnapshotById(repo, args.snapshot_id);
+  if (cachedSnapshot) {
+    return textResult({
+      ...readFilePayload(repo, ignore, cachedSnapshot, args, HARD_READ_BYTES, 'read_file', true),
+      codegraph: codeGraphSummary(cachedSnapshot),
+    });
+  }
   const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore);
   assertSnapshotFresh(args, snapshot);
   return textResult({
@@ -1017,8 +1138,9 @@ function readFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>
 function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
   const repo = resolveRepo(ctx, args.repo_id);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore);
-  assertSnapshotFresh(args, snapshot);
+  const cachedSnapshot = cachedSnapshotById(repo, args.snapshot_id);
+  const snapshot = cachedSnapshot ?? buildVisibleEntrySnapshot(ctx, repo, ignore);
+  if (!cachedSnapshot) assertSnapshotFresh(args, snapshot);
   const requests = Array.isArray(args.requests) ? args.requests : [];
   const byteBudget = numberArg(args.byte_budget, HARD_READ_BYTES, 1, HARD_READ_BYTES);
   let remaining = byteBudget;
@@ -1037,7 +1159,7 @@ function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): 
       continue;
     }
     try {
-      const payload = readFilePayload(repo, ignore, snapshot, request as Record<string, unknown>, remaining, 'read_files');
+      const payload = readFilePayload(repo, ignore, snapshot, request as Record<string, unknown>, remaining, 'read_files', Boolean(cachedSnapshot));
       remaining -= Number(payload.bytes_returned ?? 0);
       results.push(payload);
     } catch (error) {
