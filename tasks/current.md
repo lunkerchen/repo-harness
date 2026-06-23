@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-23T20:13:58+0800 -->
+<!-- updated_at: 2026-06-23T20:28:13+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-23T20:13:58+0800
+> **Updated At**: 2026-06-23T20:28:13+0800
 > **Source Branch**: main
-> **Source Commit**: c05d268
+> **Source Commit**: 2506de6
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: mcp-move-path-atomic-no-replace
+> **Reason**: mcp-move-path-ci-followup
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -48,11 +48,9 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 3 changed/untracked path(s)
+- Summary: 1 changed/untracked path(s)
 
 ```
- M src/cli/mcp/general-repo-access.ts
- M tasks/notes/20260622-repo-harness-codegraph.notes.md
  M tests/cli/mcp-reader-tools.test.ts
 ```
 

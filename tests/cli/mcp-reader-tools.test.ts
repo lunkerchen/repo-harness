@@ -1056,7 +1056,7 @@ describe('MCP reader tools', () => {
 
 	  test('move_path commit does not use a hard-link then unlink commit sequence', () => {
 	    const source = readFileSync(join(process.cwd(), 'src', 'cli', 'mcp', 'general-repo-access.ts'), 'utf-8');
-	    const match = source.match(/function commitMoveNoOverwrite[\s\S]*?\n}\n\nfunction invalidateRepoCaches/);
+	    const match = source.match(/function commitMoveNoOverwrite[\s\S]*?\r?\n}\r?\n\r?\nfunction invalidateRepoCaches/);
 	    expect(match).not.toBeNull();
 	    const body = match?.[0] ?? '';
 	    expect(body).toContain('renameNoReplaceNative');
