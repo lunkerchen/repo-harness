@@ -90,10 +90,11 @@ describe('MCP reader tools', () => {
         'read_files',
         'stat_file',
         'write_file',
+        'apply_patch',
         'refresh_repo_index',
       ]);
       for (const definition of definitions) {
-        if (definition.name === 'write_file' || definition.name === 'refresh_repo_index') {
+        if (definition.name === 'write_file' || definition.name === 'apply_patch' || definition.name === 'refresh_repo_index') {
           expect(definition.annotations).toMatchObject({
             readOnlyHint: false,
             destructiveHint: true,
@@ -183,6 +184,13 @@ describe('MCP reader tools', () => {
         });
         expect(readOnlyWrite.error.code).toBe('WRITE_DISABLED');
         expect(existsSync(join(repoRoot, 'docs', 'created-by-write.txt'))).toBe(false);
+        const readOnlyPatch = await jsonTool(ctx, 'apply_patch', {
+          repo_id: repoId,
+          path: 'docs/design.md',
+          expected_sha256: 'unused',
+          edits: [{ old_text: 'authentication', new_text: 'authorization' }],
+        });
+        expect(readOnlyPatch.error.code).toBe('WRITE_DISABLED');
         const readOnlyRefresh = await jsonTool(ctx, 'refresh_repo_index', { repo_id: repoId, paths: ['docs/design.md'] });
         expect(readOnlyRefresh.error.code).toBe('WRITE_DISABLED');
 
@@ -353,7 +361,7 @@ describe('MCP reader tools', () => {
       const repoId = (await jsonTool(writeCtx, 'list_allowed_roots')).roots[0].repo_id;
       const capabilities = await jsonTool(writeCtx, 'get_repo_capabilities', { repo_id: repoId });
       expect(capabilities.access_mode).toBe('read_write');
-      expect(capabilities.write_tools).toEqual(['write_file', 'refresh_repo_index']);
+      expect(capabilities.write_tools).toEqual(['write_file', 'apply_patch', 'refresh_repo_index']);
 
       const missingCreatePrecondition = await jsonTool(writeCtx, 'write_file', {
         repo_id: repoId,
@@ -468,6 +476,76 @@ describe('MCP reader tools', () => {
         codegraph_size: 'second\n'.length,
       });
 
+      const patched = await jsonTool(writeCtx, 'apply_patch', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        expected_sha256: statAfterRefresh.sha256,
+        edits: [{ old_text: 'second\n', new_text: 'second patched\n' }],
+      });
+      expect(patched.error).toBeUndefined();
+      expect(patched).toMatchObject({
+        path: 'docs/generated.txt',
+        operation: 'patch',
+        before: { sha256: statAfterRefresh.sha256, size: 'second\n'.length },
+        patch: { format: 'structured_edits', applied_count: 1 },
+        index: { action: 'refresh_repo_index_required', changed_paths: ['docs/generated.txt'] },
+      });
+      expect(patched.mutation_id).toMatch(/^mut_[a-f0-9]{16}$/);
+      expect(patched.index.invalidation_id).toMatch(/^idxinv_[a-f0-9]{16}$/);
+      expect(patched.after.sha256).not.toBe(statAfterRefresh.sha256);
+      expect(readFileSync(join(repoRoot, 'docs', 'generated.txt'), 'utf-8')).toBe('second patched\n');
+      expect(readdirSync(join(repoRoot, 'docs')).some((name) => name.includes('.repo-harness-'))).toBe(false);
+
+      const stalePatch = await jsonTool(writeCtx, 'apply_patch', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        expected_sha256: statAfterRefresh.sha256,
+        edits: [{ old_text: 'second patched', new_text: 'stale write' }],
+      });
+      expect(stalePatch.error.code).toBe('REVISION_CONFLICT');
+      expect(stalePatch.error.details.actual_sha256).toBe(patched.after.sha256);
+      expect(readFileSync(join(repoRoot, 'docs', 'generated.txt'), 'utf-8')).toBe('second patched\n');
+
+      writeFileSync(join(repoRoot, 'docs', 'ambiguous.txt'), 'same\nsame\n');
+      const ambiguousStat = await jsonTool(writeCtx, 'stat_file', { repo_id: repoId, path: 'docs/ambiguous.txt' });
+      const ambiguousPatch = await jsonTool(writeCtx, 'apply_patch', {
+        repo_id: repoId,
+        path: 'docs/ambiguous.txt',
+        expected_sha256: ambiguousStat.sha256,
+        edits: [{ old_text: 'same', new_text: 'changed' }],
+      });
+      expect(ambiguousPatch.error.code).toBe('REVISION_CONFLICT');
+      expect(readFileSync(join(repoRoot, 'docs', 'ambiguous.txt'), 'utf-8')).toBe('same\nsame\n');
+
+      const occurrencePatch = await jsonTool(writeCtx, 'apply_patch', {
+        repo_id: repoId,
+        path: 'docs/ambiguous.txt',
+        expected_sha256: ambiguousStat.sha256,
+        edits: [{ old_text: 'same', new_text: 'changed', occurrence: 2 }],
+      });
+      expect(occurrencePatch.error).toBeUndefined();
+      expect(readFileSync(join(repoRoot, 'docs', 'ambiguous.txt'), 'utf-8')).toBe('same\nchanged\n');
+
+      writeFileSync(join(repoRoot, 'docs', 'unified.txt'), 'alpha\nbeta\ngamma\n');
+      const unifiedStat = await jsonTool(writeCtx, 'stat_file', { repo_id: repoId, path: 'docs/unified.txt' });
+      const unifiedPatch = await jsonTool(writeCtx, 'apply_patch', {
+        repo_id: repoId,
+        path: 'docs/unified.txt',
+        expected_sha256: unifiedStat.sha256,
+        unified_diff: [
+          '--- a/docs/unified.txt',
+          '+++ b/docs/unified.txt',
+          '@@ -1,3 +1,3 @@',
+          ' alpha',
+          '-beta',
+          '+bravo',
+          ' gamma',
+        ].join('\n'),
+      });
+      expect(unifiedPatch.error).toBeUndefined();
+      expect(unifiedPatch.patch).toMatchObject({ format: 'unified_diff', applied_count: 1 });
+      expect(readFileSync(join(repoRoot, 'docs', 'unified.txt'), 'utf-8')).toBe('alpha\nbravo\ngamma\n');
+
       const ignored = await jsonTool(writeCtx, 'write_file', {
         repo_id: repoId,
         path: 'ignored.md',
@@ -485,10 +563,13 @@ describe('MCP reader tools', () => {
 
       const auditText = readFileSync(join(repoRoot, '.ai', 'harness', 'mcp', 'audit.log'), 'utf-8');
       expect(auditText).toContain('"tool":"write_file"');
+      expect(auditText).toContain('"tool":"apply_patch"');
       expect(auditText).toContain('"status":"ok"');
       expect(auditText).toContain('"status":"blocked"');
       expect(auditText).not.toContain('first\n');
       expect(auditText).not.toContain('second\n');
+      expect(auditText).not.toContain('second patched\n');
+      expect(auditText).not.toContain('bravo');
       expect(auditText).not.toContain('stale\n');
     }, { accessMode: 'read_write' });
   });

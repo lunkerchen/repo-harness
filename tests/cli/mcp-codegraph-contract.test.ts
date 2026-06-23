@@ -18,6 +18,7 @@ const TOOL_NAMES = [
   'read_files',
   'stat_file',
   'write_file',
+  'apply_patch',
   'refresh_repo_index',
 ];
 
@@ -163,6 +164,18 @@ function sampleSuccessPayload(toolName: string): Record<string, unknown> {
         before: { existed: false, sha256: null, size: 0 },
         after: { sha256: 'd'.repeat(64), size: 2 },
         diff: { format: 'summary', bytes_before: 0, bytes_after: 2, bytes_delta: 2, before_sha256: null, after_sha256: 'd'.repeat(64) },
+        index_state: 'pending',
+      };
+    case 'apply_patch':
+      return {
+        ...common,
+        path: 'README.md',
+        operation: 'patch',
+        mutation_id: `mut_${'e'.repeat(16)}`,
+        before: { existed: true, sha256: 'b'.repeat(64), size: 2 },
+        after: { sha256: 'f'.repeat(64), size: 3 },
+        diff: { format: 'summary', bytes_before: 2, bytes_after: 3, bytes_delta: 1, before_sha256: 'b'.repeat(64), after_sha256: 'f'.repeat(64) },
+        patch: { mode: 'edits', edit_count: 1 },
         index_state: 'pending',
       };
     case 'refresh_repo_index':
@@ -315,7 +328,7 @@ describe('general repo CodeGraph contract', () => {
 
     for (const tool of schema.tools) {
       expect(validateJsonSchema(schema.$defs.tool, tool, schema).errors).toEqual([]);
-      if (tool.name === 'write_file' || tool.name === 'refresh_repo_index') {
+      if (tool.name === 'write_file' || tool.name === 'apply_patch' || tool.name === 'refresh_repo_index') {
         expect(tool.annotations).toEqual({
           readOnlyHint: false,
           destructiveHint: true,
@@ -326,6 +339,10 @@ describe('general repo CodeGraph contract', () => {
           expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'content']);
           expect(tool.input_schema.properties.expected_sha256).toEqual({ type: 'string' });
           expect(tool.input_schema.properties.must_not_exist).toEqual({ type: 'boolean' });
+        } else if (tool.name === 'apply_patch') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'expected_sha256']);
+          expect(tool.input_schema.properties.edits.items.required).toEqual(['old_text', 'new_text']);
+          expect(tool.input_schema.properties.unified_diff).toEqual({ type: 'string' });
         } else {
           expect(tool.input_schema.required).toEqual(['repo_id']);
           expect(tool.input_schema.properties.paths.items).toEqual({ type: 'string' });

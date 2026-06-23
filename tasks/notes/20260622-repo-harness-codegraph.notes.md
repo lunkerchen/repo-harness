@@ -171,3 +171,22 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
 - Search still uses the existing CodeGraph-metadata plus guarded filesystem
   fallback path. This slice makes the index state observable; it does not claim
   a CodeGraph-only full-text backend.
+
+## 2026-06-23 apply_patch slice
+
+- `apply_patch` is implemented as an existing-file text mutation, not as a
+  create/update hybrid. Missing files return `NOT_FOUND`; binary targets return
+  `BINARY_CONTENT`.
+- The tool requires `expected_sha256` for the whole file before any patch
+  preconditions are evaluated. Stale file hashes, missing `old_text`, ambiguous
+  structured edits, and mismatched unified diff hunks all fail before writing.
+- Structured edits are the primary API shape: each edit replaces one exact
+  `old_text` with `new_text`. Repeated text requires a 1-based `occurrence` so
+  the caller cannot accidentally patch an ambiguous match.
+- Unified diff support is intentionally constrained to guarded hunks with
+  surrounding old/context lines. Pure insertion hunks without context are
+  rejected until there is a stronger insertion precondition shape.
+- The write path reuses the `write_file` atomic same-directory temp + fsync +
+  rename commit and shared mutation response. Existing file mode bits are
+  preserved; mtime changes and platform-specific metadata are not preserved in
+  the portable v1 mutation layer.
