@@ -865,6 +865,100 @@ describe('MCP reader tools', () => {
 	    }, { accessMode: 'read_write' });
 	  });
 
+	  test('write mutations revalidate locked preconditions immediately before commit', async () => {
+	    await withReaderRepo(async (repoRoot, ctx) => {
+	      const tripped = new Set<string>();
+	      const raceCtx = createReaderToolContext(
+	        repoRoot,
+	        ctx.policy,
+	        new WorkspaceManager({ allowedRoots: [repoRoot], policy: ctx.policy }),
+	        undefined,
+	        {
+	          beforeMutationCommit(event) {
+	            const trip = (name: string, fn: () => void): void => {
+	              if (tripped.has(name)) return;
+	              tripped.add(name);
+	              fn();
+	            };
+	            if (event.tool === 'write_file' && event.paths.includes('docs/replace-race.txt')) {
+	              trip('replace', () => writeFileSync(join(repoRoot, 'docs', 'replace-race.txt'), 'external replace\n'));
+	            }
+	            if (event.tool === 'write_file' && event.paths.includes('docs/create-race.txt')) {
+	              trip('create', () => writeFileSync(join(repoRoot, 'docs', 'create-race.txt'), 'external create\n'));
+	            }
+	            if (event.tool === 'apply_patch' && event.paths.includes('docs/patch-race.txt')) {
+	              trip('patch', () => writeFileSync(join(repoRoot, 'docs', 'patch-race.txt'), 'external patch\n'));
+	            }
+	            if (event.tool === 'move_path' && event.paths.includes('docs/move-target-race.txt')) {
+	              trip('move', () => writeFileSync(join(repoRoot, 'docs', 'move-target-race.txt'), 'external move target\n'));
+	            }
+	            if (event.tool === 'delete_path' && event.paths.includes('docs/delete-race.txt')) {
+	              trip('delete', () => writeFileSync(join(repoRoot, 'docs', 'delete-race.txt'), 'external delete\n'));
+	            }
+	          },
+	        },
+	      );
+	      const repoId = (await jsonTool(raceCtx, 'list_allowed_roots')).roots[0].repo_id;
+
+	      writeFileSync(join(repoRoot, 'docs', 'replace-race.txt'), 'old replace\n');
+	      const replaceStat = await jsonTool(raceCtx, 'stat_file', { repo_id: repoId, path: 'docs/replace-race.txt' });
+	      const replaceRace = await jsonTool(raceCtx, 'write_file', {
+	        repo_id: repoId,
+	        path: 'docs/replace-race.txt',
+	        content: 'tool replace\n',
+	        expected_sha256: replaceStat.sha256,
+	      });
+	      expect(replaceRace.error.code).toBe('REVISION_CONFLICT');
+	      expect(readFileSync(join(repoRoot, 'docs', 'replace-race.txt'), 'utf-8')).toBe('external replace\n');
+
+	      const createRace = await jsonTool(raceCtx, 'write_file', {
+	        repo_id: repoId,
+	        path: 'docs/create-race.txt',
+	        content: 'tool create\n',
+	        must_not_exist: true,
+	      });
+	      expect(createRace.error.code).toBe('TARGET_EXISTS');
+	      expect(readFileSync(join(repoRoot, 'docs', 'create-race.txt'), 'utf-8')).toBe('external create\n');
+
+	      writeFileSync(join(repoRoot, 'docs', 'patch-race.txt'), 'old patch\n');
+	      const patchStat = await jsonTool(raceCtx, 'stat_file', { repo_id: repoId, path: 'docs/patch-race.txt' });
+	      const patchRace = await jsonTool(raceCtx, 'apply_patch', {
+	        repo_id: repoId,
+	        path: 'docs/patch-race.txt',
+	        expected_sha256: patchStat.sha256,
+	        edits: [{ old_text: 'old patch\n', new_text: 'tool patch\n' }],
+	      });
+	      expect(patchRace.error.code).toBe('REVISION_CONFLICT');
+	      expect(readFileSync(join(repoRoot, 'docs', 'patch-race.txt'), 'utf-8')).toBe('external patch\n');
+
+	      writeFileSync(join(repoRoot, 'docs', 'move-source-race.txt'), 'move source\n');
+	      const moveStat = await jsonTool(raceCtx, 'stat_file', { repo_id: repoId, path: 'docs/move-source-race.txt' });
+	      const moveRace = await jsonTool(raceCtx, 'move_path', {
+	        repo_id: repoId,
+	        from_path: 'docs/move-source-race.txt',
+	        to_path: 'docs/move-target-race.txt',
+	        expected_sha256: moveStat.sha256,
+	        must_not_exist: true,
+	      });
+	      expect(moveRace.error.code).toBe('TARGET_EXISTS');
+	      expect(readFileSync(join(repoRoot, 'docs', 'move-source-race.txt'), 'utf-8')).toBe('move source\n');
+	      expect(readFileSync(join(repoRoot, 'docs', 'move-target-race.txt'), 'utf-8')).toBe('external move target\n');
+
+	      writeFileSync(join(repoRoot, 'docs', 'delete-race.txt'), 'delete source\n');
+	      const deleteStat = await jsonTool(raceCtx, 'stat_file', { repo_id: repoId, path: 'docs/delete-race.txt' });
+	      const deleteRace = await jsonTool(raceCtx, 'delete_path', {
+	        repo_id: repoId,
+	        path: 'docs/delete-race.txt',
+	        expected_sha256: deleteStat.sha256,
+	      });
+	      expect(deleteRace.error.code).toBe('REVISION_CONFLICT');
+	      expect(readFileSync(join(repoRoot, 'docs', 'delete-race.txt'), 'utf-8')).toBe('external delete\n');
+	      expect(readdirSync(join(repoRoot, 'docs')).some((name) => name.includes('.repo-harness-'))).toBe(false);
+	      const locksDir = join(repoRoot, '.ai', 'harness', 'mcp', 'locks');
+	      expect(existsSync(locksDir) ? readdirSync(locksDir) : []).toEqual([]);
+	    }, { accessMode: 'read_write' });
+	  });
+
 	  test('write mutations cleanly abort injected pre-commit filesystem faults', async () => {
 	    await withReaderRepo(async (repoRoot, ctx) => {
 	      const writeCtx = createReaderToolContext(

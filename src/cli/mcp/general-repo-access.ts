@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { appendFileSync, closeSync, constants, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeSync, type Dirent } from 'fs';
+import { appendFileSync, closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeSync, type Dirent } from 'fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'path';
 import { readRegisteredRepoHarnessRepos, repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../effects/repo-registry';
 import { hashMcpInput, tryWriteMcpAuditEntry } from './audit';
@@ -21,6 +21,7 @@ export interface GeneralRepoToolContext {
   codeGraphAdapter?: GeneralRepoCodeGraphAdapter;
   testHooks?: {
     afterSnapshotWalk?: (event: { repoRoot: string; kind: 'complete' | 'manifest_page'; attempt: number }) => void;
+    beforeMutationCommit?: (event: { repoRoot: string; tool: string; paths: string[] }) => void;
   };
 }
 
@@ -195,6 +196,7 @@ const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
 const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'move_path', 'delete_path', 'refresh_repo_index']);
 const MCP_INDEX_EVENTS_RELATIVE_PATH = '.ai/harness/mcp/index-events.jsonl';
+const MCP_LOCKS_RELATIVE_PATH = '.ai/harness/mcp/locks';
 const MUTATION_FAULT_ENV = 'REPO_HARNESS_MCP_MUTATION_FAULT_POINT';
 
 export type GeneralRepoToolName = typeof GENERAL_REPO_TOOLS[number];
@@ -450,6 +452,74 @@ function responseCacheKey(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visi
   const pathDigest = `sha256:${sha256(JSON.stringify(paths))}`;
   const key = `cache_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${snapshot.id}\0${scope.tool}\0${pathDigest}`).slice(0, 16)}`;
   return { key, paths, pathDigest };
+}
+
+interface MutationPathLock {
+  relativePath: string;
+  lockPath: string;
+  fd: number;
+}
+
+function mutationLockPath(repo: RepoRecord, relativePath: string): string {
+  const lockDir = resolve(repo.canonicalRoot, MCP_LOCKS_RELATIVE_PATH);
+  return resolve(lockDir, `${sha256(relativePath).slice(0, 32)}.lock`);
+}
+
+function acquireMutationLocks(repo: RepoRecord, paths: string[]): MutationPathLock[] {
+  const lockDir = resolve(repo.canonicalRoot, MCP_LOCKS_RELATIVE_PATH);
+  mkdirSync(lockDir, { recursive: true });
+  const locks: MutationPathLock[] = [];
+  for (const relativePath of cachePaths(paths)) {
+    const lockPath = mutationLockPath(repo, relativePath);
+    try {
+      const fd = openSync(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+      const payload = `${JSON.stringify({
+        repo_id: repo.repoId,
+        path: relativePath,
+        pid: process.pid,
+        created_at: new Date().toISOString(),
+      })}\n`;
+      writeSync(fd, payload, 0, 'utf-8');
+      try {
+        fsyncSync(fd);
+      } catch (_error) {
+        // Lock visibility, not durability, is the concurrency guard here.
+      }
+      locks.push({ relativePath, lockPath, fd });
+    } catch (error) {
+      releaseMutationLocks(locks);
+      const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
+      if (code === 'EEXIST') {
+        throw new GeneralRepoAccessError('REVISION_CONFLICT', 'path is locked by another repo mutation', { path: relativePath }, true);
+      }
+      throw error;
+    }
+  }
+  return locks;
+}
+
+function releaseMutationLocks(locks: MutationPathLock[]): void {
+  for (const lock of locks.reverse()) {
+    try {
+      closeSync(lock.fd);
+    } catch (_error) {
+      // Ignore close failures while releasing best-effort mutation locks.
+    }
+    rmSync(lock.lockPath, { force: true });
+  }
+}
+
+function withMutationLocks<T>(repo: RepoRecord, paths: string[], fn: () => T): T {
+  const locks = acquireMutationLocks(repo, paths);
+  try {
+    return fn();
+  } finally {
+    releaseMutationLocks(locks);
+  }
+}
+
+function beforeMutationCommit(ctx: GeneralRepoToolContext, repo: RepoRecord, tool: string, paths: string[]): void {
+  ctx.testHooks?.beforeMutationCommit?.({ repoRoot: repo.canonicalRoot, tool, paths: cachePaths(paths) });
 }
 
 function toPosixPath(value: string): string {
@@ -1692,13 +1762,13 @@ function fsyncDirectoryBestEffort(path: string): void {
   }
 }
 
-function atomicWriteFile(target: ResolvedRepoWritePath, raw: Buffer, mode: number): void {
+function atomicWriteFile(target: ResolvedRepoWritePath, raw: Buffer, mode: number, opts: { noOverwrite?: boolean; beforeCommit?: () => void } = {}): void {
   const tempPath = resolve(target.parentCanonicalPath, `.${leafName(target.relativePath)}.repo-harness-${process.pid}-${Date.now()}-${randomBytes(4).toString('hex')}.tmp`);
   if (!isPathInside(target.parentCanonicalPath, tempPath)) {
     throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'temporary write path escapes parent directory', { path: target.relativePath });
   }
   const fd = openSync(tempPath, 'wx', mode);
-  let renamed = false;
+  let committed = false;
   try {
     try {
       writeSync(fd, raw, 0, raw.length, 0);
@@ -1706,13 +1776,82 @@ function atomicWriteFile(target: ResolvedRepoWritePath, raw: Buffer, mode: numbe
     } finally {
       closeSync(fd);
     }
+    opts.beforeCommit?.();
     injectMutationFault('atomic_write_before_rename');
-    renameSync(tempPath, target.canonicalPath);
-    renamed = true;
+    if (opts.noOverwrite) {
+      try {
+        linkSync(tempPath, target.canonicalPath);
+      } catch (error) {
+        const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
+        if (code === 'EEXIST') {
+          throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists at commit time', { path: target.relativePath }, true);
+        }
+        throw error;
+      }
+    } else {
+      renameSync(tempPath, target.canonicalPath);
+    }
+    committed = true;
     fsyncDirectoryBestEffort(target.parentCanonicalPath);
   } finally {
-    if (!renamed) rmSync(tempPath, { force: true });
+    if (!committed || opts.noOverwrite) rmSync(tempPath, { force: true });
   }
+}
+
+function readMutationFile(resolved: ResolvedRepoPath, ignore: IgnorePolicy): { raw: Buffer; sha256: string; mode: number } {
+  const raw = readStableResolvedFile(resolved, ignore);
+  return {
+    raw,
+    sha256: sha256(raw),
+    mode: statSync(resolved.canonicalPath).mode & 0o777,
+  };
+}
+
+function revisionConflict(path: string, expectedHash: string, actualHash?: string | null): GeneralRepoAccessError {
+  return new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed before mutation commit', {
+    path,
+    expected_sha256: expectedHash,
+    actual_sha256: actualHash ?? null,
+  }, true);
+}
+
+function assertExpectedHash(path: string, expectedHash: string, actualHash: string): void {
+  if (expectedHash !== actualHash) {
+    throw revisionConflict(path, expectedHash, actualHash);
+  }
+}
+
+function readExpectedExistingWriteTarget(repo: RepoRecord, ignore: IgnorePolicy, path: unknown, expectedHash: string): { target: ResolvedRepoWritePath; raw: Buffer; beforeHash: string; mode: number } {
+  const target = resolveRepoWritePath(repo, path, ignore);
+  if (!target.existing) {
+    throw revisionConflict(target.relativePath, expectedHash, null);
+  }
+  const current = readMutationFile(target.existing, ignore);
+  assertExpectedHash(target.relativePath, expectedHash, current.sha256);
+  return { target, raw: current.raw, beforeHash: current.sha256, mode: current.mode };
+}
+
+function assertWriteTargetAbsent(target: ResolvedRepoWritePath): void {
+  if (target.existing || existsSync(target.absolutePath) || existsSync(target.canonicalPath)) {
+    throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists', { path: target.relativePath }, true);
+  }
+}
+
+function commitMoveNoOverwrite(source: ResolvedRepoPath, target: ResolvedRepoWritePath, beforeCommit: () => void): void {
+  beforeCommit();
+  injectMutationFault('move_before_rename');
+  try {
+    linkSync(source.canonicalPath, target.canonicalPath);
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
+    if (code === 'EEXIST') {
+      throw new GeneralRepoAccessError('TARGET_EXISTS', 'move target already exists at commit time', { path: target.relativePath }, true);
+    }
+    throw error;
+  }
+  rmSync(source.canonicalPath);
+  fsyncDirectoryBestEffort(dirname(source.canonicalPath));
+  if (dirname(source.canonicalPath) !== target.parentCanonicalPath) fsyncDirectoryBestEffort(target.parentCanonicalPath);
 }
 
 function invalidateRepoCaches(repo: RepoRecord): void {
@@ -2007,50 +2146,64 @@ function writeFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown
   const repo = resolveRepo(ctx, args.repo_id);
   assertRepoWriteEnabled(repo);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const target = resolveRepoWritePath(repo, args.path, ignore);
+  const initialTarget = resolveRepoWritePath(repo, args.path, ignore);
   const { raw, encoding } = writeContentBuffer(args);
   const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
   const mustNotExist = booleanArg(args.must_not_exist, false);
-  const existed = target.existing !== undefined;
 
-  let beforeHash: string | null = null;
-  let beforeSize = 0;
-  let mode = 0o666;
-  if (target.existing) {
-    if (mustNotExist) {
-      throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists', { path: target.relativePath });
-    }
-    const beforeRaw = readFileSync(target.existing.canonicalPath);
-    beforeHash = sha256(beforeRaw);
-    beforeSize = beforeRaw.length;
-    mode = statSync(target.existing.canonicalPath).mode & 0o777;
-    if (!expectedHash) {
-      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when replacing an existing file', {
-        path: target.relativePath,
-        actual_sha256: beforeHash,
+  return withMutationLocks(repo, [initialTarget.relativePath], () => {
+    const target = resolveRepoWritePath(repo, args.path, ignore);
+    const existed = target.existing !== undefined;
+    let beforeHash: string | null = null;
+    let beforeSize = 0;
+    let mode = 0o666;
+
+    if (target.existing) {
+      if (mustNotExist) {
+        throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists', { path: target.relativePath });
+      }
+      const current = readMutationFile(target.existing, ignore);
+      beforeHash = current.sha256;
+      beforeSize = current.raw.length;
+      mode = current.mode;
+      if (!expectedHash) {
+        throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when replacing an existing file', {
+          path: target.relativePath,
+          actual_sha256: beforeHash,
+        });
+      }
+      assertExpectedHash(target.relativePath, expectedHash, beforeHash);
+      atomicWriteFile(target, raw, mode, {
+        beforeCommit: () => {
+          beforeMutationCommit(ctx, repo, 'write_file', [target.relativePath]);
+          readExpectedExistingWriteTarget(repo, ignore, target.relativePath, expectedHash);
+        },
+      });
+    } else {
+      if (!mustNotExist) {
+        throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when creating a new file', {
+          path: target.relativePath,
+        });
+      }
+      assertWriteTargetAbsent(target);
+      atomicWriteFile(target, raw, mode, {
+        noOverwrite: true,
+        beforeCommit: () => {
+          beforeMutationCommit(ctx, repo, 'write_file', [target.relativePath]);
+          const latest = resolveRepoWritePath(repo, target.relativePath, ignore);
+          assertWriteTargetAbsent(latest);
+        },
       });
     }
-    if (expectedHash !== beforeHash) {
-      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
-        path: target.relativePath,
-        expected_sha256: expectedHash,
-        actual_sha256: beforeHash,
-      });
-    }
-  } else if (!mustNotExist) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when creating a new file', {
-      path: target.relativePath,
+
+    invalidateRepoCaches(repo);
+
+    return mutationResult(ctx, repo, ignore, target, {
+      operation: existed ? 'replace' : 'create',
+      beforeHash,
+      beforeSize,
+      extra: { encoding },
     });
-  }
-
-  atomicWriteFile(target, raw, mode);
-  invalidateRepoCaches(repo);
-
-  return mutationResult(ctx, repo, ignore, target, {
-    operation: existed ? 'replace' : 'create',
-    beforeHash,
-    beforeSize,
-    extra: { encoding },
   });
 }
 
@@ -2058,41 +2211,43 @@ function applyPatchTool(ctx: GeneralRepoToolContext, args: Record<string, unknow
   const repo = resolveRepo(ctx, args.repo_id);
   assertRepoWriteEnabled(repo);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const target = resolveRepoWritePath(repo, args.path, ignore);
-  if (!target.existing) {
-    throw new GeneralRepoAccessError('NOT_FOUND', 'apply_patch requires an existing file', { path: target.relativePath });
-  }
+  const initialTarget = resolveRepoWritePath(repo, args.path, ignore);
   const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
-  if (!expectedHash) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when applying a patch', { path: target.relativePath });
-  }
-  const beforeRaw = readFileSync(target.existing.canonicalPath);
-  const beforeHash = sha256(beforeRaw);
-  if (expectedHash !== beforeHash) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
-      path: target.relativePath,
-      expected_sha256: expectedHash,
-      actual_sha256: beforeHash,
-    });
-  }
-  const beforeText = assertTextPatchable(beforeRaw, target.relativePath);
-  const patched = applyPatchContent(beforeText, args);
-  const mode = statSync(target.existing.canonicalPath).mode & 0o777;
 
-  atomicWriteFile(target, patched.raw, mode);
-  invalidateRepoCaches(repo);
+  return withMutationLocks(repo, [initialTarget.relativePath], () => {
+    const target = resolveRepoWritePath(repo, args.path, ignore);
+    if (!target.existing) {
+      throw new GeneralRepoAccessError('NOT_FOUND', 'apply_patch requires an existing file', { path: target.relativePath });
+    }
+    if (!expectedHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when applying a patch', { path: target.relativePath });
+    }
+    const current = readMutationFile(target.existing, ignore);
+    const beforeHash = current.sha256;
+    assertExpectedHash(target.relativePath, expectedHash, beforeHash);
+    const beforeText = assertTextPatchable(current.raw, target.relativePath);
+    const patched = applyPatchContent(beforeText, args);
 
-  return mutationResult(ctx, repo, ignore, target, {
-    operation: 'patch',
-    beforeHash,
-    beforeSize: beforeRaw.length,
-    extra: {
-      patch: {
-        format: patched.format,
-        applied_count: patched.applied.length,
-        applied: patched.applied,
+    atomicWriteFile(target, patched.raw, current.mode, {
+      beforeCommit: () => {
+        beforeMutationCommit(ctx, repo, 'apply_patch', [target.relativePath]);
+        readExpectedExistingWriteTarget(repo, ignore, target.relativePath, expectedHash);
       },
-    },
+    });
+    invalidateRepoCaches(repo);
+
+    return mutationResult(ctx, repo, ignore, target, {
+      operation: 'patch',
+      beforeHash,
+      beforeSize: current.raw.length,
+      extra: {
+        patch: {
+          format: patched.format,
+          applied_count: patched.applied.length,
+          applied: patched.applied,
+        },
+      },
+    });
   });
 }
 
@@ -2100,58 +2255,59 @@ function movePathTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>
   const repo = resolveRepo(ctx, args.repo_id);
   assertRepoWriteEnabled(repo);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const source = resolveRepoPath(repo, args.from_path, ignore, { requireFile: true });
-  if (source.type === 'symlink') {
-    throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'move_path does not move symlinks', { path: source.relativePath });
-  }
-  const beforeRaw = readFileSync(source.canonicalPath);
-  const beforeHash = sha256(beforeRaw);
+  const initialSource = resolveRepoPath(repo, args.from_path, ignore, { requireFile: true });
+  const initialTarget = resolveRepoWritePath(repo, args.to_path, ignore);
   const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
-  if (!expectedHash) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when moving a file', {
-      path: source.relativePath,
-      actual_sha256: beforeHash,
-    });
-  }
-  if (expectedHash !== beforeHash) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
-      path: source.relativePath,
-      expected_sha256: expectedHash,
-      actual_sha256: beforeHash,
-    });
-  }
   const mustNotExist = booleanArg(args.must_not_exist, false);
-  const target = resolveRepoWritePath(repo, args.to_path, ignore);
-  if (target.existing) {
-    throw new GeneralRepoAccessError('TARGET_EXISTS', 'move target already exists', { path: target.relativePath });
-  }
-  if (!mustNotExist) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when moving to a new target', {
-      path: target.relativePath,
+
+  return withMutationLocks(repo, [initialSource.relativePath, initialTarget.relativePath], () => {
+    const source = resolveRepoPath(repo, args.from_path, ignore, { requireFile: true });
+    if (source.type === 'symlink') {
+      throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'move_path does not move symlinks', { path: source.relativePath });
+    }
+    const current = readMutationFile(source, ignore);
+    const beforeHash = current.sha256;
+    if (!expectedHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when moving a file', {
+        path: source.relativePath,
+        actual_sha256: beforeHash,
+      });
+    }
+    assertExpectedHash(source.relativePath, expectedHash, beforeHash);
+    const target = resolveRepoWritePath(repo, args.to_path, ignore);
+    if (!mustNotExist) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when moving to a new target', {
+        path: target.relativePath,
+      });
+    }
+    assertWriteTargetAbsent(target);
+
+    commitMoveNoOverwrite(source, target, () => {
+      beforeMutationCommit(ctx, repo, 'move_path', [source.relativePath, target.relativePath]);
+      const latestSource = resolveRepoPath(repo, source.relativePath, ignore, { requireFile: true });
+      const latest = readMutationFile(latestSource, ignore);
+      assertExpectedHash(source.relativePath, expectedHash, latest.sha256);
+      const latestTarget = resolveRepoWritePath(repo, target.relativePath, ignore);
+      assertWriteTargetAbsent(latestTarget);
     });
-  }
+    invalidateRepoCaches(repo);
 
-  injectMutationFault('move_before_rename');
-  renameSync(source.canonicalPath, target.canonicalPath);
-  fsyncDirectoryBestEffort(dirname(source.canonicalPath));
-  if (dirname(source.canonicalPath) !== target.parentCanonicalPath) fsyncDirectoryBestEffort(target.parentCanonicalPath);
-  invalidateRepoCaches(repo);
-
-  return mutationResult(ctx, repo, ignore, target, {
-    operation: 'move',
-    tool: 'move_path',
-    responsePath: target.relativePath,
-    changedPaths: [source.relativePath, target.relativePath],
-    beforeHash,
-    beforeSize: beforeRaw.length,
-    extra: {
-      from_path: source.relativePath,
-      to_path: target.relativePath,
-      move: {
-        source_sha256: beforeHash,
-        target_must_not_exist: true,
+    return mutationResult(ctx, repo, ignore, target, {
+      operation: 'move',
+      tool: 'move_path',
+      responsePath: target.relativePath,
+      changedPaths: [source.relativePath, target.relativePath],
+      beforeHash,
+      beforeSize: current.raw.length,
+      extra: {
+        from_path: source.relativePath,
+        to_path: target.relativePath,
+        move: {
+          source_sha256: beforeHash,
+          target_must_not_exist: true,
+        },
       },
-    },
+    });
   });
 }
 
@@ -2159,47 +2315,49 @@ function deletePathTool(ctx: GeneralRepoToolContext, args: Record<string, unknow
   const repo = resolveRepo(ctx, args.repo_id);
   assertRepoWriteEnabled(repo);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const target = resolveRepoPath(repo, args.path, ignore);
   const recursive = booleanArg(args.recursive, false);
-  if (target.type === 'directory') {
-    if (recursive) {
-      throw new GeneralRepoAccessError('INVALID_RANGE', 'recursive delete is disabled in v1', { path: target.relativePath, recursive });
-    }
-    throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files; directory deletion is disabled', {
-      path: target.relativePath,
-      recursive: false,
-    });
-  }
-  if (target.type === 'symlink') {
-    throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'delete_path does not delete symlinks', { path: target.relativePath });
-  }
-  if (!target.contentFile) {
-    throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files', { path: target.relativePath });
-  }
-  const beforeRaw = readFileSync(target.canonicalPath);
-  const beforeHash = sha256(beforeRaw);
+  const initialTarget = resolveRepoPath(repo, args.path, ignore);
   const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
-  if (!expectedHash) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when deleting a file', {
-      path: target.relativePath,
-      actual_sha256: beforeHash,
-    });
-  }
-  if (expectedHash !== beforeHash) {
-    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
-      path: target.relativePath,
-      expected_sha256: expectedHash,
-      actual_sha256: beforeHash,
-    });
-  }
-  const deleted = metadataForResolved(target, ignore, undefined, { contentHash: true, cache: false });
 
-  injectMutationFault('delete_before_unlink');
-  rmSync(target.canonicalPath);
-  fsyncDirectoryBestEffort(dirname(target.canonicalPath));
-  invalidateRepoCaches(repo);
+  return withMutationLocks(repo, [initialTarget.relativePath], () => {
+    const target = resolveRepoPath(repo, args.path, ignore);
+    if (target.type === 'directory') {
+      if (recursive) {
+        throw new GeneralRepoAccessError('INVALID_RANGE', 'recursive delete is disabled in v1', { path: target.relativePath, recursive });
+      }
+      throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files; directory deletion is disabled', {
+        path: target.relativePath,
+        recursive: false,
+      });
+    }
+    if (target.type === 'symlink') {
+      throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'delete_path does not delete symlinks', { path: target.relativePath });
+    }
+    if (!target.contentFile) {
+      throw new GeneralRepoAccessError('NOT_A_FILE', 'delete_path only deletes regular files', { path: target.relativePath });
+    }
+    const current = readMutationFile(target, ignore);
+    const beforeHash = current.sha256;
+    if (!expectedHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when deleting a file', {
+        path: target.relativePath,
+        actual_sha256: beforeHash,
+      });
+    }
+    assertExpectedHash(target.relativePath, expectedHash, beforeHash);
+    const deleted = metadataForResolved(target, ignore, undefined, { contentHash: true, cache: false });
 
-  return deleteMutationResult(ctx, repo, ignore, deleted, beforeHash, beforeRaw.length);
+    beforeMutationCommit(ctx, repo, 'delete_path', [target.relativePath]);
+    const latest = resolveRepoPath(repo, target.relativePath, ignore, { requireFile: true });
+    const latestFile = readMutationFile(latest, ignore);
+    assertExpectedHash(target.relativePath, expectedHash, latestFile.sha256);
+    injectMutationFault('delete_before_unlink');
+    rmSync(target.canonicalPath);
+    fsyncDirectoryBestEffort(dirname(target.canonicalPath));
+    invalidateRepoCaches(repo);
+
+    return deleteMutationResult(ctx, repo, ignore, deleted, beforeHash, current.raw.length);
+  });
 }
 
 function refreshRepoIndex(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
