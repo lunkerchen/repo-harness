@@ -303,6 +303,25 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   The assertions are unchanged; under local full-suite load these subprocesses
   exceeded their previous hard-coded 30s limits.
 
+## 2026-06-24 hook-latency split remediation
+
+- PR #35 was already merged before the P1-5 review finding was actioned, so the
+  split had to be done as a post-merge remediation on `main` rather than by
+  rewriting the PR branch.
+- The remediation removes the runtime hook-latency implementation from the
+  CodeGraph rollout line by reversing the code/test changes from `2d16229`
+  (`post-tool-observer.sh`, hook runtime, hook tests) and `53d4353`
+  (`prompt-guard.sh` state-refresh latency changes). `tasks/current.md` was
+  refreshed from current state instead of reverting historical status snapshots.
+- S4 MCP security, observability, rollout, release-gate, and later provenance
+  fixes remain in place. The hook-latency research artifact remains as
+  background evidence, but the executable hook/runtime change now requires a
+  separate hook-runtime review and rollback unit before reintroduction.
+- Validation boundary: hook projection parity and hook runtime/dispatcher tests
+  are the primary checks because the change deliberately touches `.ai/hooks`,
+  `assets/hooks`, `src/cli/hook/runtime.ts`, and hook behavior tests, not the MCP
+  reader implementation.
+
 ## 2026-06-23 S4 security hardening slice
 
 - Root validation now stores a first-observed directory identity for each

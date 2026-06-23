@@ -340,7 +340,7 @@ prompt_guard_decision_command() {
   return 127
 }
 
-prompt_guard_reset_state_cache() {
+prompt_guard_refresh_state() {
   prompt_guard_spec_state="missing"
   prompt_guard_plan_state="none"
   prompt_guard_pending_state="none"
@@ -355,25 +355,7 @@ prompt_guard_reset_state_cache() {
   linked_worktree=""
   contract_file=""
   evidence_error=""
-}
 
-prompt_guard_refresh_classification_state() {
-  prompt_guard_reset_state_cache
-  if [ -f "docs/spec.md" ]; then
-    prompt_guard_spec_state="present"
-  fi
-
-  if workflow_pending_orchestration_is_fresh; then
-    prompt_guard_pending_state="fresh"
-  elif [ -s "$(workflow_pending_orchestration_file)" ]; then
-    prompt_guard_pending_state="stale"
-  fi
-
-  prompt_guard_export_state
-}
-
-prompt_guard_refresh_state() {
-  prompt_guard_reset_state_cache
   if [ -f "docs/spec.md" ]; then
     prompt_guard_spec_state="present"
   fi
@@ -424,10 +406,6 @@ prompt_guard_refresh_state() {
     prompt_guard_contract_state="present"
   fi
 
-  prompt_guard_export_state
-}
-
-prompt_guard_export_state() {
   export PROMPT_GUARD_SPEC_STATE="$prompt_guard_spec_state"
   export PROMPT_GUARD_PLAN_STATE="$prompt_guard_plan_state"
   export PROMPT_GUARD_PENDING_STATE="$prompt_guard_pending_state"
@@ -1053,11 +1031,7 @@ emit_minimal_change_prompt_advice() {
 PROMPT_TEXT="$(hook_get_prompt "${1:-}")"
 PROMPT_INTENT_TEXT="$(prompt_intent_text)"
 
-# Classify from the prompt with only the state that affects text intent:
-# spec presence gates early implementation advice, and fresh pending
-# orchestration changes approval/continuation classification. Full workflow
-# state is refreshed only for execution/done prompts below.
-prompt_guard_refresh_classification_state
+prompt_guard_refresh_state
 prompt_guard_engine_call
 
 if [[ "$PG_ENGINE_STATE" != "ok" ]]; then
@@ -1120,27 +1094,19 @@ if [ "$implement_intent" -eq 0 ]; then
 fi
 
 if [ "$implement_intent" -eq 1 ]; then
-  prompt_guard_refresh_state
-  prompt_guard_engine_call
-
   if [ "$PG_ACTION" = "spec_block" ]; then
     render_prompt_guard_action "$PG_ACTION"
   fi
 
-  if pg_fact EMBEDDED_APPROVED_PLAN || pg_fact PLAN_SHAPED_MARKDOWN; then
-    maybe_capture_embedded_approved_plan
-    prompt_guard_refresh_state
-    prompt_guard_engine_call
-  fi
+  maybe_capture_embedded_approved_plan
 
+  prompt_guard_refresh_state
+  prompt_guard_engine_call
   render_prompt_guard_action "$PG_ACTION"
   emit_minimal_change_prompt_advice
 fi
 
 if [ "$done_intent" -eq 1 ]; then
-  prompt_guard_refresh_state
-  prompt_guard_engine_call
-
   render_prompt_guard_action "$PG_ACTION"
 
   if [ -f "scripts/verify-contract.sh" ]; then

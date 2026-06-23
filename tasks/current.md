@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-23T23:59:03+0800 -->
+<!-- updated_at: 2026-06-24T00:52:08+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-23T23:59:03+0800
+> **Updated At**: 2026-06-24T00:52:08+0800
 > **Source Branch**: main
-> **Source Commit**: 3fcda72
+> **Source Commit**: c75273d
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: mcp-rollout-gate-provenance
+> **Reason**: split-hook-latency-from-codegraph-rollout
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -48,16 +48,17 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 7 changed/untracked path(s)
+- Summary: 8 changed/untracked path(s)
 
 ```
- M deploy/release-checklists/260623-repo-harness-codegraph-general-repo.md
- M docs/reference-configs/general-repo-mcp.md
- M scripts/mcp-rollout-gate.ts
- M tasks/current.md
- M tasks/notes/20260622-repo-harness-codegraph.notes.md
- M tests/mcp-rollout-gate.test.ts
- M tests/migration-script.test.ts
+ M .ai/hooks/.projection.json
+ M .ai/hooks/post-tool-observer.sh
+ M .ai/hooks/prompt-guard.sh
+ M assets/hooks/post-tool-observer.sh
+ M assets/hooks/prompt-guard.sh
+ M src/cli/hook/runtime.ts
+ M tests/cli/hook.test.ts
+ M tests/hook-runtime.test.ts
 ```
 
 ## Source Artifacts
