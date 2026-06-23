@@ -39,6 +39,7 @@ const ENTRY_REVISION: unique symbol = Symbol('entryRevision');
 interface RepoRecord {
   repoId: string;
   canonicalRoot: string;
+  rootIdentity: string;
   displayName: string;
   accessMode: RepoHarnessAccessMode;
   registryRevision: string;
@@ -192,6 +193,7 @@ const MAX_ENTRY_METADATA_CACHE_ENTRIES = 200_000;
 const MAX_LAGGING_PATHS_RETURNED = 50;
 const MAX_SNAPSHOT_BUILD_ATTEMPTS = 2;
 const DEFAULT_CODEGRAPH_ADAPTER = createCodeGraphCliAdapter();
+const REPO_ROOT_IDENTITIES = new Map<string, string>();
 const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
 const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'move_path', 'delete_path', 'refresh_repo_index']);
@@ -221,7 +223,7 @@ function textResult(value: unknown): GeneralRepoToolResult {
 }
 
 function errorResult(code: string, message: string, details?: unknown, retryable = false): GeneralRepoToolResult {
-  const value = { error: { code, message, retryable, details } };
+  const value = { error: { code, message: redactMcpText(message).text, retryable, details } };
   return {
     content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     structuredContent: value,
@@ -536,6 +538,25 @@ function canonicalDirectory(path: string): string | null {
   }
 }
 
+function directoryIdentity(path: string): string | null {
+  try {
+    const stats = statSync(path);
+    if (!stats.isDirectory()) return null;
+    return `${stats.dev}:${stats.ino}:${Math.trunc(stats.birthtimeMs)}`;
+  } catch {
+    return null;
+  }
+}
+
+function expectedRootIdentity(canonicalRoot: string): string | null {
+  const current = directoryIdentity(canonicalRoot);
+  if (!current) return null;
+  const expected = REPO_ROOT_IDENTITIES.get(canonicalRoot);
+  if (expected) return expected;
+  REPO_ROOT_IDENTITIES.set(canonicalRoot, current);
+  return current;
+}
+
 function registryRevision(records: Array<{ id: string; path: string; accessMode: RepoHarnessAccessMode }>): string {
   return `registry_${sha256(JSON.stringify(records.map((entry) => ({
     id: entry.id,
@@ -558,10 +579,13 @@ function uniqueRepoRecords(ctx: GeneralRepoToolContext): RepoRecord[] {
   const add = (rawPath: string, source: RepoRecord['source']): void => {
     const canonicalRoot = canonicalDirectory(rawPath);
     if (!canonicalRoot || byPath.has(canonicalRoot)) return;
+    const rootIdentity = expectedRootIdentity(canonicalRoot);
+    if (!rootIdentity) return;
     const registeredEntry = known.get(canonicalRoot);
     byPath.set(canonicalRoot, {
       repoId: registeredEntry?.id ?? repoHarnessRepoIdFor(canonicalRoot),
       canonicalRoot,
+      rootIdentity,
       displayName: basename(canonicalRoot) || canonicalRoot,
       accessMode: registeredEntry?.accessMode ?? 'read_only',
       registryRevision: revision,
@@ -582,8 +606,9 @@ function resolveRepo(ctx: GeneralRepoToolContext, repoId: unknown): RepoRecord {
   const repo = uniqueRepoRecords(ctx).find((entry) => entry.repoId === id);
   if (!repo) throw new GeneralRepoAccessError('REPO_NOT_ALLOWED', 'repo_id is not in the registered repo whitelist', { repo_id: id });
   const currentRoot = canonicalDirectory(repo.canonicalRoot);
-  if (currentRoot !== repo.canonicalRoot) {
-    throw new GeneralRepoAccessError('REPO_NOT_ALLOWED', 'registered repo root moved or is no longer readable', { repo_id: id });
+  const currentIdentity = currentRoot ? directoryIdentity(currentRoot) : null;
+  if (currentRoot !== repo.canonicalRoot || !currentIdentity || currentIdentity !== repo.rootIdentity) {
+    throw new GeneralRepoAccessError('REPO_NOT_ALLOWED', 'registered repo root moved, was replaced, or is no longer readable', { repo_id: id });
   }
   return repo;
 }
@@ -2973,16 +2998,18 @@ export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: str
     return result;
   } catch (error) {
     if (error instanceof GeneralRepoAccessError) {
-      audit(ctx, name, 'blocked', args, auditTargetPath(args), error.message, auditDetailsFromError(error, args, Date.now() - startedAtMs, name));
-      return errorResult(error.code, error.message, error.details, error.retryable);
+      const message = redactMcpText(error.message).text;
+      audit(ctx, name, 'blocked', args, auditTargetPath(args), message, auditDetailsFromError(error, args, Date.now() - startedAtMs, name));
+      return errorResult(error.code, message, error.details, error.retryable);
     }
-    audit(ctx, name, 'failed', args, auditTargetPath(args), error instanceof Error ? error.message : String(error), {
+    const message = redactMcpText(error instanceof Error ? error.message : String(error)).text;
+    audit(ctx, name, 'failed', args, auditTargetPath(args), message, {
       repoId: stringField(args.repo_id),
       operation: name,
       relativePaths: auditPaths(args),
       durationMs: Date.now() - startedAtMs,
       errorCode: 'INTERNAL_ADAPTER_ERROR',
     });
-    return errorResult('INTERNAL_ADAPTER_ERROR', error instanceof Error ? error.message : String(error));
+    return errorResult('INTERNAL_ADAPTER_ERROR', message);
   }
 }

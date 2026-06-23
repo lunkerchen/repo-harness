@@ -694,13 +694,46 @@ Sprint 3 failure-injection and audit evidence:
 
 ## 11.1 安全与一致性加固
 
-- [ ] **S4-SEC-001** 独立安全评审：path traversal、symlink、TOCTOU、权限提升、日志泄露。
-- [ ] **S4-SEC-002** Fuzz path parser、ignore parser 和 patch parser。
-- [ ] **S4-SEC-003** 测试 repo root 在运行期间被替换、卸载或权限变化。
-- [ ] **S4-SEC-004** 测试 CodeGraph 返回恶意/异常 path。
-- [ ] **S4-SEC-005** 测试 manifest 生成期间文件大量变更。
-- [ ] **S4-SEC-006** 确认所有内容大小限制均返回 continuation 或明确错误，不造成隐式文件消失。
-- [ ] **S4-SEC-007** 确认内容不进入 trace、metrics label 或 error stack。
+- [x] **S4-SEC-001** 独立安全评审：path traversal、symlink、TOCTOU、权限提升、日志泄露。
+- [x] **S4-SEC-002** Fuzz path parser、ignore parser 和 patch parser。
+- [x] **S4-SEC-003** 测试 repo root 在运行期间被替换、卸载或权限变化。
+- [x] **S4-SEC-004** 测试 CodeGraph 返回恶意/异常 path。
+- [x] **S4-SEC-005** 测试 manifest 生成期间文件大量变更。
+- [x] **S4-SEC-006** 确认所有内容大小限制均返回 continuation 或明确错误，不造成隐式文件消失。
+- [x] **S4-SEC-007** 确认内容不进入 trace、metrics label 或 error stack。
+
+Sprint 4 security hardening evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`
+- Completed slice: repo records now capture first-observed root identity and
+  reject the same repo id if the root disappears or is replaced at the same
+  canonical path during a long-lived MCP process. This supplements canonical
+  realpath checks without changing the external `repo_id + relative_path`
+  contract.
+- Parser hardening tests cover traversal, absolute paths, Windows-like paths,
+  NUL bytes, ignored refresh paths, guarded unified diff rejection, and existing
+  `.ignore` golden behavior.
+- CodeGraph adapter safety tests cover malicious absolute, Windows-like, NUL,
+  ignored, missing, and traversal paths; every such adapter path is filtered
+  before metadata merge and never becomes readable content.
+- Manifest consistency tests cover disappearing entries through dangling
+  symlinks and POSIX permission-denied directories. The manifest remains
+  explicit with `partial:false|true`, `complete:false`, and `walker_errors`
+  rather than silently dropping entries as complete.
+- Payload-limit tests cover `read_file` continuation and `read_files`
+  byte-budget exhaustion with `PAYLOAD_LIMIT_REACHED`, so large content does
+  not disappear from the API as a permission denial.
+- Error/audit hardening now redacts generic thrown adapter errors and
+  blocked `GeneralRepoAccessError` messages before MCP response and audit
+  emission. Existing audit writer redaction remains a second defensive layer;
+  index event errors already use the same redaction path.
+- Independent Claude read-only review was run on the S4 security diff. The
+  first pass found one P1 redaction consistency issue in the blocked audit path;
+  after fixing it, the second pass reported no P1 findings. Remaining review
+  notes are low-risk: root identity relies on filesystem inode/birthtime
+  behavior, and POSIX permission-denied assertions are skipped when tests run
+  as root.
 
 ## 11.2 可观测性
 

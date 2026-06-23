@@ -230,3 +230,32 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   relative paths, mutation id, index invalidation/event ids, hash summaries,
   result, duration, and rejection error code. The logged input remains hashed,
   not embedded, so file contents and patch bodies do not enter the audit log.
+
+## 2026-06-23 S4 security hardening slice
+
+- Root validation now stores a first-observed directory identity for each
+  canonical repo root inside the long-lived MCP process. `resolveRepo` compares
+  the live identity to that first observation, so a repo id fails closed if the
+  root disappears or is replaced at the same canonical path. This is deliberately
+  process-local: a fresh MCP process can adopt the replacement after normal
+  registry/policy checks, while a running process does not silently switch trust
+  to a different directory.
+- Generic thrown adapter errors and blocked `GeneralRepoAccessError` messages
+  are redacted before MCP response/audit emission. The audit writer still
+  performs its own final error-field redaction, and index refresh events use the
+  same redaction path for adapter-provided messages.
+- Security regression tests now cover path parser fuzz samples, ignored refresh
+  paths, guarded patch parser rejection, malicious CodeGraph absolute/
+  Windows-like/NUL paths, same-path root replacement, missing root, manifest
+  partial reporting for disappearing entries and POSIX permission-denied
+  directories, byte-budget continuation/errors, and audit/index-event absence of
+  file content or secret-bearing adapter errors.
+- Independent Claude read-only review was run on the S4 diff. The first pass
+  found a redaction consistency gap in the blocked audit branch; the follow-up
+  fix was applied, local tests passed, and the second pass reported no P1
+  findings.
+- Residual risk: root identity relies on filesystem `dev:ino:birthtimeMs`.
+  Filesystems with unavailable birthtime and immediate inode reuse could
+  theoretically miss a same-path replacement. This is still stricter than the
+  previous realpath-only guard and remains fail-closed for normal remove,
+  replace, or symlink target changes observed in the test fixture.
