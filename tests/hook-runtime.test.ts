@@ -2650,7 +2650,7 @@ describe("Hook runtime behavior", () => {
             host: "claude",
             prompt_slug: "plan-completeness",
             draft_plan_path: "",
-            source_ref: "thread://plan-completeness",
+            source_ref: "think 你研究一下：/Users/ancienttwo/Projects/repo-harness/docs/researches/repo-harness 钩子时延与 LLM 提供商限流",
             expected_artifact: "plans/plan-*.md",
             cwd,
             created_at: "2026-06-01T09:00:00+0800",
@@ -2686,12 +2686,19 @@ describe("Hook runtime behavior", () => {
       expect(decision.reason).toContain("capture the final plan body");
       expect(decision.reason).toContain("scripts/capture-plan.sh");
       expect(decision.reason).toContain("--slug plan-completeness");
+      expect(decision.reason).toContain('--title "Waza think planning output"');
       expect(decision.reason).toContain("--status Draft");
       expect(decision.reason).toContain("--status Approved");
       expect(decision.reason).toContain("--execute");
       expect(decision.reason).toContain("--source waza-think");
       expect(decision.reason).toContain("--orchestration-kind waza-think");
-      expect(decision.reason).toContain("--source-ref thread://plan-completeness");
+      expect(decision.reason).toContain("source_ref=<source-ref>");
+      expect(decision.reason).toContain('--source-ref "<source-ref>"');
+      expect(decision.reason).toContain("Use a short English title/source-ref alias");
+      expect(decision.reason).not.toContain("钩子时延");
+      expect(decision.reason).not.toContain("$'");
+      expect(decision.reason).not.toContain("\\344");
+      expect(decision.reason).not.toContain("�");
       expect(decision.reason).toContain("Do not implement until capture succeeds");
       expect(decision.reason).toContain("external dependency/API key requirements");
       expect(decision.reason).toContain("phase independence");
