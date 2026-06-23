@@ -485,10 +485,10 @@ Sprint 1 evidence:
 
 ## 9.5 性能与缓存
 
-- [ ] **S2-PERF-001** manifest 流式生成，不将全仓库一次性载入内存。
+- [x] **S2-PERF-001** manifest 流式生成，不将全仓库一次性载入内存。
 - [x] **S2-PERF-002** cache key 包含 repo、snapshot、ignore digest 和路径。
 - [x] **S2-PERF-003** 文件变化、ignore 变化、registry 变化时精确失效。
-- [ ] **S2-PERF-004** 在 10k/100k/500k entries fixture 上记录基线。
+- [x] **S2-PERF-004** 在 10k/100k/500k entries fixture 上记录基线。
 - [x] **S2-PERF-005** 建议初始目标：100k 文件 warm manifest 首屏 p95 < 2s；普通 read 首块 p95 < 500ms；warm search p95 < 2s。最终以环境基线调整。
 
 ## 9.6 Sprint 2 退出标准
@@ -508,8 +508,8 @@ Sprint 2 adapter/snapshot evidence:
 - Verification: `bun test tests/cli/mcp-reader-tools.test.ts`, `bun run check:type`
 - Snapshot cache/index-lag update: responses now expose `snapshot_state`, creation/expiry, TTL, bounded snapshot metadata, and CodeGraph lagging path summaries. Snapshot memoization is repo-wide and revalidated by the current manifest digest, so it closes `S2-SNP-006/007` but does not claim the per-path cache requirements in `S2-PERF-002/003`.
 - Cache-key/performance update: public `snapshot_cache.key` is scoped by tool and repo-relative path set, with `snapshot_cache.snapshot_key` naming the underlying snapshot. Entry metadata cache keys include repo id, registry revision, `.ignore` digest, path, and current stat signature, so file, `.ignore`, and registry changes do not reuse stale metadata. Verification: `bun test tests/cli/mcp-reader-tools.test.ts tests/cli/mcp-codegraph-contract.test.ts`, `bun run check:type`, and `bun run benchmark:mcp-reader -- --entries 10000 --json`.
-- Performance update: the manifest walker now avoids the per-entry `resolveRepoPath` hot path, and explicit `snapshot_id` stat/read calls reuse cached snapshots with requested-file hash validation instead of rebuilding the full repo snapshot. The 100k benchmark completes without OOM, returns paginated results, and meets the warm-path SLO on this machine: manifest 919.11 ms, read first chunk 0.94 ms, search 1038.71 ms. Verification: `bun test tests/cli/mcp-reader-tools.test.ts tests/cli/mcp-codegraph-contract.test.ts`, `bun run check:type`, and `bun run benchmark:mcp-reader -- --entries 100000 --json`.
-- Deferred by design: `S2-PERF-001` and `S2-PERF-004` remain open. The 10k and 100k baselines are recorded in `docs/researches/20260623-general-repo-reader-performance-baseline.md`; a 500k benchmark attempt was interrupted after more than 9 minutes without JSON output and then cleaned up. Cold manifest still materializes and sorts the full visible entry set, so true streaming manifest remains the next S2 performance bottleneck. CodeGraph CLI `query` remains symbol-oriented, so full-text `search_text` continues to use the policy-consistent filesystem fallback while exposing CodeGraph indexed metadata.
+- Performance update: the manifest walker now avoids the per-entry `resolveRepoPath` hot path, and explicit `snapshot_id` stat/read calls reuse cached snapshots with requested-file hash validation instead of rebuilding the full repo snapshot. The 100k benchmark completes without OOM, returns paginated results, and meets the warm-path SLO on this machine: manifest 733.76 ms, read first chunk 0.74 ms, search 779.04 ms. Verification: `bun test tests/cli/mcp-reader-tools.test.ts tests/cli/mcp-codegraph-contract.test.ts`, `bun run check:type`, and `bun run benchmark:mcp-reader -- --entries 100000 --json`.
+- Streaming manifest update: `repo_manifest` now traverses the visible tree to prove counts and digest while retaining only the requested page entries. Non-page file content metadata is deferred and exposed via `counts.content_deferred`; returned manifest entries, `stat_file`, `read_file`, and `search_text` still compute content hashes when content is returned. The 10k/100k/500k baselines are recorded in `docs/researches/20260623-general-repo-reader-performance-baseline.md`; the 500k fixture now completes without OOM with a recorded warm manifest baseline of 12201.90 ms and read first chunk of 3.67 ms. CodeGraph CLI `query` remains symbol-oriented, so full-text `search_text` continues to use the policy-consistent filesystem fallback while exposing CodeGraph indexed metadata.
 
 ---
 
