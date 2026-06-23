@@ -46,6 +46,124 @@ function readJson(path: string) {
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
 
+interface SchemaValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+function schemaTypeMatches(value: unknown, type: string): boolean {
+  if (type === 'array') return Array.isArray(value);
+  if (type === 'object') return typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (type === 'number') return typeof value === 'number' && Number.isFinite(value);
+  return typeof value === type;
+}
+
+function resolveSchemaRef(root: Record<string, unknown>, ref: string): unknown {
+  if (!ref.startsWith('#/')) throw new Error(`Unsupported schema ref: ${ref}`);
+  return ref.slice(2).split('/').reduce<unknown>((node, part) => {
+    if (typeof node !== 'object' || node === null) throw new Error(`Invalid schema ref: ${ref}`);
+    return (node as Record<string, unknown>)[part];
+  }, root);
+}
+
+function validateJsonSchema(schema: unknown, value: unknown, root: Record<string, unknown>, path = '$'): SchemaValidationResult {
+  if (typeof schema !== 'object' || schema === null) return { valid: true, errors: [] };
+  const schemaObject = schema as Record<string, unknown>;
+  if (typeof schemaObject.$ref === 'string') {
+    return validateJsonSchema(resolveSchemaRef(root, schemaObject.$ref), value, root, path);
+  }
+
+  const errors: string[] = [];
+  if (schemaObject.const !== undefined && value !== schemaObject.const) {
+    errors.push(`${path} expected const ${JSON.stringify(schemaObject.const)}`);
+  }
+  if (Array.isArray(schemaObject.enum) && !schemaObject.enum.includes(value)) {
+    errors.push(`${path} expected enum member`);
+  }
+  if (typeof schemaObject.type === 'string' && !schemaTypeMatches(value, schemaObject.type)) {
+    errors.push(`${path} expected type ${schemaObject.type}`);
+    return { valid: false, errors };
+  }
+  if (Array.isArray(schemaObject.required)) {
+    const valueObject = value as Record<string, unknown>;
+    for (const key of schemaObject.required) {
+      if (typeof key === 'string' && !(key in valueObject)) errors.push(`${path}.${key} is required`);
+    }
+  }
+  if (Array.isArray(schemaObject.oneOf)) {
+    const matches = schemaObject.oneOf.filter((candidate) => validateJsonSchema(candidate, value, root, path).valid);
+    if (matches.length !== 1) errors.push(`${path} expected exactly one oneOf match, got ${matches.length}`);
+  }
+  if (schemaObject.properties && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const properties = schemaObject.properties as Record<string, unknown>;
+    const valueObject = value as Record<string, unknown>;
+    for (const [key, childSchema] of Object.entries(properties)) {
+      if (key in valueObject) {
+        errors.push(...validateJsonSchema(childSchema, valueObject[key], root, `${path}.${key}`).errors);
+      }
+    }
+    if (schemaObject.additionalProperties === false) {
+      for (const key of Object.keys(valueObject)) {
+        if (!(key in properties)) errors.push(`${path}.${key} is not allowed`);
+      }
+    }
+  }
+  if (schemaObject.items && Array.isArray(value)) {
+    value.forEach((entry, index) => {
+      errors.push(...validateJsonSchema(schemaObject.items, entry, root, `${path}[${index}]`).errors);
+    });
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+function sampleSuccessPayload(toolName: string): Record<string, unknown> {
+  const common = {
+    repo_id: 'repo_fixture',
+    snapshot_id: 'snap_fixture',
+    index_revision: 1,
+    ignore_digest: `sha256:${'a'.repeat(64)}`,
+    stale: false,
+    partial: false,
+    next_cursor: null,
+  };
+  switch (toolName) {
+    case 'get_repo_capabilities':
+      return {
+        repo_id: 'repo_fixture',
+        access_mode: 'read_only',
+        read_tools: TOOL_NAMES,
+        write_tools: [],
+        limits: { max_read_bytes: 1024 },
+      };
+    case 'repo_manifest':
+      return { ...common, entries: [], complete: true };
+    case 'list_tree':
+      return { ...common, entries: [] };
+    case 'search_text':
+      return { ...common, matches: [] };
+    case 'read_file':
+      return { ...common, path: 'README.md', sha256: 'b'.repeat(64), content: 'ok' };
+    case 'read_files':
+      return { ...common, results: [] };
+    case 'stat_file':
+      return { ...common, path: 'README.md', type: 'file', indexed: true, readable: true };
+    default:
+      throw new Error(`Missing sample payload for ${toolName}`);
+  }
+}
+
+function sampleErrorPayload(): Record<string, unknown> {
+  return {
+    error: {
+      code: 'REPO_NOT_ALLOWED',
+      message: 'repo_id is not in the registered repo whitelist',
+      retryable: false,
+      details: { repo_id: 'missing' },
+    },
+  };
+}
+
 function toPosixPath(path: string): string {
   return path.split(sep).join('/');
 }
@@ -165,10 +283,12 @@ describe('general repo CodeGraph contract', () => {
     expect(schema.properties.version.const).toBe('1');
     expect(schema.properties.policy.properties.content_exclusion.const).toBe('.ignore');
     expect(schema.properties.policy.properties.implicit_redaction.const).toBe(false);
-    expect(schema['x-repo-harness-tools'].map((tool: { name: string }) => tool.name)).toEqual(TOOL_NAMES);
+    expect(schema['x-repo-harness-tools']).toBeUndefined();
+    expect(schema.tools.map((tool: { name: string }) => tool.name)).toEqual(TOOL_NAMES);
     expect(schema.properties.common_response_fields.items.enum).toEqual(COMMON_RESPONSE_FIELDS);
 
-    for (const tool of schema['x-repo-harness-tools']) {
+    for (const tool of schema.tools) {
+      expect(validateJsonSchema(schema.$defs.tool, tool, schema).errors).toEqual([]);
       expect(tool.annotations).toEqual({
         readOnlyHint: true,
         destructiveHint: false,
@@ -176,8 +296,9 @@ describe('general repo CodeGraph contract', () => {
         openWorldHint: false,
       });
       expect(tool.input_schema.additionalProperties).toBe(false);
-      expect(tool.output_schema.additionalProperties).toBe(false);
       expect(tool.input_schema.properties.repo_id).toEqual({ type: 'string' });
+      expect(validateJsonSchema(tool.output_schema, sampleSuccessPayload(tool.name), schema).errors).toEqual([]);
+      expect(validateJsonSchema(tool.output_schema, sampleErrorPayload(), schema).errors).toEqual([]);
     }
   });
 

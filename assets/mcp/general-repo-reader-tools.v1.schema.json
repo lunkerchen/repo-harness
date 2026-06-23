@@ -154,8 +154,7 @@
     "object_schema": {
       "type": "object",
       "required": [
-        "type",
-        "additionalProperties"
+        "type"
       ],
       "properties": {
         "type": {
@@ -172,12 +171,34 @@
           "type": "object"
         },
         "additionalProperties": {
-          "const": false
+          "type": "boolean"
+        },
+        "oneOf": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "minItems": 1
+        },
+        "anyOf": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "minItems": 1
+        },
+        "allOf": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "minItems": 1
         }
-      }
+      },
+      "additionalProperties": true
     }
   },
-  "x-repo-harness-tools": [
+  "tools": [
     {
       "name": "get_repo_capabilities",
       "description": "Return read/write mode, index capabilities, and limits for a registered repo.",
@@ -201,15 +222,66 @@
       },
       "output_schema": {
         "type": "object",
-        "required": [
-          "repo_id",
-          "access_mode",
-          "read_tools",
-          "write_tools",
-          "limits"
-        ],
-        "properties": {},
-        "additionalProperties": false
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "repo_id",
+              "access_mode",
+              "read_tools",
+              "write_tools",
+              "limits"
+            ],
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "access_mode": {
+                "type": "string"
+              },
+              "read_tools": {
+                "type": "array"
+              },
+              "write_tools": {
+                "type": "array"
+              },
+              "limits": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     },
     {
@@ -245,15 +317,66 @@
       },
       "output_schema": {
         "type": "object",
-        "required": [
-          "repo_id",
-          "snapshot_id",
-          "ignore_digest",
-          "entries",
-          "complete"
-        ],
-        "properties": {},
-        "additionalProperties": false
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "repo_id",
+              "snapshot_id",
+              "ignore_digest",
+              "entries",
+              "complete"
+            ],
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "snapshot_id": {
+                "type": "string"
+              },
+              "ignore_digest": {
+                "type": "string"
+              },
+              "entries": {
+                "type": "array"
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     },
     {
@@ -293,14 +416,62 @@
       },
       "output_schema": {
         "type": "object",
-        "required": [
-          "repo_id",
-          "snapshot_id",
-          "ignore_digest",
-          "entries"
-        ],
-        "properties": {},
-        "additionalProperties": false
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "repo_id",
+              "snapshot_id",
+              "ignore_digest",
+              "entries"
+            ],
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "snapshot_id": {
+                "type": "string"
+              },
+              "ignore_digest": {
+                "type": "string"
+              },
+              "entries": {
+                "type": "array"
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     },
     {
@@ -349,14 +520,62 @@
       },
       "output_schema": {
         "type": "object",
-        "required": [
-          "repo_id",
-          "snapshot_id",
-          "ignore_digest",
-          "matches"
-        ],
-        "properties": {},
-        "additionalProperties": false
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "repo_id",
+              "snapshot_id",
+              "ignore_digest",
+              "matches"
+            ],
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "snapshot_id": {
+                "type": "string"
+              },
+              "ignore_digest": {
+                "type": "string"
+              },
+              "matches": {
+                "type": "array"
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     },
     {
@@ -402,15 +621,66 @@
       },
       "output_schema": {
         "type": "object",
-        "required": [
-          "repo_id",
-          "snapshot_id",
-          "ignore_digest",
-          "path",
-          "sha256"
-        ],
-        "properties": {},
-        "additionalProperties": false
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "repo_id",
+              "snapshot_id",
+              "ignore_digest",
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "snapshot_id": {
+                "type": "string"
+              },
+              "ignore_digest": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     },
     {
@@ -447,14 +717,62 @@
       },
       "output_schema": {
         "type": "object",
-        "required": [
-          "repo_id",
-          "snapshot_id",
-          "ignore_digest",
-          "results"
-        ],
-        "properties": {},
-        "additionalProperties": false
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "repo_id",
+              "snapshot_id",
+              "ignore_digest",
+              "results"
+            ],
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "snapshot_id": {
+                "type": "string"
+              },
+              "ignore_digest": {
+                "type": "string"
+              },
+              "results": {
+                "type": "array"
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     },
     {
@@ -487,17 +805,74 @@
       },
       "output_schema": {
         "type": "object",
-        "required": [
-          "repo_id",
-          "snapshot_id",
-          "ignore_digest",
-          "path",
-          "type",
-          "indexed",
-          "readable"
-        ],
-        "properties": {},
-        "additionalProperties": false
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "repo_id",
+              "snapshot_id",
+              "ignore_digest",
+              "path",
+              "type",
+              "indexed",
+              "readable"
+            ],
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "snapshot_id": {
+                "type": "string"
+              },
+              "ignore_digest": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "indexed": {
+                "type": "boolean"
+              },
+              "readable": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     }
   ]
