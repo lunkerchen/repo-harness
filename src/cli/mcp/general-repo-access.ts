@@ -18,6 +18,9 @@ export interface GeneralRepoToolContext {
   repoRoot: string;
   policy: McpPolicy;
   codeGraphAdapter?: GeneralRepoCodeGraphAdapter;
+  testHooks?: {
+    afterSnapshotWalk?: (event: { repoRoot: string; kind: 'complete' | 'manifest_page'; attempt: number }) => void;
+  };
 }
 
 export interface GeneralRepoToolResult {
@@ -28,7 +31,7 @@ export interface GeneralRepoToolResult {
 
 type RepoEntryType = 'file' | 'directory' | 'symlink' | 'other';
 type SymlinkTargetKind = 'internal' | 'external' | 'none';
-type SnapshotState = 'ready' | 'index_lagging' | 'failed';
+type SnapshotState = 'ready' | 'index_lagging' | 'stale' | 'failed';
 const ENTRY_REVISION: unique symbol = Symbol('entryRevision');
 
 interface RepoRecord {
@@ -170,6 +173,7 @@ const SNAPSHOT_TTL_MS = 5 * 60_000;
 const MAX_SNAPSHOT_CACHE_ENTRIES = 16;
 const MAX_ENTRY_METADATA_CACHE_ENTRIES = 200_000;
 const MAX_LAGGING_PATHS_RETURNED = 50;
+const MAX_SNAPSHOT_BUILD_ATTEMPTS = 2;
 const DEFAULT_CODEGRAPH_ADAPTER = createCodeGraphCliAdapter();
 const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
@@ -596,7 +600,13 @@ function readStableResolvedFile(resolved: ResolvedRepoPath, ignore: IgnorePolicy
   try {
     const opened = fstatSync(fd);
     revalidateResolvedPath(resolved, ignore, opened);
-    return readFileSync(fd);
+    const openedSignature = metadataSignature(opened, resolved.type, true);
+    const data = readFileSync(fd);
+    const after = fstatSync(fd);
+    if (statIdentity(after) !== statIdentity(opened) || metadataSignature(after, resolved.type, true) !== openedSignature) {
+      throw new GeneralRepoAccessError('SNAPSHOT_STALE', 'file changed while it was being read', { path: resolved.relativePath }, true);
+    }
+    return data;
   } finally {
     closeSync(fd);
   }
@@ -629,7 +639,7 @@ function commonFields(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleE
     },
     index_revision: snapshot.codeGraph.indexRevision,
     ignore_digest: ignore.digest,
-    stale: false,
+    stale: snapshot.state === 'stale',
     partial: snapshot.partial,
     next_cursor: null,
   };
@@ -759,7 +769,6 @@ function createManifestDigest() {
         entry.path,
         revision,
         entry.type,
-        entry.indexed ? 'indexed' : 'unindexed',
       ]));
       hash.update('\0');
     },
@@ -773,6 +782,29 @@ function metadataDigest(entries: ManifestEntry[]): string {
   const digest = createManifestDigest();
   for (const entry of entries) digest.update(entry);
   return digest.digest();
+}
+
+function validateSnapshotRevision(repo: RepoRecord, ignore: IgnorePolicy, expectedDigest: string): { stale: boolean; partial: boolean; walkerErrors: number; digest: string } {
+  const validation = walkVisibleEntries(repo, ignore, '.', { hits: 0, misses: 0 }, { contentHash: false, cacheMetadata: false });
+  const digest = metadataDigest(validation.entries);
+  return {
+    stale: digest !== expectedDigest,
+    partial: validation.partial,
+    walkerErrors: validation.walkerErrors,
+    digest,
+  };
+}
+
+function snapshotState(codeGraph: CodeGraphRepoSnapshot, laggingCount: number, stale: boolean): SnapshotState {
+  if (stale) return 'stale';
+  return codeGraph.available && laggingCount > 0 ? 'index_lagging' : 'ready';
+}
+
+function staleSnapshotError(snapshot: VisibleEntrySnapshot): GeneralRepoAccessError {
+  return new GeneralRepoAccessError('SNAPSHOT_STALE', 'repo changed while snapshot was being built', {
+    snapshot_id: snapshot.id,
+    manifest_digest: snapshot.manifestDigest,
+  }, true);
 }
 
 function emptyManifestCounts(): ManifestCounts {
@@ -876,7 +908,7 @@ function mergeCodeGraphMetadata(repo: RepoRecord, ignore: IgnorePolicy, entries:
   return { entriesByPath, filteredPaths, laggingPaths };
 }
 
-function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, args: Record<string, unknown>): { snapshot: VisibleEntrySnapshot; counts: ManifestCounts; nextCursor: string | null } {
+function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, args: Record<string, unknown>, attempt = 0): { snapshot: VisibleEntrySnapshot; counts: ManifestCounts; nextCursor: string | null } {
   const createdAtMs = Date.now();
   const codeGraph = (ctx.codeGraphAdapter ?? DEFAULT_CODEGRAPH_ADAPTER).discoverRepo(repo.canonicalRoot);
   const indexed = codeGraphMetadataIndex(repo, ignore, codeGraph);
@@ -928,14 +960,17 @@ function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
   }
 
   const manifestDigest = digest.digest();
+  ctx.testHooks?.afterSnapshotWalk?.({ repoRoot: repo.canonicalRoot, kind: 'manifest_page', attempt });
+  const validation = validateSnapshotRevision(repo, ignore, manifestDigest);
+  if (validation.stale && attempt + 1 < MAX_SNAPSHOT_BUILD_ATTEMPTS) {
+    return buildManifestPageSnapshot(ctx, repo, ignore, args, attempt + 1);
+  }
   const id = `snap_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${codeGraph.indexRevision}\0${manifestDigest}`).slice(0, 16)}`;
   const coverage: VisibleEntrySnapshot['coverage'] = offset === 0 && pageEntries.length === counts.entries ? 'complete' : 'page';
   const cacheKey = coverage === 'complete'
     ? `cache_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${id}`).slice(0, 16)}`
     : `cache_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${id}\0repo_manifest\0${offset}\0${pageSize}`).slice(0, 16)}`;
-  const state: SnapshotState = codeGraph.available && indexed.laggingPaths.size > 0
-    ? 'index_lagging'
-    : 'ready';
+  const state = snapshotState(codeGraph, indexed.laggingPaths.size, validation.stale);
   const expiresAtMs = createdAtMs + SNAPSHOT_TTL_MS;
   const snapshot: VisibleEntrySnapshot = {
     id,
@@ -954,8 +989,8 @@ function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
     entries: pageEntries,
     entriesByPath: pageByPath,
     manifestDigest,
-    partial: walkerErrors > 0,
-    walkerErrors,
+    partial: walkerErrors > 0 || validation.partial || validation.stale,
+    walkerErrors: walkerErrors + validation.walkerErrors + (validation.stale ? 1 : 0),
     entryMetadataCacheHits: entryMetadataStats.hits,
     entryMetadataCacheMisses: entryMetadataStats.misses,
     codeGraph,
@@ -966,7 +1001,7 @@ function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
   return { snapshot: rememberSnapshot(snapshot), counts, nextCursor };
 }
 
-function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, opts: { contentHash?: boolean } = {}): VisibleEntrySnapshot {
+function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, opts: { contentHash?: boolean } = {}, attempt = 0): VisibleEntrySnapshot {
   const createdAtMs = Date.now();
   const codeGraph = (ctx.codeGraphAdapter ?? DEFAULT_CODEGRAPH_ADAPTER).discoverRepo(repo.canonicalRoot);
   const entryMetadataStats = { hits: 0, misses: 0 };
@@ -974,13 +1009,16 @@ function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
   const walked = walkVisibleEntries(repo, ignore, '.', entryMetadataStats, { contentHash, cacheMetadata: contentHash });
   const merged = mergeCodeGraphMetadata(repo, ignore, walked.entries, codeGraph);
   const manifestDigest = metadataDigest(walked.entries);
+  ctx.testHooks?.afterSnapshotWalk?.({ repoRoot: repo.canonicalRoot, kind: 'complete', attempt });
+  const validation = validateSnapshotRevision(repo, ignore, manifestDigest);
+  if (validation.stale && attempt + 1 < MAX_SNAPSHOT_BUILD_ATTEMPTS) {
+    return buildVisibleEntrySnapshot(ctx, repo, ignore, opts, attempt + 1);
+  }
   const id = `snap_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${codeGraph.indexRevision}\0${manifestDigest}`).slice(0, 16)}`;
   const cacheKey = contentHash
     ? `cache_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${id}`).slice(0, 16)}`
     : `cache_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${id}\0metadata-only`).slice(0, 16)}`;
-  const state: SnapshotState = codeGraph.available && merged.laggingPaths.length > 0
-    ? 'index_lagging'
-    : 'ready';
+  const state = snapshotState(codeGraph, merged.laggingPaths.length, validation.stale);
   const expiresAtMs = createdAtMs + SNAPSHOT_TTL_MS;
   const snapshot: VisibleEntrySnapshot = {
     id,
@@ -999,8 +1037,8 @@ function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
     entries: walked.entries,
     entriesByPath: merged.entriesByPath,
     manifestDigest,
-    partial: walked.partial,
-    walkerErrors: walked.walkerErrors,
+    partial: walked.partial || validation.partial || validation.stale,
+    walkerErrors: walked.walkerErrors + validation.walkerErrors + (validation.stale ? 1 : 0),
     entryMetadataCacheHits: entryMetadataStats.hits,
     entryMetadataCacheMisses: entryMetadataStats.misses,
     codeGraph,
@@ -1011,6 +1049,12 @@ function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
 }
 
 function rememberSnapshot(snapshot: VisibleEntrySnapshot): VisibleEntrySnapshot {
+  if (snapshot.state === 'stale') {
+    return {
+      ...snapshot,
+      cacheSize: SNAPSHOT_CACHE.size,
+    };
+  }
   const now = Date.now();
   for (const [key, cached] of SNAPSHOT_CACHE) {
     if (Date.parse(cached.expiresAt) <= now) SNAPSHOT_CACHE.delete(key);
@@ -1080,6 +1124,9 @@ function cachedSnapshotById(repo: RepoRecord, snapshotId: unknown, paths?: strin
 }
 
 function assertSnapshotFresh(args: Record<string, unknown>, snapshot: VisibleEntrySnapshot): void {
+  if (snapshot.state === 'stale') {
+    throw staleSnapshotError(snapshot);
+  }
   const requested = typeof args.snapshot_id === 'string' ? args.snapshot_id.trim() : '';
   if (requested && requested !== snapshot.id) {
     throw new GeneralRepoAccessError('SNAPSHOT_STALE', 'requested snapshot_id does not match current repo snapshot', {

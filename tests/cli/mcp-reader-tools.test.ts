@@ -390,6 +390,45 @@ describe('MCP reader tools', () => {
     });
   });
 
+  test('general repo snapshots fail closed when repo changes during snapshot build', async () => {
+    await withReaderRepo(async (repoRoot, ctx) => {
+      const repoId = (await jsonTool(ctx, 'list_allowed_roots')).roots[0].repo_id;
+      let completeMutations = 0;
+      const completeRaceCtx: ReaderToolContext = {
+        ...ctx,
+        testHooks: {
+          afterSnapshotWalk(event) {
+            if (event.kind !== 'complete' || completeMutations >= 2) return;
+            completeMutations += 1;
+            writeFileSync(join(repoRoot, 'src', 'race-complete.ts'), `export const race = ${completeMutations};\n`);
+          },
+        },
+      };
+
+      const staleTree = await jsonTool(completeRaceCtx, 'list_tree', { repo_id: repoId, path: '.', depth: 2 });
+      expect(staleTree.error.code).toBe('SNAPSHOT_STALE');
+      expect(staleTree.error.retryable).toBe(true);
+      expect(completeMutations).toBe(2);
+
+      let pageMutations = 0;
+      const pageRaceCtx: ReaderToolContext = {
+        ...ctx,
+        testHooks: {
+          afterSnapshotWalk(event) {
+            if (event.kind !== 'manifest_page' || pageMutations >= 2) return;
+            pageMutations += 1;
+            writeFileSync(join(repoRoot, 'src', 'race-page.ts'), `export const pageRace = ${pageMutations};\n`);
+          },
+        },
+      };
+
+      const staleManifest = await jsonTool(pageRaceCtx, 'repo_manifest', { repo_id: repoId, page_size: 2 });
+      expect(staleManifest.error.code).toBe('SNAPSHOT_STALE');
+      expect(staleManifest.error.retryable).toBe(true);
+      expect(pageMutations).toBe(2);
+    });
+  });
+
   test('tree applies hidden, ignore, deny, symlink, and entry limits without leaking denied names', async () => {
     await withReaderRepo(async (_repoRoot, ctx) => {
       const root = (await jsonTool(ctx, 'list_allowed_roots')).roots[0];
