@@ -50,6 +50,11 @@ describe('mcp setup', () => {
         allowedAgents: ['codex'],
         timeoutMs: 120000,
       });
+      expect(config.rollout.generalRepo).toMatchObject({
+        general_repo_read: false,
+        repo_write: false,
+        fs_fallback: false,
+      });
       const token = JSON.parse(readFileSync(join(repoRoot, '.repo-harness/mcp.tokens.json'), 'utf-8')).bearerToken;
       expect(typeof token).toBe('string');
       expect(token.length).toBeGreaterThan(30);
@@ -63,6 +68,8 @@ describe('mcp setup', () => {
       expect(ignore).toContain('.repo-harness/mcp.oauth-tokens.json');
       expect(ignore).toContain('.ai/harness/mcp/audit.log');
       expect(ignore).toContain('.ai/harness/mcp/index-events.jsonl');
+      expect(ignore).toContain('.ai/harness/mcp/metrics.jsonl');
+      expect(ignore).toContain('.ai/harness/mcp/trace.jsonl');
 
       const doctor = JSON.parse(runMcpDoctor({ repo: repoRoot, json: true }).lines[0]);
       expect(doctor.mcp.packageVersion).toBe(repoHarnessPackageVersion());
@@ -143,6 +150,13 @@ describe('mcp setup', () => {
           },
           capabilities: { workspaceReader: true, workflowPlanner: true },
           permissions: { fullDiskRead: false, allowedRoots: [], discoveryRoots: [] },
+          rollout: {
+            generalRepo: {
+              general_repo_read: false,
+              repo_write: false,
+              fs_fallback: false,
+            },
+          },
           profile: 'planner',
         });
         const registry = JSON.parse(readFileSync(join(userState, 'registered-repos.json'), 'utf-8'));
@@ -460,13 +474,16 @@ describe('mcp setup', () => {
     expect(guide).toContain('oauth-protected-resource');
     expect(guide).toContain('--auth bearer');
     expect(guide).toContain('--auth url-token');
-    expect(guide).toContain('open_workspace');
+    expect(guide).toContain('repo_manifest');
+    expect(guide).toContain('read_file');
+    expect(guide).toContain('get_repo_capabilities');
     expect(guide).toContain('--allow-root "$HOME/Documents"');
     expect(guide).toContain('rescan the Connector tools');
     expect(guide).toContain('delete and recreate the App/Connector');
     expect(guide).toContain('## Reader Test Prompt');
     expect(guide).toContain('Blocked-file smoke');
-    expect(guide).toContain('secrets/token.txt');
+    expect(guide).toContain('../outside');
+    expect(guide).toContain('SYMLINK_ESCAPE');
     expect(guide).toContain('deny globs');
     expect(guide).toContain('## Dev Mode Agent Runner');
     expect(guide).toContain('--enable-dev-runner');

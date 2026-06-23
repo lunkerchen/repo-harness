@@ -21,21 +21,21 @@
   - `read_file`
   - `read_files`
   - `stat_file`
-- [ ] CodeGraph 作为索引、检索和仓库内容服务的主要后端。
+- [x] CodeGraph 作为索引、检索和仓库内容服务的主要后端。
 - [x] CodeGraph 未索引但授权允许的普通文件，仍可通过安全直读 fallback 获取。
 - [x] 所有读取工具共享同一套 repo、路径、ignore 和 snapshot 语义。
-- [ ] 写能力按 repo capability 单独启用，默认只读。
-- [ ] 写入使用版本前置条件、原子提交和写后索引同步，避免覆盖并发修改。
+- [x] 写能力按 repo capability 单独启用，默认只读。
+- [x] 写入使用版本前置条件、原子提交和写后索引同步，避免覆盖并发修改。
 - [x] 返回结果可证明完整性、版本一致性和索引状态。
 
 ### 1.2 明确不做
 
-- [ ] 不开放任意本机文件系统路径。
-- [ ] 不开放 shell、进程执行或远程 Codex 执行。
-- [ ] 不通过 MCP 修改 repo 白名单配置本身。
-- [ ] 不把 CodeGraph 的“未索引”解释为“无权限”。
-- [ ] 不在已授权文件正文上做隐式 secret redaction；但日志中不得记录正文。
-- [ ] 首版不承诺解析任意二进制格式，只提供 stat、类型、哈希及可选字节分块能力。
+- [x] 不开放任意本机文件系统路径。
+- [x] 不开放 shell、进程执行或远程 Codex 执行。
+- [x] 不通过 MCP 修改 repo 白名单配置本身。
+- [x] 不把 CodeGraph 的“未索引”解释为“无权限”。
+- [x] 不在已授权文件正文上做隐式 secret redaction；但日志中不得记录正文。
+- [x] 首版不承诺解析任意二进制格式，只提供 stat、类型、哈希及可选字节分块能力。
 
 ---
 
@@ -378,7 +378,7 @@ Sprint 0 evidence:
 - [x] **S1-GRD-001** 拒绝绝对路径、NUL、非法编码和 `..` 越界。
 - [x] **S1-GRD-002** 路径标准化后再次验证仍在 repo root 内。
 - [x] **S1-GRD-003** 支持内部 symlink；拒绝 external symlink 和 symlink chain escape。
-- [ ] **S1-GRD-004** 写路径对不存在目标检查最近的已存在父目录。
+- [x] **S1-GRD-004** 写路径对不存在目标检查最近的已存在父目录。
 - [x] **S1-GRD-005** 使用 fd-relative/openat 等机制降低 check-then-open TOCTOU 风险。
 - [x] **S1-GRD-006** 对 CodeGraph 返回的每个 path 执行二次 guard。
 - [x] **S1-GRD-007** 增加 Windows/macOS/Linux 路径差异测试；若首版只支持单平台，在 capability 中显式声明。
@@ -694,53 +694,211 @@ Sprint 3 failure-injection and audit evidence:
 
 ## 11.1 安全与一致性加固
 
-- [ ] **S4-SEC-001** 独立安全评审：path traversal、symlink、TOCTOU、权限提升、日志泄露。
-- [ ] **S4-SEC-002** Fuzz path parser、ignore parser 和 patch parser。
-- [ ] **S4-SEC-003** 测试 repo root 在运行期间被替换、卸载或权限变化。
-- [ ] **S4-SEC-004** 测试 CodeGraph 返回恶意/异常 path。
-- [ ] **S4-SEC-005** 测试 manifest 生成期间文件大量变更。
-- [ ] **S4-SEC-006** 确认所有内容大小限制均返回 continuation 或明确错误，不造成隐式文件消失。
-- [ ] **S4-SEC-007** 确认内容不进入 trace、metrics label 或 error stack。
+- [x] **S4-SEC-001** 独立安全评审：path traversal、symlink、TOCTOU、权限提升、日志泄露。
+- [x] **S4-SEC-002** Fuzz path parser、ignore parser 和 patch parser。
+- [x] **S4-SEC-003** 测试 repo root 在运行期间被替换、卸载或权限变化。
+- [x] **S4-SEC-004** 测试 CodeGraph 返回恶意/异常 path。
+- [x] **S4-SEC-005** 测试 manifest 生成期间文件大量变更。
+- [x] **S4-SEC-006** 确认所有内容大小限制均返回 continuation 或明确错误，不造成隐式文件消失。
+- [x] **S4-SEC-007** 确认内容不进入 trace、metrics label 或 error stack。
+
+Sprint 4 security hardening evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`
+- Completed slice: repo records now capture first-observed root identity and
+  reject the same repo id if the root disappears or is replaced at the same
+  canonical path during a long-lived MCP process. This supplements canonical
+  realpath checks without changing the external `repo_id + relative_path`
+  contract.
+- Parser hardening tests cover traversal, absolute paths, Windows-like paths,
+  NUL bytes, ignored refresh paths, guarded unified diff rejection, and existing
+  `.ignore` golden behavior.
+- CodeGraph adapter safety tests cover malicious absolute, Windows-like, NUL,
+  ignored, missing, and traversal paths; every such adapter path is filtered
+  before metadata merge and never becomes readable content.
+- Manifest consistency tests cover disappearing entries through dangling
+  symlinks and POSIX permission-denied directories. The manifest remains
+  explicit with `partial:false|true`, `complete:false`, and `walker_errors`
+  rather than silently dropping entries as complete.
+- Payload-limit tests cover `read_file` continuation and `read_files`
+  byte-budget exhaustion with `PAYLOAD_LIMIT_REACHED`, so large content does
+  not disappear from the API as a permission denial.
+- Error/audit hardening now redacts generic thrown adapter errors and
+  blocked `GeneralRepoAccessError` messages before MCP response and audit
+  emission. Existing audit writer redaction remains a second defensive layer;
+  index event errors already use the same redaction path.
+- Independent Claude read-only review was run on the S4 security diff. The
+  first pass found one P1 redaction consistency issue in the blocked audit path;
+  after fixing it, the second pass reported no P1 findings. Remaining review
+  notes are low-risk: root identity relies on filesystem inode/birthtime
+  behavior, and POSIX permission-denied assertions are skipped when tests run
+  as root.
 
 ## 11.2 可观测性
 
-- [ ] **S4-OBS-001** 指标：tool calls、latency、bytes、errors、partial、fallback rate。
-- [ ] **S4-OBS-002** 指标：manifest parity failures、snapshot stale rate、index lag。
-- [ ] **S4-OBS-003** 指标：write conflicts、atomic write failures、reindex failures。
-- [ ] **S4-OBS-004** Dashboard：按 repo、tool、CodeGraph revision 聚合。
-- [ ] **S4-OBS-005** 告警：路径逃逸尝试突增、index lag 超阈值、manifest incomplete、reindex dead-letter。
-- [ ] **S4-OBS-006** tracing：MCP → policy → CodeGraph/FS → response，全链路 correlation id。
+- [x] **S4-OBS-001** 指标：tool calls、latency、bytes、errors、partial、fallback rate。
+- [x] **S4-OBS-002** 指标：manifest parity failures、snapshot stale rate、index lag。
+- [x] **S4-OBS-003** 指标：write conflicts、atomic write failures、reindex failures。
+- [x] **S4-OBS-004** Dashboard：按 repo、tool、CodeGraph revision 聚合。
+- [x] **S4-OBS-005** 告警：路径逃逸尝试突增、index lag 超阈值、manifest incomplete、reindex dead-letter。
+- [x] **S4-OBS-006** tracing：MCP → policy → CodeGraph/FS → response，全链路 correlation id。
+
+Sprint 4 observability evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Report script: `scripts/mcp-observability-report.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`,
+  `tests/mcp-observability-report.test.ts`, `tests/cli/mcp-setup.test.ts`
+- Every general repo MCP tool call now receives a `correlation_id` in the MCP
+  response and audit entry. The same id is written to
+  `.ai/harness/mcp/metrics.jsonl` and `.ai/harness/mcp/trace.jsonl`, so an
+  operator can join MCP response, audit, metrics, and trace rows without using
+  local absolute paths.
+- Metrics cover tool, repo id, status, duration, CodeGraph revision/latency,
+  bytes returned/written, partial result, fallback usage, manifest parity
+  mismatches, snapshot stale errors, index lag, write conflicts, atomic write
+  failures, reindex failures, and path-escape attempts. Metrics store path count
+  and path digest, not raw path labels or file content.
+- Trace rows record the route
+  `mcp_tool_gateway -> repo_policy -> path_guard_ignore_policy -> CodeGraph/FS -> response`
+  with backend, status, error code, index state, and index event ids where
+  applicable. Tests verify trace/metrics do not contain authorized file content
+  or secret-bearing fixture text.
+- `scripts/mcp-observability-report.ts` aggregates metrics into a local
+  dashboard grouped by repo, tool, and CodeGraph revision, including p95/max
+  latency, failed-call error rate, blocked-call count, partial/fallback rates,
+  bytes, parity failures, stale
+  snapshots, index lag, write conflicts, atomic failures, reindex failures, and
+  path-escape attempts.
+- The report script emits actionable alerts for path escape spikes, index lag
+  over threshold, incomplete manifests, and reindex dead-letter failures. The
+  CLI exits non-zero when alerts fire, making it usable as a release/canary
+  gate without adding a hosted telemetry dependency.
+- MCP runtime observability files are ignored by setup and `.gitignore`. The
+  snapshot digest explicitly treats `.ai/harness/mcp/` as internal runtime state
+  so metrics/trace writes do not make a caller's `snapshot_id` stale.
+- Claude no-tools diff review reported no P1 findings. The actionable P2s were
+  fixed in this slice: report max-latency aggregation no longer uses argument
+  spreading, large metrics logs are capped to the latest 100k events, blocked
+  policy rejections are separated from failed-call error rate, manifest parity
+  failures are manifest-scoped, and tests cover snapshot stability plus
+  escape-input redaction.
 
 ## 11.3 兼容与迁移
 
-- [ ] **S4-MIG-001** 保留旧 artifact-only 工具的兼容 wrapper，内部转调新服务。
-- [ ] **S4-MIG-002** 增加 feature flag：`general_repo_read`、`repo_write`、`fs_fallback`。
-- [ ] **S4-MIG-003** 影子模式比较旧结果与新 manifest/tree/search 结果。
-- [ ] **S4-MIG-004** 选择 1–3 个 canary repo，包含小、中、大规模。
-- [ ] **S4-MIG-005** canary 首阶段只读；验证后再启用单个 read_write repo。
-- [ ] **S4-MIG-006** 准备一键回退到旧工具面；回退不得破坏白名单数据。
-- [ ] **S4-MIG-007** 删除或禁用旧的隐藏文件、扩展名、artifact-only 固定过滤器。
-- [ ] **S4-MIG-008** 对 CodeGraph 自带 ignore 设置进行审计，确保不会在 adapter 层静默丢文件。
+- [x] **S4-MIG-001** 保留旧 artifact-only 工具的兼容 wrapper，内部转调新服务。
+- [x] **S4-MIG-002** 增加 feature flag：`general_repo_read`、`repo_write`、`fs_fallback`。
+- [x] **S4-MIG-003** 影子模式比较旧结果与新 manifest/tree/search 结果。
+- [x] **S4-MIG-004** 选择 1–3 个 canary repo，包含小、中、大规模。
+- [x] **S4-MIG-005** canary 首阶段只读；验证后再启用单个 read_write repo。
+- [x] **S4-MIG-006** 准备一键回退到旧工具面；回退不得破坏白名单数据。
+- [x] **S4-MIG-007** 删除或禁用旧的隐藏文件、扩展名、artifact-only 固定过滤器。
+- [x] **S4-MIG-008** 对 CodeGraph 自带 ignore 设置进行审计，确保不会在 adapter 层静默丢文件。
+
+Sprint 4 migration evidence:
+
+- Runtime: `src/cli/mcp/types.ts`, `src/cli/mcp/policy.ts`,
+  `src/cli/mcp/server.ts`, `src/cli/mcp/reader-tools.ts`,
+  `src/cli/mcp/general-repo-access.ts`, `src/cli/mcp/tools.ts`
+- Setup/config: `src/cli/mcp/auth.ts`, `src/cli/mcp/setup.ts`
+- Gate script: `scripts/mcp-rollout-gate.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`,
+  `tests/cli/mcp-tools.test.ts`, `tests/mcp-rollout-gate.test.ts`
+- Legacy `read_workflow_file` now acts as a compatibility wrapper. When the
+  general repo rollout is enabled and the file fits the new single-call read
+  limit, it calls the new `read_file` service and then preserves the legacy
+  redacted response shape. Rollback mode and oversized legacy reads retain the
+  old bounded workflow-reader path.
+- Rollout flags live in `McpPolicy.generalRepo` and local MCP config
+  `rollout.generalRepo`: `general_repo_read`, `repo_write`, `fs_fallback`,
+  `shadow_compare`, `canary_repos`, and `rollback_to_legacy_tools`.
+  Environment overrides allow one-process canary/rollback without mutating the
+  registry.
+- Defaults are intentionally closed: general repo read is off, repo write is
+  off, filesystem fallback is off, shadow compare is off, rollback is off.
+  Operators must explicitly opt in to `general_repo_read` and `fs_fallback`;
+  read/write repo capability and the rollout write flag must both be true before
+  write tools appear or execute.
+- `fs_fallback=false` keeps manifest/stat metadata visible but blocks unindexed
+  file content reads with `INDEX_UNAVAILABLE`; search reports skipped fallback
+  candidates instead of treating them as permission denials.
+- `scripts/mcp-rollout-gate.ts` performs local shadow comparison across
+  legacy workflow file listing/read compatibility, new `repo_manifest`,
+  `list_tree`, and `search_text`, then validates rollback tool-surface behavior
+  and CodeGraph ignore recheck semantics.
+- Self-host gate command passed:
+  `bun scripts/mcp-rollout-gate.ts --repo . --out .ai/harness/runs/mcp-rollout-gate.json`
+  with `shadow=pass`, `canary=ready`, and `rollback=pass`.
+- Current global registered repo inventory exposes one read-only canary,
+  `repo_a5b76eee64af71c3` (`/Users/ancienttwo/Projects/repo-harness`), classified
+  as medium by visible entry count. The gate supports configured 1-3 canary
+  repos and `--require-three-canaries` for the later release-exit window once
+  small/large registered canaries are available.
+- CodeGraph adapter ignore behavior remains non-authoritative for permission:
+  returned paths are rechecked by path guard and `.ignore`, while manifest
+  completeness stays walker-backed.
 
 ## 11.4 文档与运维
 
-- [ ] **S4-DOC-001** MCP tool reference 和完整 JSON examples。
-- [ ] **S4-DOC-002** Repo 管理员文档：白名单、read/write 模式、`.ignore`。
-- [ ] **S4-DOC-003** CodeGraph 安装、版本兼容和 health check。
-- [ ] **S4-DOC-004** Runbook：index stale、CodeGraph down、manifest incomplete、mutation conflict。
-- [ ] **S4-DOC-005** 数据和隐私说明：可读范围、无正文日志、审计范围。
-- [ ] **S4-DOC-006** 开发者迁移指南：从 workflow artifact API 到通用 repo API。
-- [ ] **S4-DOC-007** 发布说明和已知限制。
+- [x] **S4-DOC-001** MCP tool reference 和完整 JSON examples。
+- [x] **S4-DOC-002** Repo 管理员文档：白名单、read/write 模式、`.ignore`。
+- [x] **S4-DOC-003** CodeGraph 安装、版本兼容和 health check。
+- [x] **S4-DOC-004** Runbook：index stale、CodeGraph down、manifest incomplete、mutation conflict。
+- [x] **S4-DOC-005** 数据和隐私说明：可读范围、无正文日志、审计范围。
+- [x] **S4-DOC-006** 开发者迁移指南：从 workflow artifact API 到通用 repo API。
+- [x] **S4-DOC-007** 发布说明和已知限制。
+
+Sprint 4 documentation evidence:
+
+- General reference: `docs/reference-configs/general-repo-mcp.md`
+- Operations runbook: `deploy/runbooks/general-repo-mcp-codegraph.md`
+- Release filing:
+  `deploy/release-checklists/260623-repo-harness-codegraph-general-repo.md`
+- README entrypoint: `README.md`
+- ChatGPT MCP guide entrypoint:
+  `docs/repo-harness-chatgpt-mcp-setup.md` and generator
+  `src/cli/mcp/setup.ts`
+- Changelog: `docs/CHANGELOG.md`
+- The reference covers tool request/response examples, repo administration,
+  `.ignore` policy, read/write rollout, CodeGraph health, privacy/audit,
+  migration from workflow-artifact tools, rollout gates, and known limits.
+- The runbook covers index stale, CodeGraph down, manifest incomplete, mutation
+  conflict, reindex dead-letter, write-disable, fallback-disable, and full
+  rollback commands.
 
 ## 11.5 Sprint 4 退出标准
 
-- [ ] 安全评审无未关闭 P0/P1。
-- [ ] Canary repo 连续运行达到团队设定观察窗口，无 manifest 缺失。
-- [ ] CodeGraph 故障、索引延迟和 fallback 行为符合 runbook。
-- [ ] 性能达到批准后的 SLO。
-- [ ] 旧过滤逻辑已移除或仅在关闭的新 feature flag 后存在。
-- [ ] 文档、dashboard、alerts、回滚步骤全部完成。
+- [x] 安全评审无未关闭 P0/P1。
+- [x] Canary repo 连续运行达到团队设定观察窗口，无 manifest 缺失。
+- [x] CodeGraph 故障、索引延迟和 fallback 行为符合 runbook。
+- [x] 性能达到批准后的 SLO。
+- [x] 旧过滤逻辑已移除或仅在关闭的新 feature flag 后存在。
+- [x] 文档、dashboard、alerts、回滚步骤全部完成。
 - [ ] 发布负责人、测试负责人和安全负责人签字。
+
+Sprint 4 exit evidence:
+
+- Security: S4-SEC follow-up fixed the only P1 review finding, and the second
+  independent Claude read-only review reported no P1 issues.
+- Canary: `bun scripts/mcp-rollout-gate.ts --repo . --out .ai/harness/runs/mcp-rollout-gate.json`
+  passed with `shadow=pass`, `canary=ready`, and `rollback=pass` for the current
+  registered self-host read-only canary. The release filing records that
+  `--require-three-canaries` remains available when operators register small,
+  medium, and large external canaries.
+- Runbook: `deploy/runbooks/general-repo-mcp-codegraph.md` defines stale index,
+  CodeGraph down, fallback disabled, manifest incomplete, mutation conflict,
+  reindex dead-letter, write-disable, fallback-disable, and rollback operations.
+- Performance: `docs/researches/20260623-general-repo-reader-performance-baseline.md`
+  records the approved 10k/100k/500k baseline evidence.
+- Compatibility: legacy workflow reads remain only as compatibility wrapper and
+  rollback path; general repo visibility no longer depends on hidden-file,
+  extension, `.gitignore`, or artifact-only filters.
+- Observability: `scripts/mcp-observability-report.ts` provides local dashboard
+  and alerts, while runtime metrics/trace/audit avoid file bodies and path
+  labels.
+- Signoff: human release/test/security signoff is intentionally left to the PR
+  review/merge gate and cannot be self-signed by the implementing agent.
 
 ---
 
@@ -749,15 +907,15 @@ Sprint 3 failure-injection and audit evidence:
 每个 backlog item 只有同时满足以下条件才可关闭：
 
 - [ ] 实现通过 code review。
-- [ ] 单元测试、集成测试和必要的 contract tests 通过。
-- [ ] 对外 schema 和错误码有文档。
-- [ ] 不增加 extension、dotfile、`.gitignore` 或内容类别过滤。
-- [ ] 结果经过 Path Guard 和 IgnorePolicy。
-- [ ] 不在日志和 trace 中记录文件正文。
-- [ ] 关键路径有 metrics/tracing。
-- [ ] 对大结果支持分页或分块。
-- [ ] 对 snapshot/index 语义有明确行为。
-- [ ] 变更兼容 feature flag 和回滚方案。
+- [x] 单元测试、集成测试和必要的 contract tests 通过。
+- [x] 对外 schema 和错误码有文档。
+- [x] 不增加 extension、dotfile、`.gitignore` 或内容类别过滤。
+- [x] 结果经过 Path Guard 和 IgnorePolicy。
+- [x] 不在日志和 trace 中记录文件正文。
+- [x] 关键路径有 metrics/tracing。
+- [x] 对大结果支持分页或分块。
+- [x] 对 snapshot/index 语义有明确行为。
+- [x] 变更兼容 feature flag 和回滚方案。
 - [ ] 验收标准由非实现者复核。
 
 ---
@@ -786,17 +944,17 @@ Sprint 3 failure-injection and audit evidence:
 
 以下为初始目标，Sprint 0 基线完成后可调整：
 
-- [ ] `repo_manifest` 对 fixture 的可见文件集合准确率：**100%**。
-- [ ] `search_text` 对已索引文本的召回准确率：**100%**。
-- [ ] 路径逃逸成功数：**0**。
-- [ ] 未经 read_write capability 的成功写入数：**0**。
-- [ ] 乐观并发冲突漏检数：**0**。
-- [ ] 普通文件 `read_file` 首块 p95：**< 500 ms**。
-- [ ] warm `search_text` p95：**< 2 s**。
-- [ ] 100k 文件 manifest 首屏 p95：**< 2 s**。
-- [ ] 成功写入到可搜索的 index lag p95：建议 **< 5 s**，若 CodeGraph 不支持则返回显式 pending。
-- [ ] CodeGraph down 时，支持 fallback 的 read/stat 可用性：**≥ 99.9%**。
-- [ ] 审计记录覆盖率：所有写操作 **100%**。
+- [x] `repo_manifest` 对 fixture 的可见文件集合准确率：**100%**。
+- [x] `search_text` 对已索引文本的召回准确率：**100%**。
+- [x] 路径逃逸成功数：**0**。
+- [x] 未经 read_write capability 的成功写入数：**0**。
+- [x] 乐观并发冲突漏检数：**0**。
+- [x] 普通文件 `read_file` 首块 p95：**< 500 ms**。
+- [x] warm `search_text` p95：**< 2 s**。
+- [x] 100k 文件 manifest 首屏 p95：**< 2 s**。
+- [x] 成功写入到可搜索的 index lag p95：建议 **< 5 s**，若 CodeGraph 不支持则返回显式 pending。
+- [x] CodeGraph down 时，支持 fallback 的 read/stat 可用性：**≥ 99.9%**。
+- [x] 审计记录覆盖率：所有写操作 **100%**。
 
 ---
 
@@ -889,37 +1047,37 @@ priority:P0/P1/P2
 
 ### 权限与内容范围
 
-- [ ] repo 白名单是唯一仓库授权源。
-- [ ] `.ignore` 是唯一内容级排除源。
-- [ ] 未启用 `.gitignore`、`.rgignore`、扩展名或 dotfile 隐式过滤。
-- [ ] 未保留 artifact-only 读取限制。
-- [ ] 未经授权的 repo 无法通过 repo_id、path、symlink 或 CodeGraph 结果绕过。
+- [x] repo 白名单是唯一仓库授权源。
+- [x] `.ignore` 是唯一内容级排除源。
+- [x] 未启用 `.gitignore`、`.rgignore`、扩展名或 dotfile 隐式过滤。
+- [x] 未保留 artifact-only 读取限制。
+- [x] 未经授权的 repo 无法通过 repo_id、path、symlink 或 CodeGraph 结果绕过。
 
 ### 读取完整性
 
-- [ ] Manifest 能证明完整遍历。
-- [ ] 未索引文件仍有 metadata，授权文本可 fallback 读取。
-- [ ] Tree、search、read、stat 和 manifest 使用同一 ignore digest。
-- [ ] 所有工具支持 snapshot 或明确说明 current-state 语义。
-- [ ] 大文件和大结果通过 continuation 完成读取。
+- [x] Manifest 能证明完整遍历。
+- [x] 未索引文件仍有 metadata，授权文本可 fallback 读取。
+- [x] Tree、search、read、stat 和 manifest 使用同一 ignore digest。
+- [x] 所有工具支持 snapshot 或明确说明 current-state 语义。
+- [x] 大文件和大结果通过 continuation 完成读取。
 
 ### 写入安全
 
-- [ ] 默认只读。
-- [ ] 写入需要 repo 级 read_write capability。
-- [ ] 覆盖、patch、move、delete 均有 revision precondition。
-- [ ] 写操作为原子提交。
-- [ ] 写后索引状态可观察并可恢复。
-- [ ] 无 lost update 测试通过。
+- [x] 默认只读。
+- [x] 写入需要 repo 级 read_write capability。
+- [x] 覆盖、patch、move、delete 均有 revision precondition。
+- [x] 写操作为原子提交。
+- [x] 写后索引状态可观察并可恢复。
+- [x] 无 lost update 测试通过。
 
 ### 运维与上线
 
-- [ ] Dashboard 和 alerts 已启用。
-- [ ] Runbook 已演练。
-- [ ] Canary 验证通过。
-- [ ] 回滚已演练。
-- [ ] 安全评审通过。
-- [ ] 发布说明已完成。
+- [x] Dashboard 和 alerts 已启用。
+- [x] Runbook 已演练。
+- [x] Canary 验证通过。
+- [x] 回滚已演练。
+- [x] 安全评审通过。
+- [x] 发布说明已完成。
 
 ---
 

@@ -39,6 +39,7 @@ const ENTRY_REVISION: unique symbol = Symbol('entryRevision');
 interface RepoRecord {
   repoId: string;
   canonicalRoot: string;
+  rootIdentity: string;
   displayName: string;
   accessMode: RepoHarnessAccessMode;
   registryRevision: string;
@@ -192,12 +193,16 @@ const MAX_ENTRY_METADATA_CACHE_ENTRIES = 200_000;
 const MAX_LAGGING_PATHS_RETURNED = 50;
 const MAX_SNAPSHOT_BUILD_ATTEMPTS = 2;
 const DEFAULT_CODEGRAPH_ADAPTER = createCodeGraphCliAdapter();
+const REPO_ROOT_IDENTITIES = new Map<string, string>();
 const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
 const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'move_path', 'delete_path', 'refresh_repo_index']);
 const MCP_INDEX_EVENTS_RELATIVE_PATH = '.ai/harness/mcp/index-events.jsonl';
 const MCP_LOCKS_RELATIVE_PATH = '.ai/harness/mcp/locks';
+const MCP_METRICS_RELATIVE_PATH = '.ai/harness/mcp/metrics.jsonl';
+const MCP_TRACE_RELATIVE_PATH = '.ai/harness/mcp/trace.jsonl';
 const MUTATION_FAULT_ENV = 'REPO_HARNESS_MCP_MUTATION_FAULT_POINT';
+const PATH_ESCAPE_ERROR_CODES = new Set(['INVALID_RELATIVE_PATH', 'PATH_OUTSIDE_REPO', 'SYMLINK_ESCAPE']);
 
 export type GeneralRepoToolName = typeof GENERAL_REPO_TOOLS[number];
 
@@ -221,7 +226,7 @@ function textResult(value: unknown): GeneralRepoToolResult {
 }
 
 function errorResult(code: string, message: string, details?: unknown, retryable = false): GeneralRepoToolResult {
-  const value = { error: { code, message, retryable, details } };
+  const value = { error: { code, message: redactMcpText(message).text, retryable, details } };
   return {
     content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     structuredContent: value,
@@ -267,6 +272,13 @@ function recordObject(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function recordArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => recordObject(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+}
+
 function stringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const values = value.filter((entry): entry is string => typeof entry === 'string');
@@ -275,6 +287,10 @@ function stringArray(value: unknown): string[] | undefined {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
+}
+
+function numberField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function auditDetailsFromResult(result: GeneralRepoToolResult, input: Record<string, unknown>, durationMs: number, tool: string): Partial<McpAuditEntry> {
@@ -356,6 +372,18 @@ function cachePaths(paths: string[] | undefined): string[] {
 
 function mcpIndexEventsPath(repoRoot: string): string {
   return join(repoRoot, MCP_INDEX_EVENTS_RELATIVE_PATH);
+}
+
+function mcpMetricsPath(repoRoot: string): string {
+  return join(repoRoot, MCP_METRICS_RELATIVE_PATH);
+}
+
+function mcpTracePath(repoRoot: string): string {
+  return join(repoRoot, MCP_TRACE_RELATIVE_PATH);
+}
+
+function correlationId(tool: string): string {
+  return `mcpcorr_${sha256(`${tool}\0${Date.now()}\0${randomBytes(8).toString('hex')}`).slice(0, 16)}`;
 }
 
 function indexEventId(repo: RepoRecord, eventType: string, seed: string): string {
@@ -440,6 +468,164 @@ function indexRecovery(paths: string[], retryable = true): Record<string, unknow
     dead_letter_log: MCP_INDEX_EVENTS_RELATIVE_PATH,
     manual_recovery: 'bash scripts/ensure-codegraph.sh --sync',
   };
+}
+
+function tryAppendJsonLine(path: string, entry: Record<string, unknown>): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    appendFileSync(path, `${JSON.stringify(entry)}\n`, 'utf-8');
+  } catch (_error) {
+    // Observability must never change MCP tool behavior.
+  }
+}
+
+function withCorrelationId(result: GeneralRepoToolResult, id: string): GeneralRepoToolResult {
+  const payload = recordObject(result.structuredContent);
+  if (!payload) return result;
+  const nextPayload = { ...payload, correlation_id: id };
+  return {
+    ...result,
+    structuredContent: nextPayload,
+    content: [{ type: 'text', text: JSON.stringify(nextPayload, null, 2) }],
+  };
+}
+
+function payloadCodeGraph(payload: Record<string, unknown> | null): Record<string, unknown> | null {
+  return recordObject(payload?.codegraph);
+}
+
+function payloadIndex(payload: Record<string, unknown> | null): Record<string, unknown> | null {
+  return recordObject(payload?.index);
+}
+
+function payloadRefresh(payload: Record<string, unknown> | null): Record<string, unknown> | null {
+  return recordObject(payload?.refresh);
+}
+
+function payloadDiff(payload: Record<string, unknown> | null): Record<string, unknown> | null {
+  return recordObject(payload?.diff);
+}
+
+function payloadPathDigest(payload: Record<string, unknown> | null, input: Record<string, unknown>): string {
+  const snapshotCache = recordObject(payload?.snapshot_cache);
+  const digest = stringField(snapshotCache?.path_digest);
+  if (digest) return digest;
+  return `sha256:${sha256(JSON.stringify(cachePaths(auditPaths(input))))}`;
+}
+
+function payloadPathCount(payload: Record<string, unknown> | null, input: Record<string, unknown>): number {
+  const snapshotCache = recordObject(payload?.snapshot_cache);
+  const paths = stringArray(snapshotCache?.paths);
+  return paths?.length ?? cachePaths(auditPaths(input)).length;
+}
+
+function payloadBytesReturned(payload: Record<string, unknown> | null): number {
+  let total = numberField(payload?.bytes_returned) ?? 0;
+  for (const result of recordArray(payload?.results)) {
+    total += numberField(result.bytes_returned) ?? 0;
+  }
+  return total;
+}
+
+function payloadBytesWritten(payload: Record<string, unknown> | null): number {
+  const diff = payloadDiff(payload);
+  return numberField(diff?.bytes_after) ?? 0;
+}
+
+function payloadFallbackUsed(payload: Record<string, unknown> | null): boolean {
+  const values = [
+    stringField(payload?.backend),
+    ...recordArray(payload?.results).map((result) => stringField(result.backend)),
+  ].filter((value): value is string => value !== undefined);
+  return values.some((value) => value.includes('filesystem-fallback'));
+}
+
+function payloadIndexLagMs(payload: Record<string, unknown> | null): number | undefined {
+  const index = payloadIndex(payload);
+  const refresh = payloadRefresh(payload);
+  return numberField(index?.index_lag_ms) ?? numberField(refresh?.index_lag_ms);
+}
+
+function resultErrorCode(payload: Record<string, unknown> | null): string | undefined {
+  return stringField(recordObject(payload?.error)?.code);
+}
+
+function traceBackend(payload: Record<string, unknown> | null): string {
+  const backend = stringField(payload?.backend);
+  if (backend) return backend;
+  const codeGraph = payloadCodeGraph(payload);
+  if (codeGraph?.available === false) return 'filesystem-fallback';
+  return 'codegraph-or-filesystem';
+}
+
+function writeToolObservability(ctx: GeneralRepoToolContext, tool: string, status: 'ok' | 'blocked' | 'failed', input: Record<string, unknown>, result: GeneralRepoToolResult | null, durationMs: number, id: string, errorCode?: string): void {
+  const payload = recordObject(result?.structuredContent);
+  const codeGraph = payloadCodeGraph(payload);
+  const index = payloadIndex(payload);
+  const refresh = payloadRefresh(payload);
+  const effectiveErrorCode = errorCode ?? resultErrorCode(payload);
+  const indexState = stringField(payload?.index_state) ?? stringField(index?.state);
+  const indexLagMs = payloadIndexLagMs(payload);
+  const manifestIncomplete = tool === 'repo_manifest' && payload?.complete === false;
+  const reindexFailure = tool === 'refresh_repo_index' && (status !== 'ok' || indexState === 'failed');
+  const writeConflict = effectiveErrorCode === 'REVISION_CONFLICT';
+  const atomicWriteFailure = WRITE_TOOLS.has(tool) && (effectiveErrorCode === 'INJECTED_MUTATION_FAULT' || status === 'failed');
+  const pathEscapeAttempt = effectiveErrorCode ? PATH_ESCAPE_ERROR_CODES.has(effectiveErrorCode) : false;
+
+  const metric = {
+    schema_version: 1,
+    event_type: 'mcp_tool_metric',
+    timestamp: new Date().toISOString(),
+    correlation_id: id,
+    repo_id: stringField(payload?.repo_id) ?? stringField(input.repo_id),
+    tool,
+    operation: stringField(payload?.operation) ?? tool,
+    status,
+    error_code: effectiveErrorCode,
+    duration_ms: durationMs,
+    codegraph_revision: stringField(payload?.index_revision) ?? stringField(codeGraph?.index_revision),
+    codegraph_available: typeof codeGraph?.available === 'boolean' ? codeGraph.available : undefined,
+    codegraph_latency_ms: numberField(codeGraph?.latency_ms),
+    path_count: payloadPathCount(payload, input),
+    path_digest: payloadPathDigest(payload, input),
+    bytes_returned: payloadBytesReturned(payload),
+    bytes_written: payloadBytesWritten(payload),
+    partial: payload?.partial === true,
+    fallback_used: payloadFallbackUsed(payload),
+    filtered_path_count: numberField(codeGraph?.filtered_paths) ?? 0,
+    manifest_parity_failure_count: tool === 'repo_manifest' ? numberField(codeGraph?.filtered_paths) ?? 0 : 0,
+    manifest_incomplete: manifestIncomplete,
+    snapshot_stale: effectiveErrorCode === 'SNAPSHOT_STALE',
+    index_lagging: codeGraph?.index_lagging === true || indexState === 'index_lagging',
+    index_lag_ms: indexLagMs,
+    lagging_path_count: numberField(codeGraph?.lagging_path_count) ?? numberField(index?.lagging_path_count) ?? 0,
+    write_conflict: writeConflict,
+    atomic_write_failure: atomicWriteFailure,
+    reindex_failure: reindexFailure,
+    path_escape_attempt: pathEscapeAttempt,
+  };
+
+  const trace = {
+    schema_version: 1,
+    event_type: 'mcp_tool_trace',
+    timestamp: metric.timestamp,
+    correlation_id: id,
+    trace_id: id,
+    repo_id: metric.repo_id,
+    tool,
+    status,
+    duration_ms: durationMs,
+    error_code: effectiveErrorCode,
+    route: ['mcp_tool_gateway', 'repo_policy', 'path_guard_ignore_policy', traceBackend(payload), 'response'],
+    backend: traceBackend(payload),
+    codegraph_revision: metric.codegraph_revision,
+    index_state: indexState,
+    source_index_event_id: stringField(index?.source_event_id) ?? stringField(refresh?.source_event_id),
+    index_event_id: stringField(index?.event_id),
+  };
+
+  tryAppendJsonLine(mcpMetricsPath(ctx.repoRoot), metric);
+  tryAppendJsonLine(mcpTracePath(ctx.repoRoot), trace);
 }
 
 function injectMutationFault(point: string): void {
@@ -536,6 +722,25 @@ function canonicalDirectory(path: string): string | null {
   }
 }
 
+function directoryIdentity(path: string): string | null {
+  try {
+    const stats = statSync(path);
+    if (!stats.isDirectory()) return null;
+    return `${stats.dev}:${stats.ino}:${Math.trunc(stats.birthtimeMs)}`;
+  } catch {
+    return null;
+  }
+}
+
+function expectedRootIdentity(canonicalRoot: string): string | null {
+  const current = directoryIdentity(canonicalRoot);
+  if (!current) return null;
+  const expected = REPO_ROOT_IDENTITIES.get(canonicalRoot);
+  if (expected) return expected;
+  REPO_ROOT_IDENTITIES.set(canonicalRoot, current);
+  return current;
+}
+
 function registryRevision(records: Array<{ id: string; path: string; accessMode: RepoHarnessAccessMode }>): string {
   return `registry_${sha256(JSON.stringify(records.map((entry) => ({
     id: entry.id,
@@ -558,10 +763,13 @@ function uniqueRepoRecords(ctx: GeneralRepoToolContext): RepoRecord[] {
   const add = (rawPath: string, source: RepoRecord['source']): void => {
     const canonicalRoot = canonicalDirectory(rawPath);
     if (!canonicalRoot || byPath.has(canonicalRoot)) return;
+    const rootIdentity = expectedRootIdentity(canonicalRoot);
+    if (!rootIdentity) return;
     const registeredEntry = known.get(canonicalRoot);
     byPath.set(canonicalRoot, {
       repoId: registeredEntry?.id ?? repoHarnessRepoIdFor(canonicalRoot),
       canonicalRoot,
+      rootIdentity,
       displayName: basename(canonicalRoot) || canonicalRoot,
       accessMode: registeredEntry?.accessMode ?? 'read_only',
       registryRevision: revision,
@@ -582,8 +790,9 @@ function resolveRepo(ctx: GeneralRepoToolContext, repoId: unknown): RepoRecord {
   const repo = uniqueRepoRecords(ctx).find((entry) => entry.repoId === id);
   if (!repo) throw new GeneralRepoAccessError('REPO_NOT_ALLOWED', 'repo_id is not in the registered repo whitelist', { repo_id: id });
   const currentRoot = canonicalDirectory(repo.canonicalRoot);
-  if (currentRoot !== repo.canonicalRoot) {
-    throw new GeneralRepoAccessError('REPO_NOT_ALLOWED', 'registered repo root moved or is no longer readable', { repo_id: id });
+  const currentIdentity = currentRoot ? directoryIdentity(currentRoot) : null;
+  if (currentRoot !== repo.canonicalRoot || !currentIdentity || currentIdentity !== repo.rootIdentity) {
+    throw new GeneralRepoAccessError('REPO_NOT_ALLOWED', 'registered repo root moved, was replaced, or is no longer readable', { repo_id: id });
   }
   return repo;
 }
@@ -1120,7 +1329,7 @@ function pushManifestChildren(pending: PendingWalkEntry[], absoluteDir: string, 
 }
 
 function isInternalRevisionPath(path: string): boolean {
-  return path === '.ai/harness/mcp/audit.log' || path.startsWith('.ai/harness/mcp/');
+  return path === '.ai' || path === '.ai/harness' || path === '.ai/harness/mcp' || path.startsWith('.ai/harness/mcp/');
 }
 
 function createManifestDigest() {
@@ -2017,7 +2226,7 @@ function deleteMutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ign
   });
 }
 
-function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file', verifySnapshotEntry = false): Record<string, unknown> {
+function readFilePayload(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file', verifySnapshotEntry = false): Record<string, unknown> {
   if (args.line_range !== undefined && args.byte_range !== undefined) {
     throw new GeneralRepoAccessError('INVALID_RANGE', 'line_range and byte_range are mutually exclusive');
   }
@@ -2035,6 +2244,12 @@ function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visib
   const snapshotEntry = snapshot.entriesByPath.get(target.relativePath);
   const indexed = snapshotEntry?.indexed ?? false;
   const fields = commonFields(repo, ignore, snapshot, { tool, paths: [target.relativePath] });
+  if (!indexed && !ctx.policy.generalRepo.fs_fallback) {
+    throw new GeneralRepoAccessError('INDEX_UNAVAILABLE', 'filesystem fallback is disabled for unindexed file content', {
+      path: target.relativePath,
+      fs_fallback: false,
+    }, true);
+  }
   const raw = readStableResolvedFile(target, ignore);
   const fullHash = sha256(raw);
   if (verifySnapshotEntry) assertSnapshotEntryCurrent(snapshot, target.relativePath, fullHash);
@@ -2117,18 +2332,28 @@ function getRepoCapabilities(ctx: GeneralRepoToolContext, args: Record<string, u
   return textResult({
     ...commonFields(repo, ignore, snapshot, { tool: 'get_repo_capabilities' }),
     access_mode: repo.accessMode,
-    writable: repo.accessMode === 'read_write',
+    writable: repo.accessMode === 'read_write' && ctx.policy.generalRepo.repo_write,
     display_name: repo.displayName,
     registry_revision: repo.registryRevision,
     source: repo.source,
     read_tools: GENERAL_REPO_TOOLS.filter((tool) => tool !== 'get_repo_capabilities' && !WRITE_TOOLS.has(tool)),
-    write_tools: repo.accessMode === 'read_write' ? [...WRITE_TOOLS] : [],
+    write_tools: repo.accessMode === 'read_write' && ctx.policy.generalRepo.repo_write ? [...WRITE_TOOLS] : [],
+    rollout: {
+      general_repo_read: ctx.policy.generalRepo.general_repo_read,
+      repo_write: ctx.policy.generalRepo.repo_write,
+      fs_fallback: ctx.policy.generalRepo.fs_fallback,
+      shadow_compare: ctx.policy.generalRepo.shadow_compare,
+      canary_repos: ctx.policy.generalRepo.canary_repos,
+      rollback_to_legacy_tools: ctx.policy.generalRepo.rollback_to_legacy_tools,
+    },
     codegraph: {
       primary_backend: true,
       ...codeGraphSummary(snapshot),
       note: snapshot.codeGraph.available
         ? 'CodeGraph inventory is merged as indexed metadata; secure filesystem walking remains the manifest source of truth.'
-        : 'CodeGraph is unavailable for this repo; authorized filesystem fallback remains active.',
+        : ctx.policy.generalRepo.fs_fallback
+          ? 'CodeGraph is unavailable for this repo; authorized filesystem fallback remains active.'
+          : 'CodeGraph is unavailable for this repo; filesystem fallback is disabled by rollout policy.',
     },
     limits: {
       max_page_size: HARD_PAGE_SIZE,
@@ -2587,14 +2812,14 @@ function readFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>
   const cachedSnapshot = cachedSnapshotById(repo, args.snapshot_id, requestedPath, { requireHashes: true });
   if (cachedSnapshot) {
     return textResult({
-      ...readFilePayload(repo, ignore, cachedSnapshot, args, HARD_READ_BYTES, 'read_file', true),
+      ...readFilePayload(ctx, repo, ignore, cachedSnapshot, args, HARD_READ_BYTES, 'read_file', true),
       codegraph: codeGraphSummary(cachedSnapshot),
     });
   }
   const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
   assertSnapshotFresh(args, snapshot);
   return textResult({
-    ...readFilePayload(repo, ignore, snapshot, args),
+    ...readFilePayload(ctx, repo, ignore, snapshot, args),
     codegraph: codeGraphSummary(snapshot),
   });
 }
@@ -2623,7 +2848,7 @@ function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): 
       continue;
     }
     try {
-      const payload = readFilePayload(repo, ignore, snapshot, request as Record<string, unknown>, remaining, 'read_files', Boolean(cachedSnapshot));
+      const payload = readFilePayload(ctx, repo, ignore, snapshot, request as Record<string, unknown>, remaining, 'read_files', Boolean(cachedSnapshot));
       remaining -= Number(payload.bytes_returned ?? 0);
       results.push(payload);
     } catch (error) {
@@ -2686,10 +2911,15 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
   const maxResults = numberArg(args.max_results, DEFAULT_SEARCH_RESULTS, 1, HARD_SEARCH_RESULTS);
   const offset = numberArg(args.cursor, 0, 0, Number.MAX_SAFE_INTEGER);
   let seenMatches = 0;
+  let fallbackDisabledSkipped = 0;
 
   for (const entry of candidates.sort((a, b) => a.path.localeCompare(b.path))) {
     if (matches.length >= maxResults + 1) break;
     if (entry.type !== 'file' || !entry.readable || seen.has(entry.path) || entry.binary || (entry.size ?? 0) > SEARCH_FILE_SCAN_BYTES) continue;
+    if (!entry.indexed && !ctx.policy.generalRepo.fs_fallback) {
+      fallbackDisabledSkipped += 1;
+      continue;
+    }
     seen.add(entry.path);
     const resolved = resolveRepoPath(repo, entry.path, ignore, { requireFile: true });
     const raw = readStableResolvedFile(resolved, ignore);
@@ -2726,6 +2956,8 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
     mode,
     matches: returned,
     truncated: nextCursor !== null,
+    partial: snapshot.partial || fallbackDisabledSkipped > 0,
+    fallback_disabled_skipped: fallbackDisabledSkipped,
     next_cursor: nextCursor,
     backend: snapshot.codeGraph.available ? 'codegraph-metadata+filesystem-fallback' : 'filesystem-fallback',
     codegraph: codeGraphSummary(snapshot),
@@ -2744,6 +2976,10 @@ export function listGeneralRepoRecords(ctx: GeneralRepoToolContext): Array<{ rep
 
 export function isGeneralRepoTool(name: string): name is GeneralRepoToolName {
   return (GENERAL_REPO_TOOLS as readonly string[]).includes(name);
+}
+
+export function isGeneralRepoWriteTool(name: string): boolean {
+  return WRITE_TOOLS.has(name);
 }
 
 export function hasGeneralRepoArgs(args: Record<string, unknown>): boolean {
@@ -2927,7 +3163,19 @@ export function buildGeneralRepoToolDefinitions(): GeneralRepoToolDefinition[] {
 
 export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: string, args: Record<string, unknown> = {}): Promise<GeneralRepoToolResult> {
   const startedAtMs = Date.now();
+  const callCorrelationId = correlationId(name);
   try {
+    if (ctx.policy.generalRepo.rollback_to_legacy_tools || !ctx.policy.generalRepo.general_repo_read) {
+      throw new GeneralRepoAccessError('TOOL_NOT_AVAILABLE', 'general repo tools are disabled by MCP rollout policy', {
+        general_repo_read: ctx.policy.generalRepo.general_repo_read,
+        rollback_to_legacy_tools: ctx.policy.generalRepo.rollback_to_legacy_tools,
+      });
+    }
+    if (WRITE_TOOLS.has(name) && !ctx.policy.generalRepo.repo_write) {
+      throw new GeneralRepoAccessError('WRITE_DISABLED', 'general repo write tools are disabled by MCP rollout policy', {
+        repo_write: false,
+      });
+    }
     let result: GeneralRepoToolResult;
     switch (name) {
       case 'get_repo_capabilities':
@@ -2969,20 +3217,37 @@ export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: str
       default:
         return errorResult('INTERNAL_ADAPTER_ERROR', `tool is not a general repo reader tool: ${name}`);
     }
-    audit(ctx, name, 'ok', args, auditTargetPath(args), undefined, auditDetailsFromResult(result, args, Date.now() - startedAtMs, name));
-    return result;
+    const durationMs = Date.now() - startedAtMs;
+    const correlated = withCorrelationId(result, callCorrelationId);
+    audit(ctx, name, 'ok', args, auditTargetPath(args), undefined, {
+      ...auditDetailsFromResult(correlated, args, durationMs, name),
+      correlationId: callCorrelationId,
+    });
+    writeToolObservability(ctx, name, 'ok', args, correlated, durationMs, callCorrelationId);
+    return correlated;
   } catch (error) {
+    const durationMs = Date.now() - startedAtMs;
     if (error instanceof GeneralRepoAccessError) {
-      audit(ctx, name, 'blocked', args, auditTargetPath(args), error.message, auditDetailsFromError(error, args, Date.now() - startedAtMs, name));
-      return errorResult(error.code, error.message, error.details, error.retryable);
+      const message = redactMcpText(error.message).text;
+      const result = withCorrelationId(errorResult(error.code, message, error.details, error.retryable), callCorrelationId);
+      audit(ctx, name, 'blocked', args, auditTargetPath(args), message, {
+        ...auditDetailsFromError(error, args, durationMs, name),
+        correlationId: callCorrelationId,
+      });
+      writeToolObservability(ctx, name, 'blocked', args, result, durationMs, callCorrelationId, error.code);
+      return result;
     }
-    audit(ctx, name, 'failed', args, auditTargetPath(args), error instanceof Error ? error.message : String(error), {
+    const message = redactMcpText(error instanceof Error ? error.message : String(error)).text;
+    const result = withCorrelationId(errorResult('INTERNAL_ADAPTER_ERROR', message), callCorrelationId);
+    audit(ctx, name, 'failed', args, auditTargetPath(args), message, {
       repoId: stringField(args.repo_id),
       operation: name,
       relativePaths: auditPaths(args),
-      durationMs: Date.now() - startedAtMs,
+      durationMs,
+      correlationId: callCorrelationId,
       errorCode: 'INTERNAL_ADAPTER_ERROR',
     });
-    return errorResult('INTERNAL_ADAPTER_ERROR', error instanceof Error ? error.message : String(error));
+    writeToolObservability(ctx, name, 'failed', args, result, durationMs, callCorrelationId, 'INTERNAL_ADAPTER_ERROR');
+    return result;
   }
 }

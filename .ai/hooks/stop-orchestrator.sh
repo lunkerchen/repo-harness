@@ -94,8 +94,46 @@ plan_completeness_shell_quote() {
   printf '%q' "$1"
 }
 
+plan_completeness_runtime_summary() {
+  local kind host prompt_slug draft_path source_ref expected_artifact cwd
+
+  kind="$(workflow_pending_orchestration_field kind 2>/dev/null || true)"
+  host="$(workflow_pending_orchestration_field host 2>/dev/null || true)"
+  prompt_slug="$(workflow_pending_orchestration_field prompt_slug 2>/dev/null || true)"
+  draft_path="$(workflow_pending_orchestration_field draft_plan_path 2>/dev/null || true)"
+  source_ref="$(workflow_pending_orchestration_field source_ref 2>/dev/null || true)"
+  expected_artifact="$(workflow_pending_orchestration_field expected_artifact 2>/dev/null || true)"
+  cwd="$(workflow_pending_orchestration_field cwd 2>/dev/null || true)"
+
+  printf 'kind=%s host=%s expected=%s slug=%s' "${kind:-unknown}" "${host:-unknown}" "${expected_artifact:-plan}" "${prompt_slug:-planning}"
+  [[ -n "$draft_path" ]] && printf ' draft=%s' "$draft_path"
+  [[ -n "$source_ref" ]] && printf ' source_ref=<source-ref>'
+  [[ -n "$cwd" ]] && printf ' cwd=%s' "$cwd"
+  printf '\n'
+}
+
+plan_completeness_guidance_title_arg() {
+  case "$1" in
+    waza-think)
+      printf '"Waza think planning output"'
+      ;;
+    dynamic-workflow)
+      printf '"Dynamic workflow planning output"'
+      ;;
+    codex-plan)
+      printf '"Codex planning output"'
+      ;;
+    repo-harness-plan)
+      printf '"repo-harness planning output"'
+      ;;
+    *)
+      printf '"Planning output"'
+      ;;
+  esac
+}
+
 plan_completeness_capture_guidance() {
-  local kind prompt_slug source_ref title source_arg
+  local kind prompt_slug source_ref title_arg source_arg
 
   kind="$(workflow_pending_orchestration_field kind 2>/dev/null || true)"
   prompt_slug="$(workflow_pending_orchestration_field prompt_slug 2>/dev/null || true)"
@@ -103,18 +141,20 @@ plan_completeness_capture_guidance() {
 
   kind="${kind:-host-plan}"
   prompt_slug="${prompt_slug:-planning}"
-  title="${source_ref:-$prompt_slug}"
+  title_arg="$(plan_completeness_guidance_title_arg "$kind")"
   source_arg=""
   if [[ -n "$source_ref" ]]; then
-    source_arg=" --source-ref $(plan_completeness_shell_quote "$source_ref")"
+    source_arg=' --source-ref "<source-ref>"'
   fi
 
   cat <<EOF_GUIDANCE
 If the planning answer is decision-complete, capture the final plan body before stopping:
-  printf '%s\n' '<decision-complete plan body>' | bash scripts/capture-plan.sh --slug $(plan_completeness_shell_quote "$prompt_slug") --title $(plan_completeness_shell_quote "$title") --status Draft --source $(plan_completeness_shell_quote "$kind") --orchestration-kind $(plan_completeness_shell_quote "$kind") --route planning${source_arg}
+  printf '%s\n' '<decision-complete plan body>' | bash scripts/capture-plan.sh --slug $(plan_completeness_shell_quote "$prompt_slug") --title ${title_arg} --status Draft --source $(plan_completeness_shell_quote "$kind") --orchestration-kind $(plan_completeness_shell_quote "$kind") --route planning${source_arg}
 
 If the user already approved implementation, use:
-  printf '%s\n' '<approved plan body>' | bash scripts/capture-plan.sh --slug $(plan_completeness_shell_quote "$prompt_slug") --title $(plan_completeness_shell_quote "$title") --status Approved --source $(plan_completeness_shell_quote "$kind") --orchestration-kind $(plan_completeness_shell_quote "$kind") --route planning --execute${source_arg}
+  printf '%s\n' '<approved plan body>' | bash scripts/capture-plan.sh --slug $(plan_completeness_shell_quote "$prompt_slug") --title ${title_arg} --status Approved --source $(plan_completeness_shell_quote "$kind") --orchestration-kind $(plan_completeness_shell_quote "$kind") --route planning --execute${source_arg}
+
+Use a short English title/source-ref alias in these runtime instructions; do not paste non-ASCII prompt text into command arguments.
 
 If the plan is not decision-complete, revise once for: goal/success criteria, scope/non-scope, constraints, P1/P2/P3, fragile assumption, rejected alternative, public API/config/file-interface changes, external dependency/API key requirements, tests, rollback/failure handling, phase independence, and no placeholders. Do not implement until capture succeeds.
 EOF_GUIDANCE
@@ -400,7 +440,7 @@ if should_run_plan_completeness_gate "$stop_hook_active" "$last_assistant_messag
   signature="$(plan_completeness_signature)"
   if [[ "$(plan_completeness_last_signature 2>/dev/null || true)" != "$signature" ]]; then
     plan_completeness_record_signature "$signature"
-    summary="$(workflow_pending_orchestration_summary)"
+    summary="$(plan_completeness_runtime_summary)"
     guidance="$(plan_completeness_capture_guidance)"
     emit_stop_block_json "[PlanCompletenessGate] A first planning answer was produced while pending orchestration is still open: ${summary}
 

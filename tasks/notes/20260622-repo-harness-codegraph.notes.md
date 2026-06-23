@@ -230,3 +230,135 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   relative paths, mutation id, index invalidation/event ids, hash summaries,
   result, duration, and rejection error code. The logged input remains hashed,
   not embedded, so file contents and patch bodies do not enter the audit log.
+
+## 2026-06-23 S4 security hardening slice
+
+- Root validation now stores a first-observed directory identity for each
+  canonical repo root inside the long-lived MCP process. `resolveRepo` compares
+  the live identity to that first observation, so a repo id fails closed if the
+  root disappears or is replaced at the same canonical path. This is deliberately
+  process-local: a fresh MCP process can adopt the replacement after normal
+  registry/policy checks, while a running process does not silently switch trust
+  to a different directory.
+- Generic thrown adapter errors and blocked `GeneralRepoAccessError` messages
+  are redacted before MCP response/audit emission. The audit writer still
+  performs its own final error-field redaction, and index refresh events use the
+  same redaction path for adapter-provided messages.
+- Security regression tests now cover path parser fuzz samples, ignored refresh
+  paths, guarded patch parser rejection, malicious CodeGraph absolute/
+  Windows-like/NUL paths, same-path root replacement, missing root, manifest
+  partial reporting for disappearing entries and POSIX permission-denied
+  directories, byte-budget continuation/errors, and audit/index-event absence of
+  file content or secret-bearing adapter errors.
+- Independent Claude read-only review was run on the S4 diff. The first pass
+  found a redaction consistency gap in the blocked audit branch; the follow-up
+  fix was applied, local tests passed, and the second pass reported no P1
+  findings.
+- Residual risk: root identity relies on filesystem `dev:ino:birthtimeMs`.
+  Filesystems with unavailable birthtime and immediate inode reuse could
+  theoretically miss a same-path replacement. This is still stricter than the
+  previous realpath-only guard and remains fail-closed for normal remove,
+  replace, or symlink target changes observed in the test fixture.
+
+## 2026-06-23 S4 observability slice
+
+- General repo MCP tool calls now generate a response/audit/metrics/trace
+  correlation id. The id is returned as `correlation_id`, recorded on audit
+  entries as `correlationId`, and written to both
+  `.ai/harness/mcp/metrics.jsonl` and `.ai/harness/mcp/trace.jsonl`.
+- Metrics stay content-free: they include repo id, tool, operation, status,
+  error code, duration, CodeGraph revision/latency, path count, path digest,
+  bytes returned/written, partial/fallback flags, manifest parity failures,
+  stale snapshots, index lag, write conflicts, atomic write failures, reindex
+  failures, and path escape attempts. Raw paths and file bodies are intentionally
+  excluded from metric labels.
+- Trace rows are deliberately coarse-grained rather than fake subspan timings:
+  they record the observed route from MCP gateway through policy, path/ignore
+  guard, CodeGraph or filesystem backend, and response. This preserves a useful
+  chain for canary/debugging without inventing precision the runtime does not
+  measure.
+- `scripts/mcp-observability-report.ts` is a local JSONL aggregator, not a
+  hosted telemetry dependency. It produces dashboard rows grouped by repo, tool,
+  and CodeGraph revision, separates failed-call error rate from blocked policy
+  rejections, caps input to the latest 100k metrics/trace events, and emits
+  alerts for path escape spikes, high index lag, incomplete manifests, and
+  reindex dead-letter failures.
+- `.ai/harness/mcp/metrics.jsonl` and `.ai/harness/mcp/trace.jsonl` are added
+  to setup-managed ignore entries. The MCP runtime directory is treated as an
+  internal revision path for snapshot digests so observability writes do not
+  invalidate a user's `snapshot_id` between related tool calls.
+- Claude diff-only review found no P1 issues. Its P2s drove follow-up fixes for
+  large-log max latency aggregation, blocked-vs-failed reporting, manifest-only
+  parity failure accounting, snapshot stability coverage, and escape-input
+  redaction assertions.
+
+## 2026-06-23 S4 migration slice
+
+- Added `McpPolicy.generalRepo` as the rollout boundary for general repo access:
+  `general_repo_read`, `repo_write`, `fs_fallback`, `shadow_compare`,
+  `canary_repos`, and `rollback_to_legacy_tools`. Local MCP config persists the
+  same flags under `rollout.generalRepo`; environment overrides give operators
+  a one-process rollback/canary path without editing registry state.
+- Defaults are closed by default: general repo read is disabled, repo write is
+  disabled, filesystem fallback is disabled, shadow mode is disabled, and
+  rollback is disabled. Operators must explicitly opt in to read and fallback;
+  both repo `read_write` capability and rollout `repo_write=true` are still
+  required before mutation tools are listed or executed.
+- Legacy `read_workflow_file` now preferentially calls the new `read_file`
+  service, then reshapes/redacts the result into the old artifact response. It
+  deliberately falls back to the old bounded workflow path when rollback mode is
+  active or when a file exceeds the new single-call read chunk. That preserves
+  existing workflow clients while exercising the new repo service in normal
+  migration traffic.
+- `fs_fallback=false` does not hide files from manifest/stat. It blocks
+  unindexed file content reads with `INDEX_UNAVAILABLE` and records skipped
+  fallback search candidates as partial search output. This preserves the
+  invariant that index/fallback limits are observable constraints, not
+  permission denials.
+- Added `scripts/mcp-rollout-gate.ts` as the local release/canary gate for this
+  migration. It compares legacy workflow file listing/read compatibility against
+  the new manifest/tree/search path, validates rollback tool-surface behavior,
+  selects configured canaries, and records CodeGraph ignore recheck status.
+- Self-host rollout gate passed with `shadow=pass`, `canary=ready`, and
+  `rollback=pass`. The live global registry currently contains one adopted
+  read-only canary, this repo, classified as medium. The script supports
+  configured 1-3 canaries and `--require-three-canaries`; the later release-exit
+  gate should use that stricter mode once small/large registered canaries exist.
+
+## 2026-06-23 S4 documentation and exit slice
+
+- Folded S4 security, observability, migration, rollout, documentation, and exit
+  evidence into module PR #35 after closing the superseded fine-grained PRs. The
+  reviewable module boundary is now the S4 module branch.
+- Added `docs/reference-configs/general-repo-mcp.md` as the public reference for
+  general repo MCP tool examples, repo administration, `.ignore` policy,
+  CodeGraph health, privacy/audit, workflow-artifact migration, rollout flags,
+  and known limits.
+- Added `deploy/runbooks/general-repo-mcp-codegraph.md` for index stale,
+  CodeGraph down, manifest incomplete, mutation conflict, reindex dead-letter,
+  write-disable, fallback-disable, and rollback operations.
+- Added `deploy/release-checklists/260623-repo-harness-codegraph-general-repo.md`
+  to keep Sprint 4 release evidence distinct from npm publish authority.
+- README and the ChatGPT MCP setup guide now link to the reference and runbook;
+  the setup guide generator was updated so future generated guides keep the same
+  general repo entrypoints.
+- Sprint 4 machine-verifiable exit criteria are local-gated, but human
+  release/test/security signoff and the post-fix external review remain the PR
+  review/merge gate and are not self-signed by the implementing agent.
+
+## 2026-06-23 review granularity consolidation
+
+- User feedback: the open PR stack was too fine-grained to review efficiently.
+  The review boundary is now the sprint module, not each implementation slice.
+- Keep S0 and S1 as module-sized PRs because they already map to contract
+  freeze and first runtime reader module boundaries.
+- Replace S2's five incremental PRs with one S2 module PR covering snapshots,
+  manifest/search/read integration, caching, performance baselines, and
+  streaming manifest behavior.
+- Replace S3's five incremental PRs with one S3 module PR covering write-file,
+  index refresh, guarded patch, move/delete, recovery, and mutation audit.
+- Replace S4's three incremental PRs with one S4 module PR covering security,
+  observability, migration, rollout gate, documentation, and machine-verifiable
+  exit evidence.
+- Close the superseded small PRs after the replacement module PRs exist, leaving
+  their branches intact for audit history.

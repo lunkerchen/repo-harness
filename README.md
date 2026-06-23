@@ -414,6 +414,13 @@ bun run benchmark:mcp-reader -- --entries 10000 --json
 Use `--entries all` for the full 10k/100k/500k fixture sequence when the local
 machine can spend the filesystem time.
 
+For the full tool reference, JSON examples, repo administrator guidance,
+privacy notes, migration guide, rollout flags, and known limits, see
+[`docs/reference-configs/general-repo-mcp.md`](docs/reference-configs/general-repo-mcp.md).
+For index stale, CodeGraph down, manifest incomplete, mutation conflict,
+reindex dead-letter, and rollback operations, see
+[`deploy/runbooks/general-repo-mcp-codegraph.md`](deploy/runbooks/general-repo-mcp-codegraph.md).
+
 This sidecar assumes the CLI is already installed from
 [First 5 Minutes](#first-5-minutes). Use it when you want ChatGPT to plan
 against the real repo state and Codex to execute the resulting file-backed

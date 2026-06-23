@@ -1234,6 +1234,63 @@ describe("Hook runtime behavior", () => {
     }
   });
 
+  test("post-tool observer parses hot-path stdin with a single jq call", () => {
+    const jqLookup = spawnSync("sh", ["-c", "command -v jq"], { encoding: "utf-8" });
+    if (jqLookup.status !== 0 || !jqLookup.stdout.trim()) {
+      return;
+    }
+
+    const cwd = tmpWorkspace("post-tool-jq-budget");
+    try {
+      initGitRepo(cwd);
+      installHooks(cwd);
+
+      const binDir = join(cwd, "bin");
+      const jqCountFile = join(cwd, "jq-count.txt");
+      const jqShim = join(binDir, "jq");
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(jqCountFile, "");
+      writeFileSync(
+        jqShim,
+        [
+          "#!/bin/bash",
+          'printf x >> "$JQ_COUNT_FILE"',
+          'exec "$REAL_JQ" "$@"',
+          "",
+        ].join("\n")
+      );
+      expect(spawnSync("chmod", ["+x", jqShim]).status).toBe(0);
+
+      const res = runHook("post-tool-observer.sh", cwd, {
+        stdin: JSON.stringify({
+          hook_event_name: "PostToolUse",
+          tool_name: "Bash",
+          tool_response: { exit_code: 0, duration_ms: 12 },
+          session_id: "session-fast",
+          source: "codex",
+        }),
+        env: {
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          REAL_JQ: jqLookup.stdout.trim(),
+          JQ_COUNT_FILE: jqCountFile,
+        },
+      });
+
+      expect(res.status).toBe(0);
+      expect(readFileSync(jqCountFile, "utf-8")).toHaveLength(1);
+
+      const trace = readFileSync(join(cwd, ".claude", ".trace.jsonl"), "utf-8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      expect(trace[0].tool_name).toBe("Bash");
+      expect(trace[0].session_key).toBe("session-fast");
+      expect(trace[0].run_id).toBe("run-codex-session-fast");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   test("post-tool observer: Codex apply_patch warns on dirty plan annotations", () => {
     const cwd = tmpWorkspace("post-tool-plan-guard");
     try {
@@ -2650,7 +2707,7 @@ describe("Hook runtime behavior", () => {
             host: "claude",
             prompt_slug: "plan-completeness",
             draft_plan_path: "",
-            source_ref: "thread://plan-completeness",
+            source_ref: "think 你研究一下：/Users/ancienttwo/Projects/repo-harness/docs/researches/repo-harness 钩子时延与 LLM 提供商限流",
             expected_artifact: "plans/plan-*.md",
             cwd,
             created_at: "2026-06-01T09:00:00+0800",
@@ -2686,12 +2743,19 @@ describe("Hook runtime behavior", () => {
       expect(decision.reason).toContain("capture the final plan body");
       expect(decision.reason).toContain("scripts/capture-plan.sh");
       expect(decision.reason).toContain("--slug plan-completeness");
+      expect(decision.reason).toContain('--title "Waza think planning output"');
       expect(decision.reason).toContain("--status Draft");
       expect(decision.reason).toContain("--status Approved");
       expect(decision.reason).toContain("--execute");
       expect(decision.reason).toContain("--source waza-think");
       expect(decision.reason).toContain("--orchestration-kind waza-think");
-      expect(decision.reason).toContain("--source-ref thread://plan-completeness");
+      expect(decision.reason).toContain("source_ref=<source-ref>");
+      expect(decision.reason).toContain('--source-ref "<source-ref>"');
+      expect(decision.reason).toContain("Use a short English title/source-ref alias");
+      expect(decision.reason).not.toContain("钩子时延");
+      expect(decision.reason).not.toContain("$'");
+      expect(decision.reason).not.toContain("\\344");
+      expect(decision.reason).not.toContain("�");
       expect(decision.reason).toContain("Do not implement until capture succeeds");
       expect(decision.reason).toContain("external dependency/API key requirements");
       expect(decision.reason).toContain("phase independence");

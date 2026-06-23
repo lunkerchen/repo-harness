@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../src/effects/repo-registry';
@@ -81,7 +81,11 @@ async function withReaderRepo<T>(fn: (repoRoot: string, ctx: ReaderToolContext) 
     } catch (_error) {
       // Symlinks may be unavailable on some runners; tree must still be covered by ordinary directories.
     }
-    const policy = getMcpPolicy('planner', { enableReader: true, allowedRoots: [repoRoot] });
+    const policy = getMcpPolicy('planner', {
+      enableReader: true,
+      allowedRoots: [repoRoot],
+      generalRepo: { general_repo_read: true, fs_fallback: true, repo_write: opts.accessMode === 'read_write' },
+    });
     const ctx = createReaderToolContext(repoRoot, policy, new WorkspaceManager({ allowedRoots: [repoRoot], policy }));
     return await fn(repoRoot, ctx);
   } finally {
@@ -156,6 +160,56 @@ describe('MCP reader tools', () => {
       const otherCtx = createReaderToolContext(repoRoot, otherPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: otherPolicy }));
       const denied = await jsonTool(otherCtx, 'tree', { workspace_id: opened.workspace_id });
       expect(denied.error.code).toBe('WORKSPACE_NOT_FOUND');
+    });
+  });
+
+  test('general repo rollout flags gate tool surface, writes, fallback, and rollback mode', async () => {
+    await withReaderRepo(async (repoRoot) => {
+      const repoId = repoHarnessRepoIdFor(realpathSync(repoRoot));
+      const readOnlyPolicy = getMcpPolicy('planner', {
+        enableReader: true,
+        allowedRoots: [repoRoot],
+        generalRepo: { general_repo_read: true, fs_fallback: true, repo_write: false },
+      });
+      const readOnlyTools = buildReaderToolDefinitions(readOnlyPolicy).map((tool) => tool.name);
+      expect(readOnlyTools).toContain('repo_manifest');
+      expect(readOnlyTools).toContain('read_file');
+      expect(readOnlyTools).not.toContain('write_file');
+      expect(readOnlyTools).not.toContain('refresh_repo_index');
+      const readOnlyCtx = createReaderToolContext(repoRoot, readOnlyPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: readOnlyPolicy }));
+      const blockedWrite = await jsonTool(readOnlyCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        content: 'new\n',
+        must_not_exist: true,
+      });
+      expect(blockedWrite.error.code).toBe('WRITE_DISABLED');
+
+      const noFallbackPolicy = getMcpPolicy('planner', {
+        enableReader: true,
+        allowedRoots: [repoRoot],
+        generalRepo: { general_repo_read: true, fs_fallback: false },
+      });
+      const noFallbackCtx = createReaderToolContext(repoRoot, noFallbackPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: noFallbackPolicy }));
+      const manifest = await jsonTool(noFallbackCtx, 'repo_manifest', { repo_id: repoId, page_size: 1000 });
+      expect(manifest.entries.some((entry: { path: string }) => entry.path === 'src/index.ts')).toBe(true);
+      const unindexedRead = await jsonTool(noFallbackCtx, 'read_file', { repo_id: repoId, path: 'src/index.ts' });
+      expect(unindexedRead.error.code).toBe('INDEX_UNAVAILABLE');
+
+      const rollbackPolicy = getMcpPolicy('planner', {
+        enableReader: true,
+        allowedRoots: [repoRoot],
+        generalRepo: { general_repo_read: false, rollback_to_legacy_tools: true },
+      });
+      const rollbackTools = buildReaderToolDefinitions(rollbackPolicy).map((tool) => tool.name);
+      expect(rollbackTools).toContain('read_text');
+      expect(rollbackTools).toContain('search_text');
+      expect(rollbackTools).not.toContain('repo_manifest');
+      expect(rollbackTools).not.toContain('read_file');
+      expect(rollbackTools).not.toContain('write_file');
+      const rollbackCtx = createReaderToolContext(repoRoot, rollbackPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: rollbackPolicy }));
+      const blockedManifest = await jsonTool(rollbackCtx, 'repo_manifest', { repo_id: repoId });
+      expect(blockedManifest.error.code).toBe('TOOL_NOT_AVAILABLE');
     });
   });
 
@@ -1046,6 +1100,9 @@ describe('MCP reader tools', () => {
               { path: '.env', language: 'dotenv', nodeCount: 0, size: 29 },
               { path: 'ignored.md', language: 'markdown', nodeCount: 0, size: 10 },
               { path: '../outside.ts', language: 'typescript', nodeCount: 1, size: 10 },
+              { path: '/tmp/outside.ts', language: 'typescript', nodeCount: 1, size: 10 },
+              { path: 'C:/Users/example/outside.ts', language: 'typescript', nodeCount: 1, size: 10 },
+              { path: 'docs/bad\0name.ts', language: 'typescript', nodeCount: 1, size: 10 },
               { path: 'missing.ts', language: 'typescript', nodeCount: 1, size: 10 },
             ],
           };
@@ -1082,8 +1139,8 @@ describe('MCP reader tools', () => {
         integrated: true,
         available: true,
         source: 'test-double',
-        indexed_files: 5,
-        filtered_paths: 3,
+        indexed_files: 8,
+        filtered_paths: 6,
         index_lagging: true,
         lagging_path_count: 2,
       });
@@ -1198,6 +1255,255 @@ describe('MCP reader tools', () => {
       expect(staleManifest.error.code).toBe('SNAPSHOT_STALE');
       expect(staleManifest.error.retryable).toBe(true);
       expect(pageMutations).toBe(2);
+    });
+  });
+
+  test('general repo security hardening fails closed on fuzzed inputs, partial walks, and raw adapter errors', async () => {
+    await withReaderRepo(async (repoRoot, ctx) => {
+      writeFileSync(join(repoRoot, '.ignore'), 'ignored.md\n');
+      const throwingCodeGraph: GeneralRepoCodeGraphAdapter = {
+        discoverRepo() {
+          return {
+            available: true,
+            integrated: true,
+            source: 'test-double',
+            indexRevision: 'index_throw_before',
+            latencyMs: 1,
+            files: [],
+          };
+        },
+        refreshRepo() {
+          throw new Error('OPENAI_API_KEY=sk-testsecret thrown from adapter');
+        },
+      };
+      const secureCtx = createReaderToolContext(
+        repoRoot,
+        ctx.policy,
+        new WorkspaceManager({ allowedRoots: [repoRoot], policy: ctx.policy }),
+        throwingCodeGraph,
+      );
+      const repoId = (await jsonTool(secureCtx, 'list_allowed_roots')).roots[0].repo_id;
+
+      const invalidReadPaths = [
+        { path: '../package.json', code: 'INVALID_RELATIVE_PATH' },
+        { path: '/tmp/package.json', code: 'INVALID_RELATIVE_PATH' },
+        { path: 'C:\\temp\\package.json', code: 'INVALID_RELATIVE_PATH' },
+        { path: 'docs/bad\0name.txt', code: 'INVALID_RELATIVE_PATH' },
+      ];
+      for (const sample of invalidReadPaths) {
+        const result = await jsonTool(secureCtx, 'read_file', { repo_id: repoId, path: sample.path });
+        expect(result.error.code).toBe(sample.code);
+      }
+
+      const ignoredRefresh = await jsonTool(secureCtx, 'refresh_repo_index', {
+        repo_id: repoId,
+        paths: ['ignored.md'],
+      });
+      expect(ignoredRefresh.error.code).toBe('PATH_IGNORED');
+      const traversalRefresh = await jsonTool(secureCtx, 'refresh_repo_index', {
+        repo_id: repoId,
+        paths: ['docs/../package.json'],
+      });
+      expect(traversalRefresh.error.code).toBe('INVALID_RELATIVE_PATH');
+
+      const design = await jsonTool(secureCtx, 'stat_file', { repo_id: repoId, path: 'docs/design.md' });
+      const badPatch = await jsonTool(secureCtx, 'apply_patch', {
+        repo_id: repoId,
+        path: 'docs/design.md',
+        expected_sha256: design.sha256,
+        unified_diff: [
+          '@@ -1,0 +1,1 @@',
+          '+OPENAI_API_KEY=sk-testsecret',
+        ].join('\n'),
+      });
+      expect(badPatch.error.code).toBe('INVALID_RANGE');
+      expect(readFileSync(join(repoRoot, 'docs', 'design.md'), 'utf-8')).toContain('authentication route');
+
+      let danglingEntries = 0;
+      for (let index = 0; index < 24; index += 1) {
+        try {
+          symlinkSync(join(repoRoot, 'docs', `deleted-during-walk-${index}.md`), join(repoRoot, 'docs', `dangling-during-walk-${index}.md`));
+          danglingEntries += 1;
+        } catch (_error) {
+          // Symlinks may be unavailable on some runners; the parser/error redaction checks still cover this test.
+          break;
+        }
+      }
+      if (danglingEntries > 0) {
+        const partialManifest = await jsonTool(secureCtx, 'repo_manifest', { repo_id: repoId, page_size: 1000 });
+        expect(partialManifest.partial).toBe(true);
+        expect(partialManifest.complete).toBe(false);
+        expect(partialManifest.walker_errors).toBeGreaterThanOrEqual(danglingEntries);
+      }
+      if (process.platform !== 'win32' && process.getuid?.() !== 0) {
+        const lockedDir = join(repoRoot, 'docs', 'permission-changed');
+        mkdirSync(lockedDir, { recursive: true });
+        writeFileSync(join(lockedDir, 'locked.txt'), 'locked\n');
+        chmodSync(lockedDir, 0);
+        try {
+          const permissionManifest = await jsonTool(secureCtx, 'repo_manifest', { repo_id: repoId, page_size: 1000 });
+          expect(permissionManifest.partial).toBe(true);
+          expect(permissionManifest.complete).toBe(false);
+          expect(permissionManifest.walker_errors).toBeGreaterThan(0);
+        } finally {
+          chmodSync(lockedDir, 0o700);
+        }
+      }
+
+      writeFileSync(join(repoRoot, 'docs', 'budget-a.txt'), 'abcdef');
+      writeFileSync(join(repoRoot, 'docs', 'budget-b.txt'), 'ghijkl');
+      const budgetedBatch = await jsonTool(secureCtx, 'read_files', {
+        repo_id: repoId,
+        byte_budget: 5,
+        requests: [{ path: 'docs/budget-a.txt' }, { path: 'docs/budget-b.txt' }],
+      });
+      expect(budgetedBatch.partial).toBe(true);
+      expect(budgetedBatch.results[0]).toMatchObject({
+        path: 'docs/budget-a.txt',
+        bytes_returned: 5,
+        has_more: true,
+        next_cursor: 'byte:5',
+      });
+      expect(budgetedBatch.results[1].error.code).toBe('PAYLOAD_LIMIT_REACHED');
+
+      const thrownRefresh = await jsonTool(secureCtx, 'refresh_repo_index', {
+        repo_id: repoId,
+        paths: ['docs/design.md'],
+      });
+      expect(thrownRefresh.error.code).toBe('INTERNAL_ADAPTER_ERROR');
+      expect(JSON.stringify(thrownRefresh)).not.toContain('sk-testsecret');
+      expect(JSON.stringify(thrownRefresh)).toContain('[REDACTED]');
+
+      const auditText = readFileSync(join(repoRoot, '.ai', 'harness', 'mcp', 'audit.log'), 'utf-8');
+      expect(auditText).not.toContain('sk-testsecret');
+      expect(auditText).not.toContain('OPENAI_API_KEY=sk-testsecret');
+      const indexEventsText = readFileSync(join(repoRoot, '.ai', 'harness', 'mcp', 'index-events.jsonl'), 'utf-8');
+      expect(indexEventsText).not.toContain('sk-testsecret');
+      expect(indexEventsText).not.toContain('OPENAI_API_KEY=sk-testsecret');
+    }, { accessMode: 'read_write' });
+  });
+
+  test('general repo observability emits metrics and traces without content labels', async () => {
+    await withReaderRepo(async (repoRoot, ctx) => {
+      const fakeCodeGraph: GeneralRepoCodeGraphAdapter = {
+        discoverRepo() {
+          return {
+            available: true,
+            integrated: true,
+            source: 'test-double',
+            indexRevision: 'index_observable',
+            latencyMs: 7,
+            files: [
+              { path: 'docs/design.md', language: 'markdown', nodeCount: 2, size: 999 },
+              { path: '../outside.ts', language: 'typescript', nodeCount: 1, size: 10 },
+            ],
+          };
+        },
+      };
+      const obsCtx = createReaderToolContext(
+        repoRoot,
+        ctx.policy,
+        new WorkspaceManager({ allowedRoots: [repoRoot], policy: ctx.policy }),
+        fakeCodeGraph,
+      );
+      const repoId = (await jsonTool(obsCtx, 'list_allowed_roots')).roots[0].repo_id;
+
+      const manifest = await jsonTool(obsCtx, 'repo_manifest', { repo_id: repoId, page_size: 20 });
+      expect(manifest.correlation_id).toMatch(/^mcpcorr_[a-f0-9]{16}$/);
+      expect(manifest.codegraph).toMatchObject({
+        index_revision: 'index_observable',
+        filtered_paths: 1,
+        index_lagging: true,
+        lagging_path_count: 1,
+      });
+
+      const fallbackRead = await jsonTool(obsCtx, 'read_file', { repo_id: repoId, path: '.env' });
+      expect(fallbackRead.content).toContain('sk-testsecret');
+      expect(fallbackRead.backend).toBe('filesystem-fallback');
+      expect(fallbackRead.correlation_id).toMatch(/^mcpcorr_[a-f0-9]{16}$/);
+
+      const blocked = await jsonTool(obsCtx, 'stat_file', { repo_id: repoId, path: '../outside.md' });
+      expect(blocked.error.code).toBe('INVALID_RELATIVE_PATH');
+      expect(blocked.correlation_id).toMatch(/^mcpcorr_[a-f0-9]{16}$/);
+
+      const repeatedManifest = await jsonTool(obsCtx, 'repo_manifest', {
+        repo_id: repoId,
+        page_size: 20,
+        snapshot_id: manifest.snapshot_id,
+      });
+      expect(repeatedManifest.snapshot_id).toBe(manifest.snapshot_id);
+      expect(repeatedManifest.error).toBeUndefined();
+
+      const metrics = readJsonLines(join(repoRoot, '.ai', 'harness', 'mcp', 'metrics.jsonl'));
+      const traces = readJsonLines(join(repoRoot, '.ai', 'harness', 'mcp', 'trace.jsonl'));
+      const metricText = JSON.stringify(metrics);
+      const traceText = JSON.stringify(traces);
+      expect(metricText).not.toContain('authentication route');
+      expect(metricText).not.toContain('sk-testsecret');
+      expect(metricText).not.toContain('docs/design.md');
+      expect(metricText).not.toContain('outside');
+      expect(traceText).not.toContain('authentication route');
+      expect(traceText).not.toContain('sk-testsecret');
+      expect(traceText).not.toContain('docs/design.md');
+      expect(traceText).not.toContain('outside');
+
+      const manifestMetric = metrics.find((entry) => entry.correlation_id === manifest.correlation_id);
+      expect(manifestMetric).toMatchObject({
+        event_type: 'mcp_tool_metric',
+        repo_id: repoId,
+        tool: 'repo_manifest',
+        status: 'ok',
+        codegraph_revision: 'index_observable',
+        manifest_parity_failure_count: 1,
+        index_lagging: true,
+        lagging_path_count: 1,
+      });
+      expect(manifestMetric?.path_digest).toMatch(/^sha256:/);
+
+      const readMetric = metrics.find((entry) => entry.correlation_id === fallbackRead.correlation_id);
+      expect(readMetric).toMatchObject({
+        tool: 'read_file',
+        status: 'ok',
+        fallback_used: true,
+        bytes_returned: fallbackRead.bytes_returned,
+        filtered_path_count: 1,
+        manifest_parity_failure_count: 0,
+      });
+
+      const blockedMetric = metrics.find((entry) => entry.correlation_id === blocked.correlation_id);
+      expect(blockedMetric).toMatchObject({
+        tool: 'stat_file',
+        status: 'blocked',
+        error_code: 'INVALID_RELATIVE_PATH',
+        path_escape_attempt: true,
+      });
+
+      const readTrace = traces.find((entry) => entry.correlation_id === fallbackRead.correlation_id);
+      expect(readTrace).toMatchObject({
+        event_type: 'mcp_tool_trace',
+        trace_id: fallbackRead.correlation_id,
+        tool: 'read_file',
+        status: 'ok',
+        backend: 'filesystem-fallback',
+      });
+      expect(readTrace?.route).toEqual(['mcp_tool_gateway', 'repo_policy', 'path_guard_ignore_policy', 'filesystem-fallback', 'response']);
+    });
+  });
+
+  test('general repo tools fail closed when the repo root disappears or is replaced during runtime', async () => {
+    await withReaderRepo(async (repoRoot, ctx) => {
+      const repoId = (await jsonTool(ctx, 'list_allowed_roots')).roots[0].repo_id;
+      rmSync(repoRoot, { recursive: true, force: true });
+      mkdirSync(repoRoot, { recursive: true });
+      writeFileSync(join(repoRoot, 'package.json'), JSON.stringify({ name: 'replacement' }));
+      const replacedRoot = await jsonTool(ctx, 'stat_file', { repo_id: repoId, path: 'package.json' });
+      expect(replacedRoot.error.code).toBe('REPO_NOT_ALLOWED');
+      expect(JSON.stringify(replacedRoot)).not.toContain(repoRoot);
+
+      rmSync(repoRoot, { recursive: true, force: true });
+      const missingRoot = await jsonTool(ctx, 'stat_file', { repo_id: repoId, path: 'package.json' });
+      expect(missingRoot.error.code).toBe('REPO_NOT_ALLOWED');
+      expect(JSON.stringify(missingRoot)).not.toContain(repoRoot);
     });
   });
 
