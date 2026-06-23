@@ -18,6 +18,7 @@ const TOOL_NAMES = [
   'read_files',
   'stat_file',
   'write_file',
+  'refresh_repo_index',
 ];
 
 const COMMON_RESPONSE_FIELDS = [
@@ -166,7 +167,7 @@ function manifestFromSecureWalker(root: string, indexedPaths: Set<string>): { ig
 }
 
 describe('general repo CodeGraph contract', () => {
-  test('versioned schema freezes the general repo reader plus initial write_file surface', () => {
+  test('versioned schema freezes the general repo reader plus write/index-sync surface', () => {
     const schema = readJson(SCHEMA_PATH);
     expect(schema.properties.version.const).toBe('1');
     expect(schema.properties.policy.properties.content_exclusion.const).toBe('.ignore');
@@ -175,16 +176,21 @@ describe('general repo CodeGraph contract', () => {
     expect(schema.properties.common_response_fields.items.enum).toEqual(COMMON_RESPONSE_FIELDS);
 
     for (const tool of schema['x-repo-harness-tools']) {
-      if (tool.name === 'write_file') {
+      if (tool.name === 'write_file' || tool.name === 'refresh_repo_index') {
         expect(tool.annotations).toEqual({
           readOnlyHint: false,
           destructiveHint: true,
           idempotentHint: false,
           openWorldHint: false,
         });
-        expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'content']);
-        expect(tool.input_schema.properties.expected_sha256).toEqual({ type: 'string' });
-        expect(tool.input_schema.properties.must_not_exist).toEqual({ type: 'boolean' });
+        if (tool.name === 'write_file') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'content']);
+          expect(tool.input_schema.properties.expected_sha256).toEqual({ type: 'string' });
+          expect(tool.input_schema.properties.must_not_exist).toEqual({ type: 'boolean' });
+        } else {
+          expect(tool.input_schema.required).toEqual(['repo_id']);
+          expect(tool.input_schema.properties.paths.items).toEqual({ type: 'string' });
+        }
       } else {
         expect(tool.annotations).toEqual({
           readOnlyHint: true,
