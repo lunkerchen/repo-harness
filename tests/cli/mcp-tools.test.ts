@@ -122,6 +122,8 @@ describe('mcp tools', () => {
       const read = await jsonTool(ctx, 'read_workflow_file', { path: 'tasks/current.md' });
       expect(read.path).toBe('tasks/current.md');
       expect(read.content).toContain('status=Active');
+      expect(read.source).toBe('general_repo_read_file');
+      expect(read.correlation_id).toMatch(/^mcpcorr_/);
 
       const denied = await jsonTool(ctx, 'read_workflow_file', { path: '.env' });
       expect(denied.error.code).toBe('POLICY_DENIED');

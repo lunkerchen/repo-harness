@@ -37,6 +37,16 @@ export interface McpLocalConfig {
     discoveryRoots?: string[];
     legacyFullDiskReadDetected?: boolean;
   };
+  rollout?: {
+    generalRepo?: {
+      general_repo_read?: boolean;
+      repo_write?: boolean;
+      fs_fallback?: boolean;
+      shadow_compare?: boolean;
+      canary_repos?: string[];
+      rollback_to_legacy_tools?: boolean;
+    };
+  };
   profile?: string;
   devMode?: {
     agentRunner?: boolean;

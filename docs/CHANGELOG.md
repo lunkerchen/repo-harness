@@ -4,6 +4,17 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added the General Repo MCP reference covering tool JSON examples, repo
+  administration, privacy/audit boundaries, migration from workflow-artifact
+  reads, rollout flags, and known limitations.
+- Added the General Repo MCP CodeGraph rollout runbook for index stale,
+  CodeGraph down, incomplete manifest, mutation conflict, reindex dead-letter,
+  and rollback operations.
+- Added the Sprint 4 release filing for the CodeGraph general repo rollout
+  module, including local and hosted verification evidence.
+
 ## [0.8.0] - 2026-06-22
 
 ### Added

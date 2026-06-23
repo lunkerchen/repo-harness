@@ -462,13 +462,16 @@ describe('mcp setup', () => {
     expect(guide).toContain('oauth-protected-resource');
     expect(guide).toContain('--auth bearer');
     expect(guide).toContain('--auth url-token');
-    expect(guide).toContain('open_workspace');
+    expect(guide).toContain('repo_manifest');
+    expect(guide).toContain('read_file');
+    expect(guide).toContain('get_repo_capabilities');
     expect(guide).toContain('--allow-root "$HOME/Documents"');
     expect(guide).toContain('rescan the Connector tools');
     expect(guide).toContain('delete and recreate the App/Connector');
     expect(guide).toContain('## Reader Test Prompt');
     expect(guide).toContain('Blocked-file smoke');
-    expect(guide).toContain('secrets/token.txt');
+    expect(guide).toContain('../outside');
+    expect(guide).toContain('SYMLINK_ESCAPE');
     expect(guide).toContain('deny globs');
     expect(guide).toContain('## Dev Mode Agent Runner');
     expect(guide).toContain('--enable-dev-runner');

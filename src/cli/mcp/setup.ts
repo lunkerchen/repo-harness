@@ -299,16 +299,39 @@ If \`repo-harness mcp doctor --repo . --json\` reports \`chatgpt.serverNameConfi
 
 Use ChatGPT for planning and review. Use Codex for local execution.
 
-1. Use the single configured Connector for workflow planning and read-only workspace tools.
+1. Use the single configured Connector for workflow planning and repo tools.
 2. Call \`discover_harness_repos\` to list registered adopted repos, then pass \`repo_path\` when targeting a specific project.
-3. For registered repo document/code reading, call \`list_allowed_roots\`, \`open_workspace\`, \`tree\`, \`search_text\`, and \`read_text\`; non-repo external directories require explicit allowed roots.
-4. Ask ChatGPT to turn the idea into a PRD with \`write_prd_from_idea\`.
-5. Ask ChatGPT to turn the PRD into a checklist Sprint with \`write_checklist_sprint\`.
-6. Ask ChatGPT to prepare a Codex Goal with \`prepare_codex_goal_from_sprint\`.
-7. Open Codex locally and run the generated \`/goal\` prompt.
-8. Let Codex execute one Sprint task card at a time, run checks, update the checklist, and stage each completed phase before continuing.
+3. For registered repo document/code reading, call \`list_allowed_roots\` to get the stable \`repo_id\`, then use \`get_repo_capabilities\`, \`repo_manifest\`, \`list_tree\`, \`stat_file\`, \`read_file\`, \`read_files\`, and \`search_text\`.
+4. For registered repo writes, first check \`get_repo_capabilities.write_tools\`; mutation tools stay hidden and rejected unless the repo is read-write and rollout write is enabled.
+5. Ask ChatGPT to turn the idea into a PRD with \`write_prd_from_idea\`.
+6. Ask ChatGPT to turn the PRD into a checklist Sprint with \`write_checklist_sprint\`.
+7. Ask ChatGPT to prepare a Codex Goal with \`prepare_codex_goal_from_sprint\`.
+8. Open Codex locally and run the generated \`/goal\` prompt.
+9. Let Codex execute one Sprint task card at a time, run checks, update the checklist, and stage each completed phase before continuing.
 
 The sidecar is not a remote coding agent. It prepares workflow artifacts for the local agent host.
+
+## General Repo Reader Reference
+
+The general repo reader uses the registered repo whitelist as the repo-level
+authorization boundary and \`.ignore\` as the only content-level exclusion
+source. GPT-facing calls use \`repo_id\` plus repo-relative paths. CodeGraph is
+the indexed metadata backend, while repo-harness owns authorization, fallback,
+snapshot semantics, audit, and mutation preconditions.
+
+For tool reference, JSON examples, repo administration, privacy/audit, migration
+guidance, rollout flags, and known limits, see:
+
+\`\`\`text
+docs/reference-configs/general-repo-mcp.md
+\`\`\`
+
+For index stale, CodeGraph down, manifest incomplete, mutation conflict, reindex
+dead-letter, and rollback operations, see:
+
+\`\`\`text
+deploy/runbooks/general-repo-mcp-codegraph.md
+\`\`\`
 
 ## Dev Mode Agent Runner
 
@@ -391,13 +414,13 @@ Use repo-harness to inspect this repo. Call harness_status, latest_handoff, and 
 ## Reader Test Prompt
 
 \`\`\`text
-Use the repo-harness Connector. First call discover_harness_repos and choose the target repo_path. Then call list_allowed_roots, open_workspace for the matching root, tree on ".", read_text on README.md or docs/spec.md, and search_text for "repo-harness". Do not write files.
+Use the repo-harness Connector. First call discover_harness_repos and choose the target repo_path. Then call list_allowed_roots, capture the stable repo_id, call get_repo_capabilities, repo_manifest, list_tree on ".", read_file on README.md or docs/spec.md, and search_text for "repo-harness". Do not write files.
 \`\`\`
 
 Blocked-file smoke:
 
 \`\`\`text
-Use the opened workspace to try read_text on ".env", ".ssh/id_rsa", "secrets/token.txt", and "credentials/config.json". Each request must be blocked by policy. Do not print secret contents.
+Use the general repo reader to try read_file with "../outside", an absolute path, and one path that the repo's .ignore excludes. These must return path-policy errors. If the repo contains an external symlink, read_file on that symlink must return SYMLINK_ESCAPE. Do not print file contents while testing blocked paths.
 \`\`\`
 
 ## Connector Invocation Evidence
@@ -494,7 +517,8 @@ Use repo-harness-chatgpt-bridge. Execute the latest ChatGPT-generated Codex goal
 - If ChatGPT cannot connect, verify the tunnel URL is HTTPS and ends in \`/mcp\`.
 - If ChatGPT returns unauthorized, verify OAuth discovery works and re-run the authorization passphrase flow.
 - If tools are missing, restart \`repo-harness mcp serve\` and rescan tools.
-- If writes fail, verify the target path is a PRD, sprint, plan, or approved handoff file.
+- If workflow artifact writes fail, verify the target path is a PRD, sprint, plan, or approved handoff file.
+- If general repo writes fail, call \`get_repo_capabilities\`; write tools require both a read-write repo and rollout \`repo_write=true\`.
 - If ChatGPT generated prose instead of checklist Sprint task cards, ask it to use write_checklist_sprint.
 - If Codex cannot see the server, run \`repo-harness mcp setup codex --repo . --scope project\`.
 
@@ -506,7 +530,7 @@ Use repo-harness-chatgpt-bridge. Execute the latest ChatGPT-generated Codex goal
 - The \`/mcp\` endpoint requires OAuth-issued Bearer tokens by default. Do not expose it through a tunnel without Connector auth configured.
 - \`repo-harness mcp serve --auth bearer\` is available for non-ChatGPT clients that can send a static bearer token.
 - \`repo-harness mcp serve --auth url-token\` is a single-user compatibility mode that accepts the same token in either \`Authorization: Bearer\` or \`?repo_harness_token=\`; logs and shared docs must not include the token.
-- Reader mode never disables deny globs for \`.env\`, private keys, SSH keys, credentials, secrets, \`.git\`, or dependency/build output.
+- Legacy workspace reader mode keeps deny globs for \`.env\`, private keys, SSH keys, credentials, secrets, \`.git\`, and dependency/build output. The general repo API uses \`.ignore\` as the content filter and relies on repo registration plus path guards.
 - Planner profile cannot write application source files, package manifests, lockfiles, CI config, secrets, or files outside the repo root.
 - MCP does not expose a default Codex runner. It prepares \`.ai/harness/handoff/codex-goal.md\`; the local Codex host owns \`/goal\` execution unless the user explicitly enables the local orchestrator dev runner.
 - The orchestrator dev runner is local-only, opt-in, timeout-bounded, audited, and limited to the fixed Codex goal handoff. It is not arbitrary shell.
@@ -573,6 +597,14 @@ export function runMcpSetupChatgpt(opts: {
     ? existingConfig.profile
     : 'planner';
   const { reader: _legacyReader, ...existingCapabilities } = existingConfig?.capabilities ?? {};
+  const generalRepoRollout = {
+    general_repo_read: existingConfig?.rollout?.generalRepo?.general_repo_read ?? true,
+    repo_write: existingConfig?.rollout?.generalRepo?.repo_write ?? false,
+    fs_fallback: existingConfig?.rollout?.generalRepo?.fs_fallback ?? true,
+    shadow_compare: existingConfig?.rollout?.generalRepo?.shadow_compare ?? false,
+    canary_repos: existingConfig?.rollout?.generalRepo?.canary_repos ?? [],
+    rollback_to_legacy_tools: existingConfig?.rollout?.generalRepo?.rollback_to_legacy_tools ?? false,
+  };
   const config = {
     version: 2,
     scope,
@@ -597,6 +629,10 @@ export function runMcpSetupChatgpt(opts: {
       discoveryRoots: allowedRoots,
       ...(legacyFullDiskReadDetected ? { legacyFullDiskReadDetected: true } : {}),
       fullDiskRead: false,
+    },
+    rollout: {
+      ...existingConfig?.rollout,
+      generalRepo: generalRepoRollout,
     },
     profile,
     devMode: existingConfig?.devMode ?? {
@@ -630,6 +666,7 @@ export function runMcpSetupChatgpt(opts: {
       `[repo-harness mcp] Reader capability: ${readerEnabled ? `enabled (${registeredRepoCount} registered repo${registeredRepoCount === 1 ? '' : 's'}, ${allowedRoots.length} explicit root${allowedRoots.length === 1 ? '' : 's'})` : 'disabled'}`,
       ...(registered.registered ? [`[repo-harness mcp] Registered repo: ${displayMcpSetupPath(repoRoot, registered.path, scope)}`] : []),
       ...(legacyFullDiskReadDetected ? ['[repo-harness mcp] Legacy full-disk read: detected and disabled; use --allow-root to authorize reader roots'] : []),
+      `[repo-harness mcp] General repo rollout: read=${generalRepoRollout.general_repo_read ? 'on' : 'off'}, write=${generalRepoRollout.repo_write ? 'on' : 'off'}, fs_fallback=${generalRepoRollout.fs_fallback ? 'on' : 'off'}, shadow=${generalRepoRollout.shadow_compare ? 'on' : 'off'}, rollback=${generalRepoRollout.rollback_to_legacy_tools ? 'on' : 'off'}`,
       `[repo-harness mcp] Profile: ${profile}`,
       `[repo-harness mcp] ChatGPT MCP server name: ${serverName}`,
       `[repo-harness mcp] Local endpoint: http://${host}:${port}/mcp`,

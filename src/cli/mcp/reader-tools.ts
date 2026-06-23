@@ -9,7 +9,7 @@ import { globMatches } from './paths';
 import { redactMcpText } from './redaction';
 import { repoHarnessPackageVersion } from './version';
 import { WorkspaceError, WorkspaceManager, type McpWorkspace, type WorkspaceResolvedPath } from './workspaces';
-import { buildGeneralRepoToolDefinitions, callGeneralRepoTool, hasGeneralRepoArgs, isGeneralRepoTool, listGeneralRepoRecords } from './general-repo-access';
+import { buildGeneralRepoToolDefinitions, callGeneralRepoTool, hasGeneralRepoArgs, isGeneralRepoTool, isGeneralRepoWriteTool, listGeneralRepoRecords } from './general-repo-access';
 import type { GeneralRepoCodeGraphAdapter } from './codegraph-adapter';
 import { repoHarnessRepoIdFor } from '../../effects/repo-registry';
 import type { McpPolicy } from './types';
@@ -144,8 +144,8 @@ function entryType(absolutePath: string): 'file' | 'directory' | 'symlink' | 'ot
   return 'other';
 }
 
-function schemaHash(): string {
-  return sha256(JSON.stringify(buildReaderToolDefinitions()));
+function schemaHash(policy: McpPolicy): string {
+  return sha256(JSON.stringify(buildReaderToolDefinitions(policy)));
 }
 
 function workspacePayload(workspace: McpWorkspace): Record<string, unknown> {
@@ -157,7 +157,40 @@ function workspacePayload(workspace: McpWorkspace): Record<string, unknown> {
   };
 }
 
-export function buildReaderToolDefinitions(): ReaderToolDefinition[] {
+function workspaceSearchToolDefinition(): ReaderToolDefinition {
+  const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+  return {
+    name: 'search_text',
+    description: 'Legacy workspace reader search within an opened workspace path while applying deny rules and response limits.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace_id: { type: 'string' },
+        query: { type: 'string' },
+        path: { type: 'string', default: '.' },
+        case_sensitive: { type: 'boolean' },
+        max_results: { type: 'number', minimum: 1, maximum: HARD_SEARCH_RESULTS },
+        max_files: { type: 'number', minimum: 1, maximum: HARD_SEARCH_FILES },
+        timeout_ms: { type: 'number', minimum: 100, maximum: HARD_SEARCH_TIMEOUT_MS },
+        glob: { type: 'string' },
+      },
+      required: ['workspace_id', 'query'],
+      additionalProperties: false,
+    },
+    annotations: readOnly,
+  };
+}
+
+function generalRepoToolDefinitions(policy?: McpPolicy): ReaderToolDefinition[] {
+  if (policy && (!policy.generalRepo.general_repo_read || policy.generalRepo.rollback_to_legacy_tools)) return [];
+  const definitions = buildGeneralRepoToolDefinitions();
+  if (policy?.generalRepo.repo_write === false) {
+    return definitions.filter((tool) => !isGeneralRepoWriteTool(tool.name));
+  }
+  return definitions;
+}
+
+export function buildReaderToolDefinitions(policy?: McpPolicy): ReaderToolDefinition[] {
   const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   const pathSchema = {
     type: 'object',
@@ -207,12 +240,13 @@ export function buildReaderToolDefinitions(): ReaderToolDefinition[] {
       },
       annotations: readOnly,
     },
-    ...buildGeneralRepoToolDefinitions(),
+    ...(policy && (!policy.generalRepo.general_repo_read || policy.generalRepo.rollback_to_legacy_tools) ? [workspaceSearchToolDefinition()] : []),
+    ...generalRepoToolDefinitions(policy),
   ];
 }
 
-export function isReaderTool(name: string): boolean {
-  return buildReaderToolDefinitions().some((tool) => tool.name === name);
+export function isReaderTool(name: string, policy?: McpPolicy): boolean {
+  return buildReaderToolDefinitions(policy).some((tool) => tool.name === name);
 }
 
 function readerStatus(ctx: ReaderToolContext): ReaderToolResult {
@@ -225,7 +259,7 @@ function readerStatus(ctx: ReaderToolContext): ReaderToolResult {
     read_only: true,
     configured_root_count: ctx.workspaceManager.listAllowedRoots().filter((root) => root.readable).length,
     open_workspace_count: ctx.workspaceManager.openWorkspaceCount,
-    schema_hash: schemaHash(),
+    schema_hash: schemaHash(ctx.policy),
     limits: {
       max_workspaces: 16,
       max_tree_depth: HARD_TREE_DEPTH,
@@ -581,6 +615,12 @@ function searchText(ctx: ReaderToolContext, args: Record<string, unknown>): Read
 export async function callReaderTool(ctx: ReaderToolContext, name: string, args: Record<string, unknown> = {}): Promise<ReaderToolResult> {
   try {
     if (isGeneralRepoTool(name) && (name !== 'search_text' || hasGeneralRepoArgs(args))) {
+      if (!ctx.policy.generalRepo.general_repo_read || ctx.policy.generalRepo.rollback_to_legacy_tools) {
+        return errorResult('TOOL_NOT_AVAILABLE', 'general repo tools are disabled by MCP rollout policy');
+      }
+      if (isGeneralRepoWriteTool(name) && !ctx.policy.generalRepo.repo_write) {
+        return errorResult('WRITE_DISABLED', 'general repo write tools are disabled by MCP rollout policy');
+      }
       return callGeneralRepoTool(ctx, name, args);
     }
     switch (name) {

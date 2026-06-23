@@ -81,7 +81,11 @@ async function withReaderRepo<T>(fn: (repoRoot: string, ctx: ReaderToolContext) 
     } catch (_error) {
       // Symlinks may be unavailable on some runners; tree must still be covered by ordinary directories.
     }
-    const policy = getMcpPolicy('planner', { enableReader: true, allowedRoots: [repoRoot] });
+    const policy = getMcpPolicy('planner', {
+      enableReader: true,
+      allowedRoots: [repoRoot],
+      generalRepo: { repo_write: opts.accessMode === 'read_write' },
+    });
     const ctx = createReaderToolContext(repoRoot, policy, new WorkspaceManager({ allowedRoots: [repoRoot], policy }));
     return await fn(repoRoot, ctx);
   } finally {
@@ -155,6 +159,56 @@ describe('MCP reader tools', () => {
       const otherCtx = createReaderToolContext(repoRoot, otherPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: otherPolicy }));
       const denied = await jsonTool(otherCtx, 'tree', { workspace_id: opened.workspace_id });
       expect(denied.error.code).toBe('WORKSPACE_NOT_FOUND');
+    });
+  });
+
+  test('general repo rollout flags gate tool surface, writes, fallback, and rollback mode', async () => {
+    await withReaderRepo(async (repoRoot) => {
+      const repoId = repoHarnessRepoIdFor(realpathSync(repoRoot));
+      const readOnlyPolicy = getMcpPolicy('planner', {
+        enableReader: true,
+        allowedRoots: [repoRoot],
+        generalRepo: { repo_write: false },
+      });
+      const readOnlyTools = buildReaderToolDefinitions(readOnlyPolicy).map((tool) => tool.name);
+      expect(readOnlyTools).toContain('repo_manifest');
+      expect(readOnlyTools).toContain('read_file');
+      expect(readOnlyTools).not.toContain('write_file');
+      expect(readOnlyTools).not.toContain('refresh_repo_index');
+      const readOnlyCtx = createReaderToolContext(repoRoot, readOnlyPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: readOnlyPolicy }));
+      const blockedWrite = await jsonTool(readOnlyCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        content: 'new\n',
+        must_not_exist: true,
+      });
+      expect(blockedWrite.error.code).toBe('WRITE_DISABLED');
+
+      const noFallbackPolicy = getMcpPolicy('planner', {
+        enableReader: true,
+        allowedRoots: [repoRoot],
+        generalRepo: { fs_fallback: false },
+      });
+      const noFallbackCtx = createReaderToolContext(repoRoot, noFallbackPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: noFallbackPolicy }));
+      const manifest = await jsonTool(noFallbackCtx, 'repo_manifest', { repo_id: repoId, page_size: 1000 });
+      expect(manifest.entries.some((entry: { path: string }) => entry.path === 'src/index.ts')).toBe(true);
+      const unindexedRead = await jsonTool(noFallbackCtx, 'read_file', { repo_id: repoId, path: 'src/index.ts' });
+      expect(unindexedRead.error.code).toBe('INDEX_UNAVAILABLE');
+
+      const rollbackPolicy = getMcpPolicy('planner', {
+        enableReader: true,
+        allowedRoots: [repoRoot],
+        generalRepo: { general_repo_read: false, rollback_to_legacy_tools: true },
+      });
+      const rollbackTools = buildReaderToolDefinitions(rollbackPolicy).map((tool) => tool.name);
+      expect(rollbackTools).toContain('read_text');
+      expect(rollbackTools).toContain('search_text');
+      expect(rollbackTools).not.toContain('repo_manifest');
+      expect(rollbackTools).not.toContain('read_file');
+      expect(rollbackTools).not.toContain('write_file');
+      const rollbackCtx = createReaderToolContext(repoRoot, rollbackPolicy, new WorkspaceManager({ allowedRoots: [repoRoot], policy: rollbackPolicy }));
+      const blockedManifest = await jsonTool(rollbackCtx, 'repo_manifest', { repo_id: repoId });
+      expect(blockedManifest.error.code).toBe('TOOL_NOT_AVAILABLE');
     });
   });
 
