@@ -165,6 +165,7 @@ const GENERAL_REPO_TOOLS = [
   'read_files',
   'stat_file',
   'write_file',
+  'apply_patch',
   'refresh_repo_index',
 ] as const;
 
@@ -183,7 +184,7 @@ const MAX_LAGGING_PATHS_RETURNED = 50;
 const DEFAULT_CODEGRAPH_ADAPTER = createCodeGraphCliAdapter();
 const SNAPSHOT_CACHE = new Map<string, VisibleEntrySnapshot>();
 const ENTRY_METADATA_CACHE = new Map<string, EntryMetadataCacheValue>();
-const WRITE_TOOLS = new Set<string>(['write_file', 'refresh_repo_index']);
+const WRITE_TOOLS = new Set<string>(['write_file', 'apply_patch', 'refresh_repo_index']);
 
 export type GeneralRepoToolName = typeof GENERAL_REPO_TOOLS[number];
 
@@ -1179,6 +1180,187 @@ function writeContentBuffer(args: Record<string, unknown>): { raw: Buffer; encod
   return { raw: Buffer.from(args.content, encoding), encoding };
 }
 
+function assertTextPatchable(raw: Buffer, path: string): string {
+  if (raw.subarray(0, BINARY_PROBE_BYTES).includes(0)) {
+    throw new GeneralRepoAccessError('BINARY_CONTENT', 'apply_patch requires text content', { path });
+  }
+  return raw.toString('utf-8');
+}
+
+function findOccurrences(text: string, needle: string): number[] {
+  const matches: number[] = [];
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    matches.push(index);
+    index = text.indexOf(needle, index + Math.max(needle.length, 1));
+  }
+  return matches;
+}
+
+function replaceTextAt(text: string, start: number, oldText: string, newText: string): string {
+  return `${text.slice(0, start)}${newText}${text.slice(start + oldText.length)}`;
+}
+
+function patchOccurrenceArg(value: unknown, matchCount: number, editIndex: number): number {
+  if (value === undefined) {
+    if (matchCount !== 1) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch edit precondition is ambiguous or missing', {
+        edit_index: editIndex,
+        match_count: matchCount,
+      });
+    }
+    return 1;
+  }
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'edit occurrence must be a positive integer', { edit_index: editIndex });
+  }
+  if (parsed > matchCount) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch edit occurrence does not exist', {
+      edit_index: editIndex,
+      occurrence: parsed,
+      match_count: matchCount,
+    });
+  }
+  return parsed;
+}
+
+function applyStructuredPatchEdits(beforeText: string, edits: unknown): { text: string; applied: Array<Record<string, unknown>>; format: 'structured_edits' } {
+  if (!Array.isArray(edits) || edits.length === 0) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'edits must be a non-empty array');
+  }
+  let text = beforeText;
+  const applied: Array<Record<string, unknown>> = [];
+  for (let index = 0; index < edits.length; index += 1) {
+    const editIndex = index + 1;
+    const edit = edits[index];
+    if (typeof edit !== 'object' || edit === null || Array.isArray(edit)) {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'each edit must be an object', { edit_index: editIndex });
+    }
+    const raw = edit as Record<string, unknown>;
+    if (typeof raw.old_text !== 'string' || raw.old_text.length === 0 || typeof raw.new_text !== 'string') {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'each edit requires non-empty old_text and string new_text', { edit_index: editIndex });
+    }
+    const matches = findOccurrences(text, raw.old_text);
+    const occurrence = patchOccurrenceArg(raw.occurrence, matches.length, editIndex);
+    const start = matches[occurrence - 1];
+    if (start === undefined) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch edit precondition does not match', { edit_index: editIndex });
+    }
+    text = replaceTextAt(text, start, raw.old_text, raw.new_text);
+    applied.push({
+      edit_index: editIndex,
+      mode: 'old_text',
+      occurrence,
+      old_sha256: sha256(raw.old_text),
+      new_sha256: sha256(raw.new_text),
+      bytes_before: Buffer.byteLength(raw.old_text, 'utf-8'),
+      bytes_after: Buffer.byteLength(raw.new_text, 'utf-8'),
+    });
+  }
+  return { text, applied, format: 'structured_edits' };
+}
+
+function lineStartOffset(text: string, lineNumber: number): number {
+  if (lineNumber <= 1) return 0;
+  let offset = 0;
+  let currentLine = 1;
+  while (currentLine < lineNumber) {
+    const next = text.indexOf('\n', offset);
+    if (next < 0) return text.length;
+    offset = next + 1;
+    currentLine += 1;
+  }
+  return offset;
+}
+
+function applyUnifiedDiffPatch(beforeText: string, diff: unknown): { text: string; applied: Array<Record<string, unknown>>; format: 'unified_diff' } {
+  if (typeof diff !== 'string' || diff.trim().length === 0) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff must be a non-empty string');
+  }
+  const lines = diff.replace(/\r\n/g, '\n').split('\n');
+  let text = beforeText;
+  let lineDelta = 0;
+  const applied: Array<Record<string, unknown>> = [];
+  let cursor = 0;
+  while (cursor < lines.length) {
+    const header = lines[cursor] ?? '';
+    if (!header || header.startsWith('--- ') || header.startsWith('+++ ')) {
+      cursor += 1;
+      continue;
+    }
+    const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(header);
+    if (!match) {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff contains an unsupported line', { line: cursor + 1 });
+    }
+    const oldStart = Number(match[1]);
+    const oldLines: string[] = [];
+    const newLines: string[] = [];
+    cursor += 1;
+    while (cursor < lines.length && !(lines[cursor] ?? '').startsWith('@@ ')) {
+      const line = lines[cursor] ?? '';
+      if (line.startsWith('--- ') || line.startsWith('+++ ')) break;
+      if (line.startsWith('\\ No newline at end of file')) {
+        cursor += 1;
+        continue;
+      }
+      if (line.startsWith(' ')) {
+        oldLines.push(line.slice(1));
+        newLines.push(line.slice(1));
+      } else if (line.startsWith('-')) {
+        oldLines.push(line.slice(1));
+      } else if (line.startsWith('+')) {
+        newLines.push(line.slice(1));
+      } else if (line === '' && cursor === lines.length - 1) {
+        cursor += 1;
+        break;
+      } else {
+        throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff hunk contains an unsupported line', { line: cursor + 1 });
+      }
+      cursor += 1;
+    }
+    if (oldLines.length === 0) {
+      throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff pure insertion hunks require surrounding context');
+    }
+    const oldBlock = oldLines.join('\n');
+    const newBlock = newLines.join('\n');
+    const expectedOffset = lineStartOffset(text, oldStart + lineDelta);
+    if (!text.startsWith(oldBlock, expectedOffset)) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'unified_diff hunk precondition does not match', {
+        hunk_index: applied.length + 1,
+        old_start: oldStart,
+      });
+    }
+    text = replaceTextAt(text, expectedOffset, oldBlock, newBlock);
+    lineDelta += newLines.length - oldLines.length;
+    applied.push({
+      hunk_index: applied.length + 1,
+      old_start: oldStart,
+      old_lines: oldLines.length,
+      new_lines: newLines.length,
+      old_sha256: sha256(oldBlock),
+      new_sha256: sha256(newBlock),
+    });
+  }
+  if (applied.length === 0) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'unified_diff contains no hunks');
+  }
+  return { text, applied, format: 'unified_diff' };
+}
+
+function applyPatchContent(beforeText: string, args: Record<string, unknown>): { raw: Buffer; format: 'structured_edits' | 'unified_diff'; applied: Array<Record<string, unknown>> } {
+  const hasEdits = args.edits !== undefined;
+  const hasUnifiedDiff = args.unified_diff !== undefined;
+  if (hasEdits === hasUnifiedDiff) {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'provide exactly one of edits or unified_diff');
+  }
+  const patched = hasEdits ? applyStructuredPatchEdits(beforeText, args.edits) : applyUnifiedDiffPatch(beforeText, args.unified_diff);
+  if (patched.text === beforeText) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'patch produced no content change');
+  }
+  return { raw: Buffer.from(patched.text, 'utf-8'), format: patched.format, applied: patched.applied };
+}
+
 function fsyncDirectoryBestEffort(path: string): void {
   let fd: number | null = null;
   try {
@@ -1243,6 +1425,63 @@ function indexRefreshError(refresh: CodeGraphRefreshResult): GeneralRepoAccessEr
     path_refresh_supported: refresh.pathRefreshSupported,
     index_revision: refresh.indexRevision,
   }, error?.retryable ?? true);
+}
+
+function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, target: ResolvedRepoWritePath, opts: {
+  operation: 'create' | 'replace' | 'patch';
+  beforeHash: string | null;
+  beforeSize: number;
+  extra?: Record<string, unknown>;
+}): GeneralRepoToolResult {
+  const after = resolveRepoPath(repo, target.relativePath, ignore, { requireFile: true });
+  const afterRaw = readFileSync(after.canonicalPath);
+  const afterHash = sha256(afterRaw);
+  const afterEntry = metadataForResolved(after, ignore);
+  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const indexedEntry = snapshot.entriesByPath.get(target.relativePath);
+  const indexState = mutationIndexState(snapshot);
+  const mutationId = `mut_${sha256(`${repo.repoId}\0${target.relativePath}\0${opts.beforeHash ?? 'new'}\0${afterHash}\0${Date.now()}`).slice(0, 16)}`;
+  const invalidationId = `idxinv_${sha256(`${mutationId}\0${snapshot.codeGraph.indexRevision}\0${target.relativePath}`).slice(0, 16)}`;
+
+  return textResult({
+    ...commonFields(repo, ignore, snapshot, { tool: opts.operation === 'patch' ? 'apply_patch' : 'write_file', paths: [target.relativePath] }),
+    path: target.relativePath,
+    operation: opts.operation,
+    mutation_id: mutationId,
+    before: {
+      existed: opts.beforeHash !== null,
+      sha256: opts.beforeHash,
+      size: opts.beforeSize,
+    },
+    after: {
+      ...afterEntry,
+      indexed: indexedEntry?.indexed ?? false,
+      codegraph_language: indexedEntry?.codegraph_language,
+      codegraph_node_count: indexedEntry?.codegraph_node_count,
+      codegraph_size: indexedEntry?.codegraph_size,
+      codegraph_index_lagging: indexedEntry?.codegraph_index_lagging,
+    },
+    diff: {
+      format: 'summary',
+      bytes_before: opts.beforeSize,
+      bytes_after: afterRaw.length,
+      bytes_delta: afterRaw.length - opts.beforeSize,
+      before_sha256: opts.beforeHash,
+      after_sha256: afterHash,
+    },
+    ...opts.extra,
+    index_state: indexState,
+    index: {
+      state: indexState,
+      action: snapshot.codeGraph.available ? 'refresh_repo_index_required' : 'codegraph_unavailable',
+      changed_paths: [target.relativePath],
+      mutation_id: mutationId,
+      invalidation_id: invalidationId,
+      refresh_tool: 'refresh_repo_index',
+      before_index_revision: snapshot.codeGraph.indexRevision,
+    },
+    codegraph: codeGraphSummary(snapshot),
+  });
 }
 
 function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file', verifySnapshotEntry = false): Record<string, unknown> {
@@ -1399,54 +1638,53 @@ function writeFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown
   atomicWriteFile(target, raw, mode);
   invalidateRepoCaches(repo);
 
-  const after = resolveRepoPath(repo, target.relativePath, ignore, { requireFile: true });
-  const afterRaw = readFileSync(after.canonicalPath);
-  const afterHash = sha256(afterRaw);
-  const afterEntry = metadataForResolved(after, ignore);
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
-  const indexedEntry = snapshot.entriesByPath.get(target.relativePath);
-  const indexState = mutationIndexState(snapshot);
-  const mutationId = `mut_${sha256(`${repo.repoId}\0${target.relativePath}\0${beforeHash ?? 'new'}\0${afterHash}\0${Date.now()}`).slice(0, 16)}`;
-  const invalidationId = `idxinv_${sha256(`${mutationId}\0${snapshot.codeGraph.indexRevision}\0${target.relativePath}`).slice(0, 16)}`;
-
-  return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'write_file', paths: [target.relativePath] }),
-    path: target.relativePath,
+  return mutationResult(ctx, repo, ignore, target, {
     operation: existed ? 'replace' : 'create',
-    mutation_id: mutationId,
-    encoding,
-    before: {
-      existed,
-      sha256: beforeHash,
-      size: beforeSize,
+    beforeHash,
+    beforeSize,
+    extra: { encoding },
+  });
+}
+
+function applyPatchTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const target = resolveRepoWritePath(repo, args.path, ignore);
+  if (!target.existing) {
+    throw new GeneralRepoAccessError('NOT_FOUND', 'apply_patch requires an existing file', { path: target.relativePath });
+  }
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+  if (!expectedHash) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when applying a patch', { path: target.relativePath });
+  }
+  const beforeRaw = readFileSync(target.existing.canonicalPath);
+  const beforeHash = sha256(beforeRaw);
+  if (expectedHash !== beforeHash) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
+      path: target.relativePath,
+      expected_sha256: expectedHash,
+      actual_sha256: beforeHash,
+    });
+  }
+  const beforeText = assertTextPatchable(beforeRaw, target.relativePath);
+  const patched = applyPatchContent(beforeText, args);
+  const mode = statSync(target.existing.canonicalPath).mode & 0o777;
+
+  atomicWriteFile(target, patched.raw, mode);
+  invalidateRepoCaches(repo);
+
+  return mutationResult(ctx, repo, ignore, target, {
+    operation: 'patch',
+    beforeHash,
+    beforeSize: beforeRaw.length,
+    extra: {
+      patch: {
+        format: patched.format,
+        applied_count: patched.applied.length,
+        applied: patched.applied,
+      },
     },
-    after: {
-      ...afterEntry,
-      indexed: indexedEntry?.indexed ?? false,
-      codegraph_language: indexedEntry?.codegraph_language,
-      codegraph_node_count: indexedEntry?.codegraph_node_count,
-      codegraph_size: indexedEntry?.codegraph_size,
-      codegraph_index_lagging: indexedEntry?.codegraph_index_lagging,
-    },
-    diff: {
-      format: 'summary',
-      bytes_before: beforeSize,
-      bytes_after: afterRaw.length,
-      bytes_delta: afterRaw.length - beforeSize,
-      before_sha256: beforeHash,
-      after_sha256: afterHash,
-    },
-    index_state: indexState,
-    index: {
-      state: indexState,
-      action: snapshot.codeGraph.available ? 'refresh_repo_index_required' : 'codegraph_unavailable',
-      changed_paths: [target.relativePath],
-      mutation_id: mutationId,
-      invalidation_id: invalidationId,
-      refresh_tool: 'refresh_repo_index',
-      before_index_revision: snapshot.codeGraph.indexRevision,
-    },
-    codegraph: codeGraphSummary(snapshot),
   });
 }
 
@@ -1851,6 +2089,35 @@ export function buildGeneralRepoToolDefinitions(): GeneralRepoToolDefinition[] {
       annotations: writeTool,
     },
     {
+      name: 'apply_patch',
+      description: 'Apply structured text edits or a guarded unified diff to one existing repo-relative file using an expected_sha256 precondition.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          path: { type: 'string' },
+          expected_sha256: { type: 'string' },
+          edits: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                old_text: { type: 'string' },
+                new_text: { type: 'string' },
+                occurrence: { type: 'number' },
+              },
+              required: ['old_text', 'new_text'],
+              additionalProperties: false,
+            },
+          },
+          unified_diff: { type: 'string' },
+        },
+        required: ['repo_id', 'path', 'expected_sha256'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
+    {
       name: 'refresh_repo_index',
       description: 'Synchronize CodeGraph for a read_write repo after mutations and return the new index/snapshot state.',
       inputSchema: {
@@ -1894,6 +2161,9 @@ export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: str
         break;
       case 'write_file':
         result = writeFileTool(ctx, args);
+        break;
+      case 'apply_patch':
+        result = applyPatchTool(ctx, args);
         break;
       case 'refresh_repo_index':
         result = refreshRepoIndex(ctx, args);

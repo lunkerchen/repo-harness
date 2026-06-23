@@ -126,7 +126,7 @@ Use ChatGPT for planning and review. Use Codex for local execution.
 1. Use the single configured Connector for workflow planning and repo tools.
 2. Call `discover_harness_repos` to list registered adopted repos, then pass `repo_path` when targeting a specific project.
 3. For registered repo document/code reading, call `list_allowed_roots` to get the stable `repo_id`, then use `get_repo_capabilities`, `repo_manifest`, `list_tree`, `stat_file`, `read_file`, `read_files`, and `search_text`.
-4. For registered repo writes, first check `get_repo_capabilities.write_tools`; only repos explicitly configured as `read_write` expose `write_file` and `refresh_repo_index`.
+4. For registered repo writes, first check `get_repo_capabilities.write_tools`; only repos explicitly configured as `read_write` expose `write_file`, `apply_patch`, and `refresh_repo_index`.
 5. Ask ChatGPT to turn the idea into a PRD with `write_prd_from_idea`.
 6. Ask ChatGPT to turn the PRD into a checklist Sprint with `write_checklist_sprint`.
 7. Ask ChatGPT to prepare a Codex Goal with `prepare_codex_goal_from_sprint`.
@@ -151,14 +151,16 @@ Authorized file content is not implicitly redacted in `read_file`,
 `read_files`, or `search_text` responses. The MCP audit path records tool name,
 target path, input hash, status, and errors, but not file bodies.
 
-`write_file` is the first general repo mutation tool. It is runtime-gated by the
-registered repo access mode and returns `WRITE_DISABLED` for `read_only` repos.
-New files require `must_not_exist: true`; replacements require
-`expected_sha256`; mismatches return `REVISION_CONFLICT` without writing. A
-successful write uses a same-directory temporary file plus atomic rename,
+`write_file` and `apply_patch` are the first general repo mutation tools. They
+are runtime-gated by the registered repo access mode and return `WRITE_DISABLED`
+for `read_only` repos. New files require `must_not_exist: true`; replacements
+and patches require `expected_sha256`; mismatches return `REVISION_CONFLICT`
+without writing. `apply_patch` operates on existing text files and accepts either
+structured `old_text`/`new_text` edits or guarded unified diff hunks. A
+successful mutation uses a same-directory temporary file plus atomic rename,
 returns `before`, `after`, `diff`, `mutation_id`, and `index_state`, and leaves
 CodeGraph refresh explicitly pending. Call `refresh_repo_index` with the changed
-paths after a successful write to run CodeGraph sync, invalidate repo snapshot
+paths after a successful mutation to run CodeGraph sync, invalidate repo snapshot
 caches, and receive the new `index_revision`, `snapshot_id`, `index_state`, and
 refresh strategy. The bundled CLI adapter uses repo-level `codegraph sync` when
 path-only refresh is unavailable and reports that tradeoff with

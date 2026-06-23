@@ -60,20 +60,27 @@ Sprint 0 freezes the read contract for:
 - `read_files`
 - `search_text`
 
-The current write implementation covers `write_file` create/replace and
-`refresh_repo_index`. Patch, move, and delete remain implementation-gated until
-their Sprint 3 slices land.
+The current write implementation covers `write_file` create/replace,
+`apply_patch`, and `refresh_repo_index`. Move and delete remain
+implementation-gated until their Sprint 3 slices land.
 
-`write_file` commits filesystem truth first and returns an index invalidation
-record with `index_state: pending` when CodeGraph is available. The explicit
-`refresh_repo_index` tool requires the same `read_write` repo capability,
-reuses the same path guard and `.ignore` policy for requested paths, runs the
-adapter refresh, invalidates in-process repo snapshots, then returns the new
-snapshot and CodeGraph revision. The bundled CLI adapter uses repo-level
+`write_file` and `apply_patch` commit filesystem truth first and return an index
+invalidation record with `index_state: pending` when CodeGraph is available.
+`apply_patch` is text-only and supports structured `old_text`/`new_text` edits
+plus guarded unified diff hunks. Both patch modes require an exact
+`expected_sha256` file precondition; each edit/hunk also acts as a local text
+precondition and returns `REVISION_CONFLICT` if it no longer matches. Existing
+file replacements preserve the file mode bits used by the target. Filesystem
+mtime changes as part of the commit, and ownership, xattrs, and platform-specific
+metadata are not preserved in this portable v1 mutation layer.
+
+The explicit `refresh_repo_index` tool requires the same `read_write` repo
+capability, reuses the same path guard and `.ignore` policy for requested paths,
+runs the adapter refresh, invalidates in-process repo snapshots, then returns the
+new snapshot and CodeGraph revision. The bundled CLI adapter uses repo-level
 `codegraph sync` because the local CodeGraph CLI surface does not expose a
-stable path-only refresh command; responses report
-`path_refresh_supported:false` so callers do not assume true incremental
-reindexing.
+stable path-only refresh command; responses report `path_refresh_supported:false`
+so callers do not assume true incremental reindexing.
 
 ## Snapshot Contract
 

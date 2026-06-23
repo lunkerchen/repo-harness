@@ -45,7 +45,7 @@
     },
     "tools": {
       "type": "array",
-      "minItems": 9,
+      "minItems": 10,
       "items": {
         "$ref": "#/$defs/tool"
       }
@@ -119,6 +119,7 @@
             "read_files",
             "stat_file",
             "write_file",
+            "apply_patch",
             "refresh_repo_index"
           ]
         },
@@ -559,6 +560,78 @@
           "before",
           "after",
           "diff",
+          "index_state"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "apply_patch",
+      "description": "Apply structured text edits or a guarded unified diff to one existing repo-relative file using an expected_sha256 precondition.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "path",
+          "expected_sha256"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "expected_sha256": {
+            "type": "string"
+          },
+          "edits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "old_text",
+                "new_text"
+              ],
+              "properties": {
+                "old_text": {
+                  "type": "string"
+                },
+                "new_text": {
+                  "type": "string"
+                },
+                "occurrence": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "unified_diff": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "path",
+          "mutation_id",
+          "before",
+          "after",
+          "diff",
+          "patch",
           "index_state"
         ],
         "properties": {},
