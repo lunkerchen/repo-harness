@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { appendFileSync, closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeSync, type Dirent } from 'fs';
+import { appendFileSync, closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync, type Dirent } from 'fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'path';
 import { readRegisteredRepoHarnessRepos, repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../effects/repo-registry';
 import { hashMcpInput, tryWriteMcpAuditEntry } from './audit';
@@ -457,7 +457,6 @@ function responseCacheKey(repo: RepoRecord, ignore: IgnorePolicy, snapshot: Visi
 interface MutationPathLock {
   relativePath: string;
   lockPath: string;
-  fd: number;
 }
 
 function mutationLockPath(repo: RepoRecord, relativePath: string): string {
@@ -471,22 +470,20 @@ function acquireMutationLocks(repo: RepoRecord, paths: string[]): MutationPathLo
   const locks: MutationPathLock[] = [];
   for (const relativePath of cachePaths(paths)) {
     const lockPath = mutationLockPath(repo, relativePath);
+    let created = false;
     try {
-      const fd = openSync(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+      mkdirSync(lockPath, { mode: 0o700 });
+      created = true;
       const payload = `${JSON.stringify({
         repo_id: repo.repoId,
         path: relativePath,
         pid: process.pid,
         created_at: new Date().toISOString(),
       })}\n`;
-      writeSync(fd, payload, 0, 'utf-8');
-      try {
-        fsyncSync(fd);
-      } catch (_error) {
-        // Lock visibility, not durability, is the concurrency guard here.
-      }
-      locks.push({ relativePath, lockPath, fd });
+      writeFileSync(resolve(lockPath, 'owner.json'), payload, { encoding: 'utf-8', mode: 0o600 });
+      locks.push({ relativePath, lockPath });
     } catch (error) {
+      if (created) rmSync(lockPath, { recursive: true, force: true });
       releaseMutationLocks(locks);
       const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code) : '';
       if (code === 'EEXIST') {
@@ -501,11 +498,10 @@ function acquireMutationLocks(repo: RepoRecord, paths: string[]): MutationPathLo
 function releaseMutationLocks(locks: MutationPathLock[]): void {
   for (const lock of locks.reverse()) {
     try {
-      closeSync(lock.fd);
+      rmSync(lock.lockPath, { recursive: true, force: true });
     } catch (_error) {
-      // Ignore close failures while releasing best-effort mutation locks.
+      // Best-effort cleanup: never hide the mutation result behind lock cleanup.
     }
-    rmSync(lock.lockPath, { force: true });
   }
 }
 
