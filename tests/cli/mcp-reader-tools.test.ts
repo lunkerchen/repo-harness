@@ -153,6 +153,27 @@ describe('MCP reader tools', () => {
         expect(manifest.ignore_digest).toMatch(/^sha256:[a-f0-9]{64}$/);
         expect(manifest.complete).toBe(true);
 
+        const streamedManifest = await jsonTool(ctx, 'repo_manifest', { repo_id: repoId, page_size: 3 });
+        expect(streamedManifest.entries).toHaveLength(3);
+        expect(streamedManifest.next_cursor).toBe('3');
+        expect(streamedManifest.snapshot_coverage).toBe('page');
+        expect(streamedManifest.manifest_streaming).toBe(true);
+        expect(streamedManifest.counts.content_deferred).toBeGreaterThan(0);
+        const streamedRead = await jsonTool(ctx, 'read_file', {
+          repo_id: repoId,
+          path: 'src/index.ts',
+          snapshot_id: streamedManifest.snapshot_id,
+        });
+        expect(streamedRead.error).toBeUndefined();
+        expect(streamedRead.snapshot_id).toBe(streamedManifest.snapshot_id);
+        const streamedSearch = await jsonTool(ctx, 'search_text', {
+          repo_id: repoId,
+          query: 'readerFixture',
+          snapshot_id: streamedManifest.snapshot_id,
+        });
+        expect(streamedSearch.error).toBeUndefined();
+        expect(streamedSearch.matches.some((match: { path: string }) => match.path === 'src/index.ts')).toBe(true);
+
         const tree = await jsonTool(ctx, 'list_tree', { repo_id: repoId, path: '.', depth: 3, page_size: 1000 });
         const treePaths = tree.entries.map((entry: { path: string }) => entry.path);
         expect(treePaths).toContain('.env');

@@ -165,6 +165,11 @@ digest, path, and current stat signature, so warm calls can reuse unchanged file
 metadata while file, registry, and `.ignore` changes produce a different
 snapshot. Explicit `snapshot_id` stat/read calls can reuse a cached snapshot and
 validate the requested file hash instead of rebuilding the full repo snapshot.
+For large manifests, `repo_manifest` streams the visible tree and keeps only the
+requested page entries in memory. Returned page entries include exact content
+hashes; non-page file content metadata is deferred and reported as
+`counts.content_deferred` until a later page, `stat_file`, `read_file`, or
+`search_text` returns that content.
 If CodeGraph still references a deleted indexed path or returns metadata that
 no longer matches the filesystem, the response uses
 `snapshot_state: "index_lagging"` and includes lagging paths under the

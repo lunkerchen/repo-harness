@@ -378,6 +378,11 @@ reports a now-missing indexed path or metadata that no longer matches the
 filesystem, the snapshot becomes `index_lagging` while authorized read/stat
 fallback stays available. Full-text search still falls back to the guarded
 filesystem path when CodeGraph cannot provide complete repo-text search.
+For large manifests, `repo_manifest` streams the visible tree and keeps only the
+requested page of entries in memory. Returned page entries include exact content
+hashes; non-page file content metadata is deferred and reported as
+`counts.content_deferred` until a later manifest page, `stat_file`, `read_file`,
+or `search_text` actually returns that content.
 
 For large-repo reader baselines, run:
 
