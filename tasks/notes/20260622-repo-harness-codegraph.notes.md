@@ -262,6 +262,24 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   `MOVE_COMMIT_FAILED` instead of falling back to the old non-atomic sequence.
   Stale mutation-lock lease/recovery remains a separate P2 slice.
 
+## 2026-06-23 snapshot ignore-policy revision slice
+
+- Snapshot validation now treats `.ignore` as part of the authorization
+  revision, not just as a pre-walk filter. Each validation pass safely rereads
+  `.ignore`, compares policy digest and file identity, then walks under the
+  validation policy and rereads `.ignore` again before publishing or caching the
+  snapshot.
+- Reason: `.ignore` itself is deliberately excluded from manifest output, so a
+  content-only or identity-only `.ignore` change could previously evade the
+  metadata digest while leaving `stale=false`.
+- Validation: reader tests now inject `.ignore`-only races for complete
+  snapshots, manifest-page snapshots, and same-content `.ignore` replacement.
+  The expected behavior is retry under the new policy, not publishing the stale
+  old authorization view.
+- Tradeoff: validation performs two small `.ignore` reads per snapshot build
+  attempt. This keeps the fix local and fail-closed without adding a new
+  revision manager or exposing `.ignore` in manifests.
+
 ## 2026-06-23 S4 security hardening slice
 
 - Root validation now stores a first-observed directory identity for each

@@ -57,7 +57,26 @@ interface IgnoreRule {
 
 interface IgnorePolicy {
   digest: string;
+  fileIdentity: string | null;
   rules: IgnoreRule[];
+}
+
+interface SnapshotRevisionValidation {
+  stale: boolean;
+  partial: boolean;
+  walkerErrors: number;
+  digest: string;
+  ignore: IgnorePolicy;
+}
+
+interface VisibleEntrySnapshotBuild {
+  snapshot: VisibleEntrySnapshot;
+  ignore: IgnorePolicy;
+}
+
+interface ManifestPageSnapshotBuild extends VisibleEntrySnapshotBuild {
+  counts: ManifestCounts;
+  nextCursor: string | null;
 }
 
 interface ResolvedRepoPath {
@@ -860,7 +879,7 @@ function parseIgnoreLine(line: string): IgnoreRule | null {
 
 function readIgnorePolicy(repoRoot: string): IgnorePolicy {
   const ignorePath = resolve(repoRoot, '.ignore');
-  if (!existsSync(ignorePath)) return { digest: `sha256:${sha256('')}`, rules: [] };
+  if (!existsSync(ignorePath)) return { digest: `sha256:${sha256('')}`, fileIdentity: null, rules: [] };
   const before = lstatSync(ignorePath);
   if (before.isSymbolicLink()) {
     throw new GeneralRepoAccessError('SYMLINK_ESCAPE', '.ignore must be a regular repo-local file', { path: '.ignore' });
@@ -882,8 +901,13 @@ function readIgnorePolicy(repoRoot: string): IgnorePolicy {
   const text = buffer.toString('utf-8');
   return {
     digest: `sha256:${sha256(text)}`,
+    fileIdentity: statIdentity(before),
     rules: text.split(/\r?\n/).map(parseIgnoreLine).filter((rule): rule is IgnoreRule => rule !== null),
   };
+}
+
+function sameIgnorePolicyRevision(left: IgnorePolicy, right: IgnorePolicy): boolean {
+  return left.digest === right.digest && left.fileIdentity === right.fileIdentity;
 }
 
 function pathMatchesPattern(pattern: string, path: string, anchored: boolean): boolean {
@@ -1275,7 +1299,7 @@ function metadataForResolved(resolved: ResolvedRepoPath, ignore: IgnorePolicy, s
   let binary: boolean | undefined = resolved.contentFile ? undefined : false;
   let fileHash: string | undefined;
   if (contentHash && resolved.readable && resolved.contentFile) {
-    const raw = readStableResolvedFile(resolved, { digest: '', rules: [] });
+    const raw = readStableResolvedFile(resolved, { digest: '', fileIdentity: null, rules: [] });
     binary = raw.subarray(0, BINARY_PROBE_BYTES).includes(0);
     fileHash = sha256(raw);
   }
@@ -1384,14 +1408,17 @@ function metadataDigest(entries: ManifestEntry[]): string {
   return digest.digest();
 }
 
-function validateSnapshotRevision(repo: RepoRecord, ignore: IgnorePolicy, expectedDigest: string): { stale: boolean; partial: boolean; walkerErrors: number; digest: string } {
-  const validation = walkVisibleEntries(repo, ignore, '.', { hits: 0, misses: 0 }, { contentHash: false, cacheMetadata: false });
+function validateSnapshotRevision(repo: RepoRecord, ignore: IgnorePolicy, expectedDigest: string): SnapshotRevisionValidation {
+  const validationIgnore = readIgnorePolicy(repo.canonicalRoot);
+  const validation = walkVisibleEntries(repo, validationIgnore, '.', { hits: 0, misses: 0 }, { contentHash: false, cacheMetadata: false });
   const digest = metadataDigest(validation.entries);
+  const finalIgnore = readIgnorePolicy(repo.canonicalRoot);
   return {
-    stale: digest !== expectedDigest,
+    stale: digest !== expectedDigest || !sameIgnorePolicyRevision(ignore, validationIgnore) || !sameIgnorePolicyRevision(validationIgnore, finalIgnore),
     partial: validation.partial,
     walkerErrors: validation.walkerErrors,
     digest,
+    ignore: finalIgnore,
   };
 }
 
@@ -1508,7 +1535,7 @@ function mergeCodeGraphMetadata(repo: RepoRecord, ignore: IgnorePolicy, entries:
   return { entriesByPath, filteredPaths, laggingPaths };
 }
 
-function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, args: Record<string, unknown>, attempt = 0): { snapshot: VisibleEntrySnapshot; counts: ManifestCounts; nextCursor: string | null } {
+function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, args: Record<string, unknown>, attempt = 0): ManifestPageSnapshotBuild {
   const createdAtMs = Date.now();
   const codeGraph = (ctx.codeGraphAdapter ?? DEFAULT_CODEGRAPH_ADAPTER).discoverRepo(repo.canonicalRoot);
   const indexed = codeGraphMetadataIndex(repo, ignore, codeGraph);
@@ -1563,7 +1590,7 @@ function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
   ctx.testHooks?.afterSnapshotWalk?.({ repoRoot: repo.canonicalRoot, kind: 'manifest_page', attempt });
   const validation = validateSnapshotRevision(repo, ignore, manifestDigest);
   if (validation.stale && attempt + 1 < MAX_SNAPSHOT_BUILD_ATTEMPTS) {
-    return buildManifestPageSnapshot(ctx, repo, ignore, args, attempt + 1);
+    return buildManifestPageSnapshot(ctx, repo, validation.ignore, args, attempt + 1);
   }
   const id = `snap_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${codeGraph.indexRevision}\0${manifestDigest}`).slice(0, 16)}`;
   const coverage: VisibleEntrySnapshot['coverage'] = offset === 0 && pageEntries.length === counts.entries ? 'complete' : 'page';
@@ -1598,10 +1625,10 @@ function buildManifestPageSnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
     codeGraphLaggingPaths: [...indexed.laggingPaths].sort((a, b) => a.localeCompare(b)),
   };
   const nextCursor = offset + pageEntries.length < counts.entries ? String(offset + pageEntries.length) : null;
-  return { snapshot: rememberSnapshot(snapshot), counts, nextCursor };
+  return { snapshot: rememberSnapshot(snapshot), counts, nextCursor, ignore: validation.stale ? validation.ignore : ignore };
 }
 
-function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, opts: { contentHash?: boolean } = {}, attempt = 0): VisibleEntrySnapshot {
+function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, opts: { contentHash?: boolean } = {}, attempt = 0): VisibleEntrySnapshotBuild {
   const createdAtMs = Date.now();
   const codeGraph = (ctx.codeGraphAdapter ?? DEFAULT_CODEGRAPH_ADAPTER).discoverRepo(repo.canonicalRoot);
   const entryMetadataStats = { hits: 0, misses: 0 };
@@ -1612,7 +1639,7 @@ function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
   ctx.testHooks?.afterSnapshotWalk?.({ repoRoot: repo.canonicalRoot, kind: 'complete', attempt });
   const validation = validateSnapshotRevision(repo, ignore, manifestDigest);
   if (validation.stale && attempt + 1 < MAX_SNAPSHOT_BUILD_ATTEMPTS) {
-    return buildVisibleEntrySnapshot(ctx, repo, ignore, opts, attempt + 1);
+    return buildVisibleEntrySnapshot(ctx, repo, validation.ignore, opts, attempt + 1);
   }
   const id = `snap_${sha256(`${repo.repoId}\0${repo.registryRevision}\0${ignore.digest}\0${codeGraph.indexRevision}\0${manifestDigest}`).slice(0, 16)}`;
   const cacheKey = contentHash
@@ -1645,7 +1672,7 @@ function buildVisibleEntrySnapshot(ctx: GeneralRepoToolContext, repo: RepoRecord
     codeGraphFilteredPaths: merged.filteredPaths,
     codeGraphLaggingPaths: merged.laggingPaths,
   };
-  return rememberSnapshot(snapshot);
+  return { snapshot: rememberSnapshot(snapshot), ignore: validation.stale ? validation.ignore : ignore };
 }
 
 function rememberSnapshot(snapshot: VisibleEntrySnapshot): VisibleEntrySnapshot {
@@ -2211,7 +2238,8 @@ function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: I
   const afterRaw = readFileSync(after.canonicalPath);
   const afterHash = sha256(afterRaw);
   const afterEntry = metadataForResolved(after, ignore);
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const { snapshot, ignore: snapshotIgnore } = built;
   const indexedEntry = snapshot.entriesByPath.get(target.relativePath);
   const indexState = mutationIndexState(snapshot);
   const changedPaths = cachePaths(opts.changedPaths ?? [target.relativePath]);
@@ -2236,7 +2264,7 @@ function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: I
   });
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: mutationTool, paths: changedPaths }),
+    ...commonFields(repo, snapshotIgnore, snapshot, { tool: mutationTool, paths: changedPaths }),
     path: responsePath,
     operation: opts.operation,
     mutation_id: mutationId,
@@ -2279,7 +2307,8 @@ function mutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: I
 }
 
 function deleteMutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: IgnorePolicy, deleted: ManifestEntry, beforeHash: string, beforeSize: number): GeneralRepoToolResult {
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const { snapshot, ignore: snapshotIgnore } = built;
   const indexState = mutationIndexState(snapshot);
   const mutationId = `mut_${sha256(`${repo.repoId}\0${deleted.path}\0${beforeHash}\0deleted\0${Date.now()}`).slice(0, 16)}`;
   const invalidationId = `idxinv_${sha256(`${mutationId}\0${snapshot.codeGraph.indexRevision}\0${deleted.path}`).slice(0, 16)}`;
@@ -2300,7 +2329,7 @@ function deleteMutationResult(ctx: GeneralRepoToolContext, repo: RepoRecord, ign
   });
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'delete_path', paths: [deleted.path] }),
+    ...commonFields(repo, snapshotIgnore, snapshot, { tool: 'delete_path', paths: [deleted.path] }),
     path: deleted.path,
     operation: 'delete',
     mutation_id: mutationId,
@@ -2440,10 +2469,11 @@ function readFilePayload(ctx: GeneralRepoToolContext, repo: RepoRecord, ignore: 
 function getRepoCapabilities(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
   const repo = resolveRepo(ctx, args.repo_id);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const { snapshot, ignore: snapshotIgnore } = built;
   assertSnapshotFresh(args, snapshot);
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'get_repo_capabilities' }),
+    ...commonFields(repo, snapshotIgnore, snapshot, { tool: 'get_repo_capabilities' }),
     access_mode: repo.accessMode,
     writable: repo.accessMode === 'read_write' && ctx.policy.generalRepo.repo_write,
     display_name: repo.displayName,
@@ -2711,7 +2741,8 @@ function refreshRepoIndex(ctx: GeneralRepoToolContext, args: Record<string, unkn
   const sourceEventId = typeof sourceEvent?.event_id === 'string' ? sourceEvent.event_id : undefined;
   const sourceMutationId = typeof sourceEvent?.mutation_id === 'string' ? sourceEvent.mutation_id : mutationId || undefined;
   const sourceInvalidationId = typeof sourceEvent?.invalidation_id === 'string' ? sourceEvent.invalidation_id : undefined;
-  const before = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const beforeBuild = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const before = beforeBuild.snapshot;
   const adapter = ctx.codeGraphAdapter ?? DEFAULT_CODEGRAPH_ADAPTER;
   if (!adapter.refreshRepo) {
     tryWriteIndexEvent(ctx, repo, {
@@ -2778,7 +2809,8 @@ function refreshRepoIndex(ctx: GeneralRepoToolContext, args: Record<string, unkn
     });
     throw indexRefreshError(refresh);
   }
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const { snapshot, ignore: snapshotIgnore } = built;
   const indexState = refreshedIndexState(snapshot);
   const indexLagMs = indexLagMsFrom(sourceEvent);
   const indexEventId = tryWriteIndexEvent(ctx, repo, {
@@ -2803,7 +2835,7 @@ function refreshRepoIndex(ctx: GeneralRepoToolContext, args: Record<string, unkn
   });
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'refresh_repo_index', paths: refreshScope }),
+    ...commonFields(repo, snapshotIgnore, snapshot, { tool: 'refresh_repo_index', paths: refreshScope }),
     paths: refreshScope,
     refreshed: true,
     index_state: indexState,
@@ -2844,7 +2876,7 @@ function repoManifest(ctx: GeneralRepoToolContext, args: Record<string, unknown>
   const snapshot = streamed.snapshot;
   assertSnapshotFresh(args, snapshot);
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'repo_manifest', paths: ['.'] }),
+    ...commonFields(repo, streamed.ignore, snapshot, { tool: 'repo_manifest', paths: ['.'] }),
     entries: snapshot.entries,
     next_cursor: streamed.nextCursor,
     complete: !snapshot.partial,
@@ -2861,9 +2893,11 @@ function repoManifest(ctx: GeneralRepoToolContext, args: Record<string, unknown>
 function listTree(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
   const repo = resolveRepo(ctx, args.repo_id);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const root = resolveRepoPath(repo, args.path ?? '.', ignore, { allowRoot: true, requireDirectory: true });
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  resolveRepoPath(repo, args.path ?? '.', ignore, { allowRoot: true, requireDirectory: true });
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const { snapshot, ignore: snapshotIgnore } = built;
   assertSnapshotFresh(args, snapshot);
+  const root = resolveRepoPath(repo, args.path ?? '.', snapshotIgnore, { allowRoot: true, requireDirectory: true });
   const depth = numberArg(args.depth, 1, 0, 6);
   const entries = snapshot.entries
     .filter((entry) => entry.path !== root.relativePath)
@@ -2876,7 +2910,7 @@ function listTree(ctx: GeneralRepoToolContext, args: Record<string, unknown>): G
     });
   const paged = pageEntries(entries, args.cursor, (args.page_size ?? DEFAULT_PAGE_SIZE));
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'list_tree', paths: [root.relativePath] }),
+    ...commonFields(repo, snapshotIgnore, snapshot, { tool: 'list_tree', paths: [root.relativePath] }),
     path: root.relativePath,
     entries: paged.page,
     next_cursor: paged.nextCursor,
@@ -2912,11 +2946,13 @@ function statFile(ctx: GeneralRepoToolContext, args: Record<string, unknown>): G
       codegraph: codeGraphSummary(cachedSnapshot),
     });
   }
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore);
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore);
+  const { snapshot, ignore: snapshotIgnore } = built;
   assertSnapshotFresh(args, snapshot);
-  const entry = snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved, ignore);
+  const currentResolved = resolveRepoPath(repo, args.path, snapshotIgnore);
+  const entry = snapshot.entriesByPath.get(currentResolved.relativePath) ?? metadataForResolved(currentResolved, snapshotIgnore);
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'stat_file', paths: [resolved.relativePath] }),
+    ...commonFields(repo, snapshotIgnore, snapshot, { tool: 'stat_file', paths: [currentResolved.relativePath] }),
     ...entry,
     codegraph: codeGraphSummary(snapshot),
   });
@@ -2935,10 +2971,11 @@ function readFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>
       codegraph: codeGraphSummary(cachedSnapshot),
     });
   }
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const { snapshot, ignore: snapshotIgnore } = built;
   assertSnapshotFresh(args, snapshot);
   return textResult({
-    ...readFilePayload(ctx, repo, ignore, snapshot, args),
+    ...readFilePayload(ctx, repo, snapshotIgnore, snapshot, args),
     codegraph: codeGraphSummary(snapshot),
   });
 }
@@ -2947,8 +2984,14 @@ function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): 
   const repo = resolveRepo(ctx, args.repo_id);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
   const cachedSnapshot = cachedSnapshotById(repo, args.snapshot_id, undefined, { requireHashes: true });
-  const snapshot = cachedSnapshot ?? buildVisibleEntrySnapshot(ctx, repo, ignore);
-  if (!cachedSnapshot) assertSnapshotFresh(args, snapshot);
+  let snapshot = cachedSnapshot;
+  let snapshotIgnore = ignore;
+  if (!snapshot) {
+    const built = buildVisibleEntrySnapshot(ctx, repo, ignore);
+    snapshot = built.snapshot;
+    snapshotIgnore = built.ignore;
+    assertSnapshotFresh(args, snapshot);
+  }
   const requests = Array.isArray(args.requests) ? args.requests : [];
   const byteBudget = numberArg(args.byte_budget, HARD_READ_BYTES, 1, HARD_READ_BYTES);
   let remaining = byteBudget;
@@ -2967,7 +3010,7 @@ function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): 
       continue;
     }
     try {
-      const payload = readFilePayload(ctx, repo, ignore, snapshot, request as Record<string, unknown>, remaining, 'read_files', Boolean(cachedSnapshot));
+      const payload = readFilePayload(ctx, repo, snapshotIgnore, snapshot, request as Record<string, unknown>, remaining, 'read_files', Boolean(cachedSnapshot));
       remaining -= Number(payload.bytes_returned ?? 0);
       results.push(payload);
     } catch (error) {
@@ -2981,7 +3024,7 @@ function readFiles(ctx: GeneralRepoToolContext, args: Record<string, unknown>): 
   }
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot, {
+    ...commonFields(repo, snapshotIgnore, snapshot, {
       tool: 'read_files',
       paths: requests
         .map((request) => (typeof request === 'object' && request !== null && !Array.isArray(request) ? String((request as { path?: unknown }).path ?? '') : ''))
@@ -3000,12 +3043,13 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
   const mode = args.mode === 'regex' ? 'regex' : 'literal';
   const repo = resolveRepo(ctx, args.repo_id);
   const ignore = readIgnorePolicy(repo.canonicalRoot);
-  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const built = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const { snapshot, ignore: snapshotIgnore } = built;
   assertSnapshotFresh(args, snapshot);
   const requestedPaths = Array.isArray(args.paths) && args.paths.length > 0 ? args.paths : ['.'];
   const candidates: ManifestEntry[] = [];
   for (const path of requestedPaths) {
-    const resolved = resolveRepoPath(repo, path, ignore, { allowRoot: true });
+    const resolved = resolveRepoPath(repo, path, snapshotIgnore, { allowRoot: true });
     if (resolved.type === 'directory') {
       candidates.push(...snapshot.entries.filter((entry) => (
         resolved.relativePath === '.'
@@ -3013,7 +3057,7 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
           : entry.path === resolved.relativePath || entry.path.startsWith(`${resolved.relativePath}/`)
       )));
     } else {
-      candidates.push(snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved, ignore));
+      candidates.push(snapshot.entriesByPath.get(resolved.relativePath) ?? metadataForResolved(resolved, snapshotIgnore));
     }
   }
   const seen = new Set<string>();
@@ -3040,8 +3084,8 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
       continue;
     }
     seen.add(entry.path);
-    const resolved = resolveRepoPath(repo, entry.path, ignore, { requireFile: true });
-    const raw = readStableResolvedFile(resolved, ignore);
+    const resolved = resolveRepoPath(repo, entry.path, snapshotIgnore, { requireFile: true });
+    const raw = readStableResolvedFile(resolved, snapshotIgnore);
     const text = raw.toString('utf-8');
     const fileHash = entry.sha256 ?? sha256(raw);
     const lines = text.split(/\r?\n/);
@@ -3070,7 +3114,7 @@ function searchText(ctx: GeneralRepoToolContext, args: Record<string, unknown>):
   const nextCursor = matches.length > maxResults ? String(offset + maxResults) : null;
 
   return textResult({
-    ...commonFields(repo, ignore, snapshot, { tool: 'search_text', paths: requestedPaths.map((path) => String(path)) }),
+    ...commonFields(repo, snapshotIgnore, snapshot, { tool: 'search_text', paths: requestedPaths.map((path) => String(path)) }),
     query,
     mode,
     matches: returned,

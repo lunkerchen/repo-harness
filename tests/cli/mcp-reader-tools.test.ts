@@ -1341,6 +1341,71 @@ describe('MCP reader tools', () => {
     });
   });
 
+  test('general repo snapshot validation retries .ignore-only policy revision changes', async () => {
+    await withReaderRepo(async (repoRoot, ctx) => {
+      const repoId = (await jsonTool(ctx, 'list_allowed_roots')).roots[0].repo_id;
+      writeFileSync(join(repoRoot, '.ignore'), '');
+      writeFileSync(join(repoRoot, 'docs', 'policy-race-tree-secret.txt'), 'tree secret\n');
+      let completeMutations = 0;
+      const completeRaceCtx: ReaderToolContext = {
+        ...ctx,
+        testHooks: {
+          afterSnapshotWalk(event) {
+            if (event.kind !== 'complete' || event.attempt !== 0 || completeMutations > 0) return;
+            completeMutations += 1;
+            writeFileSync(join(repoRoot, '.ignore'), 'docs/policy-race-tree-secret.txt\n');
+          },
+        },
+      };
+
+      const tree = await jsonTool(completeRaceCtx, 'list_tree', { repo_id: repoId, path: '.', depth: 2 });
+      expect(tree.error).toBeUndefined();
+      expect(tree.stale).toBe(false);
+      expect(completeMutations).toBe(1);
+      expect((tree.entries as Array<{ path: string }>).map((entry) => entry.path)).not.toContain('docs/policy-race-tree-secret.txt');
+
+      writeFileSync(join(repoRoot, '.ignore'), '');
+      writeFileSync(join(repoRoot, 'docs', 'policy-race-manifest-secret.txt'), 'manifest secret\n');
+      let pageMutations = 0;
+      const pageRaceCtx: ReaderToolContext = {
+        ...ctx,
+        testHooks: {
+          afterSnapshotWalk(event) {
+            if (event.kind !== 'manifest_page' || event.attempt !== 0 || pageMutations > 0) return;
+            pageMutations += 1;
+            writeFileSync(join(repoRoot, '.ignore'), 'docs/policy-race-manifest-secret.txt\n');
+          },
+        },
+      };
+
+      const manifest = await jsonTool(pageRaceCtx, 'repo_manifest', { repo_id: repoId, page_size: 100 });
+      expect(manifest.error).toBeUndefined();
+      expect(manifest.stale).toBe(false);
+      expect(pageMutations).toBe(1);
+      expect((manifest.entries as Array<{ path: string }>).map((entry) => entry.path)).not.toContain('docs/policy-race-manifest-secret.txt');
+
+      writeFileSync(join(repoRoot, '.ignore'), '');
+      const identityAttempts: number[] = [];
+      const identityRaceCtx: ReaderToolContext = {
+        ...ctx,
+        testHooks: {
+          afterSnapshotWalk(event) {
+            if (event.kind !== 'complete') return;
+            identityAttempts.push(event.attempt);
+            if (event.attempt !== 0) return;
+            rmSync(join(repoRoot, '.ignore'), { force: true });
+            writeFileSync(join(repoRoot, '.ignore'), '');
+          },
+        },
+      };
+
+      const identityTree = await jsonTool(identityRaceCtx, 'list_tree', { repo_id: repoId, path: '.', depth: 1 });
+      expect(identityTree.error).toBeUndefined();
+      expect(identityTree.stale).toBe(false);
+      expect(identityAttempts).toEqual([0, 1]);
+    });
+  });
+
   test('general repo security hardening fails closed on fuzzed inputs, partial walks, and raw adapter errors', async () => {
     await withReaderRepo(async (repoRoot, ctx) => {
       writeFileSync(join(repoRoot, '.ignore'), 'ignored.md\n');
