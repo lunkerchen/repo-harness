@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { registerRepoHarnessRepo } from '../../src/effects/repo-registry';
+import { registerRepoHarnessRepo, repoHarnessRepoIdFor } from '../../src/effects/repo-registry';
 import { getMcpPolicy } from '../../src/cli/mcp/policy';
 import { buildMcpToolDefinitions, callMcpTool, type McpToolContext } from '../../src/cli/mcp/tools';
 import { WorkspaceManager } from '../../src/cli/mcp/workspaces';
@@ -174,8 +174,11 @@ describe('mcp tools', () => {
       expect(typeof status.schema_hash).toBe('string');
 
       const roots = await jsonTool(ctx, 'list_allowed_roots');
-      const root = roots.roots.find((entry: { path: string }) => entry.path === realpathSync(repoRoot));
-      expect(root.root_id).toMatch(/^root_/);
+      const root = roots.roots.find(
+        (entry: { repo_id: string; path?: string }) => entry.repo_id === repoHarnessRepoIdFor(realpathSync(repoRoot)),
+      );
+      expect(root?.path).toBeUndefined();
+      expect(root?.root_id).toMatch(/^root_/);
 
       const opened = await jsonTool(ctx, 'open_workspace', { root_id: root.root_id });
       expect(opened.workspace_id).toMatch(/^ws_/);
@@ -252,7 +255,9 @@ describe('mcp tools', () => {
         expect(discovered.repos.some((entry: { repoRoot: string }) => entry.repoRoot === canonicalRepoRoot)).toBe(true);
 
         const roots = await jsonTool(ctx, 'list_allowed_roots');
-        expect(roots.roots.some((entry: { path: string }) => entry.path === canonicalRepoRoot)).toBe(true);
+        expect(roots.roots.some(
+          (entry: { repo_id: string; path?: string }) => entry.repo_id === repoHarnessRepoIdFor(canonicalRepoRoot) && entry.path === undefined,
+        )).toBe(true);
 
         const status = await jsonTool(ctx, 'harness_status');
         expect(status.repoRoot).toBe(scanRoot);
