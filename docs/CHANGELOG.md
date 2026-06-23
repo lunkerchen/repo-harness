@@ -4,6 +4,8 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-06-24
+
 ### Fixed
 
 - Suppressed Codex `Stop.default` decision stdout so the Desktop app no longer

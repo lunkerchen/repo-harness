@@ -1,6 +1,6 @@
 {
-  "version": "0.8.0",
-  "templateVersion": "0.8.0",
+  "version": "0.8.1",
+  "templateVersion": "0.8.1",
   "skillName": "repo-harness",
   "contractId": "tasks-first-harness-v1",
   "compatibility": {
@@ -167,6 +167,10 @@
     {
       "version": "0.8.0",
       "description": "Adds single-source hook projection from assets/hooks, review rubric and diff-fingerprint freshness gates, and package/install parity checks"
+    },
+    {
+      "version": "0.8.1",
+      "description": "Adds General Repo MCP CodeGraph access, removes the ChatGPT extension bridge provider, and suppresses Codex Stop decision stdout"
     }
   ],
   "generatedProjectStamp": {
