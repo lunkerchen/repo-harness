@@ -3,10 +3,6 @@ import { spawnSync } from 'child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import { join } from 'path';
-import { inspectBridgeExtensionInstall, renderBrowserAuthorizePage } from '../../src/cli/chatgpt-browser/bind-server';
-import { writeChatgptBridgeExtension } from '../../src/cli/chatgpt-browser/bridge-extension';
-import { runBridgeProvider } from '../../src/cli/chatgpt-browser/bridge-provider';
-import type { PromptBundle } from '../../src/cli/chatgpt-browser/types';
 import { assertChatGptMcpContract } from '../helpers/chatgpt-mcp-contract';
 
 const ROOT = join(import.meta.dir, '../..');
@@ -34,24 +30,6 @@ function withRepo<T>(fn: (repoRoot: string) => T): T {
   }
 }
 
-async function withRepoAsync<T>(fn: (repoRoot: string) => Promise<T>): Promise<T> {
-  const repoRoot = mkdtempSync(join(tmpdir(), 'repo-harness-chatgpt-browser-'));
-  try {
-    return await fn(repoRoot);
-  } finally {
-    rmSync(repoRoot, { recursive: true, force: true });
-  }
-}
-
-function emptyBundle(prompt: string): PromptBundle {
-  return { prompt, rendered: prompt, files: [], followups: [], totalChars: prompt.length };
-}
-
-function readBridgeToken(repoRoot: string): string {
-  const script = readFileSync(join(repoRoot, '.ai/harness/chatgpt/bridge-extension/content-script.js'), 'utf-8');
-  return script.match(/REPO_HARNESS_CHATGPT_BRIDGE_TOKEN = "([^"]+)"/)?.[1] ?? '';
-}
-
 describe('chatgpt browser command', () => {
   test('prints help for browser command group', () => {
     const root = runChatgpt(['--help']);
@@ -60,7 +38,7 @@ describe('chatgpt browser command', () => {
     expect(root.stdout).toContain('browser-followup');
     expect(root.stdout).toContain('browser-session');
     expect(root.stdout).toContain('browser-doctor');
-    expect(root.stdout).toContain('browser-bind');
+    expect(root.stdout).not.toContain('browser-bind');
     expect(root.stdout).toContain('browser-open');
     expect(root.stdout).toContain('browser-cleanup');
 
@@ -74,11 +52,6 @@ describe('chatgpt browser command', () => {
     expect(doctor.status).toBe(0);
     expect(doctor.stdout).toContain('--validate-session');
     expect(doctor.stdout).toContain('--profile-directory');
-
-    const bind = runChatgpt(['browser-bind', '--help']);
-    expect(bind.status).toBe(0);
-    expect(bind.stdout).toContain('authorization page');
-    expect(bind.stdout).toContain('--profile-directory');
 
     const consult = runChatgpt(['browser-consult', '--help']);
     expect(consult.status).toBe(0);
@@ -260,7 +233,7 @@ describe('chatgpt browser command', () => {
       expect(readiness.status).toBe('deprecated');
       expect(readiness.code).toBe('NATIVE_PROVIDER_DEPRECATED');
       expect(readiness.native.deprecated).toBe(true);
-      expect(readiness.posture).toEqual({ oracle: 'default', native: 'deprecated', bridge: 'experimental' });
+      expect(readiness.posture).toEqual({ oracle: 'default', native: 'deprecated' });
       expect(typeof readiness.native.installed).toBe('boolean');
       expect(readiness.native.driver).toBe('chrome-cdp');
       expect(readiness.native.defaultChannel).toBe('chrome');
@@ -332,6 +305,22 @@ describe('chatgpt browser command', () => {
     });
   });
 
+  test('rejects removed bridge provider and browser-bind command surfaces', () => {
+    withRepo((repoRoot) => {
+      const doctor = runChatgpt(['browser-doctor', '--repo', repoRoot, '--provider', 'bridge']);
+      expect(doctor.status).toBe(2);
+      expect(doctor.stderr).toContain('invalid --provider "bridge" (expected: oracle, native)');
+
+      const consult = runChatgpt(['browser-consult', '--repo', repoRoot, '--provider', 'bridge', '--prompt', 'Reply OK']);
+      expect(consult.status).toBe(2);
+      expect(consult.stderr).toContain('invalid --provider "bridge" (expected: oracle, native)');
+
+      const bind = runChatgpt(['browser-bind', '--repo', repoRoot]);
+      expect(bind.status).not.toBe(0);
+      expect(bind.stderr).toContain("unknown command 'browser-bind'");
+    });
+  });
+
   test('browser setup binds a user-selected ChatGPT profile and native dry-run uses it', () => {
     withRepo((repoRoot) => {
       const userDataDir = join(repoRoot, 'Chrome/User Data');
@@ -352,7 +341,8 @@ describe('chatgpt browser command', () => {
       ]);
       expect(setup.status).toBe(0);
       expect(setup.stdout).toContain('ChatGPT profile binding');
-      expect(setup.stdout).toContain('browser-bind --open');
+      expect(setup.stdout).not.toContain('browser-bind');
+      expect(setup.stdout).toContain('browser-doctor --provider native --validate-session');
 
       const configPath = join(repoRoot, '.repo-harness/chatgpt-browser.local.json');
       expect(existsSync(configPath)).toBe(true);
@@ -363,6 +353,7 @@ describe('chatgpt browser command', () => {
       expect(binding.selectedProfilePath).toBe(profileDir);
       expect(binding.browserChannel).toBe('chrome');
       expect(binding.chatgptUrl).toBe('https://chatgpt.com/');
+      expect(binding.bridgeToken).toBeUndefined();
       const retiredPageKeys = ['bind' + 'PagePath', 'bind' + 'PageUrl'];
       expect(Object.keys(binding)).not.toEqual(expect.arrayContaining(retiredPageKeys));
 
@@ -399,168 +390,6 @@ describe('chatgpt browser command', () => {
       expect(meta.browser.profileDirectory).toBe('Profile 1');
       expect(meta.browser.selectedProfilePath).toBe(profileDir);
       expect(meta.browser.channel).toBe('chrome');
-    });
-  });
-
-  test('browser authorization page binds through a local endpoint instead of linking to ChatGPT', () => {
-    const html = renderBrowserAuthorizePage({
-      profileDir: '/tmp/repo-harness-chatgpt-profile',
-      profileDirectory: 'Profile 1',
-      selectedProfilePath: '/tmp/repo-harness-chatgpt-profile/Profile 1',
-      browserChannel: 'chrome',
-      chatgptUrl: 'https://chatgpt.com/',
-      blockedByDefaultProfile: false,
-      extensionDir: '/tmp/repo-harness-chatgpt-extension',
-    });
-    expect(html).toContain('Authorize ChatGPT Web Session');
-    expect(html).toContain('Bind ChatGPT');
-    expect(html).toContain('Bridge extension');
-    expect(html).toContain("postJson('/api/authorize')");
-    expect(html).toContain("postJson('/api/open-chatgpt')");
-    expect(html).toContain("postJson('/api/open-extensions')");
-    expect(html).toContain("fetch('/api/extension/status'");
-    expect(html).toContain('Copy Extension Path');
-    expect(html).not.toContain('href="https://chatgpt.com/');
-  });
-
-  test('bridge authorization diagnoses whether the unpacked extension is installed in the selected profile', () => {
-    const profileRoot = mkdtempSync(join(tmpdir(), 'repo-harness-chatgpt-profile-'));
-    try {
-      const profileDir = join(profileRoot, 'Profile 1');
-      mkdirSync(profileDir, { recursive: true });
-      const extensionDir = join(profileRoot, 'bridge-extension');
-      writeFileSync(join(profileDir, 'Preferences'), JSON.stringify({ extensions: { settings: {} } }));
-      expect(inspectBridgeExtensionInstall(profileRoot, 'Profile 1', extensionDir).status).toBe('not_installed');
-
-      writeFileSync(join(profileDir, 'Secure Preferences'), JSON.stringify({
-        extensions: {
-          settings: {
-            secureOnly: {
-              location: 4,
-              path: extensionDir,
-            },
-          },
-        },
-      }));
-      const secureInstalled = inspectBridgeExtensionInstall(profileRoot, 'Profile 1', extensionDir);
-      expect(secureInstalled.status).toBe('installed');
-      expect(secureInstalled.extensionId).toBe('secureOnly');
-
-      rmSync(join(profileDir, 'Secure Preferences'), { force: true });
-      writeFileSync(join(profileDir, 'Preferences'), JSON.stringify({
-        extensions: {
-          settings: {
-            abc: {
-              state: 1,
-              path: extensionDir,
-              manifest: { name: 'repo-harness ChatGPT Bridge' },
-            },
-          },
-        },
-      }));
-      const installed = inspectBridgeExtensionInstall(profileRoot, 'Profile 1', extensionDir);
-      expect(installed.status).toBe('installed');
-      expect(installed.extensionId).toBe('abc');
-
-      writeFileSync(join(profileDir, 'Preferences'), JSON.stringify({
-        extensions: {
-          settings: {
-            abc: {
-              state: 0,
-              path: extensionDir,
-              manifest: { name: 'repo-harness ChatGPT Bridge' },
-            },
-          },
-        },
-      }));
-      expect(inspectBridgeExtensionInstall(profileRoot, 'Profile 1', extensionDir).status).toBe('disabled');
-    } finally {
-      rmSync(profileRoot, { recursive: true, force: true });
-    }
-  });
-
-  test('bridge extension is scoped to ChatGPT product domains and localhost only', () => {
-    withRepo((repoRoot) => {
-      const extension = writeChatgptBridgeExtension(repoRoot, 'http://127.0.0.1:17651', 'tok_example_123');
-      const manifest = JSON.parse(readFileSync(extension.manifestPath, 'utf-8'));
-      expect(manifest.host_permissions).toEqual([
-        'https://chatgpt.com/*',
-        'https://chat.openai.com/*',
-        'http://127.0.0.1:17651/*',
-      ]);
-      expect(JSON.stringify(manifest)).not.toContain('<all_urls>');
-      expect(JSON.stringify(manifest)).not.toContain('cookies');
-      expect(JSON.stringify(manifest)).not.toContain('storage');
-      const script = readFileSync(extension.contentScriptPath, 'utf-8');
-      expect(script).toContain('/api/extension/task');
-      expect(script).toContain('REPO_HARNESS_CHATGPT_BRIDGE_TOKEN = "tok_example_123"');
-      expect(script).toContain('x-repo-harness-bridge-token');
-    });
-  });
-
-  test('bridge provider fails closed when the product-scoped extension is not connected', () => {
-    withRepo((repoRoot) => {
-      const result = runChatgpt([
-        'browser-consult',
-        '--repo',
-        repoRoot,
-        '--provider',
-        'bridge',
-        '--timeout-ms',
-        '1000',
-        '--prompt',
-        'Reply exactly OK',
-      ], ROOT, {
-        ...process.env,
-        REPO_HARNESS_CHATGPT_BRIDGE_PORT: String(32000 + Math.floor(Math.random() * 10000)),
-      });
-      expect(result.status).toBe(0);
-      const payload = JSON.parse(result.stdout);
-      expect(payload.status).toBe('failed');
-      expect(payload.error.code).toBe('CHATGPT_BRIDGE_EXTENSION_NOT_CONNECTED');
-      const meta = JSON.parse(readFileSync(join(repoRoot, '.ai/harness/chatgpt/sessions', payload.sessionId, 'meta.json'), 'utf-8'));
-      expect(meta.provider).toBe('bridge');
-      expect(existsSync(join(repoRoot, '.ai/harness/chatgpt/bridge-extension/manifest.json'))).toBe(true);
-    });
-  });
-
-  test('bridge enforces the capability token and backstops status-only completions', async () => {
-    await withRepoAsync(async (repoRoot) => {
-      const port = 33000 + Math.floor(Math.random() * 9000);
-      const prevPort = process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT;
-      process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT = String(port);
-      try {
-        // Start the provider without awaiting; the server binds and the extension
-        // (carrying the token) is written before the first internal await.
-        const promise = runBridgeProvider({ repoRoot, prompt: 'Reply exactly OK', timeoutMs: 6000 }, emptyBundle('Reply exactly OK'));
-        const base = `http://127.0.0.1:${port}`;
-        const token = readBridgeToken(repoRoot);
-        expect(token.length).toBeGreaterThan(0);
-
-        // Any caller missing the token is rejected before it can claim the task.
-        const unauthorized = await fetch(`${base}/api/extension/task`, { headers: { accept: 'application/json' } });
-        expect(unauthorized.status).toBe(401);
-
-        // The authorized extension claims the task...
-        const claim = await fetch(`${base}/api/extension/task`, { headers: { accept: 'application/json', 'x-repo-harness-bridge-token': token } });
-        expect(claim.status).toBe(200);
-        const task = await claim.json();
-        expect(task.kind).toBe('consult');
-
-        // ...then posts a "completed" with status-only text, which must be coerced.
-        await fetch(`${base}/api/extension/result`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-repo-harness-bridge-token': token },
-          body: JSON.stringify({ taskId: task.id, status: 'completed', output: 'Pro thinking' }),
-        });
-
-        const result = await promise;
-        expect(result.status).toBe('failed');
-        expect(result.error?.code).toBe('CHATGPT_BRIDGE_NO_FINAL_MESSAGE');
-      } finally {
-        if (prevPort === undefined) delete process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT;
-        else process.env.REPO_HARNESS_CHATGPT_BRIDGE_PORT = prevPort;
-      }
     });
   });
 
@@ -1315,7 +1144,7 @@ describe('chatgpt browser command', () => {
     const gptproSkill = join(ROOT, 'assets/skill-commands/repo-harness-gptpro/SKILL.md');
     expect(readFileSync(guide, 'utf-8')).toContain('repo-harness chatgpt browser-consult');
     expect(readFileSync(guide, 'utf-8')).toContain('--provider native');
-    expect(readFileSync(guide, 'utf-8')).toContain('--provider bridge');
+    expect(readFileSync(guide, 'utf-8')).not.toContain('--provider bridge');
     expect(readFileSync(guide, 'utf-8')).toContain('--browser-channel chrome');
     expect(readFileSync(guide, 'utf-8')).toContain('.ai/harness/handoff/gptpro/chatgpt-review-${stamp}.md');
     expect(readFileSync(guide, 'utf-8')).toContain('docs/researches/YYYYMMDD-<topic>.md');

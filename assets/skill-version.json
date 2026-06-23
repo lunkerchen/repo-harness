@@ -146,7 +146,7 @@
     },
     {
       "version": "0.7.1",
-      "description": "Adds GPT Pro setup and consult command skills over the ChatGPT Web browser bridge and keeps PostBash advisory traces out of the authoritative latest checks trace"
+      "description": "Adds GPT Pro setup and consult command skills over the ChatGPT Web browser/session provider and keeps PostBash advisory traces out of the authoritative latest checks trace"
     },
     {
       "version": "0.7.2",

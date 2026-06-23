@@ -6,7 +6,7 @@ when_to_use: "repo-harness-gptpro, repo-harness:gptpro, gptpro, gptpro consult, 
 
 # repo-harness-gptpro
 
-Use this command when the user wants local Codex to consult GPT Pro through the repo-harness ChatGPT Web browser provider. Oracle is the default main path; native is deprecated and bridge is experimental/explicit-only.
+Use this command when the user wants local Codex to consult GPT Pro through the repo-harness ChatGPT Web browser provider. Oracle is the default main path; native is deprecated and kept only for diagnostics.
 
 Use GPT Pro language with the user. Treat the `browser-*` command names as implementation details:
 
@@ -86,8 +86,8 @@ omitted_or_truncated: [...]
 
 - If `browser-doctor --provider oracle` reports `ORACLE_NOT_INSTALLED`, install or configure a pinned Oracle CLI and rerun doctor before a real consult.
 - If Oracle reports `ORACLE_PROFILE_COOKIE_NOT_FOUND`, fix the selected Chrome profile binding before retrying; do not let the run proceed against the default profile.
-- If Oracle reports `ORACLE_CAPTURE_INCOMPLETE`, do not auto-retry on native or bridge; the prompt may already have been submitted. Reattach through the saved provider session when available.
-- Use bridge only when the user explicitly asks for the experimental bridge path. If bridge consult reports `CHATGPT_BRIDGE_EXTENSION_NOT_CONNECTED`, tell the user to run `browser-bind --open`, load the unpacked extension, open ChatGPT, and retry.
+- If Oracle reports `ORACLE_CAPTURE_INCOMPLETE`, do not auto-retry on native; the prompt may already have been submitted. Reattach through the saved provider session when available.
+- Do not route GPT Pro consults through the removed Chrome extension provider or `browser-bind`; use Oracle for real runs and native only for deprecated diagnostics.
 - If ChatGPT Web needs login, captcha, SSO, workspace selection, or manual verification, report the blocker and ask the user to complete it in the visible browser.
 - If the user asks for `gptpro_mcp`, Connector setup, or ChatGPT -> local repo access, route to `repo-harness:gptpro_setup`; this command is for local -> GPT Pro consults.
 - If a session id is invalid or missing, list recent GPT Pro sessions with `repo-harness chatgpt browser-list --repo <repo>` and ask for the intended session.

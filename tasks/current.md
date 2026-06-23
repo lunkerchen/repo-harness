@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-24T02:45:51+0800 -->
+<!-- updated_at: 2026-06-24T04:10:18+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-24T02:45:51+0800
+> **Updated At**: 2026-06-24T04:10:18+0800
 > **Source Branch**: main
-> **Source Commit**: 1057d9b
+> **Source Commit**: 375a9e6
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: chatgpt-codegraph-review-verdict
+> **Reason**: chatgpt-extension-removal-and-codex-stop-output-fix
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -48,10 +48,46 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 1 changed/untracked path(s)
+- Summary: 37 changed/untracked path(s)
 
 ```
-?? .ai/harness/handoff/chatgpt-review-20260623T184103Z.md
+ M .agents/skills/repo-harness-chatgpt-browser/SKILL.md
+ M .ai/hooks/.projection.json
+ M .ai/hooks/run-hook.sh
+ M .gitignore
+ M assets/hooks/run-hook.sh
+ M assets/reference-configs/agentic-development-flow.md
+ M assets/reference-configs/hook-operations.md
+ M assets/skill-commands/manifest.json
+ M assets/skill-commands/repo-harness-gptpro-setup/SKILL.md
+ M assets/skill-commands/repo-harness-gptpro/SKILL.md
+ M assets/skill-version.json
+ M docs/CHANGELOG.md
+ M docs/architecture/modules/runtime-harness/hook-adapters.md
+ M docs/reference-configs/agentic-development-flow.md
+ M docs/reference-configs/hook-operations.md
+ M docs/repo-harness-chatgpt-browser-engine.md
+ M scripts/lib/project-init-lib.sh
+ D src/cli/chatgpt-browser/bind-server.ts
+ M src/cli/chatgpt-browser/binding.ts
+ D src/cli/chatgpt-browser/bridge-extension.ts
+ D src/cli/chatgpt-browser/bridge-provider.ts
+ M src/cli/chatgpt-browser/engine.ts
+ M src/cli/chatgpt-browser/file-policy.ts
+ M src/cli/chatgpt-browser/native-provider.ts
+ M src/cli/chatgpt-browser/types.ts
+ M src/cli/commands/chatgpt.ts
+ M src/cli/hook/runtime.ts
+ M src/core/adoption/gitignore-plan.ts
+ M tasks/current.md
+ M tests/cli/chatgpt-browser.test.ts
+ M tests/cli/hook.test.ts
+ M tests/create-project-dirs.runtime.test.ts
+ M tests/hook-contracts.test.ts
+ M tests/hook-runtime.test.ts
+ M tests/migration-script.test.ts
+ M tests/scaffold-parity.test.ts
+ M tests/workflow-contract.test.ts
 ```
 
 ## Source Artifacts

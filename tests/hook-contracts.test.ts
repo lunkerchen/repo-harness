@@ -22,9 +22,11 @@ describe("Hook contracts", () => {
     expect(script).toContain("HOOK_REPO_ROOT");
     expect(script).toContain("HookRunner");
     expect(script).toContain(".ai/hooks");
-    expect(script).toContain('"$HOOK_NAME" == "stop-orchestrator.sh"');
     expect(script).toContain("hook_stdout_is_json_kind");
     expect(script).toContain('(.decision == "block") or (.decision == "allow")');
+    expect(script).toContain("Stop decision JSON is deliberately");
+    expect(script).not.toContain('"$HOOK_NAME" == "stop-orchestrator.sh"');
+    expect(script).toContain('"$HOOK_NAME" == "subagent-stop-quality.sh"');
     expect(script).toContain('"$HOOK_NAME" == "codex-delegation-advisor.sh"');
   });
 

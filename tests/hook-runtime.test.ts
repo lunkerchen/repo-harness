@@ -1696,7 +1696,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("run-hook forwards Codex Stop decision JSON while suppressing handoff noise", () => {
+  test("run-hook suppresses Codex Stop decision JSON and handoff noise", () => {
     const cwd = tmpWorkspace("run-hook-codex-stop-decision");
     try {
       initGitRepo(cwd);
@@ -1731,9 +1731,7 @@ describe("Hook runtime behavior", () => {
       });
 
       expect(res.status).toBe(0);
-      const decision = JSON.parse(res.stdout);
-      expect(decision.decision).toBe("block");
-      expect(decision.reason).toContain("[PlanCompletenessGate]");
+      expect(res.stdout).toBe("");
       expect(res.stderr).toBe("");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
@@ -2723,7 +2721,7 @@ describe("Hook runtime behavior", () => {
     }
   });
 
-  test("stop-orchestrator: skips recursive Stop continuations and supports Codex block JSON", () => {
+  test("stop-orchestrator: skips recursive Stop continuations and emits direct block JSON", () => {
     const cwd = tmpWorkspace("stop-orchestrator-no-recursion");
     try {
       initGitRepo(cwd);

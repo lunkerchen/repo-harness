@@ -32,13 +32,7 @@ Use this command when the user wants repo-harness to guide local GPT Pro setup a
    - For a non-mutating prompt/file preview, run `repo-harness chatgpt browser-consult --repo <repo> --provider oracle --dry-run --prompt <text>`.
 5. For a real GPT Pro browser consult, require Oracle readiness plus an already logged-in ChatGPT Web session and run a bounded command with a timestamped output path, such as:
    - `stamp="$(date -u +%Y%m%dT%H%M%SZ)"; repo-harness chatgpt browser-consult --repo <repo> --provider oracle --model gpt-5.5-pro --heartbeat 59 --prompt <text> --write-output ".ai/harness/handoff/gptpro-${stamp}-setup-smoke.md"`
-6. Use the bridge provider only when the user explicitly asks for the experimental extension path:
-   - `repo-harness chatgpt browser-bind --repo <repo> --open`
-   - Report the printed `Local authorization URL: http://127.0.0.1:...` and `bridgeExtension=...` to the user and keep the command running while they authorize.
-   - The authorization page must guide the user to open Chrome Extensions, enable **Developer mode**, click **Load unpacked**, select the printed `bridgeExtension` directory, open or refresh ChatGPT, then click **Bind ChatGPT**.
-   - If the authorization page reports login required, have the user click **Open ChatGPT Login**, sign in, return to the authorization page, and click **Bind ChatGPT** again.
-   - After authorization succeeds, stop `browser-bind` before running `browser-consult --provider bridge` because both use the same local bridge port.
-   - `repo-harness chatgpt browser-doctor --repo <repo> --provider bridge --json`
+6. Do not configure the removed Chrome extension provider or `browser-bind`; GPT Pro browser consults use Oracle, and native remains only a deprecated diagnostic path.
 7. Configure ChatGPT Connector MCP support:
    - Ask for the ChatGPT Connector/MCP server name the user will create, or choose a generic default such as `repo-harness`. Record that name during initialization instead of hard-coding a personal name in later prompts.
    - `repo-harness mcp setup chatgpt --repo <repo> --server-name <name>`
@@ -61,8 +55,7 @@ Use this command when the user wants repo-harness to guide local GPT Pro setup a
 - If `browser-doctor --provider oracle --json` reports `agent_actions`, treat them as opt-in GPT Pro setup actions. Do not run them from default repo-harness install or unrelated setup checks.
 - If `browser-doctor --provider oracle` reports `nodeCompatible:false`, fix the Oracle binary's Node runtime (`node >=24`) instead of raising repo-harness' overall runtime floor.
 - If `browser-doctor --provider oracle` reports `ORACLE_INCOMPATIBLE`, report the missing capabilities and stop before a real consult.
-- If `browser-doctor --provider bridge` reports `productSession.status=not_configured`, configure the selected profile with `browser-setup --profile-dir <dir>`, then authorize it with `browser-bind --open` before any bridge consult.
-- If setup completes but the user cannot see the authorization page, provide the printed `Local authorization URL` directly; do not substitute a generic ChatGPT URL because that does not bind or validate the selected product session.
+- If a user asks for `browser-bind` or the old Chrome extension path, report that the product provider has been removed and use Oracle setup instead.
 - If ChatGPT Web is not logged in or requires manual verification, report the manual-login blocker and preserve the dry-run session artifact.
 - If `mcp doctor --json` reports `chatgpt.serverNameConfigured:false` or omits `chatgpt.serverName`, treat ChatGPT Connector setup as incomplete even when the repo is otherwise `ready_local`.
 - If `mcp doctor` reports `ready_local` but ChatGPT is not connected, report the missing HTTPS tunnel or manual Connector step instead of claiming end-to-end success.

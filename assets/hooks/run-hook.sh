@@ -89,17 +89,17 @@ hook_stdout_is_json_kind() {
 }
 
 # Codex swallows hook stdout differently from Claude: success stdout is
-# dropped for ordinary hooks. Only context/decision JSON for approved routes is
-# surfaced on success.
+# dropped for ordinary hooks. Only context JSON and SubagentStop decision JSON
+# for approved routes is surfaced on success. Stop decision JSON is deliberately
+# suppressed because current Codex Desktop rejects it as an unsupported content
+# type at turn finalization.
 if [[ "${HOOK_HOST:-}" == "codex" && "$HOOK_NAME" != "session-start-context.sh" ]]; then
   if ! tmp_stdout="$(mktemp)" || ! tmp_stderr="$(mktemp)"; then
     # No temp space: run unfiltered rather than silently dropping the hook.
     exec bash "$HOOK_PATH" "$@"
   fi
   if bash "$HOOK_PATH" "$@" >"$tmp_stdout" 2>"$tmp_stderr"; then
-    if [[ "$HOOK_NAME" == "stop-orchestrator.sh" ]] && hook_stdout_is_json_kind "$tmp_stdout" decision; then
-      cat "$tmp_stdout"
-    elif [[ "$HOOK_NAME" == "subagent-stop-quality.sh" ]] && hook_stdout_is_json_kind "$tmp_stdout" decision; then
+    if [[ "$HOOK_NAME" == "subagent-stop-quality.sh" ]] && hook_stdout_is_json_kind "$tmp_stdout" decision; then
       cat "$tmp_stdout"
     elif [[ "$HOOK_NAME" == "codex-delegation-advisor.sh" ]] && hook_stdout_is_json_kind "$tmp_stdout" user_prompt_context; then
       cat "$tmp_stdout"

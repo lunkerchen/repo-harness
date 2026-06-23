@@ -128,7 +128,7 @@ function defaultProfileCdpBlockedError(channel: NativeBrowserChannel, profileDir
   return {
     code: 'NATIVE_DEFAULT_PROFILE_CDP_BLOCKED',
     message: `${app} blocks remote debugging against the default Chrome data directory: ${profileDir}${profileDirectory ? ` (${profileDirectory})` : ''}`,
-    recovery: 'Chrome 136+ requires a non-standard --user-data-dir for remote debugging. Use a separate automation profile directory and sign in there, or use a domain-scoped ChatGPT session import/bridge path for an existing real Chrome profile.',
+    recovery: 'Chrome 136+ requires a non-standard --user-data-dir for remote debugging. Use a separate automation profile directory and sign in there, or use the Oracle provider for an existing real Chrome profile.',
   };
 }
 
@@ -344,7 +344,7 @@ export async function checkNativeChatgptSession(input: {
       error: {
         code: 'LOGIN_OR_COMPOSER_NOT_READY',
         message: 'ChatGPT login or composer is not ready',
-        recovery: 'Run browser-bind --open, click Open ChatGPT Login if needed, sign in, then click Bind ChatGPT again.',
+        recovery: 'Sign in to ChatGPT in the selected non-default automation profile, then retry native validation.',
       },
     };
   } catch (error) {
@@ -442,7 +442,7 @@ export async function runNativeProvider(input: BrowserConsultInput, bundle: Prom
       error: {
         code: 'NATIVE_PROFILE_NOT_BOUND',
         message: 'native provider requires a ChatGPT browser profile binding',
-        recovery: 'Run repo-harness chatgpt browser-setup --profile-dir <non-default-automation-user-data-dir>, then repo-harness chatgpt browser-bind --open.',
+        recovery: 'Run repo-harness chatgpt browser-setup --profile-dir <non-default-automation-user-data-dir>, sign in to ChatGPT in that profile, then retry native validation or use --provider oracle.',
       },
     };
   }

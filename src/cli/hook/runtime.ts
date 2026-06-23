@@ -247,7 +247,9 @@ export function runHook(opts: RunHookOptions): RunHookResult {
         : `run 'repo-harness adopt --repo ${repoRoot}' to sync pinned .ai/hooks`;
   const sessionStartCollectStdout = opts.event === 'SessionStart' && opts.stdio === undefined;
   const sessionStartContexts: string[] = [];
-  const codexStopDecisionStdout =
+  // Codex Desktop rejects Stop decision stdout at turn finalization, so collect
+  // and suppress successful Stop output while preserving failure diagnostics.
+  const codexStopSuppressSuccessOutput =
     process.env.HOOK_HOST === 'codex' &&
     opts.event === 'Stop' &&
     opts.stdio === undefined;
@@ -256,7 +258,7 @@ export function runHook(opts: RunHookOptions): RunHookResult {
     opts.event === 'SubagentStop' &&
     opts.routeId === 'quality' &&
     opts.stdio === undefined;
-  const codexDecisionStdout = codexStopDecisionStdout || codexSubagentStopDecisionStdout;
+  const codexDecisionStdout = codexSubagentStopDecisionStdout;
   const codexAdditionalContextStdout =
     process.env.HOOK_HOST === 'codex' &&
     opts.stdio === undefined &&
@@ -267,11 +269,14 @@ export function runHook(opts: RunHookOptions): RunHookResult {
   const codexQuietStdout =
     process.env.HOOK_HOST === 'codex' &&
     opts.event !== 'SessionStart' &&
+    !codexStopSuppressSuccessOutput &&
     !codexDecisionStdout &&
     !codexAdditionalContextStdout &&
     opts.stdio === undefined;
   const stdio: StdioOptions = sessionStartCollectStdout
     ? ['inherit', 'pipe', 'inherit']
+    : codexStopSuppressSuccessOutput
+    ? ['inherit', 'pipe', 'pipe']
     : codexDecisionStdout
     ? ['inherit', 'pipe', 'pipe']
     : codexAdditionalContextStdout
@@ -346,12 +351,21 @@ export function runHook(opts: RunHookOptions): RunHookResult {
       if (context) sessionStartContexts.push(context);
     }
 
-    if (codexDecisionStdout && child.status !== 0 && child.stderr) {
+    if (
+      (codexStopSuppressSuccessOutput || codexDecisionStdout) &&
+      child.status !== 0 &&
+      child.stderr
+    ) {
       process.stderr.write(child.stderr);
     }
 
     if (
-      (codexQuietStdout || codexDecisionStdout || codexAdditionalContextStdout) &&
+      (
+        codexQuietStdout ||
+        codexStopSuppressSuccessOutput ||
+        codexDecisionStdout ||
+        codexAdditionalContextStdout
+      ) &&
       child.status !== 0 &&
       child.stdout
     ) {

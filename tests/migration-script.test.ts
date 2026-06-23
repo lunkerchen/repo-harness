@@ -622,7 +622,7 @@ describe("Migration script contract", () => {
       expect(gitignore).toContain(".claude/.plan-state/");
       expect(gitignore).toContain(".claude/.trace.jsonl");
       expect(gitignore).toContain(".claude/.codegraph-state/");
-      expect(gitignore).toContain(".ai/harness/chatgpt/bridge-extension/");
+      expect(gitignore).not.toContain(".ai/harness/chatgpt/bridge-extension/");
       expect(gitignore).toContain(".repo-harness/chatgpt-browser.local.json");
       expect(gitignore).toContain(".codex/*");
       expect(gitignore).not.toContain("!.codex/hooks.json");

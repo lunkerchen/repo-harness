@@ -6,7 +6,6 @@ import {
   openSession,
   readSession,
   resolveRepoRoot,
-  runBrowserBind,
   runBrowserConsult,
   runBrowserFollowup,
   runBrowserSetup,
@@ -36,17 +35,6 @@ interface BrowserDoctorOptions extends BrowserCommonOptions {
   keepBrowser?: boolean;
   headless?: boolean;
   oracleBin?: string;
-}
-
-interface BrowserBindOptions extends BrowserCommonOptions {
-  profileDir?: string;
-  profileDirectory?: string;
-  browserChannel?: string;
-  chatgptUrl?: string;
-  host?: string;
-  port?: string;
-  timeoutMs?: string;
-  open?: boolean;
 }
 
 interface BrowserConsultOptions extends BrowserCommonOptions {
@@ -101,8 +89,7 @@ interface BrowserFollowupOptions extends BrowserCommonOptions {
 function parseProvider(value?: string): BrowserProviderName {
   if (value === undefined || value === 'oracle') return 'oracle';
   if (value === 'native') return 'native';
-  if (value === 'bridge') return 'bridge';
-  throw new Error(`invalid --provider "${value}" (expected: oracle, native, bridge)`);
+  throw new Error(`invalid --provider "${value}" (expected: oracle, native)`);
 }
 
 function parseThinking(value?: string): ThinkingLevel | undefined {
@@ -170,38 +157,10 @@ export function buildChatgptCommand(): Command {
     });
 
   chatgpt
-    .command('browser-bind')
-    .description('Run a local ChatGPT product-session authorization page for a bound Chrome profile')
-    .option('--repo <path>', 'Repository root to inspect', '.')
-    .option('--profile-dir <path>', 'Ad hoc Chrome profile directory to authorize instead of the saved binding')
-    .option('--profile-directory <name>', 'Chrome profile name when --profile-dir points at the user data directory')
-    .option('--browser-channel <channel>', 'Native provider Chrome channel: chrome|chrome-beta|chrome-dev|chrome-canary')
-    .option('--chatgpt-url <url>', 'ChatGPT URL to authorize')
-    .option('--host <host>', 'Local bind host', '127.0.0.1')
-    .option('--port <port>', 'Local bind port; defaults to the ChatGPT bridge port')
-    .option('--timeout-ms <ms>', 'Native session validation timeout in milliseconds')
-    .option('--open', 'Open the local authorization page in the selected Chrome profile')
-    .action((rawOpts: BrowserBindOptions) => {
-      void runChatgptAction(async () => {
-        const result = await runBrowserBind(resolveRepoRoot(rawOpts.repo), {
-          profileDir: rawOpts.profileDir,
-          profileDirectory: rawOpts.profileDirectory,
-          browserChannel: parseBrowserChannel(rawOpts.browserChannel),
-          chatgptUrl: rawOpts.chatgptUrl,
-          host: rawOpts.host,
-          port: parsePositiveInteger('port', rawOpts.port),
-          timeoutMs: parsePositiveInteger('timeout-ms', rawOpts.timeoutMs),
-          open: rawOpts.open === true,
-        });
-        console.log(result.lines.join('\n'));
-      });
-    });
-
-  chatgpt
     .command('browser-doctor')
     .description('Check local ChatGPT browser engine readiness')
     .option('--repo <path>', 'Repository root to inspect', '.')
-    .option('--provider <provider>', 'Browser provider: oracle|native|bridge', 'oracle')
+    .option('--provider <provider>', 'Browser provider: oracle|native', 'oracle')
     .option('--profile-dir <path>', 'Ad hoc Chrome profile directory to validate instead of the saved binding')
     .option('--profile-directory <name>', 'Chrome profile name when --profile-dir points at the user data directory')
     .option('--browser-channel <channel>', 'Native provider Chrome channel: chrome|chrome-beta|chrome-dev|chrome-canary')
@@ -240,7 +199,7 @@ export function buildChatgptCommand(): Command {
     .option('--model <label>', 'Requested ChatGPT model label')
     .option('--thinking <level>', 'Thinking level: light|standard|extended|heavy')
     .option('--chatgpt-app <name>', 'Select a ChatGPT app/connector by name before submitting the prompt')
-    .option('--provider <provider>', 'Browser provider: oracle|native|bridge', 'oracle')
+    .option('--provider <provider>', 'Browser provider: oracle|native', 'oracle')
     .option('--chatgpt-url <url>', 'ChatGPT URL to open')
     .option('--timeout-ms <ms>', 'Assistant timeout in milliseconds')
     .option('--heartbeat <seconds>', 'Oracle provider heartbeat interval in seconds; 0 disables Oracle heartbeat (default: 59)')
@@ -319,7 +278,7 @@ export function buildChatgptCommand(): Command {
     .option('--model <label>', 'Override requested ChatGPT model label')
     .option('--thinking <level>', 'Thinking level: light|standard|extended|heavy')
     .option('--chatgpt-app <name>', 'Select a ChatGPT app/connector by name before submitting the follow-up')
-    .option('--provider <provider>', 'Browser provider: oracle|native|bridge')
+    .option('--provider <provider>', 'Browser provider: oracle|native')
     .option('--timeout-ms <ms>', 'Assistant timeout in milliseconds')
     .option('--heartbeat <seconds>', 'Oracle provider heartbeat interval in seconds; 0 disables Oracle heartbeat (default: 59)')
     .option('--write-output <path>', 'Repo-relative path to copy final output')

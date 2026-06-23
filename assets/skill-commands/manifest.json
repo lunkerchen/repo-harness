@@ -135,7 +135,7 @@
       "class": "gptpro-browser-consult",
       "mutatesRepoByDefault": true,
       "engine": "repo-harness chatgpt browser-consult/session/followup/open using GPT Pro wording",
-      "summary": "Consults or continues GPT Pro through the local ChatGPT Web browser/session bridge while mapping user-facing gptpro language to browser engine commands."
+      "summary": "Consults or continues GPT Pro through the local ChatGPT Web browser/session provider while mapping user-facing gptpro language to browser engine commands."
     }
   ],
   "nonPublicInternalSteps": [

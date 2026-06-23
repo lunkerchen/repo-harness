@@ -776,7 +776,7 @@ describe('hook command (Phase 1B)', () => {
     });
   });
 
-  test('Codex Stop fallback blocks once when explicit delegation did not spawn', () => {
+  test('Codex Stop fallback marks once when explicit delegation did not spawn', () => {
     withTempRepo({ optIn: true }, (repoRoot) => {
       installAssetHooks(repoRoot);
       spawnSync(
@@ -814,9 +814,8 @@ describe('hook command (Phase 1B)', () => {
         },
       );
       expect(first.status).toBe(0);
-      const decision = JSON.parse(first.stdout);
-      expect(decision.decision).toBe('block');
-      expect(decision.reason).toContain('[DelegationFallback]');
+      expect(first.stdout).toBe('');
+      expect(first.stderr).toBe('');
 
       const state = JSON.parse(
         fs.readFileSync(path.join(repoRoot, '.ai/harness/delegation/latest.json'), 'utf-8'),
@@ -934,7 +933,7 @@ describe('hook command (Phase 1B)', () => {
     });
   });
 
-  test('CLI dispatcher forwards Codex Stop decision JSON and suppresses success stderr', () => {
+  test('CLI dispatcher suppresses Codex Stop decision JSON and success stderr', () => {
     withTempRepo({ optIn: true }, (repoRoot) => {
       installAssetHooks(repoRoot);
       fs.mkdirSync(path.join(repoRoot, '.ai/harness/planning'), { recursive: true });
@@ -971,9 +970,7 @@ describe('hook command (Phase 1B)', () => {
       );
 
       expect(res.status).toBe(0);
-      const decision = JSON.parse(res.stdout);
-      expect(decision.decision).toBe('block');
-      expect(decision.reason).toContain('[PlanCompletenessGate]');
+      expect(res.stdout).toBe('');
       expect(res.stderr).toBe('');
     });
   });

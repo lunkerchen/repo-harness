@@ -19,12 +19,12 @@
 - It does not treat ChatGPT Web as the source of truth; the repo-local session store is the audit record.
 - It does not import local artifact paths from ordinary provider stdout.
 - It does not auto-fall back from Oracle to another provider. Oracle may have already submitted the prompt before a capture drop, so silent retries would double-ask.
+- It does not generate, install, or require a Chrome extension.
 
 ## Provider Posture
 
 - **`oracle` — default main path.** Oracle owns the browser engine; repo-harness always passes `--engine browser` and disables auto-archive with `--browser-archive never`. This is the recommended provider.
 - **`native` — deprecated.** The homegrown Chrome CDP engine is no longer maintained and is kept only as a short-term diagnostic entry (`browser-doctor --provider native`). It will be removed. Chrome 136+ also blocks remote-debugging switches against the *default* Chrome data directory (custom `--user-data-dir` still works), but the deprecation is a maintenance decision, not a Chrome limitation.
-- **`bridge` — experimental, explicit-only.** The localhost Chrome-extension bridge is not a fallback yet; it still derives completion from a DOM heuristic. Select it explicitly only. It now requires a per-binding capability token and has a server-side backstop (see below).
 
 ## Runtime Boundary
 
@@ -63,11 +63,11 @@ repo-harness chatgpt browser-doctor --repo . --provider oracle --json
 
 `browser-setup` records only product binding metadata in `.repo-harness/chatgpt-browser.local.json`; it does not copy cookies, tokens, passwords, or browser storage. The Oracle provider reads that binding, derives a regular Chrome cookie database path such as `Profile 1/Network/Cookies`, and passes it to the pinned Oracle binary. If the cookie database is missing, the Oracle path fails closed with `ORACLE_PROFILE_COOKIE_NOT_FOUND`.
 
-The bridge authorization flow is only for explicit bridge experiments. `browser-bind` serves a local `http://127.0.0.1:<port>/` authorization page and writes an unpacked Chrome extension under `.ai/harness/chatgpt/bridge-extension/`. The page guides the user to open Chrome Extensions, enable **Developer mode**, click **Load unpacked**, select that extension directory, open or refresh ChatGPT, then click **Bind ChatGPT**. The **Bind ChatGPT** button validates a heartbeat from that extension. If ChatGPT is not logged in or the composer is missing, the page tells the user to open ChatGPT, sign in, and bind again. After authorization succeeds, stop the `browser-bind` command before running `browser-consult --provider bridge` because both use the same local bridge port.
-
 If the user selects a Chrome profile subdirectory such as `<chrome-user-data-dir>/<profile-name>`, repo-harness stores the parent user data directory and launches Chrome with `--profile-directory <profile-name>`. On macOS this may look like `~/Library/Application Support/Google/Chrome/Profile 1`; Windows and Linux use their own Chrome profile roots. If the user selects the user data directory itself, pass `--profile-directory <name>` explicitly.
 
-Do not use the default Chrome data directory for native CDP validation. Chrome 136+ no longer honors remote-debugging switches against the current user's default Chrome data directory; it requires a non-standard `--user-data-dir`. Existing signed-in real Chrome profiles should use the bridge provider instead of native CDP.
+The old experimental Chrome extension flow has been removed from the product surface. Do not load an unpacked extension or look for a `browser-bind` authorization page. Use Oracle for real GPT Pro consults; use native CDP only as a deprecated diagnostic path against a non-default automation profile.
+
+Do not use the default Chrome data directory for native CDP validation. Chrome 136+ no longer honors remote-debugging switches against the current user's default Chrome data directory; it requires a non-standard `--user-data-dir`. Existing signed-in real Chrome profiles should use Oracle instead of native CDP.
 
 ## Dry Run
 
@@ -118,34 +118,11 @@ Use the Oracle CLI, not `oracle-mcp`, as the repo-harness provider runtime. `ora
 
 Multi-turn works two ways: repeat `--follow-up` within one run, or reopen a saved conversation later with `browser-followup --session <id>` (which passes oracle `--followup <providerSessionId>`). A follow-up records the parent `providerSessionId`, only resumes from a session that reached a resumable terminal state, and uses the binding recorded on the parent repo-harness session. If the parent session predates binding metadata, repo-harness does not inject the current repository binding into the follow-up command.
 
-The doctor status taxonomy is distinct per provider (no single overloaded `partial`): oracle → `ready` | `unavailable` (`ORACLE_NOT_INSTALLED`) | `action_required` (`ORACLE_INCOMPATIBLE`); native → `deprecated` (`NATIVE_PROVIDER_DEPRECATED`); bridge → `experimental` (`BRIDGE_EXPERIMENTAL`).
+The doctor status taxonomy is distinct per provider (no single overloaded `partial`): oracle -> `ready` | `unavailable` (`ORACLE_NOT_INSTALLED`) | `action_required` (`ORACLE_INCOMPATIBLE`); native -> `deprecated` (`NATIVE_PROVIDER_DEPRECATED`).
 
 `--write-output` is validated by repo-harness before the provider runs. By default it must be repo-relative, must not target denied paths, and must not overwrite an existing file unless `--overwrite-output` is passed. GPT Pro review/handoff outputs should live under `.ai/harness/handoff/gptpro/` and include a timestamp (and, when known, the reported session id) in the filename; fixed names such as `chatgpt-review.md` are too easy to confuse with a previous ChatGPT session. Absolute output paths require the human-only `--allow-absolute-output` flag and are not available through MCP browser tools.
 
 GPT Pro consults often behave like research. Keep raw model replies in `.ai/harness/handoff/gptpro/` as local evidence, then promote durable conclusions into `docs/researches/YYYYMMDD-<topic>.md` as a curated synthesis. A promoted research note should cite the raw artifact path, repo-harness `sessionId`, upstream provider session id when present, requested model, capture timestamp, and conversation URL when available. Do not make the raw model answer itself the long-term source of truth; Codex or the human reviewer still owns the distilled conclusion and verification.
-
-## Bridge Provider
-
-```bash
-repo-harness chatgpt browser-bind --repo . --open
-repo-harness chatgpt browser-consult \
-  --repo . \
-  --provider bridge \
-  --prompt "Reply exactly OK"
-```
-
-The bridge provider uses the generated unpacked Chrome extension in the user's selected profile. The extension is scoped to `https://chatgpt.com/*`, `https://chat.openai.com/*`, and the local bridge URL only. It does not request cookies or storage permissions. The extension polls localhost for one task, submits the prompt through the visible ChatGPT composer, waits for assistant text, and posts the result back to repo-harness.
-
-The localhost bridge requires a per-binding capability token: `browser-bind` generates and persists `bridgeToken` in `.repo-harness/chatgpt-browser.local.json`, injects it into the generated extension, and the bridge server rejects any request whose `x-repo-harness-bridge-token` header does not match with `401`. Because the token is stable per binding, reload the unpacked extension once after upgrading. A server-side backstop also coerces any `completed` result whose output is empty or a status-only string (e.g. `Pro thinking`) into a `failed` / `CHATGPT_BRIDGE_NO_FINAL_MESSAGE`, so the DOM-scrape path can never persist a non-answer as success.
-
-Bridge provider runs use the current model and thinking mode already selected in the ChatGPT Web UI. Passing `--model` or `--thinking` with `--provider bridge` fails closed with `BRIDGE_MODEL_SELECTION_UNSUPPORTED`; use the Oracle provider when provider-side model selection is required.
-
-Failure is explicit:
-
-- Missing extension connection reports `CHATGPT_BRIDGE_EXTENSION_NOT_CONNECTED`.
-- Connected extension without task completion reports `CHATGPT_BRIDGE_RESULT_TIMEOUT` or `CHATGPT_BRIDGE_TASK_NOT_CLAIMED`.
-- Page-side execution failure reports `CHATGPT_BRIDGE_TASK_FAILED`.
-- Missing captured assistant text reports `CHATGPT_BRIDGE_CAPTURE_TIMEOUT`.
 
 ## Native Provider Spike
 
@@ -159,7 +136,7 @@ repo-harness chatgpt browser-consult \
 
 The native provider launches installed Google Chrome and drives it through a local Chrome DevTools Protocol websocket. It opens ChatGPT Web, waits for a visible composer, submits the assembled prompt, waits for an assistant response, and saves the captured text into the same repo-local session store.
 
-Native provider consults require a bound ChatGPT product session in a non-default automation profile. Configure it with `browser-setup --profile-dir <dir>`, authorize it with `browser-bind --open`, or pass an explicit non-default `--profile-dir` for an ad hoc run. Existing default Chrome profiles should use `--provider bridge`. The saved binding also carries the Chrome channel and ChatGPT URL, so normal consult and follow-up commands do not need to repeat them.
+Native provider consults require a bound ChatGPT product session in a non-default automation profile. Configure it with `browser-setup --profile-dir <dir>` and sign in to ChatGPT in that selected profile, or pass an explicit non-default `--profile-dir` for an ad hoc diagnostic run. Existing default Chrome profiles should use `--provider oracle`. The saved binding also carries the Chrome channel and ChatGPT URL, so normal consult and follow-up commands do not need to repeat them.
 
 Native provider runs use the current model and thinking mode already selected in the ChatGPT Web UI. Passing `--model` or `--thinking` with `--provider native` fails closed with `NATIVE_MODEL_SELECTION_UNSUPPORTED`; use the Oracle provider when provider-side model selection is required.
 
@@ -173,7 +150,7 @@ Failure is explicit:
 - A submitted run with no captured assistant text reports `ASSISTANT_CAPTURE_TIMEOUT`.
 - A submitted run whose assistant text did not stabilize before timeout reports `ASSISTANT_CAPTURE_INCOMPLETE`.
 
-For first login, run `browser-setup --profile-dir <non-default-dir>`, then `browser-bind --open`. Click **Bind ChatGPT**. If it reports login required, click **Open ChatGPT Login**, complete login, return to the authorization page, and click **Bind ChatGPT** again.
+For first login on the deprecated native path, run `browser-setup --profile-dir <non-default-dir>`, open Chrome with that profile, sign in to ChatGPT, then rerun `browser-doctor --provider native --validate-session`.
 
 ## Sessions
 

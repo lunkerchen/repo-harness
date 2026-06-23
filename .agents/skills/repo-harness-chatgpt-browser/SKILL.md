@@ -33,7 +33,7 @@ repo-harness chatgpt browser-setup --repo . --profile-dir <user-selected-chrome-
 repo-harness chatgpt browser-doctor --repo . --provider oracle --json
 ```
 
-The Oracle path must fail closed rather than silently falling back to an unbound/default browser session. Use `browser-bind` only when the user explicitly asks for the experimental bridge provider; then report the printed `Local authorization URL: http://127.0.0.1:...` and `bridgeExtension=...`, keep the command running while they authorize, and stop it before `browser-consult --provider bridge`.
+The Oracle path must fail closed rather than silently falling back to an unbound/default browser session. Do not route through the removed Chrome extension provider or `browser-bind`.
 9. Use browser consult for planning, review, critique, and goal generation. Do not use it as the executor for code edits.
 10. Save useful results into repo-harness artifacts with repo-relative, timestamped `--write-output` paths such as:
 
@@ -53,7 +53,7 @@ repo-harness mcp serve --repo . --enable-chatgpt-browser
 ```
 
 14. Do not rely on provider stdout `Artifact:` / `Output:` paths being imported. Browser engine session records save prompt, transcript, output, metadata, and trusted provider IDs; ordinary stdout paths are ignored.
-15. Native and bridge providers use the current ChatGPT Web model selection. Do not pass `--model` or `--thinking` with `--provider native` or `--provider bridge`; use Oracle when model selection is required.
+15. The native provider uses the current ChatGPT Web model selection. Do not pass `--model` or `--thinking` with `--provider native`; use Oracle when model selection is required.
 
 ## Common Commands
 
@@ -79,19 +79,14 @@ repo-harness chatgpt browser-consult \
   --write-output ".ai/harness/handoff/chatgpt-review-${stamp}.md"
 ```
 
-Bridge provider for an existing signed-in profile:
+Native diagnostics for a non-default automation profile:
 
 ```bash
-repo-harness chatgpt browser-doctor --repo . --provider bridge
-repo-harness chatgpt browser-setup --repo . --profile-dir <user-selected-chrome-profile-dir> --browser-channel chrome
-repo-harness chatgpt browser-bind --repo . --open
-repo-harness chatgpt browser-consult \
-  --repo . \
-  --provider bridge \
-  --prompt "Reply exactly OK"
+repo-harness chatgpt browser-setup --repo . --profile-dir <non-default-automation-user-data-dir> --browser-channel chrome
+repo-harness chatgpt browser-doctor --repo . --provider native --validate-session
 ```
 
-Use bridge/native providers only when the user is ready for a visible ChatGPT Web run. If login is required, have the user complete it from the local authorization page; do not request or handle credentials.
+Use native only when the user is ready for a visible ChatGPT Web diagnostic run. If login is required, have the user complete it in the selected non-default browser profile; do not request or handle credentials.
 
 Read the result:
 

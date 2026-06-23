@@ -57,7 +57,6 @@ tasks/.current.md.tmp.*
 .ai/harness/mcp/metrics.jsonl
 .ai/harness/mcp/trace.jsonl
 .ai/harness/chatgpt/browser-lock.json
-.ai/harness/chatgpt/bridge-extension/
 .ai/harness/chatgpt/oracle-home/
 .ai/harness/chatgpt/tmp/
 .ai/harness/chatgpt/sessions/

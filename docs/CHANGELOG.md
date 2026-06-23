@@ -4,6 +4,20 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Suppressed Codex `Stop.default` decision stdout so the Desktop app no longer
+  turns one-shot planning/delegation guard output into
+  `{"detail":"Unsupported content type"}` at turn finalization. Claude keeps
+  the direct Stop decision JSON path.
+
+### Removed
+
+- Removed the experimental ChatGPT Chrome extension provider, including
+  `browser-bind`, `--provider bridge`, generated extension code, and scaffolded
+  `.ai/harness/chatgpt/bridge-extension/` ignore entries. Oracle remains the
+  supported GPT Pro browser consult path; native is deprecated diagnostics only.
+
 ### Added
 
 - Added the General Repo MCP reference covering tool JSON examples, repo

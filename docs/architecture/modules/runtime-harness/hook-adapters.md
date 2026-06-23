@@ -63,9 +63,13 @@ Codex subagent lifecycle routes: `SubagentStart.context` runs
 state as spawned, and injects role/evidence/final-response requirements.
 `SubagentStop.quality` runs `subagent-stop-quality.sh` and forwards valid
 decision JSON only when the final report is clearly incomplete, with one retry
-keyed by session/run identity, subagent identity, and message hash. These three
-Codex delegation routes are host-scoped in `route-registry.ts` and are not
-installed into Claude adapters.
+keyed by session/run identity, subagent identity, and message hash.
+`Stop.default` runs `stop-orchestrator.sh` and refreshes handoff state. Codex
+suppresses Stop decision JSON because current Codex Desktop rejects that
+turn-finalization stdout as an unsupported content type; Claude can still
+consume the direct `stop-orchestrator.sh` decision JSON path. These Codex
+delegation routes are host-scoped in `route-registry.ts` and are not installed
+into Claude adapters.
 
 Post-edit route: edit/write -> `post-edit-guard.sh` -> architecture-sensitive
 paths call `architecture-queue.sh` -> capability resolver binds the changed file
@@ -120,7 +124,7 @@ flowchart TD
     Route -->|unknown| Exit2["exit 2 unknown route"]
     Route -->|ok| Spawn["spawn bash .ai/hooks/SCRIPT<br/>set HOOK_REPO_ROOT"]
     Spawn --> Quiet{"HOOK_HOST=codex and event != SessionStart?"}
-    Quiet -->|Stop decision JSON| StopDecision["forward decision JSON<br/>suppress success stderr"]
+    Quiet -->|Stop success output| StopDecision["suppress stdout/stderr<br/>avoid unsupported content type"]
     Quiet -->|other success stdout| QuietStdout["stdout piped/emptied on success<br/>failure stdout moved to stderr"]
     Quiet -->|no| Inherit["stdio inherited"]
   end
@@ -204,8 +208,8 @@ flowchart TD
     SubagentContext --> SubagentCtx["SubagentStart additionalContext"]
     SubagentQuality --> QualityBlock["SubagentStop decision block when report is incomplete"]
     StopOrchestrator --> StopHandoff["workflow_write_handoff(session-stop)"]
-    StopOrchestrator --> Completeness["one-shot pending plan completeness Stop block"]
-    StopOrchestrator --> DelegationFallback["one-shot missed-delegation Stop block"]
+    StopOrchestrator --> Completeness["one-shot pending plan completeness guard state"]
+    StopOrchestrator --> DelegationFallback["one-shot missed-delegation guard state"]
   end
 
   subgraph Compat["Legacy / Template Compatibility"]

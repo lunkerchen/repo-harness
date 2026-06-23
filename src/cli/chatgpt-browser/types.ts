@@ -1,6 +1,6 @@
 export type BrowserSessionStatus = 'completed' | 'running' | 'incomplete_capture' | 'recoverable' | 'failed' | 'cancelled' | 'dry_run';
 
-export type BrowserProviderName = 'oracle' | 'native' | 'bridge';
+export type BrowserProviderName = 'oracle' | 'native';
 
 export type NativeBrowserChannel = 'chrome' | 'chrome-beta' | 'chrome-dev' | 'chrome-canary';
 
