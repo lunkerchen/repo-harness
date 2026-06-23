@@ -17,6 +17,7 @@ const TOOL_NAMES = [
   'read_file',
   'read_files',
   'stat_file',
+  'write_file',
 ];
 
 const COMMON_RESPONSE_FIELDS = [
@@ -165,7 +166,7 @@ function manifestFromSecureWalker(root: string, indexedPaths: Set<string>): { ig
 }
 
 describe('general repo CodeGraph contract', () => {
-  test('versioned schema freezes the Sprint 0 reader tool surface', () => {
+  test('versioned schema freezes the general repo reader plus initial write_file surface', () => {
     const schema = readJson(SCHEMA_PATH);
     expect(schema.properties.version.const).toBe('1');
     expect(schema.properties.policy.properties.content_exclusion.const).toBe('.ignore');
@@ -174,12 +175,24 @@ describe('general repo CodeGraph contract', () => {
     expect(schema.properties.common_response_fields.items.enum).toEqual(COMMON_RESPONSE_FIELDS);
 
     for (const tool of schema['x-repo-harness-tools']) {
-      expect(tool.annotations).toEqual({
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      });
+      if (tool.name === 'write_file') {
+        expect(tool.annotations).toEqual({
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: false,
+          openWorldHint: false,
+        });
+        expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'content']);
+        expect(tool.input_schema.properties.expected_sha256).toEqual({ type: 'string' });
+        expect(tool.input_schema.properties.must_not_exist).toEqual({ type: 'boolean' });
+      } else {
+        expect(tool.annotations).toEqual({
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        });
+      }
       expect(tool.input_schema.additionalProperties).toBe(false);
       expect(tool.output_schema.additionalProperties).toBe(false);
       expect(tool.input_schema.properties.repo_id).toEqual({ type: 'string' });

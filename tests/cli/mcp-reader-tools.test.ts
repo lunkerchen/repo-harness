@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../src/effects/repo-registry';
 import { getMcpPolicy } from '../../src/cli/mcp/policy';
 import { buildReaderToolDefinitions, callReaderTool, createReaderToolContext, type ReaderToolContext } from '../../src/cli/mcp/reader-tools';
 import { WorkspaceManager } from '../../src/cli/mcp/workspaces';
@@ -12,9 +13,12 @@ async function jsonTool(ctx: ReaderToolContext, name: string, args: Record<strin
   return JSON.parse(result.content[0].text);
 }
 
-async function withReaderRepo<T>(fn: (repoRoot: string, ctx: ReaderToolContext) => Promise<T>): Promise<T> {
+async function withReaderRepo<T>(fn: (repoRoot: string, ctx: ReaderToolContext) => Promise<T>, opts: { accessMode?: RepoHarnessAccessMode } = {}): Promise<T> {
   const repoRoot = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-reader-tools-'));
+  const repoHarnessHome = mkdtempSync(join(tmpdir(), 'repo-harness-mcp-home-'));
+  const previousRepoHarnessHome = process.env.REPO_HARNESS_HOME;
   try {
+    process.env.REPO_HARNESS_HOME = repoHarnessHome;
     mkdirSync(join(repoRoot, 'docs'), { recursive: true });
     mkdirSync(join(repoRoot, 'src'), { recursive: true });
     mkdirSync(join(repoRoot, 'secrets'), { recursive: true });
@@ -32,6 +36,23 @@ async function withReaderRepo<T>(fn: (repoRoot: string, ctx: ReaderToolContext) 
     writeFileSync(join(repoRoot, '.ssh', 'id_rsa'), 'private\n');
     writeFileSync(join(repoRoot, 'ignored.md'), '# Ignored\n');
     writeFileSync(join(repoRoot, 'ignored-dir', 'note.md'), '# Ignored child\n');
+    if (opts.accessMode) {
+      const canonicalRoot = realpathSync(repoRoot);
+      mkdirSync(join(repoRoot, '.ai', 'harness'), { recursive: true });
+      writeFileSync(join(repoRoot, '.ai', 'harness', 'policy.json'), '{}\n');
+      mkdirSync(repoHarnessHome, { recursive: true });
+      writeFileSync(join(repoHarnessHome, 'registered-repos.json'), `${JSON.stringify({
+        version: 1,
+        repos: [{
+          id: repoHarnessRepoIdFor(canonicalRoot),
+          path: canonicalRoot,
+          accessMode: opts.accessMode,
+          source: 'manual',
+          registeredAt: '2026-06-23T00:00:00.000Z',
+          lastSeenAt: '2026-06-23T00:00:00.000Z',
+        }],
+      }, null, 2)}\n`);
+    }
     try {
       symlinkSync(repoRoot, join(repoRoot, 'docs', 'loop'));
     } catch (_error) {
@@ -41,12 +62,18 @@ async function withReaderRepo<T>(fn: (repoRoot: string, ctx: ReaderToolContext) 
     const ctx = createReaderToolContext(repoRoot, policy, new WorkspaceManager({ allowedRoots: [repoRoot], policy }));
     return await fn(repoRoot, ctx);
   } finally {
+    if (previousRepoHarnessHome === undefined) {
+      delete process.env.REPO_HARNESS_HOME;
+    } else {
+      process.env.REPO_HARNESS_HOME = previousRepoHarnessHome;
+    }
     rmSync(repoRoot, { recursive: true, force: true });
+    rmSync(repoHarnessHome, { recursive: true, force: true });
   }
 }
 
 describe('MCP reader tools', () => {
-  test('exposes exactly the read-only reader tool registry and session-local workspaces', async () => {
+  test('exposes reader and gated general repo tool registry with session-local workspaces', async () => {
     await withReaderRepo(async (repoRoot, ctx) => {
       const definitions = buildReaderToolDefinitions();
       expect(definitions.map((tool) => tool.name)).toEqual([
@@ -62,14 +89,24 @@ describe('MCP reader tools', () => {
         'read_file',
         'read_files',
         'stat_file',
+        'write_file',
       ]);
       for (const definition of definitions) {
-        expect(definition.annotations).toMatchObject({
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false,
-        });
+        if (definition.name === 'write_file') {
+          expect(definition.annotations).toMatchObject({
+            readOnlyHint: false,
+            destructiveHint: true,
+            idempotentHint: false,
+            openWorldHint: false,
+          });
+        } else {
+          expect(definition.annotations).toMatchObject({
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false,
+          });
+        }
         expect(definition.inputSchema.additionalProperties).toBe(false);
       }
 
@@ -132,8 +169,18 @@ describe('MCP reader tools', () => {
 
         const capabilities = await jsonTool(ctx, 'get_repo_capabilities', { repo_id: repoId });
         expect(capabilities.access_mode).toBe('read_only');
+        expect(capabilities.write_tools).toEqual([]);
         expect(capabilities.repo_id).toBe(repoId);
         expect(capabilities.registry_revision).toMatch(/^registry_/);
+
+        const readOnlyWrite = await jsonTool(ctx, 'write_file', {
+          repo_id: repoId,
+          path: 'docs/created-by-write.txt',
+          content: 'blocked\n',
+          must_not_exist: true,
+        });
+        expect(readOnlyWrite.error.code).toBe('WRITE_DISABLED');
+        expect(existsSync(join(repoRoot, 'docs', 'created-by-write.txt'))).toBe(false);
 
         const manifest = await jsonTool(ctx, 'repo_manifest', { repo_id: repoId, page_size: 1000 });
         const visiblePaths = manifest.entries.map((entry: { path: string }) => entry.path);
@@ -229,6 +276,128 @@ describe('MCP reader tools', () => {
         rmSync(outside, { recursive: true, force: true });
       }
     });
+  });
+
+  test('write_file is capability-gated, atomic, and guarded by revision preconditions', async () => {
+    await withReaderRepo(async (repoRoot, ctx) => {
+      writeFileSync(join(repoRoot, '.ignore'), 'ignored.md\n');
+      const fakeCodeGraph: GeneralRepoCodeGraphAdapter = {
+        discoverRepo() {
+          return {
+            available: true,
+            integrated: true,
+            source: 'test-double',
+            indexRevision: 'index_before_write',
+            latencyMs: 1,
+            files: [],
+          };
+        },
+      };
+      const writeCtx = createReaderToolContext(
+        repoRoot,
+        ctx.policy,
+        new WorkspaceManager({ allowedRoots: [repoRoot], policy: ctx.policy }),
+        fakeCodeGraph,
+      );
+      const repoId = (await jsonTool(writeCtx, 'list_allowed_roots')).roots[0].repo_id;
+      const capabilities = await jsonTool(writeCtx, 'get_repo_capabilities', { repo_id: repoId });
+      expect(capabilities.access_mode).toBe('read_write');
+      expect(capabilities.write_tools).toEqual(['write_file']);
+
+      const missingCreatePrecondition = await jsonTool(writeCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        content: 'first\n',
+      });
+      expect(missingCreatePrecondition.error.code).toBe('REVISION_CONFLICT');
+      expect(existsSync(join(repoRoot, 'docs', 'generated.txt'))).toBe(false);
+
+      const created = await jsonTool(writeCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        content: 'first\n',
+        must_not_exist: true,
+      });
+      expect(created.error).toBeUndefined();
+      expect(created).toMatchObject({
+        path: 'docs/generated.txt',
+        operation: 'create',
+        index_state: 'pending',
+        before: { existed: false, sha256: null, size: 0 },
+        index: { action: 'refresh_repo_index_required', changed_paths: ['docs/generated.txt'] },
+      });
+      expect(created.mutation_id).toMatch(/^mut_[a-f0-9]{16}$/);
+      expect(created.after.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(created.diff.after_sha256).toBe(created.after.sha256);
+      expect(readFileSync(join(repoRoot, 'docs', 'generated.txt'), 'utf-8')).toBe('first\n');
+      expect(readdirSync(join(repoRoot, 'docs')).some((name) => name.includes('.repo-harness-'))).toBe(false);
+
+      const readCreated = await jsonTool(writeCtx, 'read_file', { repo_id: repoId, path: 'docs/generated.txt' });
+      expect(readCreated.content).toBe('first\n');
+      expect(readCreated.sha256).toBe(created.after.sha256);
+
+      const targetExists = await jsonTool(writeCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        content: 'duplicate\n',
+        must_not_exist: true,
+      });
+      expect(targetExists.error.code).toBe('TARGET_EXISTS');
+      expect(readFileSync(join(repoRoot, 'docs', 'generated.txt'), 'utf-8')).toBe('first\n');
+      expect(readdirSync(join(repoRoot, 'docs')).some((name) => name.includes('.repo-harness-'))).toBe(false);
+
+      const conflict = await jsonTool(writeCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        content: 'stale\n',
+        expected_sha256: 'bad',
+      });
+      expect(conflict.error.code).toBe('REVISION_CONFLICT');
+      expect(conflict.error.details.actual_sha256).toBe(created.after.sha256);
+      expect(readFileSync(join(repoRoot, 'docs', 'generated.txt'), 'utf-8')).toBe('first\n');
+
+      const replaced = await jsonTool(writeCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'docs/generated.txt',
+        content: 'second\n',
+        expected_sha256: created.after.sha256,
+      });
+      expect(replaced.error).toBeUndefined();
+      expect(replaced.operation).toBe('replace');
+      expect(replaced.before.sha256).toBe(created.after.sha256);
+      expect(replaced.after.sha256).not.toBe(created.after.sha256);
+      expect(replaced.diff.bytes_delta).toBe('second\n'.length - 'first\n'.length);
+
+      const readReplaced = await jsonTool(writeCtx, 'read_file', { repo_id: repoId, path: 'docs/generated.txt' });
+      expect(readReplaced.content).toBe('second\n');
+      expect(readReplaced.sha256).toBe(replaced.after.sha256);
+      expect(readdirSync(join(repoRoot, 'docs')).some((name) => name.includes('.repo-harness-'))).toBe(false);
+      const statReplaced = await jsonTool(writeCtx, 'stat_file', { repo_id: repoId, path: 'docs/generated.txt' });
+      expect(statReplaced.sha256).toBe(replaced.after.sha256);
+
+      const ignored = await jsonTool(writeCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'ignored.md',
+        content: 'blocked\n',
+        must_not_exist: true,
+      });
+      expect(ignored.error.code).toBe('PATH_IGNORED');
+      const missingParent = await jsonTool(writeCtx, 'write_file', {
+        repo_id: repoId,
+        path: 'missing-dir/file.txt',
+        content: 'blocked\n',
+        must_not_exist: true,
+      });
+      expect(missingParent.error.code).toBe('NOT_FOUND');
+
+      const auditText = readFileSync(join(repoRoot, '.ai', 'harness', 'mcp', 'audit.log'), 'utf-8');
+      expect(auditText).toContain('"tool":"write_file"');
+      expect(auditText).toContain('"status":"ok"');
+      expect(auditText).toContain('"status":"blocked"');
+      expect(auditText).not.toContain('first\n');
+      expect(auditText).not.toContain('second\n');
+      expect(auditText).not.toContain('stale\n');
+    }, { accessMode: 'read_write' });
   });
 
   test('general repo tools merge CodeGraph metadata under the same guarded snapshot', async () => {

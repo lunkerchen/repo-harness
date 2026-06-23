@@ -45,7 +45,7 @@
     },
     "tools": {
       "type": "array",
-      "minItems": 7,
+      "minItems": 8,
       "items": {
         "$ref": "#/$defs/tool"
       }
@@ -117,7 +117,8 @@
             "search_text",
             "read_file",
             "read_files",
-            "stat_file"
+            "stat_file",
+            "write_file"
           ]
         },
         "description": {
@@ -135,13 +136,13 @@
           "additionalProperties": false,
           "properties": {
             "readOnlyHint": {
-              "const": true
+              "type": "boolean"
             },
             "destructiveHint": {
-              "const": false
+              "type": "boolean"
             },
             "idempotentHint": {
-              "const": true
+              "type": "boolean"
             },
             "openWorldHint": {
               "const": false
@@ -500,6 +501,64 @@
           "type",
           "indexed",
           "readable"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "write_file",
+      "description": "Create or replace one repo-relative file in a read_write repo using revision preconditions and atomic same-directory rename.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "path",
+          "content"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "base64"
+            ]
+          },
+          "expected_sha256": {
+            "type": "string"
+          },
+          "must_not_exist": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "path",
+          "mutation_id",
+          "before",
+          "after",
+          "diff",
+          "index_state"
         ],
         "properties": {},
         "additionalProperties": false
