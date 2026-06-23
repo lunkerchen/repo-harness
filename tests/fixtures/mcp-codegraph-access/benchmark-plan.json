@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "entry_counts": [10000, 100000, 500000],
+  "purpose": "Sprint 0 large-repo baseline shape for repo_manifest/list_tree/search_text performance work.",
+  "required_measurements": [
+    "cold manifest first page latency",
+    "warm manifest first page latency",
+    "warm literal search latency",
+    "read_file first chunk latency",
+    "peak resident memory",
+    "manifest parity count"
+  ],
+  "generation_rules": {
+    "include_dotfiles": true,
+    "include_unknown_extensions": true,
+    "include_binary_placeholders": true,
+    "include_nested_ignore_rules": true,
+    "include_reincluded_ignore_paths": true
+  },
+  "acceptance": {
+    "manifest_parity": "100%",
+    "no_oom": true,
+    "results_paginated": true
+  }
+}

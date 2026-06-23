@@ -1,0 +1,1 @@
+This path is listed in .gitignore but remains visible because only .ignore is policy.

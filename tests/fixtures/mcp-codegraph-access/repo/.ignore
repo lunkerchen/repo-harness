@@ -1,0 +1,4 @@
+# General repo API policy fixture. Only this file is a content exclusion source.
+generated/drop/**
+!generated/drop/keep-visible.txt
+ignored-secret.txt
