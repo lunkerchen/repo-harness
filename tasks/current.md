@@ -1,16 +1,16 @@
 # Current Status Snapshot
 
 <!-- generated-by: repo-harness refresh-current-status v1 -->
-<!-- updated_at: 2026-06-23T20:44:48+0800 -->
+<!-- updated_at: 2026-06-23T23:59:03+0800 -->
 <!-- stale_after: 24h -->
 
 > **Status**: Idle
-> **Updated At**: 2026-06-23T20:44:48+0800
+> **Updated At**: 2026-06-23T23:59:03+0800
 > **Source Branch**: main
-> **Source Commit**: 2feb0a1
+> **Source Commit**: 3fcda72
 > **Target Branch**: main
 > **Stale After**: 24h
-> **Reason**: mcp-snapshot-ignore-policy-revision
+> **Reason**: mcp-rollout-gate-provenance
 > **Derived From**: active-plan, active-sprint, workstreams, handoff, checks, git status
 
 This file is a tracked mainline snapshot derived from repo artifacts. It is not a live lock, not a kanban board, and not an implementation gate. If it is stale, read the source artifacts below.
@@ -48,12 +48,16 @@ This file is a tracked mainline snapshot derived from repo artifacts. It is not 
 
 ## Git Status
 
-- Summary: 3 changed/untracked path(s)
+- Summary: 7 changed/untracked path(s)
 
 ```
- M src/cli/mcp/general-repo-access.ts
+ M deploy/release-checklists/260623-repo-harness-codegraph-general-repo.md
+ M docs/reference-configs/general-repo-mcp.md
+ M scripts/mcp-rollout-gate.ts
+ M tasks/current.md
  M tasks/notes/20260622-repo-harness-codegraph.notes.md
- M tests/cli/mcp-reader-tools.test.ts
+ M tests/mcp-rollout-gate.test.ts
+ M tests/migration-script.test.ts
 ```
 
 ## Source Artifacts

@@ -280,6 +280,29 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   attempt. This keeps the fix local and fail-closed without adding a new
   revision manager or exposing `.ignore` in manifests.
 
+## 2026-06-23 rollout gate provenance slice
+
+- `scripts/mcp-rollout-gate.ts` now binds its release evidence to source
+  provenance: base SHA, head SHA, current git SHA, head/current match, PR number
+  clean/dirty tree state, CI workflow/run metadata, and a SHA-256 digest of the
+  canonical JSON payload.
+- The gate now requires `provenance.status="bound"` before returning `ok=true`.
+  Dirty trees, missing PR/CI provenance, missing git revision data, or
+  head/current mismatches fail closed even when shadow, canary, and rollback
+  checks individually pass.
+- Canary evidence now records an observation window, read-only rollout config,
+  request volume by tool, error rate, latency summary, shadow mismatch counts,
+  and rollback trigger records. This changes canary from a one-time status word
+  into a bounded observation artifact.
+- Tradeoff: the implementation uses local `git` plus GitHub Actions
+  environment/event metadata and keeps the artifact digest self-contained by
+  hashing the report with `provenance.artifact_digest.value=null`. No sidecar
+  artifact file or external release-evidence service was added.
+- Validation adjustment: two migration apply tests now use the existing
+  `MIGRATION_INTEGRATION_TIMEOUT` budget like adjacent migration apply tests.
+  The assertions are unchanged; under local full-suite load these subprocesses
+  exceeded their previous hard-coded 30s limits.
+
 ## 2026-06-23 S4 security hardening slice
 
 - Root validation now stores a first-observed directory identity for each

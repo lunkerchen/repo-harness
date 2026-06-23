@@ -265,6 +265,15 @@ Local rollout gate:
 bun scripts/mcp-rollout-gate.ts --repo . --out .ai/harness/runs/mcp-rollout-gate.json
 ```
 
+The gate report is also the release evidence artifact. A passing report must
+show `provenance.status: "bound"`, including base SHA, head SHA, current SHA,
+clean/dirty tree state, PR number, CI workflow/run metadata, and a SHA-256
+digest of the canonical JSON payload. Reports generated outside PR CI may still
+be useful for local diagnosis, but they must remain `partial` and cannot pass the
+release gate. The canary section records the observation window, selected
+read-only repo set, request volume, error rate, latency summary, shadow mismatch
+counts, and rollback trigger checks.
+
 Release canary gate when small, medium, and large repos are registered:
 
 ```bash

@@ -715,7 +715,7 @@ describe("Migration script contract", () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
-  }, 30000);
+  }, MIGRATION_INTEGRATION_TIMEOUT);
 
   test("should prune vendored context files and mirror only project-owned context blocks", () => {
     const repo = mkdtempSync(join(tmpdir(), "migration-context-prune-"));
@@ -875,7 +875,7 @@ describe("Migration script contract", () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
-  }, 30000);
+  }, MIGRATION_INTEGRATION_TIMEOUT);
 
   test("should remove repo-local legacy skill factory assets during migration", () => {
     const repo = mkdtempSync(join(tmpdir(), "migration-self-"));

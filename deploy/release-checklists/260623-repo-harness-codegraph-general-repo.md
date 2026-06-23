@@ -28,7 +28,12 @@ Status: Prepared for stacked Sprint 4 module PR review; package publish is out o
 - `bun test`.
 - `bun run check:type`.
 - Focused tests: `bun test tests/cli/mcp-reader-tools.test.ts tests/cli/mcp-tools.test.ts tests/mcp-rollout-gate.test.ts tests/mcp-observability-report.test.ts`.
-- Rollout gate: `bun scripts/mcp-rollout-gate.ts --repo . --out .ai/harness/runs/mcp-rollout-gate.json`.
+- Rollout gate: `bun scripts/mcp-rollout-gate.ts --repo . --out .ai/harness/runs/mcp-rollout-gate.json`;
+  the report must show `provenance.status: "bound"`, clean tree state, exact
+  head SHA, PR number, CI workflow/run metadata, artifact digest, and a canary
+  observation window with request volume, error rate, latency, shadow mismatch,
+  and rollback trigger records. Local non-CI reports are diagnostic only and
+  must stay `partial`.
 - Workflow gates: `bash scripts/check-task-sync.sh` and `bash scripts/check-task-workflow.sh --strict`.
 - Self-host migration gate: `bash scripts/migrate-project-template.sh --repo . --dry-run`.
 - CodeGraph readiness: `bash scripts/ensure-codegraph.sh --sync`.
@@ -43,7 +48,10 @@ Review-fix run on 2026-06-23:
 - `bun run check:type`: passed.
 - `bash scripts/check-task-sync.sh && bash scripts/check-task-workflow.sh --strict && bash scripts/check-deploy-sql-order.sh && bash scripts/check-architecture-sync.sh`: passed after `bash scripts/prepare-codex-handoff.sh` refreshed the local handoff/resume packet.
 - `bash scripts/migrate-project-template.sh --repo . --dry-run`: passed.
-- `bun scripts/mcp-rollout-gate.ts --repo /Users/ancienttwo/Projects/repo-harness-codegraph-verify --out /tmp/repo-harness-mcp-rollout-gate.json`: passed with `shadow=pass`, `canary=ready`, and `rollback=pass`.
+- `bun scripts/mcp-rollout-gate.ts --repo /Users/ancienttwo/Projects/repo-harness-codegraph-verify --out /tmp/repo-harness-mcp-rollout-gate.json`:
+  passed with `shadow=pass`, `canary=ready`, and `rollback=pass`; exact-head
+  provenance and canary observation-window fields must be refreshed after the
+  gate hardening lands on the final head.
 - `bun scripts/mcp-observability-report.ts --repo /Users/ancienttwo/Projects/repo-harness-codegraph-verify --out /tmp/repo-harness-mcp-observability-report.json`: passed with 52 events and 0 alerts.
 - The rollout gate was run from a detached verification worktree under `/Users` because the active review-fix clone lived under `/private/tmp`, which is correctly denied by MCP sensitive-root policy.
 - Hosted PR #35 checks and external review must be refreshed after the review-fix branch push.
