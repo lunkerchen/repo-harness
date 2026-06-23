@@ -46,3 +46,86 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   reduces symlink-swap exposure with the Node filesystem APIs available here,
   but a stronger fd-relative/openat design still belongs in the S2/S4 security
   pass if the runtime grows native bindings.
+
+## Sprint 2 Adapter/Snapshot Notes
+
+- The CodeGraph integration is a bounded CLI adapter over
+  `codegraph files --format flat --json`. Its output is treated as indexed
+  metadata only. Secure filesystem walking remains the manifest source of truth
+  because the Sprint 0 spike proved CodeGraph inventory is not a complete repo
+  file list.
+- Every CodeGraph-returned path is normalized, resolved under the canonical repo
+  root, and checked against `.ignore` before metadata is merged. Returned paths
+  that are ignored, missing, directories, or outside the repo increment
+  `codegraph.filtered_paths` instead of widening access.
+- `snapshot_id` is deterministic from repo identity, registry revision,
+  `.ignore` digest, CodeGraph revision, and the manifest digest. A caller-provided
+  stale `snapshot_id` returns `SNAPSHOT_STALE` rather than silently mixing
+  manifest/search/read versions.
+- `.ai/harness/mcp/audit.log` is not included in the snapshot revision digest.
+  The audit file remains visible according to `.ignore`; the exclusion is only
+  to prevent the reader's own append-only audit side effect from invalidating the
+  snapshot it just returned.
+- CodeGraph CLI `query` is symbol search, not complete repo full-text search.
+  `search_text` therefore keeps the policy-consistent filesystem fallback while
+  surfacing whether each matched file is present in CodeGraph indexed metadata.
+
+## Sprint 2 Snapshot Cache/Index-Lag Notes
+
+- Snapshot TTL is currently a bounded in-process memoization contract:
+  5 minutes, at most 16 snapshots. The cache key includes repo id, registry
+  revision, `.ignore` digest, and the validated snapshot id. A hit is only
+  reported after the reader recomputes the current manifest digest and confirms
+  the snapshot id still matches; this preserves stale detection for file,
+  registry, and `.ignore` changes.
+- `snapshot_state` is `ready` when the filesystem-backed snapshot can be served,
+  and `index_lagging` when CodeGraph metadata proves the index is behind the
+  filesystem. Secure walker traversal errors remain represented by the existing
+  `partial` and `walker_errors` fields, because a partial manifest can still be
+  served with explicit completeness metadata. CodeGraph lag evidence is limited
+  to stale indexed paths that no longer resolve and indexed files whose
+  CodeGraph size differs from the current filesystem size.
+- This slice does not claim the full S2 performance target. Manifest generation
+  still walks the complete visible tree to compute counts, hashes, and the
+  manifest digest. The remaining performance slice must measure 10k/100k/500k
+  fixtures and decide whether to introduce a true streaming inventory structure.
+
+## Sprint 2 Cache-Key/Performance Notes
+
+- Public `snapshot_cache.key` is now scoped by tool and repo-relative path set;
+  `snapshot_cache.snapshot_key` names the underlying repo snapshot. This keeps
+  `repo_manifest`, `stat_file`, `read_file`, `read_files`, `list_tree`, and
+  `search_text` from presenting a single repo-wide cache key for path-specific
+  work.
+- Entry metadata has a bounded in-process cache keyed by repo id, registry
+  revision, `.ignore` digest, repo-relative path, and the current stat
+  signature. Warm snapshot revalidation can reuse unchanged metadata without
+  re-hashing and binary-probing every unchanged file. File changes, `.ignore`
+  changes, and registry revision changes produce different cache keys.
+- `docs/researches/20260623-general-repo-reader-performance-baseline.md`
+  records the first reproducible baseline. The 10k fixture completed with a
+  warm manifest first page at 76.37 ms and warm search at 499.84 ms. The 100k
+  fixture completed without OOM, returned paginated results, and met the
+  warm-path SLO: manifest 733.76 ms, read first chunk 0.74 ms, and search
+  779.04 ms.
+- The walker optimization removes the per-entry `resolveRepoPath` hot path for
+  manifest traversal and constructs metadata directly from the directory entry
+  and one `lstat`. Explicit `snapshot_id` stat/read calls can reuse a cached
+  snapshot and validate the requested file hash instead of rebuilding the full
+  repo snapshot. This preserves stale detection for the requested file while
+  removing whole-repo revalidation from ordinary warm read chunks.
+- `repo_manifest` now uses a streaming page builder: it walks the visible tree
+  to prove counts and a metadata-revision digest, but retains only the requested
+  page entries. The current page still carries exact content hashes; non-page
+  file content metadata is counted as `content_deferred` and is computed when a
+  later page, `stat_file`, `read_file`, or `search_text` actually returns
+  content.
+- Metadata-only traversals no longer populate the bounded entry metadata cache.
+  This avoids 500k sequential cache-thrash when the visible entry count exceeds
+  the 200k cache cap; exact content metadata remains cached for returned page
+  entries and read/stat paths.
+- The 500k fixture now completes: manifest 12201.90 ms warm first page, read
+  first chunk 3.67 ms, warm search 12668.28 ms, with
+  `counts.content_deferred=499010`. This records the Sprint 2 baseline and
+  leaves 500k latency as a future optimization target rather than an open S2
+  checklist item.

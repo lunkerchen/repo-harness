@@ -150,6 +150,44 @@ Authorized file content is not implicitly redacted in `read_file`,
 `read_files`, or `search_text` responses. The MCP audit path records tool name,
 target path, input hash, status, and errors, but not file bodies.
 
+When a repo has a CodeGraph index, `repo_manifest`, `list_tree`, `stat_file`,
+`read_file`, `read_files`, and `search_text` share a deterministic
+`snapshot_id`, `ignore_digest`, and `index_revision`. CodeGraph inventory is
+merged as indexed metadata (`indexed`, `codegraph_language`,
+`codegraph_node_count`); the secure filesystem walker remains the source of
+truth for complete manifest coverage. If a caller sends a stale `snapshot_id`,
+the reader returns `SNAPSHOT_STALE` instead of silently mixing versions.
+Each response also reports `snapshot_state`, creation/expiry time, TTL, and a
+bounded snapshot cache marker. `snapshot_cache.key` is scoped by tool and
+repo-relative path set; `snapshot_cache.snapshot_key` names the underlying repo
+snapshot. Entry metadata is cached by repo, registry revision, `.ignore`
+digest, path, and current stat signature, so warm calls can reuse unchanged file
+metadata while file, registry, and `.ignore` changes produce a different
+snapshot. Explicit `snapshot_id` stat/read calls can reuse a cached snapshot and
+validate the requested file hash instead of rebuilding the full repo snapshot.
+For large manifests, `repo_manifest` streams the visible tree and keeps only the
+requested page entries in memory. Returned page entries include exact content
+hashes; non-page file content metadata is deferred and reported as
+`counts.content_deferred` until a later page, `stat_file`, `read_file`, or
+`search_text` returns that content.
+If CodeGraph still references a deleted indexed path or returns metadata that
+no longer matches the filesystem, the response uses
+`snapshot_state: "index_lagging"` and includes lagging paths under the
+`codegraph` object.
+
+Large-repo reader baselines are reproducible with:
+
+```bash
+bun run benchmark:mcp-reader -- --entries 10000 --json
+```
+
+Use `--entries all` for the full 10k/100k/500k fixture sequence.
+
+CodeGraph search support is treated conservatively: current CodeGraph CLI query
+is symbol-oriented, so general full-text `search_text` uses the same guarded
+filesystem fallback while preserving `.ignore` semantics and indicating whether
+the matched file is indexed by CodeGraph.
+
 The older `open_workspace`, `tree`, and `read_text` tools remain compatibility
 tools for the previous workspace reader surface. They still apply the legacy
 deny/redaction behavior and should not be used as proof of the general repo
