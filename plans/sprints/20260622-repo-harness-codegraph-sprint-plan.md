@@ -520,10 +520,10 @@ Sprint 2 adapter/snapshot evidence:
 
 ## 10.1 写 capability 与 API
 
-- [ ] **S3-CAP-001** repo 默认保持 `read_only`。
-- [ ] **S3-CAP-002** 只有现有授权系统显式配置 `read_write` 时才注册/允许写工具。
-- [ ] **S3-CAP-003** 写请求复用同一 Path Guard 和 IgnorePolicy。
-- [ ] **S3-API-001** 实现 `write_file` create/replace。
+- [x] **S3-CAP-001** repo 默认保持 `read_only`。
+- [x] **S3-CAP-002** 只有现有授权系统显式配置 `read_write` 时才注册/允许写工具。
+- [x] **S3-CAP-003** 写请求复用同一 Path Guard 和 IgnorePolicy。
+- [x] **S3-API-001** 实现 `write_file` create/replace。
 - [ ] **S3-API-002** 实现 `apply_patch`，优先结构化 edits，必要时支持 unified diff。
 - [ ] **S3-API-003** 实现 `move_path`。
 - [ ] **S3-API-004** 实现 `delete_path`。
@@ -532,11 +532,11 @@ Sprint 2 adapter/snapshot evidence:
 
 ## 10.2 乐观并发与原子写
 
-- [ ] **S3-MUT-001** 覆盖已有文件必须提交 `expected_sha256`。
-- [ ] **S3-MUT-002** 新建必须提交 `must_not_exist: true`。
-- [ ] **S3-MUT-003** hash 不匹配返回 `REVISION_CONFLICT`，禁止自动覆盖。
-- [ ] **S3-MUT-004** 临时文件必须位于目标同一文件系统/目录边界。
-- [ ] **S3-MUT-005** 写临时文件 → fsync → atomic rename。
+- [x] **S3-MUT-001** 覆盖已有文件必须提交 `expected_sha256`。
+- [x] **S3-MUT-002** 新建必须提交 `must_not_exist: true`。
+- [x] **S3-MUT-003** hash 不匹配返回 `REVISION_CONFLICT`，禁止自动覆盖。
+- [x] **S3-MUT-004** 临时文件必须位于目标同一文件系统/目录边界。
+- [x] **S3-MUT-005** 写临时文件 → fsync → atomic rename。
 - [ ] **S3-MUT-006** 保留原文件权限和必要 metadata，策略写入 ADR。
 - [ ] **S3-MUT-007** patch 应验证每个 hunk 或精确文本 precondition。
 - [ ] **S3-MUT-008** move/delete 同样进行版本和目标存在性检查。
@@ -572,6 +572,23 @@ Sprint 2 adapter/snapshot evidence:
 - [ ] 写后 search 在定义的 index lag SLO 内可见，或明确返回 pending。
 - [ ] move/delete 后 manifest 与索引最终一致。
 - [ ] 所有写操作可通过 mutation id 审计。
+
+Sprint 3 write_file evidence:
+
+- Runtime: `src/cli/mcp/general-repo-access.ts`
+- Tests: `tests/cli/mcp-reader-tools.test.ts`
+- Schema/docs: `assets/mcp/general-repo-reader-tools.v1.schema.json`, `README.md`, `docs/repo-harness-chatgpt-mcp-setup.md`
+- Completed slice: `write_file` create/replace is gated by registered repo
+  `read_write`, reuses the general repo Path Guard and `.ignore` policy,
+  requires `must_not_exist` for create and `expected_sha256` for replace,
+  writes through a same-directory temporary file plus fsync/atomic rename, and
+  returns `mutation_id`, `before`, `after`, `diff`, and `index_state`.
+- Verified in this slice: success and precondition-conflict paths leave no
+  `.repo-harness-*` temporary files in the target directory. Full write-failure
+  injection remains open under `S3-MUT-009/010`.
+- Explicitly still open: `apply_patch`, `move_path`, `delete_path`,
+  `refresh_repo_index`, recursive directory policy, full index retry/dead-letter,
+  and complete write audit/runbook coverage.
 
 ---
 

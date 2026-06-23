@@ -1,5 +1,5 @@
-import { createHash } from 'crypto';
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync, statSync, type Dirent } from 'fs';
+import { createHash, randomBytes } from 'crypto';
+import { closeSync, constants, existsSync, fstatSync, fsyncSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeSync, type Dirent } from 'fs';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'path';
 import { readRegisteredRepoHarnessRepos, repoHarnessRepoIdFor, type RepoHarnessAccessMode } from '../../effects/repo-registry';
 import { hashMcpInput, tryWriteMcpAuditEntry } from './audit';
@@ -69,6 +69,16 @@ interface ResolvedRepoPath {
   readable: boolean;
   identity?: string;
   parentIdentity?: string;
+}
+
+interface ResolvedRepoWritePath {
+  repo: RepoRecord;
+  relativePath: string;
+  absolutePath: string;
+  canonicalPath: string;
+  parentRelativePath: string;
+  parentCanonicalPath: string;
+  existing?: ResolvedRepoPath;
 }
 
 interface ManifestEntry {
@@ -159,6 +169,7 @@ const GENERAL_REPO_TOOLS = [
   'read_file',
   'read_files',
   'stat_file',
+  'write_file',
 ] as const;
 
 const DEFAULT_PAGE_SIZE = 300;
@@ -236,6 +247,16 @@ function numberArg(value: unknown, fallback: number, min: number, max: number): 
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(Math.trunc(parsed), min), max);
+}
+
+function booleanArg(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
 }
 
 function cachePaths(paths: string[] | undefined): string[] {
@@ -518,6 +539,75 @@ function resolveRepoPath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePol
     readable,
     identity: readable ? statIdentity(fileStat) : undefined,
     parentIdentity: statIdentity(parentStat),
+  };
+}
+
+function parentRelativePath(relativePath: string): string {
+  const index = relativePath.lastIndexOf('/');
+  return index < 0 ? '.' : relativePath.slice(0, index) || '.';
+}
+
+function leafName(relativePath: string): string {
+  const index = relativePath.lastIndexOf('/');
+  return index < 0 ? relativePath : relativePath.slice(index + 1);
+}
+
+function assertRepoWriteEnabled(repo: RepoRecord): void {
+  if (repo.accessMode !== 'read_write') {
+    throw new GeneralRepoAccessError('WRITE_DISABLED', 'repo is read_only; write_file requires read_write capability', {
+      repo_id: repo.repoId,
+      access_mode: repo.accessMode,
+    });
+  }
+}
+
+function resolveRepoWritePath(repo: RepoRecord, inputPath: unknown, ignore: IgnorePolicy): ResolvedRepoWritePath {
+  const relativePath = normalizeRepoRelativePath(inputPath);
+  if (isIgnored(ignore, relativePath)) {
+    throw new GeneralRepoAccessError('PATH_IGNORED', 'path is excluded by .ignore', { path: relativePath });
+  }
+  const absolutePath = resolve(repo.canonicalRoot, relativePath);
+  if (!isPathInside(repo.canonicalRoot, absolutePath)) {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'path escapes repo root', { path: relativePath });
+  }
+
+  if (existsSync(absolutePath)) {
+    const existing = resolveRepoPath(repo, relativePath, ignore, { requireFile: true });
+    if (existing.type === 'symlink') {
+      throw new GeneralRepoAccessError('SYMLINK_ESCAPE', 'write_file does not write through symlinks', { path: relativePath });
+    }
+    return {
+      repo,
+      relativePath,
+      absolutePath,
+      canonicalPath: existing.canonicalPath,
+      parentRelativePath: parentRelativePath(relativePath),
+      parentCanonicalPath: realpathSync(dirname(existing.canonicalPath)),
+      existing,
+    };
+  }
+
+  const parentRelative = parentRelativePath(relativePath);
+  const parent = resolveRepoPath(repo, parentRelative, ignore, { allowRoot: true, requireDirectory: true });
+  if (!parent.readable || parent.symlinkTargetKind === 'external') {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'write parent escapes repo root', { path: relativePath });
+  }
+  const canonicalPath = resolve(parent.canonicalPath, leafName(relativePath));
+  if (!isPathInside(repo.canonicalRoot, canonicalPath)) {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'path escapes repo root', { path: relativePath });
+  }
+  const physicalRelative = toPosixPath(relative(repo.canonicalRoot, canonicalPath)) || '.';
+  if (physicalRelative !== '.' && isIgnored(ignore, physicalRelative)) {
+    throw new GeneralRepoAccessError('PATH_IGNORED', 'write target is excluded by .ignore', { path: relativePath });
+  }
+
+  return {
+    repo,
+    relativePath,
+    absolutePath,
+    canonicalPath,
+    parentRelativePath: parent.relativePath,
+    parentCanonicalPath: parent.canonicalPath,
   };
 }
 
@@ -1186,6 +1276,62 @@ function assertSnapshotEntryCurrent(snapshot: VisibleEntrySnapshot, path: string
   }
 }
 
+function writeContentBuffer(args: Record<string, unknown>): { raw: Buffer; encoding: 'utf-8' | 'base64' } {
+  if (typeof args.content !== 'string') {
+    throw new GeneralRepoAccessError('INVALID_RANGE', 'content must be a string');
+  }
+  const encoding = args.encoding === 'base64' ? 'base64' : args.encoding === undefined || args.encoding === 'utf-8' ? 'utf-8' : null;
+  if (!encoding) throw new GeneralRepoAccessError('INVALID_RANGE', 'encoding must be utf-8 or base64');
+  return { raw: Buffer.from(args.content, encoding), encoding };
+}
+
+function fsyncDirectoryBestEffort(path: string): void {
+  let fd: number | null = null;
+  try {
+    fd = openSync(path, 'r');
+    fsyncSync(fd);
+  } catch (_error) {
+    // Some filesystems/platforms do not allow directory fsync; the same-directory rename remains atomic.
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch (_error) {
+        // Ignore close failures on best-effort directory fsync.
+      }
+    }
+  }
+}
+
+function atomicWriteFile(target: ResolvedRepoWritePath, raw: Buffer, mode: number): void {
+  const tempPath = resolve(target.parentCanonicalPath, `.${leafName(target.relativePath)}.repo-harness-${process.pid}-${Date.now()}-${randomBytes(4).toString('hex')}.tmp`);
+  if (!isPathInside(target.parentCanonicalPath, tempPath)) {
+    throw new GeneralRepoAccessError('PATH_OUTSIDE_REPO', 'temporary write path escapes parent directory', { path: target.relativePath });
+  }
+  const fd = openSync(tempPath, 'wx', mode);
+  let renamed = false;
+  try {
+    try {
+      writeSync(fd, raw, 0, raw.length, 0);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(tempPath, target.canonicalPath);
+    renamed = true;
+    fsyncDirectoryBestEffort(target.parentCanonicalPath);
+  } finally {
+    if (!renamed) rmSync(tempPath, { force: true });
+  }
+}
+
+function invalidateRepoCaches(repo: RepoRecord): void {
+  for (const [key, snapshot] of SNAPSHOT_CACHE) {
+    if (snapshot.repoId === repo.repoId && snapshot.repoRoot === repo.canonicalRoot) SNAPSHOT_CACHE.delete(key);
+  }
+  ENTRY_METADATA_CACHE.clear();
+}
+
 function readFilePayload(repo: RepoRecord, ignore: IgnorePolicy, snapshot: VisibleEntrySnapshot, args: Record<string, unknown>, maxBytes = HARD_READ_BYTES, tool = 'read_file', verifySnapshotEntry = false): Record<string, unknown> {
   if (args.line_range !== undefined && args.byte_range !== undefined) {
     throw new GeneralRepoAccessError('INVALID_RANGE', 'line_range and byte_range are mutually exclusive');
@@ -1290,8 +1436,8 @@ function getRepoCapabilities(ctx: GeneralRepoToolContext, args: Record<string, u
     display_name: repo.displayName,
     registry_revision: repo.registryRevision,
     source: repo.source,
-    read_tools: GENERAL_REPO_TOOLS.filter((tool) => tool !== 'get_repo_capabilities'),
-    write_tools: repo.accessMode === 'read_write' ? [] : [],
+    read_tools: GENERAL_REPO_TOOLS.filter((tool) => tool !== 'get_repo_capabilities' && tool !== 'write_file'),
+    write_tools: repo.accessMode === 'read_write' ? ['write_file'] : [],
     codegraph: {
       primary_backend: true,
       ...codeGraphSummary(snapshot),
@@ -1304,6 +1450,96 @@ function getRepoCapabilities(ctx: GeneralRepoToolContext, args: Record<string, u
       max_read_bytes: HARD_READ_BYTES,
       max_read_lines: MAX_READ_LINES,
     },
+  });
+}
+
+function writeFileTool(ctx: GeneralRepoToolContext, args: Record<string, unknown>): GeneralRepoToolResult {
+  const repo = resolveRepo(ctx, args.repo_id);
+  assertRepoWriteEnabled(repo);
+  const ignore = readIgnorePolicy(repo.canonicalRoot);
+  const target = resolveRepoWritePath(repo, args.path, ignore);
+  const { raw, encoding } = writeContentBuffer(args);
+  const expectedHash = typeof args.expected_sha256 === 'string' ? args.expected_sha256.trim() : '';
+  const mustNotExist = booleanArg(args.must_not_exist, false);
+  const existed = target.existing !== undefined;
+
+  let beforeHash: string | null = null;
+  let beforeSize = 0;
+  let mode = 0o666;
+  if (target.existing) {
+    if (mustNotExist) {
+      throw new GeneralRepoAccessError('TARGET_EXISTS', 'target already exists', { path: target.relativePath });
+    }
+    const beforeRaw = readFileSync(target.existing.canonicalPath);
+    beforeHash = sha256(beforeRaw);
+    beforeSize = beforeRaw.length;
+    mode = statSync(target.existing.canonicalPath).mode & 0o777;
+    if (!expectedHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'expected_sha256 is required when replacing an existing file', {
+        path: target.relativePath,
+        actual_sha256: beforeHash,
+      });
+    }
+    if (expectedHash !== beforeHash) {
+      throw new GeneralRepoAccessError('REVISION_CONFLICT', 'file changed after it was read', {
+        path: target.relativePath,
+        expected_sha256: expectedHash,
+        actual_sha256: beforeHash,
+      });
+    }
+  } else if (!mustNotExist) {
+    throw new GeneralRepoAccessError('REVISION_CONFLICT', 'must_not_exist: true is required when creating a new file', {
+      path: target.relativePath,
+    });
+  }
+
+  atomicWriteFile(target, raw, mode);
+  invalidateRepoCaches(repo);
+
+  const after = resolveRepoPath(repo, target.relativePath, ignore, { requireFile: true });
+  const afterRaw = readFileSync(after.canonicalPath);
+  const afterHash = sha256(afterRaw);
+  const afterEntry = metadataForResolved(after, ignore);
+  const snapshot = buildVisibleEntrySnapshot(ctx, repo, ignore, { contentHash: false });
+  const indexedEntry = snapshot.entriesByPath.get(target.relativePath);
+  const indexState = snapshot.codeGraph.available ? 'pending' : 'failed';
+  const mutationId = `mut_${sha256(`${repo.repoId}\0${target.relativePath}\0${beforeHash ?? 'new'}\0${afterHash}\0${Date.now()}`).slice(0, 16)}`;
+
+  return textResult({
+    ...commonFields(repo, ignore, snapshot, { tool: 'write_file', paths: [target.relativePath] }),
+    path: target.relativePath,
+    operation: existed ? 'replace' : 'create',
+    mutation_id: mutationId,
+    encoding,
+    before: {
+      existed,
+      sha256: beforeHash,
+      size: beforeSize,
+    },
+    after: {
+      ...afterEntry,
+      indexed: indexedEntry?.indexed ?? false,
+      codegraph_language: indexedEntry?.codegraph_language,
+      codegraph_node_count: indexedEntry?.codegraph_node_count,
+      codegraph_size: indexedEntry?.codegraph_size,
+      codegraph_index_lagging: indexedEntry?.codegraph_index_lagging,
+    },
+    diff: {
+      format: 'summary',
+      bytes_before: beforeSize,
+      bytes_after: afterRaw.length,
+      bytes_delta: afterRaw.length - beforeSize,
+      before_sha256: beforeHash,
+      after_sha256: afterHash,
+    },
+    index_state: indexState,
+    index: {
+      state: indexState,
+      action: snapshot.codeGraph.available ? 'refresh_repo_index_required' : 'codegraph_unavailable',
+      changed_paths: [target.relativePath],
+      mutation_id: mutationId,
+    },
+    codegraph: codeGraphSummary(snapshot),
   });
 }
 
@@ -1566,6 +1802,7 @@ export function hasGeneralRepoArgs(args: Record<string, unknown>): boolean {
 
 export function buildGeneralRepoToolDefinitions(): GeneralRepoToolDefinition[] {
   const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+  const writeTool = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
   const repoSchema = {
     type: 'object',
     properties: { repo_id: { type: 'string' } },
@@ -1640,6 +1877,24 @@ export function buildGeneralRepoToolDefinitions(): GeneralRepoToolDefinition[] {
       },
       annotations: readOnly,
     },
+    {
+      name: 'write_file',
+      description: 'Create or replace one repo-relative file in a read_write repo using revision preconditions and atomic same-directory rename.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo_id: { type: 'string' },
+          path: { type: 'string' },
+          content: { type: 'string' },
+          encoding: { enum: ['utf-8', 'base64'] },
+          expected_sha256: { type: 'string' },
+          must_not_exist: { type: 'boolean' },
+        },
+        required: ['repo_id', 'path', 'content'],
+        additionalProperties: false,
+      },
+      annotations: writeTool,
+    },
   ];
 }
 
@@ -1667,6 +1922,9 @@ export async function callGeneralRepoTool(ctx: GeneralRepoToolContext, name: str
         break;
       case 'stat_file':
         result = statFile(ctx, args);
+        break;
+      case 'write_file':
+        result = writeFileTool(ctx, args);
         break;
       default:
         return errorResult('INTERNAL_ADAPTER_ERROR', `tool is not a general repo reader tool: ${name}`);

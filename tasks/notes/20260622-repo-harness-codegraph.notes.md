@@ -129,3 +129,25 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   `counts.content_deferred=499010`. This records the Sprint 2 baseline and
   leaves 500k latency as a future optimization target rather than an open S2
   checklist item.
+
+## 2026-06-23 write_file slice
+
+- The first Sprint 3 mutation slice adds only `write_file` create/replace. It
+  reuses the general repo registry, Path Guard, `.ignore` policy, audit writer,
+  snapshot fields, and filesystem fallback path instead of adding a parallel
+  write service.
+- `read_only` repos return `WRITE_DISABLED`. `read_write` is sourced only from
+  the registered repo entry and surfaced through `get_repo_capabilities`.
+- New files require `must_not_exist: true`; replacing existing files requires
+  `expected_sha256`. Missing or stale preconditions return
+  `REVISION_CONFLICT`, and `must_not_exist` on an existing file returns
+  `TARGET_EXISTS`.
+- Writes use a temporary file in the same canonical parent directory, fsync the
+  file, then atomically rename into place. The first slice requires the parent
+  directory to already exist; directory creation, recursive delete, patch,
+  move, and delete stay out of scope.
+- CodeGraph refresh is explicit pending state in this slice:
+  `index_state: "pending"` with `refresh_repo_index_required` when CodeGraph is
+  available, or `failed` when no index is available. The process-local snapshot
+  and metadata caches are invalidated after successful writes so immediate
+  read/stat calls see filesystem truth.

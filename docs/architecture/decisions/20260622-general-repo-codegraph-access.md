@@ -41,8 +41,9 @@ For a registered repo:
 - Authorized file content is not implicitly redacted in tool responses for this
   API. Logs, traces, metrics, errors, and audit records must not include file
   content.
-- Write tools are not registered for read-only repos. Write access requires an
-  explicit repo-level `read_write` capability.
+- Write tools are rejected for read-only repos. Write access requires an
+  explicit repo-level `read_write` capability; tool availability is advertised
+  through `get_repo_capabilities.write_tools`.
 - Every overwriting write, patch, move, or delete operation requires a revision
   precondition such as `expected_sha256`; new file creation requires an explicit
   must-not-exist precondition.
@@ -59,8 +60,9 @@ Sprint 0 freezes the read contract for:
 - `read_files`
 - `search_text`
 
-The write contract remains design-frozen but implementation-gated until the
-read plane and snapshot behavior are proven.
+The initial write implementation covers `write_file` create/replace. Patch,
+move, delete, and explicit index-refresh tools remain implementation-gated until
+their Sprint 3 slices land.
 
 ## Snapshot Contract
 
