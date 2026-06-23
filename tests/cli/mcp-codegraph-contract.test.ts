@@ -19,6 +19,8 @@ const TOOL_NAMES = [
   'stat_file',
   'write_file',
   'apply_patch',
+  'move_path',
+  'delete_path',
   'refresh_repo_index',
 ];
 
@@ -177,7 +179,7 @@ describe('general repo CodeGraph contract', () => {
     expect(schema.properties.common_response_fields.items.enum).toEqual(COMMON_RESPONSE_FIELDS);
 
     for (const tool of schema['x-repo-harness-tools']) {
-      if (tool.name === 'write_file' || tool.name === 'apply_patch' || tool.name === 'refresh_repo_index') {
+      if (tool.name === 'write_file' || tool.name === 'apply_patch' || tool.name === 'move_path' || tool.name === 'delete_path' || tool.name === 'refresh_repo_index') {
         expect(tool.annotations).toEqual({
           readOnlyHint: false,
           destructiveHint: true,
@@ -192,6 +194,13 @@ describe('general repo CodeGraph contract', () => {
           expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'expected_sha256']);
           expect(tool.input_schema.properties.edits.items.required).toEqual(['old_text', 'new_text']);
           expect(tool.input_schema.properties.unified_diff).toEqual({ type: 'string' });
+        } else if (tool.name === 'move_path') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'from_path', 'to_path', 'expected_sha256', 'must_not_exist']);
+          expect(tool.input_schema.properties.from_path).toEqual({ type: 'string' });
+          expect(tool.input_schema.properties.to_path).toEqual({ type: 'string' });
+        } else if (tool.name === 'delete_path') {
+          expect(tool.input_schema.required).toEqual(['repo_id', 'path', 'expected_sha256']);
+          expect(tool.input_schema.properties.recursive).toEqual({ type: 'boolean' });
         } else {
           expect(tool.input_schema.required).toEqual(['repo_id']);
           expect(tool.input_schema.properties.paths.items).toEqual({ type: 'string' });

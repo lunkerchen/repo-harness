@@ -45,7 +45,7 @@
     },
     "tools": {
       "type": "array",
-      "minItems": 10,
+      "minItems": 12,
       "items": {
         "$ref": "#/$defs/tool"
       }
@@ -120,6 +120,8 @@
             "stat_file",
             "write_file",
             "apply_patch",
+            "move_path",
+            "delete_path",
             "refresh_repo_index"
           ]
         },
@@ -632,6 +634,113 @@
           "after",
           "diff",
           "patch",
+          "index_state"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "move_path",
+      "description": "Move one existing repo-relative file to a new repo-relative path using source hash and target-existence preconditions.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "from_path",
+          "to_path",
+          "expected_sha256",
+          "must_not_exist"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "from_path": {
+            "type": "string"
+          },
+          "to_path": {
+            "type": "string"
+          },
+          "expected_sha256": {
+            "type": "string"
+          },
+          "must_not_exist": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "path",
+          "from_path",
+          "to_path",
+          "mutation_id",
+          "before",
+          "after",
+          "diff",
+          "move",
+          "index_state"
+        ],
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_path",
+      "description": "Delete one existing repo-relative regular file using an expected_sha256 precondition; directory and recursive deletes are disabled in v1.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "path",
+          "expected_sha256"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "expected_sha256": {
+            "type": "string"
+          },
+          "recursive": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "snapshot_id",
+          "ignore_digest",
+          "path",
+          "mutation_id",
+          "before",
+          "after",
+          "diff",
+          "deleted",
           "index_state"
         ],
         "properties": {},

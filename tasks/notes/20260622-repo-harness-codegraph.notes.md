@@ -190,3 +190,18 @@ Sprint 0 contract freeze for `plans/sprints/20260622-repo-harness-codegraph-spri
   rename commit and shared mutation response. Existing file mode bits are
   preserved; mtime changes and platform-specific metadata are not preserved in
   the portable v1 mutation layer.
+
+## 2026-06-23 move/delete path mutation slice
+
+- `move_path` and `delete_path` deliberately target regular files only. Moving
+  or deleting symlinks, directories, empty directories, or recursive trees stays
+  disabled in v1 so the first path-mutation surface does not create unbounded
+  tree semantics.
+- `move_path` requires the source `expected_sha256`, requires the target parent
+  directory to already exist, and requires `must_not_exist: true` for the target.
+  Stale source hashes and existing targets fail before `rename`.
+- `delete_path` requires `expected_sha256` and returns the deleted file metadata.
+  Directory targets fail before any filesystem mutation; `recursive: true`
+  returns an explicit unsupported-policy error.
+- Successful move/delete mutations invalidate snapshots and return the same
+  pending CodeGraph refresh contract as `write_file` and `apply_patch`.

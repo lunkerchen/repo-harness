@@ -91,10 +91,12 @@ describe('MCP reader tools', () => {
         'stat_file',
         'write_file',
         'apply_patch',
+        'move_path',
+        'delete_path',
         'refresh_repo_index',
       ]);
       for (const definition of definitions) {
-        if (definition.name === 'write_file' || definition.name === 'apply_patch' || definition.name === 'refresh_repo_index') {
+        if (definition.name === 'write_file' || definition.name === 'apply_patch' || definition.name === 'move_path' || definition.name === 'delete_path' || definition.name === 'refresh_repo_index') {
           expect(definition.annotations).toMatchObject({
             readOnlyHint: false,
             destructiveHint: true,
@@ -190,6 +192,20 @@ describe('MCP reader tools', () => {
           edits: [{ old_text: 'authentication', new_text: 'authorization' }],
         });
         expect(readOnlyPatch.error.code).toBe('WRITE_DISABLED');
+        const readOnlyMove = await jsonTool(ctx, 'move_path', {
+          repo_id: repoId,
+          from_path: 'docs/design.md',
+          to_path: 'docs/moved.md',
+          expected_sha256: 'unused',
+          must_not_exist: true,
+        });
+        expect(readOnlyMove.error.code).toBe('WRITE_DISABLED');
+        const readOnlyDelete = await jsonTool(ctx, 'delete_path', {
+          repo_id: repoId,
+          path: 'docs/design.md',
+          expected_sha256: 'unused',
+        });
+        expect(readOnlyDelete.error.code).toBe('WRITE_DISABLED');
         const readOnlyRefresh = await jsonTool(ctx, 'refresh_repo_index', { repo_id: repoId, paths: ['docs/design.md'] });
         expect(readOnlyRefresh.error.code).toBe('WRITE_DISABLED');
 
@@ -334,7 +350,7 @@ describe('MCP reader tools', () => {
       const repoId = (await jsonTool(writeCtx, 'list_allowed_roots')).roots[0].repo_id;
       const capabilities = await jsonTool(writeCtx, 'get_repo_capabilities', { repo_id: repoId });
       expect(capabilities.access_mode).toBe('read_write');
-      expect(capabilities.write_tools).toEqual(['write_file', 'apply_patch', 'refresh_repo_index']);
+      expect(capabilities.write_tools).toEqual(['write_file', 'apply_patch', 'move_path', 'delete_path', 'refresh_repo_index']);
 
       const missingCreatePrecondition = await jsonTool(writeCtx, 'write_file', {
         repo_id: repoId,
@@ -519,6 +535,107 @@ describe('MCP reader tools', () => {
       expect(unifiedPatch.patch).toMatchObject({ format: 'unified_diff', applied_count: 1 });
       expect(readFileSync(join(repoRoot, 'docs', 'unified.txt'), 'utf-8')).toBe('alpha\nbravo\ngamma\n');
 
+      writeFileSync(join(repoRoot, 'docs', 'move-source.txt'), 'move me\n');
+      const moveStat = await jsonTool(writeCtx, 'stat_file', { repo_id: repoId, path: 'docs/move-source.txt' });
+      const moveWithoutTargetPrecondition = await jsonTool(writeCtx, 'move_path', {
+        repo_id: repoId,
+        from_path: 'docs/move-source.txt',
+        to_path: 'docs/moved.txt',
+        expected_sha256: moveStat.sha256,
+      });
+      expect(moveWithoutTargetPrecondition.error.code).toBe('REVISION_CONFLICT');
+      expect(existsSync(join(repoRoot, 'docs', 'move-source.txt'))).toBe(true);
+      expect(existsSync(join(repoRoot, 'docs', 'moved.txt'))).toBe(false);
+
+      const moved = await jsonTool(writeCtx, 'move_path', {
+        repo_id: repoId,
+        from_path: 'docs/move-source.txt',
+        to_path: 'docs/moved.txt',
+        expected_sha256: moveStat.sha256,
+        must_not_exist: true,
+      });
+      expect(moved.error).toBeUndefined();
+      expect(moved).toMatchObject({
+        path: 'docs/moved.txt',
+        operation: 'move',
+        from_path: 'docs/move-source.txt',
+        to_path: 'docs/moved.txt',
+        before: { sha256: moveStat.sha256, size: 'move me\n'.length },
+        index: { action: 'refresh_repo_index_required', changed_paths: ['docs/move-source.txt', 'docs/moved.txt'] },
+      });
+      expect(moved.after.sha256).toBe(moveStat.sha256);
+      expect(existsSync(join(repoRoot, 'docs', 'move-source.txt'))).toBe(false);
+      expect(readFileSync(join(repoRoot, 'docs', 'moved.txt'), 'utf-8')).toBe('move me\n');
+      expect(readdirSync(join(repoRoot, 'docs')).some((name) => name.includes('.repo-harness-'))).toBe(false);
+
+      writeFileSync(join(repoRoot, 'docs', 'stale-move.txt'), 'original\n');
+      const staleMoveStat = await jsonTool(writeCtx, 'stat_file', { repo_id: repoId, path: 'docs/stale-move.txt' });
+      writeFileSync(join(repoRoot, 'docs', 'stale-move.txt'), 'changed\n');
+      const staleMove = await jsonTool(writeCtx, 'move_path', {
+        repo_id: repoId,
+        from_path: 'docs/stale-move.txt',
+        to_path: 'docs/stale-moved.txt',
+        expected_sha256: staleMoveStat.sha256,
+        must_not_exist: true,
+      });
+      expect(staleMove.error.code).toBe('REVISION_CONFLICT');
+      expect(readFileSync(join(repoRoot, 'docs', 'stale-move.txt'), 'utf-8')).toBe('changed\n');
+      expect(existsSync(join(repoRoot, 'docs', 'stale-moved.txt'))).toBe(false);
+
+      writeFileSync(join(repoRoot, 'docs', 'existing-target.txt'), 'target\n');
+      const targetExistsMove = await jsonTool(writeCtx, 'move_path', {
+        repo_id: repoId,
+        from_path: 'docs/stale-move.txt',
+        to_path: 'docs/existing-target.txt',
+        expected_sha256: staleMove.error.details.actual_sha256,
+        must_not_exist: true,
+      });
+      expect(targetExistsMove.error.code).toBe('TARGET_EXISTS');
+      expect(readFileSync(join(repoRoot, 'docs', 'stale-move.txt'), 'utf-8')).toBe('changed\n');
+      expect(readFileSync(join(repoRoot, 'docs', 'existing-target.txt'), 'utf-8')).toBe('target\n');
+
+      const deleteStat = await jsonTool(writeCtx, 'stat_file', { repo_id: repoId, path: 'docs/moved.txt' });
+      const staleDelete = await jsonTool(writeCtx, 'delete_path', {
+        repo_id: repoId,
+        path: 'docs/moved.txt',
+        expected_sha256: 'bad',
+      });
+      expect(staleDelete.error.code).toBe('REVISION_CONFLICT');
+      expect(staleDelete.error.details.actual_sha256).toBe(deleteStat.sha256);
+      expect(readFileSync(join(repoRoot, 'docs', 'moved.txt'), 'utf-8')).toBe('move me\n');
+
+      const deleted = await jsonTool(writeCtx, 'delete_path', {
+        repo_id: repoId,
+        path: 'docs/moved.txt',
+        expected_sha256: deleteStat.sha256,
+      });
+      expect(deleted.error).toBeUndefined();
+      expect(deleted).toMatchObject({
+        path: 'docs/moved.txt',
+        operation: 'delete',
+        before: { existed: true, sha256: deleteStat.sha256, size: 'move me\n'.length },
+        after: { existed: false, sha256: null, size: 0 },
+        deleted: { path: 'docs/moved.txt', type: 'file' },
+        index: { action: 'refresh_repo_index_required', changed_paths: ['docs/moved.txt'] },
+      });
+      expect(existsSync(join(repoRoot, 'docs', 'moved.txt'))).toBe(false);
+      const readDeleted = await jsonTool(writeCtx, 'read_file', { repo_id: repoId, path: 'docs/moved.txt' });
+      expect(readDeleted.error.code).toBe('NOT_FOUND');
+
+      const directoryDelete = await jsonTool(writeCtx, 'delete_path', {
+        repo_id: repoId,
+        path: 'docs',
+        expected_sha256: 'unused',
+      });
+      expect(directoryDelete.error.code).toBe('NOT_A_FILE');
+      const recursiveDelete = await jsonTool(writeCtx, 'delete_path', {
+        repo_id: repoId,
+        path: 'docs',
+        expected_sha256: 'unused',
+        recursive: true,
+      });
+      expect(recursiveDelete.error.code).toBe('INVALID_RANGE');
+
       const ignored = await jsonTool(writeCtx, 'write_file', {
         repo_id: repoId,
         path: 'ignored.md',
@@ -537,12 +654,16 @@ describe('MCP reader tools', () => {
       const auditText = readFileSync(join(repoRoot, '.ai', 'harness', 'mcp', 'audit.log'), 'utf-8');
       expect(auditText).toContain('"tool":"write_file"');
       expect(auditText).toContain('"tool":"apply_patch"');
+      expect(auditText).toContain('"tool":"move_path"');
+      expect(auditText).toContain('"tool":"delete_path"');
       expect(auditText).toContain('"status":"ok"');
       expect(auditText).toContain('"status":"blocked"');
       expect(auditText).not.toContain('first\n');
       expect(auditText).not.toContain('second\n');
       expect(auditText).not.toContain('second patched\n');
       expect(auditText).not.toContain('bravo');
+      expect(auditText).not.toContain('move me\n');
+      expect(auditText).not.toContain('changed\n');
       expect(auditText).not.toContain('stale\n');
     }, { accessMode: 'read_write' });
   });
