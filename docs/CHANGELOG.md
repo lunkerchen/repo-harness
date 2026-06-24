@@ -12,6 +12,9 @@ All notable changes to this skill are documented here.
   turns one-shot planning/delegation guard output into
   `{"detail":"Unsupported content type"}` at turn finalization. Claude keeps
   the direct Stop decision JSON path.
+- Skipped global runtime self-install when `repo-harness` is already running
+  from Bun's global install prefix, so `repo-harness global-runtime init` does
+  not try to install the package into itself.
 
 ### Removed
 
